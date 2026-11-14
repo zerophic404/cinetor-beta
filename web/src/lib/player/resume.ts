@@ -65,6 +65,16 @@ export class ResumeStore {
     return (await this.kv.get(this.lastKey(profile, itemId)))?.episodeId;
   }
 
+  /** Delete every resume entry of a profile (profile deleted / history cleared). */
+  async clearProfile(profile: string): Promise<number> {
+    const mine = (await this.kv.values()).filter((e) => e.profile === profile);
+    for (const e of mine) {
+      await this.kv.del(this.key(profile, e.itemId, e.episodeId));
+      await this.kv.del(this.lastKey(profile, e.itemId));
+    }
+    return mine.length;
+  }
+
   /** Continue Watching: video spaces only (isolation), newest first, one entry per item. */
   async continueWatching(profile: string, limit = 20): Promise<ResumeEntry[]> {
     const all = (await this.kv.values()).filter((e) => e.profile === profile && isVideoSpace(e.space) && resumable(e.pos, e.dur));

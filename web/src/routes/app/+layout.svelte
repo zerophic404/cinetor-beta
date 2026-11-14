@@ -17,6 +17,8 @@
   import { music } from '$lib/music/player.svelte';
   import MusicBar from '$lib/music/MusicBar.svelte';
   import NowPlaying from '$lib/music/NowPlaying.svelte';
+  import { adult } from '$lib/adult/store.svelte';
+  import { settings } from '$lib/settings/store.svelte';
 
   let { children } = $props();
   let spacesOpen = $state(false);
@@ -52,6 +54,8 @@
 
   onMount(() => {
     perf.init();
+    settings.apply();
+    const offAdult = adult.watchVisibility();
     const unbind = bindTintToDocument();
     // TV / remote mode: spatial navigation (auto on TV UAs, ?tv=1, or the first arrow key).
     const offTv = installSpatialNav({
@@ -68,6 +72,7 @@
     return () => {
       unbind();
       offTv();
+      offAdult();
     };
   });
 

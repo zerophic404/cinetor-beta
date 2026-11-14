@@ -1,6 +1,5 @@
 import { base } from '$app/paths';
 import { SPACE_SLUG, type Space } from './data/types';
-import { ADULT_ENABLED } from './constants';
 
 export interface NavTab {
   id: string;
@@ -38,6 +37,7 @@ export interface SpaceEntry {
   blurb: string;
 }
 
+/** Every isolated space (labels). Use visibleSpaceEntries() for the switcher. */
 export const ISOLATED_SPACE_ENTRIES: SpaceEntry[] = (
   [
     { space: 'TV', label: 'Live TV & Sports', icon: 'tv', blurb: 'Channels, EPG, live matches' },
@@ -45,7 +45,10 @@ export const ISOLATED_SPACE_ENTRIES: SpaceEntry[] = (
     { space: 'COMICS', label: 'Comics', icon: 'comics', blurb: 'Manga · Manhwa · Manhua' },
     { space: 'ADULT', label: 'Adult', icon: 'adult', blurb: '18+ · PIN protected' }
   ] as SpaceEntry[]
-).filter((e) => e.space !== 'ADULT' || ADULT_ENABLED);
+);
+
+/** Spaces shown in the switcher: Adult only once enabled (Settings → Content, not on Kids profiles). */
+export const visibleSpaceEntries = (adultEnabled: boolean): SpaceEntry[] => ISOLATED_SPACE_ENTRIES.filter((e) => e.space !== 'ADULT' || adultEnabled);
 
 /** Each isolated space gets its own tabs: its categories + in-space search + exit. */
 export function isolatedTabs(space: Space): NavTab[] {

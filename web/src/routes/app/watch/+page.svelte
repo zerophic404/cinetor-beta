@@ -14,9 +14,13 @@
   import { repo, img } from '$lib/data/repo';
   import { channelsOf, currentProgram, zapChannel } from '$lib/tv/epg';
   import { live } from '$lib/tv/live.svelte';
+  import { spaceForId } from '$lib/data/catalog';
+  import { adult } from '$lib/adult/store.svelte';
+  import AdultLock from '$lib/adult/AdultLock.svelte';
 
   const id = $derived(page.url.searchParams.get('id') ?? '');
   const epId = $derived(page.url.searchParams.get('ep'));
+  const adultLocked = $derived(spaceForId(id) === 'ADULT' && !adult.unlocked);
 
   let item = $state.raw<Item | undefined>(undefined);
   let media = $state.raw<Media | undefined>(undefined);
@@ -35,6 +39,7 @@
     const ep = epId;
     let alive = true;
     status = 'loading';
+    if (adultLocked) return;
     catalog
       .item(want)
       .catch(() => undefined)
@@ -123,7 +128,9 @@
 
 <section class="watch">
   <div class="pwrap">
-    {#if media}
+    {#if adultLocked}
+      <AdultLock><span></span></AdultLock>
+    {:else if media}
       <Player {media} onBack={back} live={!!item?.live} {liveInfo} onZap={isChannel ? zap : undefined} />
     {:else if status === 'loading'}
       <SkeletonBox aspect="16 / 9" radius="0" />

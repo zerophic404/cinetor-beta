@@ -96,7 +96,8 @@
   const busy = $derived(!!q.trim() && (!update || !update.localReady || (!update.results.length && update.remotePending) || !indexReady));
 
   async function remember(query = q) {
-    if (!query.trim()) return;
+    // 18+ searches are never remembered (no recents for the adult space).
+    if (!query.trim() || space === 'ADULT') return;
     recent = await history.add(profile, scopeKey, query);
   }
   async function forget(h: string) {
