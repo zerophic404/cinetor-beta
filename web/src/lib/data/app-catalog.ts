@@ -8,7 +8,7 @@ import { repo } from './repo';
 import { TmdbCatalogSource, TmdbClient } from './tmdb';
 
 const token: string = typeof __TMDB_TOKEN__ !== 'undefined' ? __TMDB_TOKEN__ : '';
-const persist = idbCache();
+export const persist = idbCache();
 
 /** Dominant colors (64px canvas sample of a small thumbnail), memory LRU + IndexedDB. */
 export const colors = new ColorCache({ persist });

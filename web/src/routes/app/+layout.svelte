@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { page } from '$app/state';
+  import { onNavigate } from '$app/navigation';
   import Nav from '$lib/components/Nav.svelte';
   import SpacesSheet from '$lib/components/SpacesSheet.svelte';
   import { spaceFromSlug, isVideoSpace } from '$lib/data/types';
@@ -15,6 +16,19 @@
   const isolated = $derived(!isVideoSpace(space));
   const tabs = $derived(isolated ? isolatedTabs(space) : VIDEO_TABS);
   const spaceLabel = $derived(isolated ? (ISOLATED_SPACE_ENTRIES.find((e) => e.space === space)?.label ?? null) : null);
+
+  // Card → details morph via the View Transitions API (fallback: plain navigation + CSS fades).
+  onNavigate((navigation) => {
+    const doc = document as Document & { startViewTransition?: (cb: () => Promise<void>) => unknown };
+    if (!doc.startViewTransition || perf.flags.tier === 'LOW') return;
+    if (navigation.from?.url.pathname === navigation.to?.url.pathname) return;
+    return new Promise<void>((resolve) => {
+      doc.startViewTransition!(async () => {
+        resolve();
+        await navigation.complete;
+      });
+    });
+  });
 
   onMount(() => {
     perf.init();
