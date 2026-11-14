@@ -11,6 +11,10 @@
   import { imgFor } from '$lib/ui/img';
   import { handedOff, SHARED_NAME, watchHref } from '$lib/ui/handoff';
   import { spaceHref } from '$lib/nav';
+  import { activeProfileId } from '$lib/data/library.svelte';
+  import { mediaFor, preloader, resume } from '$lib/player/controller';
+
+  const readiness = preloader.readiness;
 
   const id = $derived(page.url.searchParams.get('id') ?? '');
 
@@ -101,6 +105,38 @@
 
   const firstEpisode = $derived(episodes?.[0]);
 
+  // Instant play: warm the shared <video> with the Play target (resume episode > first episode).
+  let target = $state.raw<Episode | undefined>(undefined);
+  let playKey = $state('');
+  let resumePos = $state(0);
+  $effect(() => {
+    const it = item;
+    const eps = episodes;
+    if (!it || (it.seasons?.length && eps === null)) return;
+    let alive = true;
+    let key = '';
+    (async () => {
+      const last = it.seasons?.length ? await resume.lastEpisode(activeProfileId(), it.id) : undefined;
+      if (!alive) return;
+      const ep = (last && eps?.find((e) => e.id === last)) || eps?.[0];
+      target = ep;
+      const m = mediaFor(it, ep);
+      key = m.key;
+      playKey = m.key;
+      resumePos = await resume.startFor(activeProfileId(), it.id, ep?.id);
+      if (!alive) return;
+      void preloader.preload(m);
+    })();
+    return () => {
+      alive = false;
+      // Leaving details: free the warm buffer unless Play took it (take() makes this a no-op).
+      const k = key;
+      if (k) setTimeout(() => preloader.cancel(k), 3000);
+    };
+  });
+  const playEp = $derived(target ?? firstEpisode);
+  const ready = $derived($readiness[playKey]);
+
   async function share() {
     if (!shown) return;
     const url = location.href;
@@ -164,10 +200,10 @@
     </header>
 
     <div class="actions">
-      <a class="btn btn-primary play" href={watchHref(shown.id, firstEpisode?.id)}>
+      <a class="btn btn-primary play" href={watchHref(shown.id, playEp?.id)}>
         <svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M8 5.5v13l10.5-6.5z" /></svg>
-        {firstEpisode ? `Play S${seasonN} E${firstEpisode.n}` : 'Play'}
-        {#if status === 'ready'}<span class="ready" title="Ready"></span>{/if}
+        {resumePos > 0 ? 'Resume' : 'Play'}{playEp ? ` E${playEp.n}` : ''}
+        {#if ready === 'ready'}<span class="ready" title="Ready — starts instantly"></span>{:else if ready === 'buffering' || ready === 'resolving'}<span class="ready warming" title="Preparing…"></span>{/if}
       </a>
       <button class="btn btn-ghost" disabled title="Downloads arrive with the player (Task 8.3)" aria-label="Download (coming soon)">
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M12 4v11m0 0l-4.5-4.5M12 15l4.5-4.5M5 19.5h14" /></svg>
@@ -369,6 +405,16 @@
     border-radius: 50%;
     background: var(--success);
     box-shadow: 0 0 8px var(--success);
+  }
+  .ready.warming {
+    background: rgb(255 255 255 / 0.5);
+    box-shadow: none;
+    animation: pulse 1s ease-in-out infinite alternate;
+  }
+  @keyframes pulse {
+    to {
+      opacity: 0.3;
+    }
   }
   .btn[disabled] {
     opacity: 0.55;

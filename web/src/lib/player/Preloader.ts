@@ -24,10 +24,14 @@ export class Preloader {
 
   private set(key: string, r: Readiness | null) {
     this.ready.update((m) => {
-      const next: Record<string, Readiness> = {};
+      if (!r) {
+        if (!(key in m)) return m;
+        const rest = { ...m };
+        delete rest[key];
+        return rest;
+      }
       // Only the latest key keeps a readiness entry.
-      if (r) next[key] = r;
-      return next;
+      return { [key]: r };
     });
   }
 
