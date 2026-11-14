@@ -20,3 +20,4 @@ import kotlinx.serialization.Serializable
 @Serializable data class DetailsRoute(val id: String, val origin: String = "")
 @Serializable data object SettingsRoute
 @Serializable data object AboutRoute
+@Serializable data object DownloadsRoute

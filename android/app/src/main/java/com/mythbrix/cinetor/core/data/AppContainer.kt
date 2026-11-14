@@ -5,6 +5,7 @@ import com.mythbrix.cinetor.BuildConfig
 import com.mythbrix.cinetor.core.data.tmdb.OkHttpTmdbHttp
 import com.mythbrix.cinetor.core.data.tmdb.TmdbApi
 import com.mythbrix.cinetor.core.data.tmdb.TmdbCatalogSource
+import com.mythbrix.cinetor.core.download.DownloadsModule
 import com.mythbrix.cinetor.core.perf.DeviceProfile
 import android.util.Log
 import com.mythbrix.cinetor.core.perf.PerformanceTier
@@ -130,8 +131,14 @@ class AppContainer(context: Context) {
 
     val deviceProfile: DeviceProfile by lazy { DeviceProfile.fromContext(appContext) }
 
+    /** Download engine + offline cache (Task 3.7). Created at startup so queued downloads resume. */
+    val downloads: DownloadsModule by lazy {
+        DownloadsModule(appContext, appScope, httpClient, detectTier(deviceProfile) == PerformanceTier.LOW, settings.adultEnabled)
+    }
+
     /** Kick off catalog parsing while the splash plays. */
     fun warmUp() {
         appScope.launch { runCatching { catalogSource.preload() } }
+        appScope.launch(Dispatchers.Main) { runCatching { downloads } }
     }
 }

@@ -1,5 +1,6 @@
 package com.mythbrix.cinetor.feature.details
 
+import com.mythbrix.cinetor.feature.downloads.DownloadedBadge
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -73,7 +74,13 @@ fun SeasonTabs(seasons: List<Season>, selected: Int, onSelect: (Int) -> Unit) {
 
 /** Episode row: still (exact size) + progress, number/title, runtime, synopsis. */
 @Composable
-fun EpisodeRow(episode: Episode, progress: Float?, onClick: () -> Unit) {
+fun EpisodeRow(
+    episode: Episode,
+    progress: Float?,
+    downloaded: Boolean = false,
+    trailing: (@Composable () -> Unit)? = null,
+    onClick: () -> Unit,
+) {
     val tokens = Cinetor.tokens
     val shape = RoundedCornerShape(CinetorTokens.Shape.card)
     Row(
@@ -91,6 +98,7 @@ fun EpisodeRow(episode: Episode, progress: Float?, onClick: () -> Unit) {
                 contentScale = ContentScale.Crop,
                 modifier = Modifier.size(144.dp, 81.dp),
             )
+            if (downloaded) DownloadedBadge(Modifier.align(Alignment.TopStart).padding(4.dp))
             if (progress != null && progress > 0f) {
                 Box(
                     Modifier.align(Alignment.BottomStart).fillMaxWidth().height(3.dp)
@@ -123,5 +131,6 @@ fun EpisodeRow(episode: Episode, progress: Float?, onClick: () -> Unit) {
                 )
             }
         }
+        trailing?.invoke()
     }
 }
