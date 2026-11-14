@@ -19,9 +19,9 @@ function copyFile(from, to) {
 }
 
 copyDir(resolve(shared, 'mock'), resolve(web, 'static/mock'));
-copyDir(resolve(shared, 'brand/out/web'), resolve(web, 'static/brand'));
-copyFile(resolve(shared, 'brand/out/web/favicon.svg'), resolve(web, 'static/favicon.svg'));
-copyFile(resolve(shared, 'brand/out/web/favicon.ico'), resolve(web, 'static/favicon.ico'));
+// Brand: shared/brand/out is gitignored at the repo root, so web/static/brand is the committed,
+// web-optimized copy (iOS splash PNG -> JPEG, ~1 MB instead of 16 MB). Regenerate it locally with
+// scripts/sync-brand.py after re-running shared/scripts/gen_icons.py.
 copyFile(resolve(shared, 'generated/tokens.css'), resolve(web, 'src/lib/design/tokens.css'));
 copyFile(resolve(shared, 'generated/tokens.ts'), resolve(web, 'src/lib/design/tokens.ts'));
-console.log('sync-shared: mock, brand, tokens copied');
+console.log('sync-shared: mock + tokens copied');
