@@ -15,15 +15,13 @@ on:
 
 permissions:
   contents: read
-  pages: write
-  id-token: write
 
 concurrency:
   group: web-${{ github.ref }}
   cancel-in-progress: true
 
 env:
-  BASE_PATH: /cinetor
+  BASE_PATH: /cinetor-app
 
 jobs:
   build:
@@ -60,6 +58,8 @@ jobs:
       - name: Build
         if: hashFiles('web/package.json') != ''
         working-directory: web
+        env:
+          PUBLIC_TMDB_TOKEN: ${{ secrets.TMDB_TOKEN }}
         run: npm run build
 
       - name: Test
@@ -80,24 +80,14 @@ jobs:
           path: web/build
           retention-days: 14
 
-      - name: Upload Pages artifact
+      - name: Deploy to public cinetor-app gh-pages
         if: hashFiles('web/package.json') != '' && github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
-        uses: actions/upload-pages-artifact@v3
+        uses: peaceiris/actions-gh-pages@v4
         with:
-          path: web/build
-
-  deploy:
-    needs: build
-    # Gated: hashFiles() is not allowed in job-level `if`, so build exposes it as an output.
-    # Stays skipped until web/package.json exists; only deploys from main.
-    if: needs.build.outputs.has_web == 'true' && github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
-    runs-on: ubuntu-latest
-    # Pages needs a paid plan for private repos; don't fail the workflow when it's unavailable.
-    continue-on-error: true
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
-    steps:
-      - name: Deploy to GitHub Pages
-        id: deployment
-        uses: actions/deploy-pages@v4
+          deploy_key: ${{ secrets.PAGES_DEPLOY_KEY }}
+          external_repository: Ashrix404/cinetor-app
+          publish_branch: gh-pages
+          publish_dir: web/build
+          force_orphan: true
+          enable_jekyll: false
+          commit_message: "deploy web ${{ github.sha }}"
