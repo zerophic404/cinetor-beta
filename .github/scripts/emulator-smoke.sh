@@ -119,7 +119,7 @@ tap_text() {
 }
 if tap_desc "Open spaces"; then
   sleep 2
-  if tap_text "Live TV & Sports"; then
+  if tap_text "Live TV &amp; Sports" || tap_text "Live TV"; then
     shot 50-tv-live 6
     adb shell input swipe $((W/2)) $((H*3/4)) $((W/2)) $((H/4)) 400; shot 51-tv-grid 2
     adb shell input swipe $((W/2)) $((H/4)) $((W/2)) $((H*3/4)) 400; sleep 1
@@ -135,6 +135,8 @@ if tap_desc "Open spaces"; then
       adb shell input keyevent KEYCODE_BACK; sleep 2                 # → mini
       tap_desc "Close mini player"; sleep 1
     fi
+  else
+    adb shell input keyevent KEYCODE_BACK; sleep 1
   fi
 fi
 if tap_desc "Open spaces"; then
