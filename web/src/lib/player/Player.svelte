@@ -109,6 +109,8 @@
   /** TV / remote: ←/→ ±10 s, Enter play/pause, ↑ shows controls + focuses them, Back minimizes. */
   function onTvKey(e: KeyboardEvent): boolean {
     if (!$tvEnabled || !stage || e.ctrlKey || e.metaKey || e.altKey) return false;
+    // Already handled by spatial nav (e.g. Back inside the controls refocused the stage).
+    if (e.defaultPrevented) return true;
     const k = navKey(e);
     if (!k) return false;
     const a = document.activeElement;
