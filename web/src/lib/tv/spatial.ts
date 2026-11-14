@@ -114,7 +114,7 @@ export function setTv(on: boolean, persist = true): void {
 }
 
 const visible = (el: HTMLElement): boolean => {
-  if (el.closest('[inert], [aria-hidden="true"], .video-park')) return false;
+  if (el.closest('[inert], [aria-hidden="true"], .video-park, .skip, [data-tv-skip]')) return false;
   const r = el.getBoundingClientRect();
   if (r.width < 2 || r.height < 2) return false;
   const cs = getComputedStyle(el);
@@ -146,7 +146,10 @@ const memory = new Map<string, { key: string; index: number }>();
 const routeKey = () => location.pathname + location.search;
 const elKey = (el: HTMLElement) => el.id || el.getAttribute('href') || el.getAttribute('aria-label') || el.textContent?.trim().slice(0, 40) || '';
 
+let lastFocused: HTMLElement | null = null;
+
 export function remember(el: HTMLElement): void {
+  lastFocused = el;
   const list = focusables(document);
   memory.set(routeKey(), { key: elKey(el), index: list.indexOf(el) });
 }
@@ -176,6 +179,12 @@ function move(dir: Dir): boolean {
   if (!list.length) return false;
   const cur = document.activeElement as HTMLElement | null;
   if (!cur || cur === document.body || !list.includes(cur)) {
+    // Focus lost (element re-rendered): resume from the last focused element if still on screen.
+    if (lastFocused?.isConnected && list.includes(lastFocused)) {
+      const next = nearest(rectOf(lastFocused), list.filter((el) => el !== lastFocused).map((el) => ({ rect: rectOf(el), value: el })), dir);
+      focusEl(next ?? lastFocused);
+      return true;
+    }
     const main = document.getElementById('main');
     focusEl(list.find((el) => main?.contains(el)) ?? list[0]);
     return true;
