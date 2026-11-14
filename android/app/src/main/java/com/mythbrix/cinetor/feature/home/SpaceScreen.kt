@@ -1,6 +1,10 @@
 package com.mythbrix.cinetor.feature.home
 
-import androidx.compose.animation.Crossfade
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -52,10 +56,11 @@ fun SpaceScreen(
     LaunchedEffect(state) {
         (state as? SpaceUiState.Ready)?.heroColor?.let { tint.setSource(hexColor(it)) }
     }
-    Crossfade(
+    val fadeMs = Cinetor.tier.scaled(CinetorTokens.Motion.longMs)
+    AnimatedContent(
         targetState = state,
+        transitionSpec = { fadeIn(tween(fadeMs)) togetherWith fadeOut(tween(fadeMs)) },
         contentKey = { it::class },
-        animationSpec = androidx.compose.animation.core.tween(Cinetor.tier.scaled(CinetorTokens.Motion.longMs)),
         label = "spaceState",
     ) { s ->
         when (s) {
