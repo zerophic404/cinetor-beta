@@ -201,6 +201,15 @@ Files: `MainActivity.kt`, `c/navigation/{Routes.kt,CinetorNavHost.kt,AdaptiveNav
 
 ## Phase 2 — Android content screens
 
+### Task 2.0: TMDB metadata source (Home/Anime/Drama only)
+Files: `c/core/data/tmdb/{TmdbApi.kt,TmdbCatalogSource.kt,TmdbMapper.kt,ColorCache.kt}`, web mirror `web/src/lib/data/tmdb.ts`.
+- Token: CI secret `TMDB_TOKEN` (v4 bearer) → `BuildConfig.TMDB_TOKEN` (Android) / `PUBLIC_TMDB_TOKEN` env at web build. Local copy `~/.config/cinetor/tmdb.env` (never committed). Later: Cloudflare Worker proxy.
+- Mapping: Home Movies = trending/popular/top_rated/now_playing/upcoming + discover by genre; Series = tv equivalents; Anime = discover with genre 16 + `with_origin_country=JP`; Drama K/C/J = discover tv `with_origin_country=KR|CN|JP` excluding genre 16; global search = `/search/multi` filtered to those three spaces' rules. `include_adult=false` always.
+- Images `image.tmdb.org/t/p/{w185|w342|w780|w1280}` chosen by tier + card size. `dominantColor` computed once per image off-main (Palette on a 64px thumbnail) and cached (memory LRU + DataStore/IndexedDB).
+- Video `sources` still mock (test streams) — attached by `MockSourceProvider`.
+- Fallback: no token / offline / error → MockCatalogSource. About shows TMDB attribution: "This product uses the TMDB API but is not endorsed or certified by TMDB." + TMDB logo.
+- [ ] Tests: `mapper_mapsMovieAndTv`, `anime_queryUsesGenre16AndJP`, `drama_kdramaUsesKR`, `tmdbError_fallsBackToMock`, `search_neverIncludesAdult`.
+
 ### Task 2.1: Section screen (shared by every space)
 Files: `c/feature/home/{SpaceScreen.kt,SpaceViewModel.kt,HeroCarousel.kt,CategoryTabs.kt,GenreChips.kt,ContentRow.kt,Cards.kt}`.
 - `SpaceScreen(space: Space)` = CategoryTabs (Home: Movies|Series, Drama: K|C|J, TV: Live|Sports, Comics: Manga|Manhwa|Manhua, Music: Albums|Tracks, Anime/Adult: genres-led) + HeroCarousel per category + GenreChips filter + rows.
