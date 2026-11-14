@@ -147,7 +147,7 @@ fun DownloadsScreen(module: DownloadsModule, contentPadding: PaddingValues, onOp
                             }
                         }
                     }
-                    IconButton(onClick = { showSettings = !showSettings }, modifier = Modifier.semantics { contentDescription = "Download settings" }) {
+                    IconButton(onClick = { showSettings = !showSettings }, modifier = Modifier.semantics { contentDescription = "Queue settings" }) {
                         Icon(Icons.Rounded.Tune, contentDescription = null, tint = if (showSettings) t.accent else t.textPrimary)
                     }
                 }
