@@ -3,7 +3,8 @@ import { get } from 'svelte/store';
 import { activeProfileId } from '$lib/data/library.svelte';
 import { clock, togglePiP } from './controller';
 import { engine } from './engine';
-import { BRIGHTNESS_MAX, BRIGHTNESS_MIN, HOLD_RATE, HoldSpeed, clamp, fmtTime, seekBy } from './gesture-math';
+import { BRIGHTNESS_MAX, BRIGHTNESS_MIN, HoldSpeed, clamp, fmtTime, seekBy } from './gesture-math';
+import { settings } from '$lib/settings/store.svelte';
 import { stepSpeed } from './keys';
 import { DEFAULT_SUB_STYLE, clampOffset, parseSubtitles, type Cue, type SubStyle } from './subs';
 import type { Sub } from '$lib/data/types';
@@ -133,13 +134,13 @@ export class PlayerUI {
   holdStart(): void {
     const v = this.video;
     if (!v || v.paused) return;
-    v.playbackRate = this.hold.start(v.playbackRate);
+    v.playbackRate = this.hold.start(v.playbackRate, settings.s.holdSpeed);
     this.holding = true;
   }
   holdEnd(): void {
     const prev = this.hold.end();
     const v = this.video;
-    if (v && prev !== null) v.playbackRate = v.playbackRate === HOLD_RATE ? prev : v.playbackRate;
+    if (v && prev !== null) v.playbackRate = v.playbackRate === this.hold.rate ? prev : v.playbackRate;
     this.holding = false;
   }
   doubleTap(side: 'left' | 'right', total: number, step: number): void {

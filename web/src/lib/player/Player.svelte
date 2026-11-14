@@ -11,6 +11,7 @@
   import { PlayerUI } from './ui.svelte';
   import Controls from './Controls.svelte';
   import Subtitles from './Subtitles.svelte';
+  import { settings } from '$lib/settings/store.svelte';
 
   interface Props {
     media: Media;
@@ -42,8 +43,18 @@
       lastKey = media.key;
       ui.reset();
       countdown = null;
+      autoSubs();
     }
   });
+
+  /** Settings → Subtitles → turn on automatically in the preferred language. */
+  function autoSubs() {
+    if (!settings.s.subsAuto) return;
+    const want = settings.s.subLang;
+    const i = media.subtitles.findIndex((s) => s.lang.toLowerCase().startsWith(want));
+    if (i < 0) return;
+    void ui.selectSub(`side:${i}`, media.subtitles);
+  }
 
   /** Svelte action: host the shared element here while mounted. */
   function host(node: HTMLElement) {
@@ -56,8 +67,9 @@
     ui.stage = stage;
     ui.show();
     if ($tvEnabled) stage.focus({ preventScroll: true });
+    // Settings → Playback: gestures off = taps only; double-tap step configurable.
     const offGestures = attachGestures(stage, {
-      locked: () => ui.locked,
+      locked: () => ui.locked || !settings.s.gestures,
       tap: (type) => (type === 'mouse' ? ui.togglePlay() : ui.toggleControls()),
       dblclick: () => void ui.toggleFullscreen(),
       doubleTapSeek: (side, total, step) => side !== 'center' && ui.doubleTap(side, total, step),
@@ -83,7 +95,7 @@
       },
       levelEnd: () => {},
       swipeV: live && onZap ? (dir) => zap(dir) : undefined
-    });
+    }, settings.s.doubleTapSec);
     const fs = () => (ui.fullscreen = document.fullscreenElement === stage);
     document.addEventListener('fullscreenchange', fs);
     return () => {
@@ -97,7 +109,7 @@
   // Autoplay next: 10 s countdown card when the episode ends (not with "sleep: end of episode").
   const ended = $derived($clock.ended);
   $effect(() => {
-    if (!ended || !$nextUp || $sleep.mode === 'end' || $sess.mode !== 'full') {
+    if (!ended || !$nextUp || !settings.s.autoplayNext || $sleep.mode === 'end' || $sess.mode !== 'full') {
       countdown = null;
       return;
     }
@@ -249,7 +261,7 @@
       <div class="ripple {ui.ripple.side}" aria-hidden="true"><span>{ui.ripple.side === 'left' ? '«' : '»'} {ui.ripple.text}</span></div>
     {/key}
   {/if}
-  {#if ui.holding}<div class="pill" aria-live="polite">2× ▸▸</div>{/if}
+  {#if ui.holding}<div class="pill" aria-live="polite">{settings.s.holdSpeed}× ▸▸</div>{/if}
   {#if ui.drag}<div class="pill center">{ui.dragLabel()}</div>{/if}
   {#if ui.hud}
     <div class="hud {ui.hud.kind}" aria-hidden="true">

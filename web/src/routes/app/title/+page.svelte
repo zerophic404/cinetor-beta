@@ -18,6 +18,7 @@
   import { spaceForId } from '$lib/data/catalog';
   import { adult } from '$lib/adult/store.svelte';
   import AdultLock from '$lib/adult/AdultLock.svelte';
+  import { settings } from '$lib/settings/store.svelte';
 
   const readiness = preloader.readiness;
 
@@ -119,7 +120,7 @@
   $effect(() => {
     const it = item;
     const eps = episodes;
-    if (adultLocked || !it || (it.seasons?.length && eps === null)) return;
+    if (adultLocked || !settings.s.preloadDetails || !it || (it.seasons?.length && eps === null)) return;
     let alive = true;
     let key = '';
     (async () => {
