@@ -52,7 +52,7 @@ adb shell input keyevent KEYCODE_BACK; shot 24-back-home 2
 tap_desc "Tab Series" && shot 25-home-series 4
 # scroll to rows and open a poster card
 adb shell input swipe $((W/2)) $((H*3/4)) $((W/2)) $((H/3)) 400; shot 26-home-rows 2
-adb shell input tap $((W/6)) $((H/2)); shot 27-card-details 4
+adb shell input tap $((W/6)) $((H*2/3)); shot 27-card-details 4
 adb shell input keyevent KEYCODE_BACK; sleep 1
 
 adb logcat -d > "$OUT/logcat.txt" || true
