@@ -15,6 +15,9 @@
     "pretest": "node scripts/sync-shared.mjs",
     "test": "vitest run"
   },
+  "dependencies": {
+    "shaka-player": "^4.16.0"
+  },
   "devDependencies": {
     "@types/node": "^22.10.0",
     "@sveltejs/adapter-static": "^3.0.10",
