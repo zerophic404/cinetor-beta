@@ -22,7 +22,8 @@ echo "screen ${W}x${H}"
 adb shell input swipe $((W/2)) $((H*3/4)) $((W/2)) $((H/4)) 400; shot 03-home-scrolled 3
 adb shell input swipe $((W/2)) $((H/4)) $((W/2)) $((H*3/4)) 400; sleep 1
 # bottom bar: 5 tabs Home Anime Drama Search Me
-BAR_Y=$((H - H/30))
+# in-app glass bar sits above the system nav bar (~48dp) → ~89% of screen height
+BAR_Y=$((H * 89 / 100))
 i=0
 for name in home anime drama search me; do
   X=$(( W * (2*i + 1) / 10 ))
