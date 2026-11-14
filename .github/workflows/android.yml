@@ -47,6 +47,10 @@ jobs:
           mkdir -p out
           cp app/build/outputs/apk/debug/*.apk "out/cinetor-build${{ github.run_number }}-debug.apk"
           ls -la out
+          # Mock catalog must be bundled from shared/mock (generated assets, not in git)
+          unzip -l out/*.apk | grep -q 'assets/mock/home.json'
+          unzip -l out/*.apk | grep -q 'assets/mock/images/posters/'
+          echo "mock assets: $(unzip -l out/*.apk | grep -c 'assets/mock/') files"
 
       - uses: actions/upload-artifact@v4
         with:
