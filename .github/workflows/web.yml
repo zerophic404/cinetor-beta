@@ -50,7 +50,11 @@ jobs:
       - name: Install
         if: hashFiles('web/package.json') != ''
         working-directory: web
-        run: npm ci || npm install
+        run: |
+          if [ -f package-lock.json ]; then npm ci && exit 0; fi
+          npm install --no-audit --no-fund && exit 0
+          echo '::group::npm debug log'; tail -n 120 $(ls -t ~/.npm/_logs/*-debug-0.log | head -1); echo '::endgroup::'
+          exit 1
 
       - name: Build
         if: hashFiles('web/package.json') != ''
