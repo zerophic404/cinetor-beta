@@ -1,5 +1,8 @@
 package com.mythbrix.cinetor.core.player
 
+import androidx.media3.exoplayer.source.MediaSource
+import com.mythbrix.cinetor.core.download.DownloadCacheProvider
+import com.mythbrix.cinetor.core.download.OfflineSource
 import android.content.Context
 import android.util.Log
 import androidx.annotation.OptIn
@@ -73,6 +76,8 @@ class ExoCinetorPlayer(
     private val context: Context,
     private val exo: ExoPlayer,
     private val cache: SimpleCache?,
+    /** Download cache hook (Task 3.7): completed downloads play from disk, even in airplane mode. */
+    private val offline: () -> DownloadCacheProvider? = { null },
 ) : CinetorPlayer {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
     private val _state = MutableStateFlow(PlayerUiState())
@@ -152,9 +157,26 @@ class ExoCinetorPlayer(
             .setTrackTypeDisabled(C.TRACK_TYPE_TEXT, !textEnabled)
             .build()
         _state.value = PlayerUiState(key = request.key, speed = exo.playbackParameters.speed, phase = PlaybackPhase.BUFFERING)
-        exo.setMediaSource(SourceResolver.toMediaSource(context, request, cache), startPositionMs.coerceAtLeast(0))
+        exo.setMediaSource(mediaSourceFor(request), startPositionMs.coerceAtLeast(0))
         exo.playWhenReady = playWhenReady
         exo.prepare()
+    }
+
+    /** Downloaded → local file / download cache; else online through the LRU cache. */
+    private fun mediaSourceFor(request: PlaybackRequest): MediaSource {
+        val provider = runCatching { offline() }.getOrNull()
+        val src = provider?.let { runCatching { it.offlineSource(request.itemId, request.episodeId) }.getOrNull() }
+        return when (src) {
+            is OfflineSource.LocalFile -> {
+                Log.i(TAG, "source offline-file ${request.key}")
+                SourceResolver.toLocalMediaSource(context, request, src)
+            }
+            is OfflineSource.Cached -> {
+                Log.i(TAG, "source offline-cache ${request.key}")
+                SourceResolver.toCachedMediaSource(context, request, src, provider!!)
+            }
+            null -> SourceResolver.toMediaSource(context, request, cache)
+        }
     }
 
     override fun play() {

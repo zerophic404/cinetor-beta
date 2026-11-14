@@ -48,6 +48,7 @@ import coil3.compose.AsyncImage
 import com.mythbrix.cinetor.core.data.AssetUris
 import com.mythbrix.cinetor.core.download.DownloadEvent
 import com.mythbrix.cinetor.core.download.DownloadKind
+import com.mythbrix.cinetor.core.download.DownloadRecord
 import com.mythbrix.cinetor.core.download.DownloadStatus
 import com.mythbrix.cinetor.core.download.DownloadsModule
 import com.mythbrix.cinetor.core.download.formatBytes
@@ -70,7 +71,13 @@ import java.util.Locale
  */
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
-fun DownloadDetailsSheet(id: String, module: DownloadsModule, onDismiss: () -> Unit, onOpen: (String) -> Unit) {
+fun DownloadDetailsSheet(
+    id: String,
+    module: DownloadsModule,
+    onDismiss: () -> Unit,
+    onOpen: (String) -> Unit,
+    onPlay: ((DownloadRecord) -> Unit)? = null,
+) {
     val t = Cinetor.tokens
     val all by module.visible.collectAsStateWithLifecycle()
     val info = all.firstOrNull { it.record.id == id }
@@ -183,7 +190,7 @@ fun DownloadDetailsSheet(id: String, module: DownloadsModule, onDismiss: () -> U
                         Action("Pause") { scope.launch { engine.pause(r.id) } }
                     DownloadStatus.PAUSED -> Action("Resume") { scope.launch { engine.resume(r.id) } }
                     DownloadStatus.FAILED -> Action("Retry") { scope.launch { engine.retry(r.id) } }
-                    DownloadStatus.COMPLETED -> Action("Play") { onOpen(r.itemId) }
+                    DownloadStatus.COMPLETED -> Action("Play") { onPlay?.invoke(r) ?: onOpen(r.itemId) }
                 }
                 if (r.status != DownloadStatus.COMPLETED) {
                     Action("Cancel") { scope.launch { engine.cancel(r.id); onDismiss() } }

@@ -61,6 +61,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil3.compose.AsyncImage
 import com.mythbrix.cinetor.core.data.AssetUris
 import com.mythbrix.cinetor.core.download.DownloadInfo
+import com.mythbrix.cinetor.core.download.DownloadRecord
 import com.mythbrix.cinetor.core.download.DownloadSort
 import com.mythbrix.cinetor.core.download.DownloadStatus
 import com.mythbrix.cinetor.core.download.DownloadsModule
@@ -93,7 +94,12 @@ fun tabOf(info: DownloadInfo): DownloadsTab = when (info.record.status) {
  */
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
-fun DownloadsScreen(module: DownloadsModule, contentPadding: PaddingValues, onOpenItem: (String) -> Unit) {
+fun DownloadsScreen(
+    module: DownloadsModule,
+    contentPadding: PaddingValues,
+    onOpenItem: (String) -> Unit,
+    onPlay: (DownloadRecord) -> Unit = { onOpenItem(it.itemId) },
+) {
     val t = Cinetor.tokens
     val all by module.visible.collectAsStateWithLifecycle()
     val storage by module.storage.collectAsStateWithLifecycle()
@@ -219,7 +225,7 @@ fun DownloadsScreen(module: DownloadsModule, contentPadding: PaddingValues, onOp
                         when (info.record.status) {
                             DownloadStatus.PAUSED -> module.engine.resume(id)
                             DownloadStatus.FAILED -> module.engine.retry(id)
-                            DownloadStatus.COMPLETED -> onOpenItem(info.record.itemId)
+                            DownloadStatus.COMPLETED -> onPlay(info.record)
                             else -> module.engine.pause(id)
                         }
                     }
@@ -228,7 +234,11 @@ fun DownloadsScreen(module: DownloadsModule, contentPadding: PaddingValues, onOp
         }
     }
     detailsId?.let { id ->
-        DownloadDetailsSheet(id, module, onDismiss = { detailsId = null }, onOpen = { itemId -> detailsId = null; onOpenItem(itemId) })
+        DownloadDetailsSheet(
+            id, module, onDismiss = { detailsId = null },
+            onOpen = { itemId -> detailsId = null; onOpenItem(itemId) },
+            onPlay = { r -> detailsId = null; onPlay(r) },
+        )
     }
 }
 

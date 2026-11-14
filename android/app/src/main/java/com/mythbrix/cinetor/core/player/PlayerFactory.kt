@@ -39,7 +39,12 @@ fun cacheBytesFor(tier: PerformanceTier): Long = if (tier == PerformanceTier.LOW
  * rotation / navigation never recreate it.
  */
 @OptIn(UnstableApi::class)
-class PlayerFactory(context: Context, private val tier: PerformanceTier) {
+class PlayerFactory(
+    context: Context,
+    private val tier: PerformanceTier,
+    /** Download cache hook → offline playback of completed downloads. */
+    private val offline: () -> com.mythbrix.cinetor.core.download.DownloadCacheProvider? = { null },
+) {
     private val appContext = context.applicationContext
 
     /** How many ExoPlayer instances were ever built (must stay 1). */
@@ -58,7 +63,7 @@ class PlayerFactory(context: Context, private val tier: PerformanceTier) {
     @Synchronized
     fun player(): ExoCinetorPlayer {
         wrapper?.let { return it }
-        val w = ExoCinetorPlayer(appContext, exoPlayer(), cache)
+        val w = ExoCinetorPlayer(appContext, exoPlayer(), cache, offline)
         wrapper = w
         return w
     }

@@ -293,7 +293,10 @@ fun DetailsScreen(
         )
     }
     dlDetailsId?.let { dlId ->
-        DownloadDetailsSheet(dlId, container.downloads, onDismiss = { dlDetailsId = null }, onOpen = { dlDetailsId = null })
+        DownloadDetailsSheet(
+            dlId, container.downloads, onDismiss = { dlDetailsId = null }, onOpen = { dlDetailsId = null },
+            onPlay = { r -> dlDetailsId = null; container.playDownload(r) },
+        )
     }
 }
 

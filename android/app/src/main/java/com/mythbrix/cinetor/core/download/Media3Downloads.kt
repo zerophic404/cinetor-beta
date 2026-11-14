@@ -77,7 +77,7 @@ interface DownloadCacheProvider {
 }
 
 sealed interface OfflineSource {
-    data class LocalFile(val file: File, val mimeType: String?) : OfflineSource
+    data class LocalFile(val file: File, val mimeType: String?, val sidecars: List<SidecarSub> = emptyList()) : OfflineSource
     data class Cached(val request: DownloadRequest) : OfflineSource
 }
 
@@ -113,14 +113,16 @@ class Media3Downloads(
         }
     }
 
-    override fun offlineSource(itemId: String, episodeId: String?): OfflineSource? {
-        val r = completed.value[downloadIdFor(itemId, episodeId)] ?: return null
-        return when (r.kind) {
-            DownloadKind.PROGRESSIVE -> File(r.filePath).takeIf { it.exists() }?.let { OfflineSource.LocalFile(it, r.mimeType) }
+    override fun offlineSource(itemId: String, episodeId: String?): OfflineSource? =
+        when (val plan = OfflineResolver.resolve(completed.value, itemId, episodeId) { File(it).exists() }) {
+            null -> null
+            is OfflinePlan.LocalFile -> OfflineSource.LocalFile(File(plan.path), plan.mimeType, plan.sidecars)
             // Index request carries the exact stream keys that were downloaded.
-            else -> OfflineSource.Cached(peek(r.id)?.request ?: requestFor(r))
+            is OfflinePlan.Cached -> {
+                val r = completed.value.getValue(plan.downloadId)
+                OfflineSource.Cached(peek(r.id)?.request ?: requestFor(r))
+            }
         }
-    }
 
     override fun cacheDataSourceFactory(upstream: DataSource.Factory): DataSource.Factory =
         CacheDataSource.Factory()

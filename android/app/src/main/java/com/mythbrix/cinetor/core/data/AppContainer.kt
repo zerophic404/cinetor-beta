@@ -5,7 +5,11 @@ import com.mythbrix.cinetor.BuildConfig
 import com.mythbrix.cinetor.core.data.tmdb.OkHttpTmdbHttp
 import com.mythbrix.cinetor.core.data.tmdb.TmdbApi
 import com.mythbrix.cinetor.core.data.tmdb.TmdbCatalogSource
+import com.mythbrix.cinetor.core.download.DownloadRecord
 import com.mythbrix.cinetor.core.download.DownloadsModule
+import com.mythbrix.cinetor.core.download.OfflineResolver
+import com.mythbrix.cinetor.core.player.SourceResolver
+import kotlinx.coroutines.withTimeoutOrNull
 import com.mythbrix.cinetor.core.perf.DeviceProfile
 import android.util.Log
 import com.mythbrix.cinetor.core.perf.PerformanceTier
@@ -81,7 +85,7 @@ class AppContainer(context: Context) {
     val playerTier: PerformanceTier by lazy { detectTier(deviceProfile) }
 
     /** Owns the ONE shared ExoPlayer + 200 MB (LOW: 80 MB) SimpleCache. Process-scoped → survives rotation. */
-    val playerFactory: PlayerFactory by lazy { PlayerFactory(appContext, playerTier) }
+    val playerFactory: PlayerFactory by lazy { PlayerFactory(appContext, playerTier) { downloads.cacheProvider } }
 
     /** Resume positions (DataStore JSON keyed profile+item+episode; Room later if added). */
     val resume: ResumeStore = ResumeRepository(ResumeDataStore(appContext))
@@ -134,6 +138,19 @@ class AppContainer(context: Context) {
     /** Download engine + offline cache (Task 3.7). Created at startup so queued downloads resume. */
     val downloads: DownloadsModule by lazy {
         DownloadsModule(appContext, appScope, httpClient, detectTier(deviceProfile) == PerformanceTier.LOW, settings.adultEnabled)
+    }
+
+    /**
+     * Play a completed download (Downloads screen). Uses the catalog item when it answers fast (next episode,
+     * metadata), else a stub rebuilt from the record so airplane mode still works. The player itself picks the
+     * local file / download cache; resume position is the same store as streaming.
+     */
+    fun playDownload(record: DownloadRecord) {
+        mainScope.launch {
+            val full = withTimeoutOrNull(1_500) { runCatching { catalog.item(record.itemId) }.getOrNull() }
+                ?.takeIf { SourceResolver.request(it, record.episodeId)?.episodeId == record.episodeId }
+            playback.play(full ?: OfflineResolver.playableItem(record), record.episodeId)
+        }
     }
 
     /** Kick off catalog parsing while the splash plays. */

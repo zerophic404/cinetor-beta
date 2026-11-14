@@ -18,6 +18,10 @@ import com.mythbrix.cinetor.core.data.Source
 import com.mythbrix.cinetor.core.data.SourceKind
 import com.mythbrix.cinetor.core.data.Sub
 import com.mythbrix.cinetor.core.data.SubFormat
+import com.mythbrix.cinetor.core.download.DownloadCacheProvider
+import com.mythbrix.cinetor.core.download.OfflineResolver
+import com.mythbrix.cinetor.core.download.OfflineSource
+import com.mythbrix.cinetor.core.download.SidecarSub
 
 /** Container/protocol family chosen for a source (drives which Media3 MediaSource is used). */
 enum class StreamType(val mimeType: String?) {
@@ -164,17 +168,63 @@ object SourceResolver {
         return if (i >= 0) eps.getOrNull(i + 1) else null
     }
 
+    /** Pure: subtitle mime from a file extension (sidecar subs of downloads). */
+    fun subtitleMimeOfExt(ext: String): String = when (ext.lowercase()) {
+        "srt" -> "application/x-subrip"
+        "ass", "ssa" -> "text/x-ssa"
+        else -> "text/vtt"
+    }
+
+    /** Pure: subs usable offline = bundled/local ones from the plan + downloaded sidecar files. */
+    fun offlineSubs(plan: PlaybackPlan, sidecars: List<SidecarSub>): List<SubPlan> =
+        plan.subtitles.filter { OfflineResolver.isOfflineSubUrl(it.url) } +
+            sidecars.map { SubPlan("file://" + it.path, subtitleMimeOfExt(it.ext), it.lang, it.lang.uppercase()) }
+
+    private fun subConfigs(subs: List<SubPlan>): List<MediaItem.SubtitleConfiguration> = subs.map { s ->
+        MediaItem.SubtitleConfiguration.Builder(Uri.parse(s.url))
+            .setMimeType(s.mimeType)
+            .setLanguage(s.language)
+            .setLabel(s.label)
+            .setSelectionFlags(0)
+            .build()
+    }
+
+    private fun metadata(request: PlaybackRequest): MediaMetadata =
+        MediaMetadata.Builder().setTitle(request.title).setSubtitle(request.subtitle).build()
+
+    /** Android: progressive download on disk → MediaSource (no network at all). */
+    @OptIn(UnstableApi::class)
+    fun toLocalMediaSource(context: android.content.Context, request: PlaybackRequest, file: OfflineSource.LocalFile): MediaSource {
+        val item = MediaItem.Builder()
+            .setUri(Uri.fromFile(file.file))
+            .setMediaId(request.key)
+            .setSubtitleConfigurations(subConfigs(offlineSubs(request.plan, file.sidecars)))
+            .setMediaMetadata(metadata(request))
+            .build()
+        return DefaultMediaSourceFactory(androidx.media3.datasource.DefaultDataSource.Factory(context)).createMediaSource(item)
+    }
+
+    /** Android: HLS/DASH download → MediaSource reading segments from the download cache (never writes). */
+    @OptIn(UnstableApi::class)
+    fun toCachedMediaSource(
+        context: android.content.Context,
+        request: PlaybackRequest,
+        cached: OfflineSource.Cached,
+        provider: DownloadCacheProvider,
+    ): MediaSource {
+        val upstream = androidx.media3.datasource.DefaultDataSource.Factory(context, httpFactory(request.plan.headers))
+        val item = cached.request.toMediaItem().buildUpon()
+            .setMediaId(request.key)
+            .setSubtitleConfigurations(subConfigs(offlineSubs(request.plan, emptyList())))
+            .setMediaMetadata(metadata(request))
+            .build()
+        return DefaultMediaSourceFactory(provider.cacheDataSourceFactory(upstream)).createMediaSource(item)
+    }
+
     /** Android: plan → MediaItem (MIME hint + side-loaded subtitles). */
     fun toMediaItem(request: PlaybackRequest): MediaItem {
         val p = request.plan
-        val subs = p.subtitles.map { s ->
-            MediaItem.SubtitleConfiguration.Builder(Uri.parse(s.url))
-                .setMimeType(s.mimeType)
-                .setLanguage(s.language)
-                .setLabel(s.label)
-                .setSelectionFlags(0)
-                .build()
-        }
+        val subs = subConfigs(p.subtitles)
         return MediaItem.Builder()
             .setUri(p.url)
             .setMediaId(request.key)

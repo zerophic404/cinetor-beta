@@ -207,7 +207,9 @@ fun CinetorNavHost(container: AppContainer, modifier: Modifier = Modifier) {
                                 }
                                 screen<SettingsRoute> { SettingsScreen(contentPadding, container.settings) }
                                 screen<AboutRoute> { AboutScreen(contentPadding) }
-                                screen<DownloadsRoute> { DownloadsScreen(container.downloads, contentPadding, openItem) }
+                                screen<DownloadsRoute> {
+                                    DownloadsScreen(container.downloads, contentPadding, openItem, onPlay = { container.playDownload(it) })
+                                }
                             }
                         }
                     }
