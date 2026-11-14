@@ -29,7 +29,7 @@ Branch `web/phase-4` (worktree ~/apk-projects/cinetor-web). CI = web.yml (build+
 tv/epg.test, music/music.test, comics/comics.test, adult/gate.test, profile/profiles.test, settings/settings.test, about.test.
 
 ## SHAs / runs
-- A 5051e3b · B de13bfb · C b69f728 · D 775bdf3 · E 0529372 · F+G 5314a63 (run 43653471444 green) · QA fixes: see PR.
+- A 5051e3b · B de13bfb · C b69f728 · D 775bdf3 · E 0529372 · F+G 5314a63 (run 43653471444 green) · QA eaa7b85 (run 43654141293 green) · PR https://github.com/Ashrix404/cinetor/pull/2
 - Browser QA on CI artifact: TV grid/guide/sports, zap wrap 101→130, music play survives nav, NowPlaying queue,
   manga rtl keys + progress, manhwa vertical auto-appends chapters, 18+ enable→reload asks PIN, kids profile blocks 18+, about links.
 
