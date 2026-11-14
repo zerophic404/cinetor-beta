@@ -229,6 +229,13 @@ Consumes `PlaybackPreloader` (Task 3.2).
 ### Task 2.3: Search (global, video spaces only)
 Files: `c/feature/search/{SearchScreen.kt,SearchViewModel.kt}`.
 - Debounce 250 ms, results grouped Home/Anime/Drama with filter chips (type, genre, year), recent searches (stored per profile; isolated spaces never written here), trending suggestions, skeleton grid while searching, voice search button (`RecognizerIntent`, also TV mic).
+- Search history is LOCAL ONLY (Room table `search_history(profileId, query, ts)`, max 50, swipe-to-delete, clear all, pause history toggle); never synced or sent anywhere.
+- Super-fast results (target: first results < 50 ms for local, < 400 ms for TMDB on 4G):
+  - Local FTS index: Room FTS4 table over every Home/Anime/Drama item seen (mock + TMDB cache), prefix + typo-tolerant (normalized, diacritics stripped) → instant results on every keystroke, no debounce for local.
+  - Remote (TMDB `/search/multi`) after 200 ms debounce, `flatMapLatest` cancels stale calls, OkHttp HTTP/2 connection pre-warmed when search screen opens, in-memory LRU of last 100 queries + 24 h disk cache, results merged/deduped into local list without reflow (stable keys).
+  - Suggestions = history prefix matches + local title matches while typing.
+  - Isolated spaces each get the same engine scoped to their own index (in-space search), separate history table column `space`.
+- [ ] Tests: `searchHistory_localPerProfile_neverIncludesIsolated`, `localSearch_returnsUnder50ms` (1,000-item index), `staleRemoteResult_isDiscarded`, `queryCache_hitSkipsNetwork`.
 - [ ] Tests: `globalSearch_excludesIsolatedSections` (UI level), `recentSearches_perProfile`.
 
 ---
@@ -273,6 +280,20 @@ Files: `c/feature/player/subs/{SubtitleStyle.kt,SubtitleOverlay.kt,SubtitleSync.
 - Style: size 50–200%, text color, background color + opacity, edge (none/outline/shadow), font (default/serif/mono/bold), vertical position, per-profile defaults.
 - Sync offset −10 s…+10 s in 50 ms steps: side-loaded SRT/VTT parsed by Cinetor and rendered by `SubtitleOverlay` with offset (supports both directions); embedded tracks: positive delay via cue buffering, negative offset converts track to side-loaded when the URL is known, else disabled with hint.
 - [ ] Tests: `offset_shiftsCueTimes`, `srtParse_basic`, `style_persistsPerProfile`.
+
+### Task 3.7: Download engine + Downloads UI
+Files: `c/core/download/{DownloadEngine.kt,ChunkedHttpDownloader.kt,CinetorDownloadService.kt,DownloadRepository.kt,DownloadModels.kt}`, `c/feature/downloads/{DownloadButton.kt,DownloadOptionsSheet.kt,DownloadsScreen.kt,DownloadDetailsSheet.kt}`.
+- Download button next to Play on EVERY details/episode screen (appears once metadata loads; skeleton placeholder before). Episodes: per-episode, whole season, "next 3 unwatched". Music: track/album. Comics: chapter/range (pages zipped in app storage). Live TV: no download (button hidden).
+- Engine:
+  - HLS/DASH/SS → Media3 `DownloadManager` + `DownloadService` (segment download, parallel segment fetch `setMaxParallelDownloads`, pick quality/audio/subtitle tracks via `DownloadHelper`).
+  - Progressive (MP4/MKV/WebM/MP3) → `ChunkedHttpDownloader`: HTTP Range multi-connection (1–16 connections, default 4 on Wi-Fi / 2 on mobile / 2 on LOW tier), dynamic chunk splitting (steal work from slow connections), resume after kill/reboot (per-chunk offsets persisted in Room), retry with exponential backoff, checksum/size verify, falls back to single connection if server lacks `Accept-Ranges`.
+  - Queue with priority & reorder, max concurrent downloads (1–5, default 2), pause/resume/cancel/retry, Wi-Fi-only, charging-only, speed limit, storage location (internal / SD card via SAF), low-storage guard, auto-delete watched (optional), WorkManager constraints + foreground service (dataSync type) with notification actions (pause/resume/cancel) and grouped progress.
+  - Offline playback through `CacheDataSource` / local file; downloaded items get "Downloaded" badge, playable in airplane mode; resume position shared.
+- Options sheet before start: quality list with ESTIMATED SIZE per quality (from bitrate × duration or Content-Length HEAD), audio tracks, subtitle tracks, location, connections.
+- Downloads screen: tabs Active / Completed / Failed, storage bar (used by Cinetor / free), sort, multi-select delete.
+- Download details sheet shows FULL info: title + poster, status, progress % + bytes downloaded / total, current speed + average speed + speed graph (last 60 s), ETA, elapsed time, connections active (per-chunk progress bars for progressive, segments done/total for HLS/DASH), quality/resolution, codec/bitrate, container format, audio + subtitle tracks chosen, file path, source host, started/finished timestamps, retry count, last error message, actions (pause/resume/retry/cancel/delete/open/play).
+- Adult downloads stored in a separate app-private folder, hidden from Downloads unless adult space unlocked; Kids profile cannot download adult.
+- [ ] Tests: `chunked_splitsRangesEvenly`, `chunked_resumesFromPersistedOffsets`, `chunked_noAcceptRanges_singleConnection`, `queue_respectsMaxConcurrent`, `wifiOnly_pausesOnMobile`, `sizeEstimate_fromBitrateAndDuration`, `downloadedItem_playsOffline`, `adultDownloads_hiddenWhenLocked`.
 
 ### Task 3.6: Floating players
 Files: `c/feature/player/{PlayerHost.kt,MiniPlayer.kt,PipController.kt}`, `c/core/player/PlaybackService.kt` (MediaSessionService).
@@ -382,6 +403,8 @@ Files: `web/src/lib/player/{engine.ts (shaka singleton),Preloader.ts,Player.svel
 - Single persistent `<video>` element owned by root layout; preloader attaches source on details open (`preload`, shaka `load()` paused) and the element is MOVED (not recreated) into the player/mini container → instant start, buffer kept.
 - Features: quality, speed, audio tracks, subtitles (tracks, external file VTT/SRT via file input, style, sync offset), hold-to-2× (touch long-press / mouse hold / hold `Shift+.`), double-tap ±10 s, swipe seek, volume swipe (not on iOS: volume is read-only → show system-volume hint), brightness swipe (CSS `filter: brightness()` overlay — web can't change screen brightness), lock, aspect, fullscreen + `screen.orientation.lock('landscape')` where supported, in-app draggable mini player, system PiP (`requestPictureInPicture`, Document PiP on Chromium), Media Session API (lock screen / headset keys), keyboard shortcuts (Space/K, J/L, ←/→, ↑/↓, F, M, C, `<`/`>`, N next).
 - MKV/HEVC: browser-dependent; show "open in external player" fallback.
+- Downloads (web/PWA): HLS/DASH via `shaka.offline.Storage` (IndexedDB), progressive files via multi-range fetch into OPFS (Origin Private File System) with resume; `navigator.storage.persist()` + quota display; same Downloads screen + full details sheet (progress, bytes, speed, ETA, quality, tracks, size). iOS PWA caveat: storage quota limited and may be evicted — shown in UI.
+- Search (web): FlexSearch index in a Web Worker (instant local results), TMDB with AbortController-cancelled requests + LRU cache, history in IndexedDB (local only, per profile).
 
 ### Task 8.4: TV/remote mode for web
 - Spatial navigation engine (`web/src/lib/tv/spatial.ts`) for arrow keys/remote on Tizen/webOS/other TV browsers + desktop keyboard; auto-enabled by UA/`?tv=1`/first arrow key press; focus memory per screen.
@@ -404,6 +427,7 @@ Files: `web/src/lib/player/{engine.ts (shaka singleton),Preloader.ts,Player.svel
 Files: `desktop/src-tauri/{tauri.conf.json,Cargo.toml,src/main.rs,capabilities/*.json}`.
 - Loads built `web/build` (bundled, works offline for shell), `decorations: false` + custom glass title bar (drag region, min/max/close), Windows Mica/Acrylic via `window-vibrancy`, Linux translucent fallback by tier.
 - Desktop extras: "Mini player" mode = window shrinks to 16:9 always-on-top corner window; system PiP where WebView supports it; global media keys; single-instance; remember window size.
+- Desktop downloads: native Rust engine as Tauri commands (`reqwest` + tokio, multi-connection Range chunks up to 16, resume via sidecar `.cinetor-part` metadata, HLS/DASH segment downloader + remux to MP4 via bundled-free approach: keep `.ts`/fMP4 segments concatenated; optional ffmpeg if present) saving to user Downloads/Cinetor folder; progress events streamed to the same web Downloads UI.
 - Linux: WebKitGTK needs GStreamer for MSE → `.deb` depends `gstreamer1.0-plugins-good, gstreamer1.0-plugins-bad, gstreamer1.0-libav`. RISK: if HLS/DASH playback fails on WebKitGTK in testing, fallback = Electron build for Linux only (same web code, `desktop-electron/`), keep Tauri for Windows.
 
 ### Task 9.2: Desktop CI
