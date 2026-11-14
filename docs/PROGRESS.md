@@ -6,7 +6,7 @@ Plan: docs/plans/2026-11-14-cinetor-master-plan.md · Decisions: docs/handoff/de
 
 ## Resume here
 - RULE (user): every green build → publish APK/exe/deb/AppImage to Releases of PUBLIC repo Ashrix404/cinetor-app (secret RELEASE_TOKEN). See decisions.md. Do this in android.yml now (Phase 2), desktop in Phase 9.
-- Current: Phase 2 (Android 2.0–2.3) + Web 8.2.
+- Current: Phase 2 (Android 2.0–2.3) + Web 8.3 player done (downloads next).
 - 15:21 relay cron interrupted. wip/phase-2 now at c4b9096: CI wired (emulator smoke+screenshots, public cinetor-app releases, gh-pages deploy, signing). Android CI RED: TmdbCatalogSource refs missing `RemoteSearch` interface. Web CI green on branch.
 - Partial work: branch `wip/phase-2` (commit 7ccf277) — TMDB source (android core/data/tmdb/, MockSourceProvider, Models changes, android.yml TMDB env, build.gradle) + web data utils (color.ts, images.ts, lru.ts, mock-sources.ts, types.ts). Not compiled yet. Next session: merge/rebase that branch into main work, finish tasks, CI green, then merge to main.
 - Last green main: 22615e7 (Ph1 review fixes), Android + Web CI green.
@@ -29,13 +29,14 @@ Plan: docs/plans/2026-11-14-cinetor-master-plan.md · Decisions: docs/handoff/de
 ### Phase 7 — Perf + release  [ ]
 - [ ] 7.1 R8, ABI splits, baseline profile, benchmarks · [ ] 7.2 signed release CI (secrets ready)
 ### Phase 8 — Web/PWA  [~]
-- [x] 8.1 foundation + shell + PWA basics · [~] 8.2 screens — Ph2-equivalent DONE on wip/phase-2 (TMDB source, SpaceView hero/tabs/chips/rows/tint, details+skeleton, worker search+local history); left: isolated-space specifics (EPG/reader/adult gate), profiles/settings/about, Playwright · [ ] 8.3 player + downloads + search worker · [ ] 8.4 TV mode · [ ] 8.5 full PWA + landing · [ ] 8.6 deploy → cinetor-app gh-pages
+- [x] 8.1 foundation + shell + PWA basics · [~] 8.2 screens — Ph2-equivalent DONE on wip/phase-2 (TMDB source, SpaceView hero/tabs/chips/rows/tint, details+skeleton, worker search+local history); left: isolated-space specifics (EPG/reader/adult gate), profiles/settings/about, Playwright · [~] 8.3 player DONE on wip/phase-2 (shaka lazy chunk, persistent <video> moved park→player→mini, preload latest-wins + Ready dot, controls/settings/subs style+sync, gestures, keyboard, mini/PiP/Media Session, IDB resume, autoplay next); search worker done in 8.2; left: downloads (shaka offline + OPFS) · [ ] 8.4 TV mode · [ ] 8.5 full PWA + landing · [ ] 8.6 deploy → cinetor-app gh-pages
 ### Phase 9 — Desktop  [ ]
 - [ ] 9.1 Tauri shell + native downloader · [ ] 9.2 exe/msi/deb/AppImage CI
 ### Phase 10 — Release  [ ]
 - [ ] release.yml v0.1.0 · [ ] QA matrix · [ ] final report to user
 
 ## Log (newest first, one line each)
+- 2026-11-14 16:20 Web 8.3 player part green on wip/phase-2 (5b2b4c1), run https://github.com/Ashrix404/cinetor/actions/runs/43584460543 . 85 vitest pass (28 new: gesture math, SRT→VTT/offset, preload latest-wins/abort/cancel, mini replaced single audio, resume/continueWatching isolation). Browser QA on CI artifact: preload buffers in park (Ready dot), Play moves same element (1 <video>), HLS quality list 184–1080p, double-tap +10/+20, hold 2×→restore, drag seek/volume/brightness, ext SRT load, keys, minimize→mini across routes, snap/expand/swipe-off, new Play replaces mini, Resume label. Deviations: autoplay blocked w/o user gesture → tap-to-play overlay; embedded stream subs no sync offset (native render, hint shown); Document PiP not done (video PiP only); shaka chunk (777 KB) also precached by SW glob; downloads pending.
 - 2026-11-14 15:55 Web 8.2 (Ph2-equivalent) green on wip/phase-2 (64f8689..b41d132), run https://github.com/Ashrix404/cinetor/actions/runs/43581335439 . 57 vitest pass. TMDB live verified on local preview of CI artifact (hero auto-advance, tint, details, episodes, search remote+typo, history). Details = /app/title?id= (query param, prerenderable); /app/watch = stub player (native MP4 only) until 8.3. Search worker + own prefix index (no FlexSearch dep). Continue progress = placeholder until playback history. Rows not truly virtualized (content-visibility only).
 - 2026-11-14 15:50 Android 2.0 + 2.3 done on wip/phase-2 (2955048), Android CI green incl. emulator smoke: https://github.com/Ashrix404/cinetor/actions/runs/43581257120 . Deviation: in-memory precomputed index instead of Room FTS4; history in DataStore JSON (no Room yet); no 24h disk query cache, no voice search/filter chips/skeleton grid yet (UI basic).
 - 2026-11-14 15:10 rate limit hit mid Phase 2 (both subagents 429). Partial saved to wip/phase-2. PROGRESS.md created.
