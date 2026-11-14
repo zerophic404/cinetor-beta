@@ -27,7 +27,7 @@ class SettingsStore(context: Context) {
         .map { p -> enumOrDefault(p[EFFECTS], EffectsQuality.AUTO) }
         .distinctUntilChanged()
 
-    /** Adult space flag — stubbed off until Phase 4 gating (18+ confirm + PIN). */
+    /** Adult space flag (off by default). Written only by the 4.4 adult gate after 18+ confirm + PIN setup. */
     val adultEnabled: Flow<Boolean> = store.data
         .map { p -> p[ADULT] ?: false }
         .distinctUntilChanged()
@@ -41,6 +41,10 @@ class SettingsStore(context: Context) {
     val autoPip: Flow<Boolean> = store.data
         .map { p -> p[AUTO_PIP] ?: true }
         .distinctUntilChanged()
+
+    suspend fun setAdultEnabled(on: Boolean) {
+        store.edit { it[ADULT] = on }
+    }
 
     suspend fun setBackgroundPlay(on: Boolean) {
         store.edit { it[BACKGROUND_PLAY] = on }

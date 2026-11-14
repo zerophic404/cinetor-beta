@@ -157,6 +157,8 @@ if tap_desc "Open spaces"; then
   fi
 fi
 
+# Phase 4b: comics reader + adult gate (separate file to keep merges with phase 4a small)
+[ -f "$(dirname "$0")/smoke-phase4b.sh" ] && source "$(dirname "$0")/smoke-phase4b.sh"
 adb logcat -d > "$OUT/logcat.txt" || true
 if grep -q "FATAL EXCEPTION" "$OUT/logcat.txt"; then
   echo "::error::App crashed"; grep -A30 "FATAL EXCEPTION" "$OUT/logcat.txt" | head -60; exit 1

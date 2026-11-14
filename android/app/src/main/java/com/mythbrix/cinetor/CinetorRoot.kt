@@ -42,6 +42,8 @@ fun CinetorRoot(container: AppContainer) {
             // Player lives above the NavHost: playback survives navigation (mini player in 3.6).
             // Music: glass mini bar above the nav / Now Playing (Task 4.2); audio continues across navigation.
             MusicHost(container)
+            // Comics reader overlay (Task 4.3): immersive, above the shell, below the player.
+            com.mythbrix.cinetor.feature.comics.ComicsReaderHost(container.comics)
             PlayerHost(container.playback, container.subtitles, container.tv.data)
             if (showIntro) AnimatedSplash(onFinished = { showIntro = false })
         }

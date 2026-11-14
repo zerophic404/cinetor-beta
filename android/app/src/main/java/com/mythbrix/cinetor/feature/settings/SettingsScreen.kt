@@ -20,18 +20,22 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import com.mythbrix.cinetor.core.prefs.SettingsStore
+import com.mythbrix.cinetor.feature.adult.AdultGate
+import com.mythbrix.cinetor.feature.adult.AdultSettingsBlock
 import com.mythbrix.cinetor.design.Cinetor
 import kotlinx.coroutines.launch
 
 /** Settings — playback toggles now; full app & profile settings in Task 5.2. */
 @Composable
-fun SettingsScreen(contentPadding: PaddingValues, settings: SettingsStore) {
+fun SettingsScreen(contentPadding: PaddingValues, settings: SettingsStore, adult: AdultGate? = null) {
     val scope = rememberCoroutineScope()
     val backgroundPlay by settings.backgroundPlay.collectAsStateWithLifecycle(initialValue = false)
     val autoPip by settings.autoPip.collectAsStateWithLifecycle(initialValue = true)
     Column(
-        Modifier.fillMaxSize().padding(contentPadding).padding(16.dp),
+        Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(contentPadding).padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         Text("Settings", style = MaterialTheme.typography.headlineMedium, color = Cinetor.tokens.textPrimary)
@@ -42,6 +46,8 @@ fun SettingsScreen(contentPadding: PaddingValues, settings: SettingsStore) {
         ToggleRow("Picture-in-picture", "Float the video when you leave the app while it plays", autoPip) {
             scope.launch { settings.setAutoPip(it) }
         }
+        // Content (Task 4.4): 18+ toggle → age confirm → PIN. Full settings in 5.2.
+        AdultSettingsBlock(adult)
         Text("More app & profile settings arrive in Phase 5.", color = Cinetor.tokens.textSecondary)
     }
 }

@@ -24,3 +24,5 @@ import kotlinx.serialization.Serializable
 
 /** Music album (isolated Music space). */
 @Serializable data class AlbumRoute(val id: String)
+/** Comic details (Task 4.3); the reader itself is an overlay above the NavHost. */
+@Serializable data class ComicDetailsRoute(val id: String)
