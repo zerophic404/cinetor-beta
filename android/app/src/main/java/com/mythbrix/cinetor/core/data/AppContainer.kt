@@ -1,12 +1,18 @@
 package com.mythbrix.cinetor.core.data
 
 import android.content.Context
+import com.mythbrix.cinetor.BuildConfig
+import com.mythbrix.cinetor.core.data.tmdb.OkHttpTmdbHttp
+import com.mythbrix.cinetor.core.data.tmdb.TmdbApi
+import com.mythbrix.cinetor.core.data.tmdb.TmdbCatalogSource
 import com.mythbrix.cinetor.core.perf.DeviceProfile
 import com.mythbrix.cinetor.core.prefs.SettingsStore
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
+import okhttp3.OkHttpClient
+import java.util.concurrent.TimeUnit
 
 /** Manual DI (no Hilt): one instance per process, owned by the Application. */
 class AppContainer(context: Context) {
@@ -21,8 +27,22 @@ class AppContainer(context: Context) {
     val latency: MockLatency = MockLatency.Default
 
     val catalogSource: MockCatalogSource = MockCatalogSource(assetReader, latency)
-    val catalog: CatalogRepository get() = catalogSource
-    val search: SearchRepository = SearchRepository(catalogSource)
+
+    val httpClient: OkHttpClient by lazy {
+        OkHttpClient.Builder()
+            .connectTimeout(8, TimeUnit.SECONDS)
+            .readTimeout(12, TimeUnit.SECONDS)
+            .build()
+    }
+
+    /** TMDB metadata for Home/Anime/Drama; null when the build has no token (→ mock only). */
+    val tmdb: TmdbCatalogSource? = BuildConfig.TMDB_TOKEN.takeIf { it.isNotBlank() }
+        ?.let { token -> TmdbCatalogSource(TmdbApi(OkHttpTmdbHttp(httpClient, token))) }
+
+    /** TMDB for video spaces (falls back to mock on error), mock for isolated spaces. */
+    val catalog: CatalogRepository = HybridCatalog(tmdb, catalogSource)
+    val search: SearchRepository = SearchRepository(catalog)
+    val remoteSearch: RemoteSearch? get() = tmdb
 
     val settings: SettingsStore = SettingsStore(appContext)
 
