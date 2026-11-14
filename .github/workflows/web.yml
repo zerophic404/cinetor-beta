@@ -67,6 +67,19 @@ jobs:
         working-directory: web
         run: npm test --if-present
 
+      - name: Typecheck (svelte-check)
+        if: hashFiles('web/package.json') != ''
+        working-directory: web
+        run: npm run check --if-present
+
+      - name: Upload web build artifact
+        if: hashFiles('web/package.json') != ''
+        uses: actions/upload-artifact@v4
+        with:
+          name: web-build
+          path: web/build
+          retention-days: 14
+
       - name: Upload Pages artifact
         if: hashFiles('web/package.json') != '' && github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
         uses: actions/upload-pages-artifact@v3
@@ -79,6 +92,8 @@ jobs:
     # Stays skipped until web/package.json exists; only deploys from main.
     if: needs.build.outputs.has_web == 'true' && github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
     runs-on: ubuntu-latest
+    # Pages needs a paid plan for private repos; don't fail the workflow when it's unavailable.
+    continue-on-error: true
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
