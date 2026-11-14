@@ -16,6 +16,7 @@ import kotlinx.serialization.Serializable
 /** In-space search of an isolated space. */
 @Serializable data class SpaceSearchRoute(val space: String)
 
-@Serializable data class DetailsRoute(val id: String)
+/** [origin] = shared-element key of the tapped poster ("" = none → fade/scale). */
+@Serializable data class DetailsRoute(val id: String, val origin: String = "")
 @Serializable data object SettingsRoute
 @Serializable data object AboutRoute

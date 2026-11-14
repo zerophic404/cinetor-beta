@@ -1,6 +1,17 @@
 package com.mythbrix.cinetor.navigation
 
 import androidx.activity.compose.BackHandler
+import androidx.compose.animation.AnimatedContentScope
+import androidx.compose.animation.ExperimentalSharedTransitionApi
+import androidx.compose.animation.SharedTransitionLayout
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.scaleOut
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.navigation.NavGraphBuilder
+import com.mythbrix.cinetor.core.data.Item
+import com.mythbrix.cinetor.core.ui.LocalNavAnimatedScope
+import com.mythbrix.cinetor.core.ui.LocalSharedTransitionScope
+import com.mythbrix.cinetor.design.CinetorTokens
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.core.tween
@@ -93,6 +104,7 @@ private fun placementOf(entry: NavBackStackEntry?): Placement {
 private class ShellMemory(var space: Space? = null, var tab: TabKey? = TabKey.HOME)
 
 /** App shell: glass top bar + adaptive nav (bottom bar / rail / TV rail) + spaces switcher + NavHost. */
+@OptIn(ExperimentalSharedTransitionApi::class)
 @Composable
 fun CinetorNavHost(container: AppContainer, modifier: Modifier = Modifier) {
     val nav = rememberNavController()
@@ -141,6 +153,10 @@ fun CinetorNavHost(container: AppContainer, modifier: Modifier = Modifier) {
     val haze = Cinetor.haze
     val tabs = navTabsFor(activeSpace)
     val openItem: (String) -> Unit = { id -> nav.navigate(DetailsRoute(id)) }
+    val openCard: (Item, String?) -> Unit = { item, key ->
+        container.peek.put(item)
+        nav.navigate(DetailsRoute(item.id, key.orEmpty()))
+    }
 
     Box(modifier.fillMaxSize()) {
         Row(Modifier.fillMaxSize()) {
@@ -149,34 +165,48 @@ fun CinetorNavHost(container: AppContainer, modifier: Modifier = Modifier) {
             }
             Box(Modifier.weight(1f).fillMaxHeight()) {
                 AppBackground(Modifier.haze(haze)) {
-                    NavHost(
-                        navController = nav,
-                        startDestination = HomeRoute,
-                        enterTransition = { fadeIn(tween(220)) },
-                        exitTransition = { fadeOut(tween(160)) },
-                    ) {
-                        composable<HomeRoute> { SpaceScreen(Space.HOME, container, contentPadding, openItem) }
-                        composable<AnimeRoute> { SpaceScreen(Space.ANIME, container, contentPadding, openItem) }
-                        composable<DramaRoute> { SpaceScreen(Space.DRAMA, container, contentPadding, openItem) }
-                        composable<SearchRoute> { SearchScreen(null, container, contentPadding, openItem) }
-                        composable<MeRoute> {
-                            MeScreen(
-                                container, contentPadding,
-                                onSettings = { nav.navigate(SettingsRoute) },
-                                onAbout = { nav.navigate(AboutRoute) },
-                            )
+                    SharedTransitionLayout(Modifier.fillMaxSize()) {
+                        CompositionLocalProvider(LocalSharedTransitionScope provides this) {
+                            NavHost(
+                                navController = nav,
+                                startDestination = HomeRoute,
+                                enterTransition = { fadeIn(tween(220)) },
+                                exitTransition = { fadeOut(tween(160)) },
+                            ) {
+                                screen<HomeRoute> { SpaceScreen(Space.HOME, container, contentPadding, openCard) }
+                                screen<AnimeRoute> { SpaceScreen(Space.ANIME, container, contentPadding, openCard) }
+                                screen<DramaRoute> { SpaceScreen(Space.DRAMA, container, contentPadding, openCard) }
+                                screen<SearchRoute> { SearchScreen(null, container, contentPadding, openItem) }
+                                screen<MeRoute> {
+                                    MeScreen(
+                                        container, contentPadding,
+                                        onSettings = { nav.navigate(SettingsRoute) },
+                                        onAbout = { nav.navigate(AboutRoute) },
+                                    )
+                                }
+                                screen<SpaceRoute> { e ->
+                                    SpaceScreen(Space.valueOf(e.toRoute<SpaceRoute>().space), container, contentPadding, openCard)
+                                }
+                                screen<SpaceSearchRoute> { e ->
+                                    SearchScreen(Space.valueOf(e.toRoute<SpaceSearchRoute>().space), container, contentPadding, openItem)
+                                }
+                                composable<DetailsRoute>(
+                                    enterTransition = {
+                                        fadeIn(tween(260)) + scaleIn(tween(320, easing = CinetorTokens.Motion.emphasized), initialScale = 0.94f)
+                                    },
+                                    popExitTransition = {
+                                        fadeOut(tween(200)) + scaleOut(tween(220), targetScale = 0.96f)
+                                    },
+                                ) { e ->
+                                    CompositionLocalProvider(LocalNavAnimatedScope provides this) {
+                                        val r = e.toRoute<DetailsRoute>()
+                                        DetailsScreen(r.id, r.origin, container, contentPadding, openCard)
+                                    }
+                                }
+                                screen<SettingsRoute> { SettingsScreen(contentPadding) }
+                                screen<AboutRoute> { AboutScreen(contentPadding) }
+                            }
                         }
-                        composable<SpaceRoute> { e ->
-                            SpaceScreen(Space.valueOf(e.toRoute<SpaceRoute>().space), container, contentPadding, openItem)
-                        }
-                        composable<SpaceSearchRoute> { e ->
-                            SearchScreen(Space.valueOf(e.toRoute<SpaceSearchRoute>().space), container, contentPadding, openItem)
-                        }
-                        composable<DetailsRoute> { e ->
-                            DetailsScreen(e.toRoute<DetailsRoute>().id, container, contentPadding)
-                        }
-                        composable<SettingsRoute> { SettingsScreen(contentPadding) }
-                        composable<AboutRoute> { AboutScreen(contentPadding) }
                     }
                 }
                 GlassTopBar(
@@ -230,6 +260,15 @@ private fun GlassTopBar(title: String, onLogo: () -> Unit, modifier: Modifier = 
             Icon(Icons.Rounded.KeyboardArrowDown, contentDescription = null, tint = tokens.textSecondary)
         }
         Text(title, style = MaterialTheme.typography.titleLarge, color = tokens.textPrimary)
+    }
+}
+
+/** composable<T> that exposes its AnimatedVisibilityScope for shared elements. */
+private inline fun <reified T : Any> NavGraphBuilder.screen(
+    noinline content: @Composable AnimatedContentScope.(NavBackStackEntry) -> Unit,
+) {
+    composable<T> { entry ->
+        CompositionLocalProvider(LocalNavAnimatedScope provides this) { content(entry) }
     }
 }
 

@@ -30,10 +30,29 @@ for name in home anime drama search me; do
   shot "1$i-tab-$name" 4
   i=$((i+1))
 done
-# back to home and tap first hero/card (details)
+# Tap the first UI node whose content-desc equals $1 (Compose semantics via uiautomator).
+tap_desc() {
+  adb shell uiautomator dump /sdcard/ui.xml >/dev/null 2>&1 || return 1
+  local b
+  b=$(adb shell cat /sdcard/ui.xml | tr '>' '\n' | grep -m1 "content-desc=\"$1\"" | grep -oE 'bounds="\[[0-9]+,[0-9]+\]\[[0-9]+,[0-9]+\]"' | grep -oE '[0-9]+' | tr '\n' ' ')
+  [ -z "$b" ] && { echo "no node '$1'"; return 1; }
+  set -- $b
+  adb shell input tap $(( ($1 + $3) / 2 )) $(( ($2 + $4) / 2 ))
+}
+# back to home: hero tap → details (skeleton, then loaded)
 adb shell input tap $((W/10)) $BAR_Y; sleep 3
-adb shell input tap $((W/2)) $((H/3)); shot 20-after-hero-tap 4
-adb shell input keyevent KEYCODE_BACK; shot 21-back 2
+adb shell input tap $((W/2)) $((H/3)); shot 20-details-loading 1
+shot 21-details 4
+adb shell input swipe $((W/2)) $((H*3/4)) $((W/2)) $((H/4)) 400; shot 22-details-scrolled 2
+adb shell input swipe $((W/2)) $((H/4)) $((W/2)) $((H*3/4)) 400; sleep 1
+tap_desc "Download" && shot 23-download-sheet 2 && adb shell input keyevent KEYCODE_BACK && sleep 1
+adb shell input keyevent KEYCODE_BACK; shot 24-back-home 2
+# category tab swap (Series) → hero swaps
+tap_desc "Tab Series" && shot 25-home-series 4
+# scroll to rows and open a poster card
+adb shell input swipe $((W/2)) $((H*3/4)) $((W/2)) $((H/3)) 400; shot 26-home-rows 2
+adb shell input tap $((W/6)) $((H/2)); shot 27-card-details 4
+adb shell input keyevent KEYCODE_BACK; sleep 1
 
 adb logcat -d > "$OUT/logcat.txt" || true
 if grep -q "FATAL EXCEPTION" "$OUT/logcat.txt"; then
