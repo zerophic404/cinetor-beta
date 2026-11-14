@@ -6,6 +6,7 @@
   import { attachGestures, volumeReadOnly, type LevelKind } from './Gestures';
   import { BRIGHTNESS_MAX, BRIGHTNESS_MIN } from './gesture-math';
   import { keyAction } from './keys';
+  import { navKey, tvEnabled } from '../tv/spatial';
   import { externalPlayerHref, type Media } from './sources';
   import { PlayerUI } from './ui.svelte';
   import Controls from './Controls.svelte';
@@ -46,6 +47,7 @@
     if (!stage) return;
     ui.stage = stage;
     ui.show();
+    if ($tvEnabled) stage.focus({ preventScroll: true });
     const offGestures = attachGestures(stage, {
       locked: () => ui.locked,
       tap: (type) => (type === 'mouse' ? ui.togglePlay() : ui.toggleControls()),
@@ -104,7 +106,43 @@
     return () => clearInterval(id);
   });
 
+  /** TV / remote: ←/→ ±10 s, Enter play/pause, ↑ shows controls + focuses them, Back minimizes. */
+  function onTvKey(e: KeyboardEvent): boolean {
+    if (!$tvEnabled || !stage || e.ctrlKey || e.metaKey || e.altKey) return false;
+    const k = navKey(e);
+    if (!k) return false;
+    const a = document.activeElement;
+    // Focus inside the controls → spatial navigation moves between buttons.
+    if (a && a !== stage && a !== document.body && stage.contains(a)) {
+      ui.show();
+      return true;
+    }
+    if (document.querySelector('dialog[open]')) return true;
+    e.preventDefault();
+    if (k.type === 'back') {
+      onBack();
+      return true;
+    }
+    if (k.type === 'enter') {
+      ui.togglePlay();
+      ui.show();
+      return true;
+    }
+    if (k.dir === 'left' || k.dir === 'right') {
+      ui.seek(k.dir === 'left' ? -10 : 10);
+      ui.show();
+      return true;
+    }
+    ui.show();
+    if (k.dir === 'up') {
+      const btn = stage.querySelector<HTMLElement>('.ctl .play') ?? stage.querySelector<HTMLElement>('.ctl button');
+      btn?.focus({ preventScroll: true });
+    }
+    return true;
+  }
+
   function onKey(e: KeyboardEvent) {
+    if (onTvKey(e)) return;
     const t = e.target as HTMLElement | null;
     if (t && (t.closest('input, textarea, select, [contenteditable="true"]') || (t.getAttribute('role') === 'slider' && e.key.startsWith('Arrow')))) return;
     const a = keyAction(e);
@@ -157,6 +195,8 @@
   onpointermove={(e) => e.pointerType === 'mouse' && ui.show()}
   role="region"
   aria-label="Video player"
+  data-tv-player
+  tabindex="-1"
 >
   <div class="host" use:host></div>
   <Subtitles {ui} raised={ui.visible} />
@@ -226,6 +266,10 @@
 </div>
 
 <style>
+  .stage:focus,
+  .stage:focus-visible {
+    outline: none;
+  }
   .stage {
     position: relative;
     width: 100%;

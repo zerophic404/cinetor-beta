@@ -190,3 +190,41 @@ button {
 ::view-transition-new(root) {
   animation-duration: 200ms;
 }
+
+/* ---------- TV / remote mode (spatial navigation) ---------- */
+/* Glass glow focus ring + scale; set on <html data-tv="1"> by lib/tv/spatial.ts. */
+[data-tv] {
+  --tv-ring: 0 0 0 3px color-mix(in srgb, var(--accent) 80%, white), 0 0 0 7px color-mix(in srgb, var(--accent) 28%, transparent), 0 12px 36px -6px var(--accent-glow);
+}
+[data-tv] :focus-visible,
+[data-tv] :focus {
+  outline: none;
+}
+[data-tv] :is(a, button, input, select, textarea, [tabindex], [data-focusable]):focus {
+  box-shadow: var(--tv-ring);
+  border-radius: var(--radius-md);
+  position: relative;
+  z-index: 3;
+  transition: transform calc(var(--dur-short) * var(--dur-scale)) var(--ease-emphasized), box-shadow calc(var(--dur-short) * var(--dur-scale));
+}
+[data-tv] :is(.card, .btn, .chip, .ep, .ib, .dl-mini, .theme-card, .row):focus {
+  transform: scale(1.06);
+}
+[data-tv] .card:focus {
+  border-radius: var(--radius-card);
+}
+[data-tv] .btn:focus,
+[data-tv] .chip:focus {
+  border-radius: var(--radius-pill);
+}
+[data-tv] .h-scroll {
+  /* room for the scaled/glowing focus ring */
+  padding-top: 10px;
+  padding-bottom: 16px;
+  scroll-padding-inline: 48px;
+}
+@media (prefers-reduced-motion: reduce) {
+  [data-tv] :is(.card, .btn, .chip, .ep, .ib, .dl-mini, .theme-card, .row):focus {
+    transform: none;
+  }
+}

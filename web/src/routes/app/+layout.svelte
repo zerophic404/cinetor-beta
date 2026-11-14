@@ -1,7 +1,9 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { page } from '$app/state';
-  import { onNavigate } from '$app/navigation';
+  import { afterNavigate, goto, onNavigate } from '$app/navigation';
+  import { base } from '$app/paths';
+  import { installSpatialNav, restoreFocus } from '$lib/tv/spatial';
   import Nav from '$lib/components/Nav.svelte';
   import SpacesSheet from '$lib/components/SpacesSheet.svelte';
   import { spaceFromSlug, isVideoSpace } from '$lib/data/types';
@@ -45,10 +47,27 @@
   onMount(() => {
     perf.init();
     const unbind = bindTintToDocument();
+    // TV / remote mode: spatial navigation (auto on TV UAs, ?tv=1, or the first arrow key).
+    const offTv = installSpatialNav({
+      onBack: () => {
+        const p = location.pathname.replace(/\/$/, '');
+        if (p === `${base}/app`) return;
+        if (history.length > 1) history.back();
+        else goto(`${base}/app`);
+      }
+    });
     requestAnimationFrame(() => window.__cinetorReady?.());
     // Resume downloads interrupted by a reload (after first paint).
     setTimeout(() => void downloads.init(), 1500);
-    return unbind;
+    return () => {
+      unbind();
+      offTv();
+    };
+  });
+
+  // Focus memory per route: restore the last focused tile when coming back (TV mode only).
+  afterNavigate(() => {
+    setTimeout(() => restoreFocus(), 60);
   });
 </script>
 
