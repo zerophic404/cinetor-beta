@@ -20,6 +20,8 @@ const config = {
         '/app/me',
         '/app/downloads',
         '/app/music/album',
+        '/app/comics/title',
+        '/app/comics/read',
         '/app/anime',
         '/app/drama',
         '/app/tv',
