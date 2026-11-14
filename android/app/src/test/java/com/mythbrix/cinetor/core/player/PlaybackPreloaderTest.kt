@@ -115,14 +115,47 @@ class PlaybackPreloaderTest {
         // Details goes to background (ON_STOP → cancel) while the player screen owns it.
         e.pre.cancel("a")
         assertEquals(0, e.fake.stops)
-        // Back on Details: same item warm → pause, buffer kept, no reload.
+        // Back on Details (e.g. after Home/PiP): same item warm → keeps playing, no reload.
         e.pre.warm(movie("a"))
         assertEquals(1, e.fake.loads.size)
-        assertFalse(e.fake.lastPlayWhenReady)
-        // Player closes after a re-take → release frees it.
-        e.pre.take("a")
+        assertTrue(e.fake.lastPlayWhenReady)
+        // Player closes → release frees it.
         e.pre.release("a")
         assertEquals(1, e.fake.stops)
+    }
+
+    @Test
+    fun warmWhileOwned_onlyResolves_playReplacesOwned() = runTest {
+        val e = Env(this)
+        e.pre.open(movie("a"))
+        runCurrent()
+        // Mini player plays a; user opens Details of b → b resolves but never steals the player.
+        e.pre.warm(movie("b"))
+        runCurrent()
+        assertEquals(listOf("a"), e.fake.loads.map { it.first })
+        assertEquals("a", e.fake.currentKey)
+        assertEquals(Readiness.RESOLVING, e.pre.readiness.value["b"])
+        // Play on b replaces a in the same player (single audio).
+        assertSame(e.fake, e.pre.take("b"))
+        assertEquals(listOf("a", "b"), e.fake.loads.map { it.first })
+        assertEquals("b", e.pre.ownedItemId)
+        assertFalse("a" in e.pre.readiness.value)
+        // Stale release of a never stops b.
+        e.pre.release("a")
+        assertEquals(0, e.fake.stops)
+        assertEquals(1, e.providerCalls)
+    }
+
+    @Test
+    fun releaseOwned_thenPendingCandidateBuffers() = runTest {
+        val e = Env(this)
+        e.pre.open(movie("a"))
+        runCurrent()
+        e.pre.warm(movie("b"))
+        runCurrent()
+        e.pre.release("a")
+        assertEquals(listOf("a", "b"), e.fake.loads.map { it.first })
+        assertFalse(e.fake.lastPlayWhenReady)
     }
 
     @Test

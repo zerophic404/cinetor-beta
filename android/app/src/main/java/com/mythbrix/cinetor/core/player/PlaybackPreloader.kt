@@ -48,6 +48,10 @@ object NoopPlaybackPreloader : PlaybackPreloader {
  * Real preloader over the shared [CinetorPlayer]: warm resolves the source (+ resume position),
  * then `load(playWhenReady=false)` buffers the first segments while the user reads Details.
  * Readiness follows the player's state for the warmed key. Data saver: resolve only (load on take).
+ *
+ * Two slots: [owned] = session taken by the player screen (full / mini / PiP), and the latest warm
+ * candidate. While something is owned, warming another title only resolves it (never steals the
+ * one player → no audio cut); Play on it ([take]/[open]) replaces the owned item (single audio).
  */
 class MediaPlaybackPreloader(
     private val scope: CoroutineScope,
@@ -66,7 +70,8 @@ class MediaPlaybackPreloader(
     /** Last measured Play tap → first rendered frame (ms). */
     val tapToFirstFrameMs: StateFlow<Long?> = _tapToFirstFrame.asStateFlow()
 
-    private class Session(val itemId: String, val requestedEpisode: String?, var taken: Boolean) {
+    private class Session(val itemId: String, val requestedEpisode: String?) {
+        var taken = false
         var request: PlaybackRequest? = null
         var startMs: Long = 0
         var loaded = false
@@ -75,13 +80,18 @@ class MediaPlaybackPreloader(
         var tapAt: Long? = null
     }
 
+    /** Latest warm candidate (may be the owned one). */
     private var session: Session? = null
+
+    /** Taken by the player screen. */
+    private var owned: Session? = null
     private var player: CinetorPlayer? = null
     private var frameJob: Job? = null
 
-    /** Item currently owned (warmed or taken), for tests/diagnostics. */
-    val currentItemId: String? get() = session?.itemId
-    val currentKey: String? get() = session?.request?.key
+    /** Item currently warmed or owned, for tests/diagnostics. */
+    val currentItemId: String? get() = (session ?: owned)?.itemId
+    val currentKey: String? get() = (session ?: owned)?.request?.key
+    val ownedItemId: String? get() = owned?.itemId
 
     private fun player(): CinetorPlayer {
         player?.let { return it }
@@ -89,7 +99,7 @@ class MediaPlaybackPreloader(
         player = p
         frameJob = scope.launch {
             p.firstFrames.collect { key ->
-                val s = session ?: return@collect
+                val s = owned ?: session ?: return@collect
                 val tap = s.tapAt ?: return@collect
                 if (s.request?.key != key) return@collect
                 s.tapAt = null
@@ -106,35 +116,36 @@ class MediaPlaybackPreloader(
 
     @Synchronized
     override fun warm(item: Item, episodeId: String?) {
-        val s = session
-        if (s != null && s.matches(item.id, episodeId)) {
-            // Back on Details after the player: keep the buffer, just stop playing.
-            if (s.taken) {
-                s.taken = false
-                player?.pause()
-            }
+        val o = owned
+        if (o != null && o.matches(item.id, episodeId)) {
+            // Already playing it (e.g. Details back on screen while mini/PiP plays): keep going.
+            session?.let { c -> if (c !== o) dropCandidate(c) }
+            session = o
             return
         }
+        val s = session
+        if (s != null && s !== o && s.matches(item.id, episodeId)) return
         start(item, episodeId, taken = false)
     }
 
     @Synchronized
     override fun take(itemId: String, episodeId: String?): CinetorPlayer? {
+        val o = owned
+        if (o != null && o.matches(itemId, episodeId)) return player()
         val s = session ?: return null
         if (!s.matches(itemId, episodeId)) return null
-        s.taken = true
+        promote(s)
         s.tapAt = clock()
-        if (s.request != null && !s.loaded) load(s)
+        if (s.loaded) player().play() else if (s.request != null) load(s)
         return player()
     }
 
     @Synchronized
     override fun open(item: Item, episodeId: String?): CinetorPlayer {
+        val o = owned
+        if (o != null && o.matches(item.id, episodeId)) return player() // re-attach (rotation): no reload
         val s = session
-        if (s != null && s.matches(item.id, episodeId)) {
-            if (s.taken) return player() // re-attach (rotation / recomposition): no reload
-            return take(item.id, episodeId) ?: player()
-        }
+        if (s != null && s !== o && s.matches(item.id, episodeId)) return take(item.id, episodeId) ?: player()
         start(item, episodeId, taken = true).tapAt = clock()
         return player()
     }
@@ -142,36 +153,60 @@ class MediaPlaybackPreloader(
     @Synchronized
     override fun cancel(itemId: String) {
         val s = session
-        if (s == null || s.itemId != itemId) {
-            _readiness.update { it - itemId }
+        if (s != null && s.itemId == itemId && !s.taken) {
+            dropCandidate(s)
+            session = owned
             return
         }
-        if (s.taken) return
-        stop(s)
+        if (owned?.itemId == itemId) return // the player screen owns it; release() frees it
+        _readiness.update { it - itemId }
     }
 
     @Synchronized
     override fun release(itemId: String) {
-        val s = session ?: return
-        if (s.itemId == itemId && s.taken) stop(s)
+        val o = owned ?: return
+        if (o.itemId != itemId) return
+        o.job?.cancel()
+        o.watch?.cancel()
+        owned = null
+        if (session === o) session = null
+        player?.stop()
+        _readiness.update { it - itemId }
+        // A title warmed while this one played can buffer now.
+        session?.let { c -> if (!c.loaded && c.request != null && !dataSaver()) load(c) }
     }
 
-    private fun stop(s: Session) {
-        s.job?.cancel()
-        s.watch?.cancel()
-        session = null
-        player?.stop()
-        _readiness.update { it - s.itemId }
+    private fun dropCandidate(c: Session) {
+        c.job?.cancel()
+        c.watch?.cancel()
+        if (c.loaded) player?.stop()
+        if (owned?.itemId != c.itemId) _readiness.update { it - c.itemId }
+    }
+
+    /** [s] becomes the owned session; a previously owned different session is dropped. */
+    private fun promote(s: Session) {
+        val o = owned
+        if (o != null && o !== s) {
+            o.job?.cancel()
+            o.watch?.cancel()
+            if (o.itemId != s.itemId) _readiness.update { it - o.itemId }
+        }
+        s.taken = true
+        owned = s
+        session = s
     }
 
     private fun start(item: Item, episodeId: String?, taken: Boolean): Session {
         session?.let { prev ->
-            prev.job?.cancel()
-            prev.watch?.cancel()
-            if (prev.itemId != item.id) _readiness.update { it - prev.itemId }
+            if (prev !== owned) {
+                prev.job?.cancel()
+                prev.watch?.cancel()
+                if (prev.itemId != item.id && owned?.itemId != prev.itemId) _readiness.update { it - prev.itemId }
+            }
         }
-        val s = Session(item.id, episodeId, taken)
+        val s = Session(item.id, episodeId)
         session = s
+        if (taken) promote(s)
         set(item.id, Readiness.RESOLVING)
         s.job = scope.launch {
             val entry = lookup(item.id, episodeId)
@@ -182,8 +217,9 @@ class MediaPlaybackPreloader(
             }
             s.request = req
             s.startMs = if (entry != null && entry.episodeId == req.episodeId) startPositionFor(entry) else 0
-            if (session !== s) return@launch
-            if (dataSaver() && !s.taken) return@launch // resolve only; take() loads
+            if (session !== s && owned !== s) return@launch
+            // Resolve only: data saver, or the player is busy with an owned title (take() loads).
+            if (!s.taken && (dataSaver() || owned != null)) return@launch
             load(s)
         }
         return s
@@ -210,7 +246,7 @@ class MediaPlaybackPreloader(
         s.watch?.cancel()
         s.watch = scope.launch {
             p.state.collect { st ->
-                if (session !== s || st.key != req.key) return@collect
+                if ((session !== s && owned !== s) || st.key != req.key) return@collect
                 val r = when {
                     st.error != null -> Readiness.ERROR
                     st.phase == PlaybackPhase.READY || st.phase == PlaybackPhase.ENDED -> Readiness.READY
