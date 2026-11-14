@@ -11,6 +11,7 @@
   import MiniPlayer from '$lib/player/MiniPlayer.svelte';
   import { engine } from '$lib/player/engine';
   import { wirePlayer } from '$lib/player/controller';
+  import { downloads } from '$lib/download/manager.svelte';
 
   let { children } = $props();
   let spacesOpen = $state(false);
@@ -45,6 +46,8 @@
     perf.init();
     const unbind = bindTintToDocument();
     requestAnimationFrame(() => window.__cinetorReady?.());
+    // Resume downloads interrupted by a reload (after first paint).
+    setTimeout(() => void downloads.init(), 1500);
     return unbind;
   });
 </script>

@@ -13,6 +13,7 @@
   import { spaceHref } from '$lib/nav';
   import { activeProfileId } from '$lib/data/library.svelte';
   import { mediaFor, preloader, resume } from '$lib/player/controller';
+  import DownloadButton from '$lib/download/DownloadButton.svelte';
 
   const readiness = preloader.readiness;
 
@@ -135,6 +136,8 @@
     };
   });
   const playEp = $derived(target ?? firstEpisode);
+  // Download target = the Play target (movie, or resume/first episode). Appears once metadata loads.
+  const dlMedia = $derived(item && (!item.seasons?.length || playEp) ? mediaFor(item, playEp) : undefined);
   const ready = $derived($readiness[playKey]);
 
   async function share() {
@@ -205,10 +208,11 @@
         {resumePos > 0 ? 'Resume' : 'Play'}{playEp ? ` E${playEp.n}` : ''}
         {#if ready === 'ready'}<span class="ready" title="Ready — starts instantly"></span>{:else if ready === 'buffering' || ready === 'resolving'}<span class="ready warming" title="Preparing…"></span>{/if}
       </a>
-      <button class="btn btn-ghost" disabled title="Downloads arrive with the player (Task 8.3)" aria-label="Download (coming soon)">
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M12 4v11m0 0l-4.5-4.5M12 15l4.5-4.5M5 19.5h14" /></svg>
-        Download
-      </button>
+      {#if dlMedia}
+        <DownloadButton media={dlMedia} />
+      {:else if status === 'loading'}
+        <SkeletonBox width="132px" height="44px" radius="var(--radius-pill)" />
+      {/if}
       <button class="btn btn-ghost" aria-pressed={myList.has(shown)} onclick={() => shown && myList.toggle(shown)}>
         {myList.has(shown) ? '✓ My List' : '+ My List'}
       </button>
@@ -266,6 +270,7 @@
                     {#if ep.synopsis}<p>{ep.synopsis}</p>{/if}
                   </div>
                 </a>
+                {#if item}<DownloadButton media={mediaFor(item, ep)} compact />{/if}
               </li>
             {/each}
           </ol>
@@ -477,7 +482,14 @@
     display: grid;
     gap: 12px;
   }
+  .eps li {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
   .ep {
+    flex: 1;
+    min-width: 0;
     display: grid;
     grid-template-columns: clamp(120px, 36vw, 200px) 1fr;
     gap: 12px;
