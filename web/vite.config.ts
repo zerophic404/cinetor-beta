@@ -61,8 +61,23 @@ export default defineConfig({
         ],
         // The lazy shaka-player chunk (~780 KB, hashed name) is NOT precached: drop big JS from the
         // manifest (runtime-cached on first use below). Shell chunks are all < 100 KB.
+        // NOTE: a custom manifestTransforms REPLACES @vite-pwa/sveltekit's URL mapping, so it is replicated here
+        // (client/ + prerendered/pages/ prefixes, .html → clean URL, drop fallback + duplicate webmanifest).
         manifestTransforms: [
-          async (entries) => ({ manifest: entries.filter((e) => !(e.url.endsWith('.js') && e.size > 400 * 1024)), warnings: [] })
+          async (entries) => ({
+            manifest: entries
+              .filter((e) => e.url !== 'prerendered/fallback.html' && !(e.url.endsWith('.js') && e.size > 400 * 1024))
+              .map((e) => {
+                let url = e.url;
+                if (url.startsWith('client/')) url = url.slice(7);
+                else if (url.startsWith('prerendered/dependencies/')) url = url.slice(25);
+                else if (url.startsWith('prerendered/pages/')) url = url.slice(18);
+                if (url.endsWith('.html')) url = url === 'index.html' ? scope : url.endsWith('/index.html') ? url.slice(0, -11) : url.slice(0, -5);
+                return { ...e, url };
+              })
+              .filter((e) => e.url !== 'manifest.webmanifest'),
+            warnings: []
+          })
         ],
         navigateFallback: `${base}/app`,
         navigateFallbackAllowlist: [new RegExp(`^${esc(base)}/app(/|$)`)],
