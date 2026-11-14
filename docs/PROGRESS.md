@@ -6,7 +6,7 @@ Plan: docs/plans/2026-11-14-cinetor-master-plan.md · Decisions: docs/handoff/de
 
 ## Resume here
 - RULE (user): every green main build → publish installers to PUBLIC Ashrix404/cinetor-app releases (works: android-build-14). Desktop from Phase 9.
-- Current: Phase 3. Player track = branch wip/phase-3 (worktree ~/apk-projects/cinetor): 3.1 done (6ec16f5, CI green), 3.2 done uncompiled-CI (58eb359), next 3.3 UI. Download track = branch dl/phase-3 (worktree ~/apk-projects/cinetor-dl): 3.7 engine WIP uncompiled (92d6ae0). Merge dl/phase-3 into wip/phase-3 when both green. See docs/handoff/phase-2.md.
+- Current: Phase 3. Player track = branch wip/phase-3 (worktree ~/apk-projects/cinetor): 3.1–3.6 DONE, CI green (see log). Player track finished → waits for download track merge. Download track = branch dl/phase-3 (worktree ~/apk-projects/cinetor-dl): 3.7 engine WIP uncompiled (92d6ae0). Merge dl/phase-3 into wip/phase-3 when both green. See docs/handoff/phase-2.md.
 - Last green main: 9231ed9 (Phase 2 merged). Site live https://ashrix404.github.io/cinetor-app/
 
 ## Phase checklist
@@ -17,7 +17,7 @@ Plan: docs/plans/2026-11-14-cinetor-master-plan.md · Decisions: docs/handoff/de
 ### Phase 2 — Android content  [x]
 - [x] 2.0 TMDB source (HybridCatalog: TMDB video spaces, mock fallback/isolated) · [x] 2.1 SpaceScreen (hero carousel, tabs, chips, rows, tint) · [x] 2.2 Details + skeleton (warm hook, Play+Ready dot, Download placeholder) · [x] 2.3 Search (in-mem index, DataStore history/profile, TMDB merge, LRU100) · [x] CI emulator smoke + screenshots
 ### Phase 3 — Player + downloads  [ ]
-- [x] 3.1 core · [x] 3.2 preloader/instant play · [x] 3.3 UI portrait/landscape · [x] 3.4 gestures · [x] 3.5 subtitles · [ ] 3.6 floating/PiP/service · [ ] 3.7 download engine + UI
+- [x] 3.1 core · [x] 3.2 preloader/instant play · [x] 3.3 UI portrait/landscape · [x] 3.4 gestures · [x] 3.5 subtitles · [x] 3.6 floating/PiP/service · [ ] 3.7 download engine + UI
 ### Phase 4 — Isolated spaces  [ ]
 - [ ] 4.1 Live TV + Sports + EPG · [ ] 4.2 Music · [ ] 4.3 Comics reader · [ ] 4.4 Adult gate
 ### Phase 5 — Profiles/Settings/About  [ ]
@@ -34,6 +34,7 @@ Plan: docs/plans/2026-11-14-cinetor-master-plan.md · Decisions: docs/handoff/de
 - [ ] release.yml v0.1.0 · [ ] QA matrix · [ ] final report to user
 
 ## Log (newest first, one line each)
+- 2026-11-14 20:00 Android 3.6 green (run https://github.com/Ashrix404/cinetor/actions/runs/43600401337 @798eb8a): back/⌄ → draggable mini (snaps corners, swipe-off stops, tap expands), survives navigation; system PiP (API31 auto-enter / 26–30 onUserLeaveHint, ±10s + play/pause RemoteActions, aspect from video); PlaybackService MediaSessionService (notification/lockscreen/BT keys, MediaSessionImpl init seen in logcat); Settings › Playback: Background play (default off) + PiP (default on). Tests FloatingPlayerTest 4 (miniPlayer_replacedByNewPlay_singleAudio, navigation_keepsPlayback, pip_actions_seek, snap/dismiss). Smoke screenshots: Details Resume+Ready+"10 min left", mini over Details/Home.
 - 2026-11-14 19:35 Android 3.4 gestures + 3.5 subtitles green (run https://github.com/Ashrix404/cinetor/actions/runs/43599395249, HEAD c-fix). Smoke: Play now really plays (HLS 1000k→2200k), tap→firstFrame 931 ms on emulator. Tests: GestureControllerTest 6, SubtitleTest 6, PlayerStateHolderTest 9, preloader +3. Deviations: no 150% volume boost (LoudnessEnhancer) ; embedded in-stream subs w/o URL can't be shifted (hint shown); seek step fixed 10 s until settings 5.2.
 - 2026-11-14 19:10 Android 3.2 green (b6522db, run 43596272631) + owned-slot preloader (warm while playing only resolves). 3.3 player UI green (run 43597621126): PlayerHost overlay ABOVE NavHost (not a nav route — needed for 3.6 mini), portrait 16:9+info/episodes, landscape immersive FULL_USER + rotate button, glass controls, seek bar (buffered+intro marks+bubble), settings sheet, resume 5s/pause, Details Resume label+progress, Continue row real entries, autoplay 10s, skip intro, sleep timer. Smoke found Play loaded nothing (peek warm ERROR never retried) → fixed (8f79e22+).
 - 2026-11-14 18:45 rate limit 17:29 killed both Ph3 agents; saved 3.2 commit + 3.7 WIP to dl/phase-3. Resumed.
