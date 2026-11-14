@@ -22,7 +22,8 @@ class SearchHistoryTest {
         assertEquals(listOf("squid", "naruto"), history.entries("p1", null))
         assertEquals(listOf("dune"), history.entries("p2", null))
         assertEquals(listOf("late night"), history.entries("p1", Space.TV))
-        assertEquals(listOf("secret"), history.entries("p1", Space.ADULT))
+        // Task 4.4: adult searches are never remembered (no recents at all).
+        assertTrue(history.entries("p1", Space.ADULT).isEmpty())
         assertTrue(history.entries("p2", Space.TV).isEmpty())
         val isolatedQueries = setOf("late night", "secret", "manga x", "lofi")
         for (p in listOf("p1", "p2")) {

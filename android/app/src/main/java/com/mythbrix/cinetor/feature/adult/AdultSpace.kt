@@ -89,10 +89,12 @@ object SecureFlags {
 @Composable
 fun SecureWindow(reason: String) {
     val context = androidx.compose.ui.platform.LocalContext.current
-    DisposableEffect(reason, context) {
+    // Unique per instance: two adult screens overlap during a navigation transition.
+    val key = remember(reason) { "$reason@" + Any().hashCode() }
+    DisposableEffect(key, context) {
         context.findActivity()?.let(SecureFlags::attach)
-        SecureFlags.set(reason, true)
-        onDispose { SecureFlags.set(reason, false) }
+        SecureFlags.set(key, true)
+        onDispose { SecureFlags.set(key, false) }
     }
 }
 
