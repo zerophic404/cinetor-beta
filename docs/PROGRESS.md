@@ -17,7 +17,7 @@ Plan: docs/plans/2026-11-14-cinetor-master-plan.md · Decisions: docs/handoff/de
 ### Phase 1 — Android foundation  [x]
 - [x] 1.1 data layer · [x] 1.2 design system/3 themes/skeletons · [x] 1.3 perf tier · [x] 1.4 shell/nav/splash · [x] review fixes
 ### Phase 2 — Android content  [~]
-- [~] 2.0 TMDB source (wip/phase-2) · [ ] 2.1 SpaceScreen (hero carousel, tabs, chips, rows, tint) · [ ] 2.2 Details + skeleton · [ ] 2.3 Search (FTS, local history, TMDB merge) · [ ] CI emulator smoke + screenshots
+- [x] 2.0 TMDB source (HybridCatalog: TMDB video spaces, mock fallback/isolated) · [ ] 2.1 SpaceScreen (hero carousel, tabs, chips, rows, tint) · [ ] 2.2 Details + skeleton · [x] 2.3 Search (in-mem index, DataStore history/profile, TMDB merge, LRU100) · [x] CI emulator smoke + screenshots
 ### Phase 3 — Player + downloads  [ ]
 - [ ] 3.1 core · [ ] 3.2 preloader/instant play · [ ] 3.3 UI portrait/landscape · [ ] 3.4 gestures · [ ] 3.5 subtitles · [ ] 3.6 floating/PiP/service · [ ] 3.7 download engine + UI
 ### Phase 4 — Isolated spaces  [ ]
@@ -36,6 +36,7 @@ Plan: docs/plans/2026-11-14-cinetor-master-plan.md · Decisions: docs/handoff/de
 - [ ] release.yml v0.1.0 · [ ] QA matrix · [ ] final report to user
 
 ## Log (newest first, one line each)
+- 2026-11-14 15:50 Android 2.0 + 2.3 done on wip/phase-2 (2955048), Android CI green incl. emulator smoke: https://github.com/Ashrix404/cinetor/actions/runs/43581257120 . Deviation: in-memory precomputed index instead of Room FTS4; history in DataStore JSON (no Room yet); no 24h disk query cache, no voice search/filter chips/skeleton grid yet (UI basic).
 - 2026-11-14 15:10 rate limit hit mid Phase 2 (both subagents 429). Partial saved to wip/phase-2. PROGRESS.md created.
 - 2026-11-14 12:38 Ph1 review done + fixes (22615e7).
 - 2026-11-14 12:30 Ph1 Android + Web 8.1 green.
