@@ -17,6 +17,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowRight
+import androidx.compose.material.icons.rounded.Download
 import androidx.compose.material.icons.rounded.Info
 import androidx.compose.material.icons.rounded.Palette
 import androidx.compose.material.icons.rounded.Settings
@@ -34,6 +35,8 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.mythbrix.cinetor.core.data.AppContainer
+import com.mythbrix.cinetor.core.download.DownloadStatus
+import com.mythbrix.cinetor.core.download.isActive
 import com.mythbrix.cinetor.core.perf.EffectsQuality
 import com.mythbrix.cinetor.core.perf.detectTier
 import com.mythbrix.cinetor.design.AppTheme
@@ -52,6 +55,7 @@ fun MeScreen(
     contentPadding: PaddingValues,
     onSettings: () -> Unit,
     onAbout: () -> Unit,
+    onDownloads: () -> Unit = {},
 ) {
     val tokens = Cinetor.tokens
     val scope = rememberCoroutineScope()
@@ -96,6 +100,10 @@ fun MeScreen(
             color = tokens.textTertiary,
             modifier = Modifier.padding(horizontal = 4.dp),
         )
+        val dl by container.downloads.visible.collectAsStateWithLifecycle()
+        val activeDl = dl.count { it.record.isActive }
+        val doneDl = dl.count { it.record.status == DownloadStatus.COMPLETED }
+        MeRow(Icons.Rounded.Download, "Downloads", if (activeDl > 0) "$activeDl active · $doneDl downloaded" else "$doneDl downloaded", onDownloads)
         MeRow(Icons.Rounded.Settings, "Settings", "App & profile", onSettings)
         MeRow(Icons.Rounded.Info, "About", "Cinetor", onAbout)
     }

@@ -69,6 +69,7 @@ import com.mythbrix.cinetor.design.GlassLevel
 import com.mythbrix.cinetor.design.glass
 import com.mythbrix.cinetor.feature.about.AboutScreen
 import com.mythbrix.cinetor.feature.details.DetailsScreen
+import com.mythbrix.cinetor.feature.downloads.DownloadsScreen
 import com.mythbrix.cinetor.feature.home.SpaceScreen
 import com.mythbrix.cinetor.feature.profile.MeScreen
 import com.mythbrix.cinetor.feature.search.SearchScreen
@@ -182,6 +183,7 @@ fun CinetorNavHost(container: AppContainer, modifier: Modifier = Modifier) {
                                         container, contentPadding,
                                         onSettings = { nav.navigate(SettingsRoute) },
                                         onAbout = { nav.navigate(AboutRoute) },
+                                        onDownloads = { nav.navigate(DownloadsRoute) },
                                     )
                                 }
                                 screen<SpaceRoute> { e ->
@@ -205,6 +207,7 @@ fun CinetorNavHost(container: AppContainer, modifier: Modifier = Modifier) {
                                 }
                                 screen<SettingsRoute> { SettingsScreen(contentPadding) }
                                 screen<AboutRoute> { AboutScreen(contentPadding) }
+                                screen<DownloadsRoute> { DownloadsScreen(container.downloads, contentPadding, openItem) }
                             }
                         }
                     }
