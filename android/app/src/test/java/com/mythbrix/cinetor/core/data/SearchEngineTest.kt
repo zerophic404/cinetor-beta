@@ -7,7 +7,7 @@ import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.advanceTimeBy
-import kotlinx.coroutines.test.advanceUntilIdle
+import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -80,7 +80,8 @@ class SearchEngineTest {
         advanceTimeBy(500) // past 200 ms debounce; "ab" remote call in flight
         assertEquals(listOf("ab"), calls)
         queries.value = "abc"
-        advanceUntilIdle()
+        advanceTimeBy(5_000) // advanceUntilIdle() ignores backgroundScope work
+        runCurrent()
 
         assertEquals(listOf("ab", "abc"), calls)
         assertTrue("stale result leaked: $out", out.none { r -> r.items.any { it.id == "r-ab" } })
@@ -102,7 +103,8 @@ class SearchEngineTest {
             advanceTimeBy(50)
         }
         queries.value = "dune"
-        advanceUntilIdle()
+        advanceTimeBy(5_000)
+        runCurrent()
         assertEquals(listOf("dune"), calls)
     }
 
