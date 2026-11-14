@@ -1,6 +1,7 @@
 <script lang="ts">
   let { size = 36, wordmark = false }: { size?: number; wordmark?: boolean } = $props();
-  const uid = 'lg' + $props.id().replace(/[^a-zA-Z0-9_-]/g, '');
+  const pid = $props.id();
+  const uid = 'lg' + pid.replace(/[^a-zA-Z0-9_-]/g, '');
 </script>
 
 <span class="logo">

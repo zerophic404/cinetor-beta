@@ -54,7 +54,7 @@
     <h2 id="fx-h" class="section-title">Effects quality</h2>
     <div class="h-scroll" role="radiogroup" aria-label="Effects quality">
       {#each tiers as t (t.v)}
-        <button class="chip" role="radio" aria-checked={perf.override === t.v} aria-pressed={perf.override === t.v} onclick={() => perf.setOverride(t.v)}>{t.l}</button>
+        <button class="chip" class:active={perf.override === t.v} role="radio" aria-checked={perf.override === t.v} onclick={() => perf.setOverride(t.v)}>{t.l}</button>
       {/each}
     </div>
     <p class="note">Active tier: <b>{perf.flags.tier}</b> · live blur {perf.flags.blurScope} · animations ×{perf.flags.durationScale}</p>
