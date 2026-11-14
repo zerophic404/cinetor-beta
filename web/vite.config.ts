@@ -59,8 +59,11 @@ export default defineConfig({
           'client/brand/{favicon.svg,icon-192.png,icon-512.png,maskable-512.png}',
           'prerendered/**/*.html'
         ],
-        // The lazy shaka-player chunk (~780 KB) is NOT precached (runtime-cached on first use below).
-        maximumFileSizeToCacheInBytes: 400 * 1024,
+        // The lazy shaka-player chunk (~780 KB, hashed name) is NOT precached: drop big JS from the
+        // manifest (runtime-cached on first use below). Shell chunks are all < 100 KB.
+        manifestTransforms: [
+          async (entries) => ({ manifest: entries.filter((e) => !(e.url.endsWith('.js') && e.size > 400 * 1024)), warnings: [] })
+        ],
         navigateFallback: `${base}/app`,
         navigateFallbackAllowlist: [new RegExp(`^${esc(base)}/app(/|$)`)],
         cleanupOutdatedCaches: true,
