@@ -61,7 +61,8 @@ class SearchHistory(
 
     suspend fun record(profileId: String, query: String, space: Space?) {
         val q = query.trim().replace(Regex("\\s+"), " ")
-        if (q.isEmpty() || paused) return
+        // Adult searches are never remembered (no recents for the gated space).
+        if (q.isEmpty() || paused || space == Space.ADULT) return
         update(profileId, space) { list ->
             (listOf(HistoryEntry(q, clock())) + list.filterNot { it.query.equals(q, ignoreCase = true) }).take(max)
         }

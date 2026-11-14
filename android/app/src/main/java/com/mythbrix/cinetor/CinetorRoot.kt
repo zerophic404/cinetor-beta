@@ -39,6 +39,8 @@ fun CinetorRoot(container: AppContainer) {
                 CinetorNavHost(container)
             }
             // Player lives above the NavHost: playback survives navigation (mini player in 3.6).
+            // Comics reader overlay (Task 4.3): immersive, above the shell, below the player.
+            com.mythbrix.cinetor.feature.comics.ComicsReaderHost(container.comics)
             PlayerHost(container.playback, container.subtitles)
             if (showIntro) AnimatedSplash(onFinished = { showIntro = false })
         }

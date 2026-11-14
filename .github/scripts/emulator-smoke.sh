@@ -106,6 +106,8 @@ shot 40-end-with-mini 1
 adb shell input keyevent KEYCODE_HOME; shot 42-pip 3
 adb shell am start -n "$PKG/.MainActivity" >/dev/null 2>&1; shot 43-back-from-pip 3
 tap_desc "Close mini player" && shot 41-mini-closed 2
+# Phase 4b: comics reader + adult gate (separate file to keep merges with phase 4a small)
+[ -f "$(dirname "$0")/smoke-phase4b.sh" ] && source "$(dirname "$0")/smoke-phase4b.sh"
 adb logcat -d > "$OUT/logcat.txt" || true
 if grep -q "FATAL EXCEPTION" "$OUT/logcat.txt"; then
   echo "::error::App crashed"; grep -A30 "FATAL EXCEPTION" "$OUT/logcat.txt" | head -60; exit 1

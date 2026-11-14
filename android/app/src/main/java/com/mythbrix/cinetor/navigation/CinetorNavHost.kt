@@ -68,6 +68,11 @@ import com.mythbrix.cinetor.design.CinetorMark
 import com.mythbrix.cinetor.design.GlassLevel
 import com.mythbrix.cinetor.design.glass
 import com.mythbrix.cinetor.feature.about.AboutScreen
+import com.mythbrix.cinetor.feature.adult.AdultGate
+import com.mythbrix.cinetor.feature.adult.AdultSpace
+import com.mythbrix.cinetor.feature.comics.ComicDetails
+import com.mythbrix.cinetor.feature.comics.ComicIds
+import com.mythbrix.cinetor.feature.comics.ComicsHome
 import com.mythbrix.cinetor.feature.details.DetailsScreen
 import com.mythbrix.cinetor.feature.downloads.DownloadsScreen
 import com.mythbrix.cinetor.feature.home.SpaceScreen
@@ -153,11 +158,15 @@ fun CinetorNavHost(container: AppContainer, modifier: Modifier = Modifier) {
     )
     val haze = Cinetor.haze
     val tabs = navTabsFor(activeSpace)
-    val openItem: (String) -> Unit = { id -> nav.navigate(DetailsRoute(id)) }
+    val openItem: (String) -> Unit = { id ->
+        if (ComicIds.isComic(id)) nav.navigate(ComicDetailsRoute(id)) else nav.navigate(DetailsRoute(id))
+    }
     val openCard: (Item, String?) -> Unit = { item, key ->
         container.peek.put(item)
-        nav.navigate(DetailsRoute(item.id, key.orEmpty()))
+        if (item.space == Space.COMICS) nav.navigate(ComicDetailsRoute(item.id))
+        else nav.navigate(DetailsRoute(item.id, key.orEmpty()))
     }
+    val exitAdult: () -> Unit = { nav.navigateTab(HomeRoute) }
 
     Box(modifier.fillMaxSize()) {
         Row(Modifier.fillMaxSize()) {
@@ -187,11 +196,25 @@ fun CinetorNavHost(container: AppContainer, modifier: Modifier = Modifier) {
                                     )
                                 }
                                 screen<SpaceRoute> { e ->
-                                    SpaceScreen(Space.valueOf(e.toRoute<SpaceRoute>().space), container, contentPadding, openCard)
+                                    when (val sp = Space.valueOf(e.toRoute<SpaceRoute>().space)) {
+                                        Space.COMICS -> ComicsHome(container, contentPadding, openCard)
+                                        Space.ADULT -> AdultSpace(container.adult, contentPadding, exitAdult) {
+                                            SpaceScreen(sp, container, contentPadding, openCard)
+                                        }
+                                        else -> SpaceScreen(sp, container, contentPadding, openCard)
+                                    }
                                 }
                                 screen<SpaceSearchRoute> { e ->
-                                    SearchScreen(Space.valueOf(e.toRoute<SpaceSearchRoute>().space), container, contentPadding, openItem)
+                                    val sp = Space.valueOf(e.toRoute<SpaceSearchRoute>().space)
+                                    if (sp == Space.ADULT) {
+                                        AdultSpace(container.adult, contentPadding, exitAdult) {
+                                            SearchScreen(sp, container, contentPadding, openItem)
+                                        }
+                                    } else {
+                                        SearchScreen(sp, container, contentPadding, openItem)
+                                    }
                                 }
+                                screen<ComicDetailsRoute> { e -> ComicDetails(e.toRoute<ComicDetailsRoute>().id, container, contentPadding) }
                                 composable<DetailsRoute>(
                                     enterTransition = {
                                         fadeIn(tween(260)) + scaleIn(tween(320, easing = CinetorTokens.Motion.emphasized), initialScale = 0.94f)
@@ -202,10 +225,16 @@ fun CinetorNavHost(container: AppContainer, modifier: Modifier = Modifier) {
                                 ) { e ->
                                     CompositionLocalProvider(LocalNavAnimatedScope provides this) {
                                         val r = e.toRoute<DetailsRoute>()
-                                        DetailsScreen(r.id, r.origin, container, contentPadding, openCard)
+                                        if (AdultGate.isAdultId(r.id)) {
+                                            AdultSpace(container.adult, contentPadding, exitAdult) {
+                                                DetailsScreen(r.id, r.origin, container, contentPadding, openCard)
+                                            }
+                                        } else {
+                                            DetailsScreen(r.id, r.origin, container, contentPadding, openCard)
+                                        }
                                     }
                                 }
-                                screen<SettingsRoute> { SettingsScreen(contentPadding, container.settings) }
+                                screen<SettingsRoute> { SettingsScreen(contentPadding, container.settings, container.adult) }
                                 screen<AboutRoute> { AboutScreen(contentPadding) }
                                 screen<DownloadsRoute> {
                                     DownloadsScreen(container.downloads, contentPadding, openItem, onPlay = { container.playDownload(it) })

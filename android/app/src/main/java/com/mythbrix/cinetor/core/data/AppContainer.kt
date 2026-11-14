@@ -153,8 +153,28 @@ class AppContainer(context: Context) {
         }
     }
 
+    /** Comics space (Task 4.3): reading progress, chapter downloads, reader overlay. */
+    val comics: com.mythbrix.cinetor.feature.comics.ComicsModule by lazy {
+        com.mythbrix.cinetor.feature.comics.ComicsModule(appContext, appScope)
+    }
+
+    /** Adult gate (Task 4.4): PIN session mirrored to the download engine; FLAG_SECURE + lifecycle wiring. */
+    val adult: com.mythbrix.cinetor.feature.adult.AdultGate by lazy {
+        com.mythbrix.cinetor.feature.adult.AdultGate(
+            store = com.mythbrix.cinetor.feature.adult.AdultDataStore(appContext, settings),
+            scope = appScope,
+            onSession = { unlocked -> mainScope.launch { downloads.setAdultSessionUnlocked(unlocked) } },
+        ).also { gate ->
+            com.mythbrix.cinetor.feature.adult.AdultLifecycle.install(
+                appContext as android.app.Application, gate, { playback }, mainScope,
+            )
+        }
+    }
+
     /** Kick off catalog parsing while the splash plays. */
     fun warmUp() {
+        // Gate first (main thread, before any activity): adult downloads hidden + lifecycle callbacks registered.
+        runCatching { adult }
         appScope.launch { runCatching { catalogSource.preload() } }
         appScope.launch(Dispatchers.Main) { runCatching { downloads } }
     }

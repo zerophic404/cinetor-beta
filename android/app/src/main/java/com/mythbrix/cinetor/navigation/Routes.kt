@@ -21,3 +21,6 @@ import kotlinx.serialization.Serializable
 @Serializable data object SettingsRoute
 @Serializable data object AboutRoute
 @Serializable data object DownloadsRoute
+
+/** Comic details (Task 4.3); the reader itself is an overlay above the NavHost. */
+@Serializable data class ComicDetailsRoute(val id: String)
