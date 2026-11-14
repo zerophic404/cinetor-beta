@@ -6,8 +6,15 @@ import com.mythbrix.cinetor.core.data.tmdb.OkHttpTmdbHttp
 import com.mythbrix.cinetor.core.data.tmdb.TmdbApi
 import com.mythbrix.cinetor.core.data.tmdb.TmdbCatalogSource
 import com.mythbrix.cinetor.core.perf.DeviceProfile
+import android.util.Log
+import com.mythbrix.cinetor.core.perf.PerformanceTier
+import com.mythbrix.cinetor.core.perf.detectTier
+import com.mythbrix.cinetor.core.player.MediaPlaybackPreloader
 import com.mythbrix.cinetor.core.player.PlaybackPreloader
-import com.mythbrix.cinetor.core.player.SimulatedPlaybackPreloader
+import com.mythbrix.cinetor.core.player.PlayerFactory
+import com.mythbrix.cinetor.core.player.ResumeRepository
+import com.mythbrix.cinetor.core.player.ResumeStore
+import com.mythbrix.cinetor.core.prefs.ResumeDataStore
 import com.mythbrix.cinetor.core.prefs.SearchHistoryDataStore
 import com.mythbrix.cinetor.core.prefs.SettingsStore
 import kotlinx.coroutines.CoroutineScope
@@ -60,8 +67,30 @@ class AppContainer(context: Context) {
     /** Items seen on cards (Details warm-up + shared poster before the full item loads). */
     val peek: ItemPeekCache = ItemPeekCache()
 
-    /** Instant-play warm-up. Simulated readiness until the Media3 preloader (Task 3.2). */
-    val preloader: PlaybackPreloader = SimulatedPlaybackPreloader(appScope)
+    /** Main-thread scope for player work (ExoPlayer is single-threaded on the main looper). */
+    val mainScope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
+
+    /** Auto-detected tier for player buffers/cache (user effects override only affects visuals). */
+    val playerTier: PerformanceTier by lazy { detectTier(deviceProfile) }
+
+    /** Owns the ONE shared ExoPlayer + 200 MB (LOW: 80 MB) SimpleCache. Process-scoped → survives rotation. */
+    val playerFactory: PlayerFactory by lazy { PlayerFactory(appContext, playerTier) }
+
+    /** Resume positions (DataStore JSON keyed profile+item+episode; Room later if added). */
+    val resume: ResumeStore = ResumeRepository(ResumeDataStore(appContext))
+
+    /** Data saver: warm only resolves, never buffers. Settings toggle arrives in 5.2. */
+    @Volatile
+    var dataSaver: Boolean = false
+
+    /** Instant-play warm-up over the shared Media3 player (Task 3.2). */
+    val preloader: PlaybackPreloader = MediaPlaybackPreloader(
+        scope = mainScope,
+        playerProvider = { playerFactory.player() },
+        resume = resume,
+        dataSaver = { dataSaver },
+        log = { Log.i("CinetorPlayback", it) },
+    )
 
     private val _myList = MutableStateFlow<Set<String>>(emptySet())
 
