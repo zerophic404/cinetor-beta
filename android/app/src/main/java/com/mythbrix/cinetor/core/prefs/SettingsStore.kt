@@ -32,6 +32,24 @@ class SettingsStore(context: Context) {
         .map { p -> p[ADULT] ?: false }
         .distinctUntilChanged()
 
+    /** Keep video audio playing in the background (MediaSession notification). Default off. */
+    val backgroundPlay: Flow<Boolean> = store.data
+        .map { p -> p[BACKGROUND_PLAY] ?: false }
+        .distinctUntilChanged()
+
+    /** Auto-enter system Picture-in-Picture on Home while a video plays. Default on. */
+    val autoPip: Flow<Boolean> = store.data
+        .map { p -> p[AUTO_PIP] ?: true }
+        .distinctUntilChanged()
+
+    suspend fun setBackgroundPlay(on: Boolean) {
+        store.edit { it[BACKGROUND_PLAY] = on }
+    }
+
+    suspend fun setAutoPip(on: Boolean) {
+        store.edit { it[AUTO_PIP] = on }
+    }
+
     suspend fun setTheme(theme: AppTheme) {
         store.edit { it[THEME] = theme.name }
     }
@@ -44,6 +62,8 @@ class SettingsStore(context: Context) {
         val THEME = stringPreferencesKey("theme")
         val EFFECTS = stringPreferencesKey("effects_quality")
         val ADULT = booleanPreferencesKey("adult_enabled")
+        val BACKGROUND_PLAY = booleanPreferencesKey("background_play")
+        val AUTO_PIP = booleanPreferencesKey("auto_pip")
 
         inline fun <reified E : Enum<E>> enumOrDefault(name: String?, default: E): E =
             name?.let { n -> enumValues<E>().firstOrNull { it.name == n } } ?: default

@@ -1,21 +1,63 @@
 package com.mythbrix.cinetor.feature.settings
 
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Switch
+import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.mythbrix.cinetor.core.prefs.SettingsStore
 import com.mythbrix.cinetor.design.Cinetor
+import kotlinx.coroutines.launch
 
-/** Placeholder — Task 5.2. */
+/** Settings — playback toggles now; full app & profile settings in Task 5.2. */
 @Composable
-fun SettingsScreen(contentPadding: PaddingValues) {
-    Column(Modifier.fillMaxSize().padding(contentPadding).padding(16.dp)) {
+fun SettingsScreen(contentPadding: PaddingValues, settings: SettingsStore) {
+    val scope = rememberCoroutineScope()
+    val backgroundPlay by settings.backgroundPlay.collectAsStateWithLifecycle(initialValue = false)
+    val autoPip by settings.autoPip.collectAsStateWithLifecycle(initialValue = true)
+    Column(
+        Modifier.fillMaxSize().padding(contentPadding).padding(16.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
         Text("Settings", style = MaterialTheme.typography.headlineMedium, color = Cinetor.tokens.textPrimary)
-        Text("App & profile settings arrive in Phase 5.", color = Cinetor.tokens.textSecondary)
+        Text("Playback", style = MaterialTheme.typography.titleMedium, color = Cinetor.tokens.textPrimary)
+        ToggleRow("Background play", "Keep video audio playing with the screen off / app in background", backgroundPlay) {
+            scope.launch { settings.setBackgroundPlay(it) }
+        }
+        ToggleRow("Picture-in-picture", "Float the video when you leave the app while it plays", autoPip) {
+            scope.launch { settings.setAutoPip(it) }
+        }
+        Text("More app & profile settings arrive in Phase 5.", color = Cinetor.tokens.textSecondary)
+    }
+}
+
+@Composable
+private fun ToggleRow(title: String, subtitle: String, checked: Boolean, onChange: (Boolean) -> Unit) {
+    val tokens = Cinetor.tokens
+    Row(Modifier.fillMaxWidth().semantics { contentDescription = title }, verticalAlignment = Alignment.CenterVertically) {
+        Column(Modifier.weight(1f)) {
+            Text(title, style = MaterialTheme.typography.bodyLarge, color = tokens.textPrimary)
+            Text(subtitle, style = MaterialTheme.typography.bodySmall, color = tokens.textSecondary)
+        }
+        Switch(
+            checked = checked,
+            onCheckedChange = onChange,
+            colors = SwitchDefaults.colors(checkedTrackColor = tokens.accent),
+        )
     }
 }

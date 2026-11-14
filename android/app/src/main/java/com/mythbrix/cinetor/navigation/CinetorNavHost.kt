@@ -203,7 +203,7 @@ fun CinetorNavHost(container: AppContainer, modifier: Modifier = Modifier) {
                                         DetailsScreen(r.id, r.origin, container, contentPadding, openCard)
                                     }
                                 }
-                                screen<SettingsRoute> { SettingsScreen(contentPadding) }
+                                screen<SettingsRoute> { SettingsScreen(contentPadding, container.settings) }
                                 screen<AboutRoute> { AboutScreen(contentPadding) }
                             }
                         }

@@ -54,7 +54,8 @@ if tap_desc "Play"; then
   if ! tap_desc "Fullscreen"; then adb shell input tap $((W*85/100)) $((H/8)); sleep 1; tap_desc "Fullscreen"; fi
   shot 32-player-landscape 4
   adb shell input tap $((H/2)) $((W/2)); shot 33-player-landscape-controls 1
-  adb shell input keyevent KEYCODE_BACK; shot 34-player-closed 3
+  # Back → in-app mini player (keeps playing over Details / Home)
+  adb shell input keyevent KEYCODE_BACK; shot 34-mini-player 3
   adb logcat -d | grep -E "CinetorPlayback|tap→firstFrame" | tail -5 || true
 fi
 adb shell input swipe $((W/2)) $((H*3/4)) $((W/2)) $((H/4)) 400; shot 22-details-scrolled 2
@@ -68,6 +69,9 @@ adb shell input swipe $((W/2)) $((H*3/4)) $((W/2)) $((H/3)) 400; shot 26-home-ro
 adb shell input tap $((W/6)) $((H*2/3)); shot 27-card-details 4
 adb shell input keyevent KEYCODE_BACK; sleep 1
 
+# mini player should have survived navigation; close it
+shot 40-end-with-mini 1
+tap_desc "Close mini player" && shot 41-mini-closed 2
 adb logcat -d > "$OUT/logcat.txt" || true
 if grep -q "FATAL EXCEPTION" "$OUT/logcat.txt"; then
   echo "::error::App crashed"; grep -A30 "FATAL EXCEPTION" "$OUT/logcat.txt" | head -60; exit 1
