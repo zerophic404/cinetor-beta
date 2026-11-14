@@ -6,6 +6,7 @@ import com.mythbrix.cinetor.core.data.tmdb.OkHttpTmdbHttp
 import com.mythbrix.cinetor.core.data.tmdb.TmdbApi
 import com.mythbrix.cinetor.core.data.tmdb.TmdbCatalogSource
 import com.mythbrix.cinetor.core.perf.DeviceProfile
+import com.mythbrix.cinetor.core.prefs.SearchHistoryDataStore
 import com.mythbrix.cinetor.core.prefs.SettingsStore
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -43,6 +44,10 @@ class AppContainer(context: Context) {
     val catalog: CatalogRepository = HybridCatalog(tmdb, catalogSource)
     val search: SearchRepository = SearchRepository(catalog)
     val remoteSearch: RemoteSearch? get() = tmdb
+
+    /** Local-only recent searches (per profile; isolated spaces in their own buckets). */
+    val searchHistory: SearchHistory = SearchHistory(SearchHistoryDataStore(appContext))
+    val searchEngine: SearchEngine = SearchEngine(search, remoteSearch, QueryCache(100))
 
     val settings: SettingsStore = SettingsStore(appContext)
 
