@@ -9,7 +9,8 @@ import org.junit.Test
 private class FakeTarget : GestureTarget {
     override var positionMs: Long = 50_000
     override var durationMs: Long = 600_000
-    override var speed: Float = 1f
+    var spd: Float = 1f
+    override val speed: Float get() = spd
     override var locked: Boolean = false
     val seeksBy = mutableListOf<Long>()
     val seeksTo = mutableListOf<Long>()
@@ -20,7 +21,7 @@ private class FakeTarget : GestureTarget {
     var fill: Boolean? = null
     override fun seekBy(deltaMs: Long) { seeksBy += deltaMs }
     override fun seekTo(positionMs: Long) { seeksTo += positionMs }
-    override fun setSpeed(speed: Float) { this.speed = speed }
+    override fun setSpeed(speed: Float) { spd = speed }
     override fun togglePlay() { playToggles++ }
     override fun toggleControls() { toggles++ }
     override fun brightness(): Float = bright
@@ -67,7 +68,7 @@ class GestureControllerTest {
 
     @Test
     fun hold_sets2x_releaseRestores() {
-        t.speed = 1.25f
+        t.spd = 1.25f
         c.onHoldStart()
         assertEquals(2f, t.speed)
         assertTrue(c.ui.value.holding)
