@@ -1,0 +1,83 @@
+name: Web
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'web/**'
+      - 'shared/**'
+      - '.github/workflows/web.yml'
+  pull_request:
+    paths:
+      - 'web/**'
+      - 'shared/**'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: web-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  BASE_PATH: /cinetor
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    outputs:
+      has_web: ${{ steps.detect.outputs.has_web }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Detect web project
+        id: detect
+        run: echo "has_web=${{ hashFiles('web/package.json') != '' }}" >> "$GITHUB_OUTPUT"
+
+      - name: Placeholder (web not yet created)
+        if: hashFiles('web/package.json') == ''
+        run: echo 'web not yet created'
+
+      - uses: actions/setup-node@v4
+        if: hashFiles('web/package.json') != ''
+        with:
+          node-version: '20'
+
+      - name: Install
+        if: hashFiles('web/package.json') != ''
+        working-directory: web
+        run: npm ci || npm install
+
+      - name: Build
+        if: hashFiles('web/package.json') != ''
+        working-directory: web
+        run: npm run build
+
+      - name: Test
+        if: hashFiles('web/package.json') != ''
+        working-directory: web
+        run: npm test --if-present
+
+      - name: Upload Pages artifact
+        if: hashFiles('web/package.json') != '' && github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: web/build
+
+  deploy:
+    needs: build
+    # Gated: hashFiles() is not allowed in job-level `if`, so build exposes it as an output.
+    # Stays skipped until web/package.json exists; only deploys from main.
+    if: needs.build.outputs.has_web == 'true' && github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

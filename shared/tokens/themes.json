@@ -1,0 +1,93 @@
+{
+  "$comment": "Cinetor themes. Colors are #RRGGBB or #RRGGBBAA (CSS order, alpha last). Brand = RED + BLACK. Source of truth for gen_tokens.py.",
+  "default": "noir",
+  "themes": {
+    "noir": {
+      "name": "Noir",
+      "description": "True AMOLED black, least blur. Battery/low-end friendly.",
+      "colors": {
+        "bg": "#000000",
+        "surface": "#0B0B0B",
+        "surfaceElevated": "#141414",
+        "glassFill": "#FFFFFF0F",
+        "glassStroke": "#FFFFFF1A",
+        "accent": "#E50914",
+        "accentEnd": "#B00610",
+        "accentGlow": "#FF2D3B73",
+        "onAccent": "#FFFFFF",
+        "textPrimary": "#FFFFFF",
+        "textSecondary": "#A3A3A3",
+        "textTertiary": "#6B6B6B",
+        "divider": "#FFFFFF14",
+        "focusRing": "#FFFFFF",
+        "success": "#22C55E",
+        "warning": "#F5A524",
+        "error": "#FF3B30",
+        "liveBadge": "#E50914",
+        "scrim": "#000000B3",
+        "skeletonBase": "#161616",
+        "skeletonHighlight": "#262626"
+      },
+      "blurDp": 14,
+      "tintStrength": 0.18
+    },
+    "obsidian": {
+      "name": "Obsidian",
+      "description": "Premium frosted graphite glass with wine red.",
+      "colors": {
+        "bg": "#0E0E10",
+        "surface": "#17171A",
+        "surfaceElevated": "#1F1F23",
+        "glassFill": "#FFFFFF14",
+        "glassStroke": "#FFFFFF24",
+        "accent": "#C8102E",
+        "accentEnd": "#8E0B20",
+        "accentGlow": "#C8102E59",
+        "onAccent": "#FFFFFF",
+        "textPrimary": "#F2F2F5",
+        "textSecondary": "#9A9AA3",
+        "textTertiary": "#6A6A72",
+        "divider": "#FFFFFF1A",
+        "focusRing": "#F2F2F5",
+        "success": "#2FBF71",
+        "warning": "#E8A33D",
+        "error": "#E5484D",
+        "liveBadge": "#FF3347",
+        "scrim": "#0E0E10B8",
+        "skeletonBase": "#1C1C20",
+        "skeletonHighlight": "#2A2A30"
+      },
+      "blurDp": 24,
+      "tintStrength": 0.30
+    },
+    "ember": {
+      "name": "Ember",
+      "description": "Warm black with vibrant red to orange glow.",
+      "colors": {
+        "bg": "#0A0505",
+        "surface": "#160A0A",
+        "surfaceElevated": "#201010",
+        "glassFill": "#FF2D3B12",
+        "glassStroke": "#FF6A4D38",
+        "accent": "#FF2D3B",
+        "accentEnd": "#FF7A1A",
+        "accentGlow": "#FF5A1F80",
+        "onAccent": "#FFFFFF",
+        "textPrimary": "#FFF4F0",
+        "textSecondary": "#D9B8AE",
+        "textTertiary": "#9C7E76",
+        "divider": "#FF6A4D1F",
+        "focusRing": "#FFB199",
+        "success": "#3DD68C",
+        "warning": "#FFB020",
+        "error": "#FF4D4F",
+        "liveBadge": "#FF2D3B",
+        "scrim": "#0A0505B8",
+        "skeletonBase": "#1E0F0E",
+        "skeletonHighlight": "#2E1816"
+      },
+      "blurDp": 22,
+      "tintStrength": 0.26
+    }
+  }
+}

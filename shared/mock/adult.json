@@ -1,0 +1,565 @@
+{
+ "space": "ADULT",
+ "version": 1,
+ "genres": [
+  "Late Night",
+  "Romance",
+  "Mature Drama",
+  "Art House"
+ ],
+ "categories": [
+  {
+   "id": "ad-featured",
+   "space": "ADULT",
+   "title": "Featured",
+   "heroIds": [
+    "ad-001",
+    "ad-002",
+    "ad-003",
+    "ad-004"
+   ],
+   "rows": [
+    {
+     "id": "ad-featured-r1",
+     "title": "Featured",
+     "style": "POSTER",
+     "itemIds": [
+      "ad-006",
+      "ad-010",
+      "ad-002",
+      "ad-012",
+      "ad-007",
+      "ad-005",
+      "ad-001",
+      "ad-009",
+      "ad-003",
+      "ad-011"
+     ]
+    },
+    {
+     "id": "ad-featured-r2",
+     "title": "Top 10",
+     "style": "TOP10",
+     "itemIds": [
+      "ad-004",
+      "ad-003",
+      "ad-001",
+      "ad-006",
+      "ad-008",
+      "ad-002",
+      "ad-010",
+      "ad-012",
+      "ad-007",
+      "ad-005"
+     ]
+    },
+    {
+     "id": "ad-featured-r3",
+     "title": "New Arrivals",
+     "style": "LANDSCAPE",
+     "itemIds": [
+      "ad-011",
+      "ad-002",
+      "ad-012",
+      "ad-001",
+      "ad-010",
+      "ad-003",
+      "ad-006",
+      "ad-004"
+     ]
+    },
+    {
+     "id": "ad-featured-r4",
+     "title": "Late Night Picks",
+     "style": "POSTER",
+     "itemIds": [
+      "ad-001",
+      "ad-004",
+      "ad-005",
+      "ad-008",
+      "ad-011",
+      "ad-012",
+      "ad-006",
+      "ad-003"
+     ]
+    }
+   ]
+  }
+ ],
+ "items": [
+  {
+   "id": "ad-001",
+   "space": "ADULT",
+   "categoryId": "ad-featured",
+   "type": "VIDEO",
+   "title": "Late Night Feature 01",
+   "year": 2020,
+   "rating": 7.7,
+   "maturity": "18+",
+   "genres": [
+    "Mature Drama",
+    "Late Night"
+   ],
+   "synopsis": "Placeholder title for the gated 18+ space. Mock data only — no real adult content.",
+   "poster": "images/adult/ad-001-poster.webp",
+   "backdrop": "images/adult/ad-001-backdrop.webp",
+   "dominantColor": "#4F1A27",
+   "accentColor": "#E0496E",
+   "durationSec": 2700,
+   "sources": [
+    {
+     "url": "https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8",
+     "kind": "HLS",
+     "label": "Auto · HLS"
+    },
+    {
+     "url": "https://vjs.zencdn.net/v/oceans.mp4",
+     "kind": "MP4",
+     "label": "Server 2"
+    }
+   ],
+   "subtitles": []
+  },
+  {
+   "id": "ad-002",
+   "space": "ADULT",
+   "categoryId": "ad-featured",
+   "type": "VIDEO",
+   "title": "Late Night Feature 02",
+   "year": 2018,
+   "rating": 7.1,
+   "maturity": "18+",
+   "genres": [
+    "Mature Drama",
+    "Art House"
+   ],
+   "synopsis": "Placeholder title for the gated 18+ space. Mock data only — no real adult content.",
+   "poster": "images/adult/ad-002-poster.webp",
+   "backdrop": "images/adult/ad-002-backdrop.webp",
+   "dominantColor": "#461415",
+   "accentColor": "#E04043",
+   "durationSec": 4080,
+   "sources": [
+    {
+     "url": "https://media.w3.org/2010/05/bunny/trailer.mp4",
+     "kind": "MP4",
+     "label": "MP4"
+    },
+    {
+     "url": "https://storage.googleapis.com/shaka-demo-assets/angel-one/dash.mpd",
+     "kind": "DASH",
+     "label": "Server 2"
+    }
+   ],
+   "subtitles": [
+    {
+     "lang": "en",
+     "label": "English",
+     "url": "subs/sample-en.vtt",
+     "format": "VTT"
+    },
+    {
+     "lang": "bn",
+     "label": "বাংলা (Bangla)",
+     "url": "subs/sample-bn.vtt",
+     "format": "VTT"
+    }
+   ]
+  },
+  {
+   "id": "ad-003",
+   "space": "ADULT",
+   "categoryId": "ad-featured",
+   "type": "VIDEO",
+   "title": "Late Night Feature 03",
+   "year": 2023,
+   "rating": 7.9,
+   "maturity": "18+",
+   "genres": [
+    "Mature Drama",
+    "Romance"
+   ],
+   "synopsis": "Placeholder title for the gated 18+ space. Mock data only — no real adult content.",
+   "poster": "images/adult/ad-003-poster.webp",
+   "backdrop": "images/adult/ad-003-backdrop.webp",
+   "dominantColor": "#451822",
+   "accentColor": "#E04E6E",
+   "durationSec": 2160,
+   "sources": [
+    {
+     "url": "https://demo.unified-streaming.com/k8s/features/stable/video/tears-of-steel/tears-of-steel.ism/.m3u8",
+     "kind": "HLS",
+     "label": "Multi-audio · HLS"
+    },
+    {
+     "url": "https://media.w3.org/2010/05/sintel/trailer.mp4",
+     "kind": "MP4",
+     "label": "Server 2"
+    }
+   ],
+   "subtitles": []
+  },
+  {
+   "id": "ad-004",
+   "space": "ADULT",
+   "categoryId": "ad-featured",
+   "type": "VIDEO",
+   "title": "Late Night Feature 04",
+   "year": 2018,
+   "rating": 8.0,
+   "maturity": "18+",
+   "genres": [
+    "Romance",
+    "Late Night"
+   ],
+   "synopsis": "Placeholder title for the gated 18+ space. Mock data only — no real adult content.",
+   "poster": "images/adult/ad-004-poster.webp",
+   "backdrop": "images/adult/ad-004-backdrop.webp",
+   "dominantColor": "#421527",
+   "accentColor": "#E04784",
+   "durationSec": 2340,
+   "sources": [
+    {
+     "url": "https://vjs.zencdn.net/v/oceans.mp4",
+     "kind": "MP4",
+     "label": "MP4"
+    },
+    {
+     "url": "https://test-videos.co.uk/vids/bigbuckbunny/mp4/h264/720/Big_Buck_Bunny_720_10s_1MB.mp4",
+     "kind": "MP4",
+     "label": "Server 2"
+    }
+   ],
+   "subtitles": [
+    {
+     "lang": "en",
+     "label": "English",
+     "url": "subs/sample-en.vtt",
+     "format": "VTT"
+    },
+    {
+     "lang": "bn",
+     "label": "বাংলা (Bangla)",
+     "url": "subs/sample-bn.vtt",
+     "format": "VTT"
+    }
+   ]
+  },
+  {
+   "id": "ad-005",
+   "space": "ADULT",
+   "categoryId": "ad-featured",
+   "type": "VIDEO",
+   "title": "Late Night Feature 05",
+   "year": 2025,
+   "rating": 5.9,
+   "maturity": "18+",
+   "genres": [
+    "Mature Drama",
+    "Late Night"
+   ],
+   "synopsis": "Placeholder title for the gated 18+ space. Mock data only — no real adult content.",
+   "poster": "images/adult/ad-005-poster.webp",
+   "backdrop": "images/adult/ad-005-backdrop.webp",
+   "dominantColor": "#581A2B",
+   "accentColor": "#E0426D",
+   "durationSec": 3420,
+   "sources": [
+    {
+     "url": "https://storage.googleapis.com/shaka-demo-assets/angel-one/dash.mpd",
+     "kind": "DASH",
+     "label": "DASH"
+    },
+    {
+     "url": "https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8",
+     "kind": "HLS",
+     "label": "Server 2"
+    }
+   ],
+   "subtitles": []
+  },
+  {
+   "id": "ad-006",
+   "space": "ADULT",
+   "categoryId": "ad-featured",
+   "type": "VIDEO",
+   "title": "Late Night Feature 06",
+   "year": 2021,
+   "rating": 7.7,
+   "maturity": "18+",
+   "genres": [
+    "Mature Drama",
+    "Romance"
+   ],
+   "synopsis": "Placeholder title for the gated 18+ space. Mock data only — no real adult content.",
+   "poster": "images/adult/ad-006-poster.webp",
+   "backdrop": "images/adult/ad-006-backdrop.webp",
+   "dominantColor": "#3C1617",
+   "accentColor": "#E04E52",
+   "durationSec": 5340,
+   "sources": [
+    {
+     "url": "https://media.w3.org/2010/05/sintel/trailer.mp4",
+     "kind": "MP4",
+     "label": "MP4"
+    },
+    {
+     "url": "https://media.w3.org/2010/05/bunny/trailer.mp4",
+     "kind": "MP4",
+     "label": "Server 2"
+    }
+   ],
+   "subtitles": [
+    {
+     "lang": "en",
+     "label": "English",
+     "url": "subs/sample-en.vtt",
+     "format": "VTT"
+    },
+    {
+     "lang": "bn",
+     "label": "বাংলা (Bangla)",
+     "url": "subs/sample-bn.vtt",
+     "format": "VTT"
+    }
+   ]
+  },
+  {
+   "id": "ad-007",
+   "space": "ADULT",
+   "categoryId": "ad-featured",
+   "type": "VIDEO",
+   "title": "Late Night Feature 07",
+   "year": 2018,
+   "rating": 6.1,
+   "maturity": "18+",
+   "genres": [
+    "Art House",
+    "Romance"
+   ],
+   "synopsis": "Placeholder title for the gated 18+ space. Mock data only — no real adult content.",
+   "poster": "images/adult/ad-007-poster.webp",
+   "backdrop": "images/adult/ad-007-backdrop.webp",
+   "dominantColor": "#4D1B24",
+   "accentColor": "#E04E68",
+   "durationSec": 1680,
+   "sources": [
+    {
+     "url": "https://test-videos.co.uk/vids/bigbuckbunny/mp4/h264/720/Big_Buck_Bunny_720_10s_1MB.mp4",
+     "kind": "MP4",
+     "label": "720p · MP4"
+    },
+    {
+     "url": "https://demo.unified-streaming.com/k8s/features/stable/video/tears-of-steel/tears-of-steel.ism/.m3u8",
+     "kind": "HLS",
+     "label": "Server 2"
+    }
+   ],
+   "subtitles": [
+    {
+     "lang": "en",
+     "label": "English",
+     "url": "subs/sample-en.vtt",
+     "format": "VTT"
+    },
+    {
+     "lang": "bn",
+     "label": "বাংলা (Bangla)",
+     "url": "subs/sample-bn.vtt",
+     "format": "VTT"
+    }
+   ]
+  },
+  {
+   "id": "ad-008",
+   "space": "ADULT",
+   "categoryId": "ad-featured",
+   "type": "VIDEO",
+   "title": "Late Night Feature 08",
+   "year": 2025,
+   "rating": 7.4,
+   "maturity": "18+",
+   "genres": [
+    "Romance",
+    "Late Night"
+   ],
+   "synopsis": "Placeholder title for the gated 18+ space. Mock data only — no real adult content.",
+   "poster": "images/adult/ad-008-poster.webp",
+   "backdrop": "images/adult/ad-008-backdrop.webp",
+   "dominantColor": "#44221B",
+   "accentColor": "#E0674E",
+   "durationSec": 2520,
+   "sources": [
+    {
+     "url": "https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8",
+     "kind": "HLS",
+     "label": "Auto · HLS"
+    },
+    {
+     "url": "https://vjs.zencdn.net/v/oceans.mp4",
+     "kind": "MP4",
+     "label": "Server 2"
+    }
+   ],
+   "subtitles": []
+  },
+  {
+   "id": "ad-009",
+   "space": "ADULT",
+   "categoryId": "ad-featured",
+   "type": "VIDEO",
+   "title": "Late Night Feature 09",
+   "year": 2022,
+   "rating": 5.9,
+   "maturity": "18+",
+   "genres": [
+    "Romance",
+    "Mature Drama"
+   ],
+   "synopsis": "Placeholder title for the gated 18+ space. Mock data only — no real adult content.",
+   "poster": "images/adult/ad-009-poster.webp",
+   "backdrop": "images/adult/ad-009-backdrop.webp",
+   "dominantColor": "#491924",
+   "accentColor": "#E04C6E",
+   "durationSec": 5340,
+   "sources": [
+    {
+     "url": "https://media.w3.org/2010/05/bunny/trailer.mp4",
+     "kind": "MP4",
+     "label": "MP4"
+    },
+    {
+     "url": "https://storage.googleapis.com/shaka-demo-assets/angel-one/dash.mpd",
+     "kind": "DASH",
+     "label": "Server 2"
+    }
+   ],
+   "subtitles": [
+    {
+     "lang": "en",
+     "label": "English",
+     "url": "subs/sample-en.vtt",
+     "format": "VTT"
+    },
+    {
+     "lang": "bn",
+     "label": "বাংলা (Bangla)",
+     "url": "subs/sample-bn.vtt",
+     "format": "VTT"
+    }
+   ]
+  },
+  {
+   "id": "ad-010",
+   "space": "ADULT",
+   "categoryId": "ad-featured",
+   "type": "VIDEO",
+   "title": "Late Night Feature 10",
+   "year": 2023,
+   "rating": 6.8,
+   "maturity": "18+",
+   "genres": [
+    "Art House",
+    "Mature Drama"
+   ],
+   "synopsis": "Placeholder title for the gated 18+ space. Mock data only — no real adult content.",
+   "poster": "images/adult/ad-010-poster.webp",
+   "backdrop": "images/adult/ad-010-backdrop.webp",
+   "dominantColor": "#3D1816",
+   "accentColor": "#E0564E",
+   "durationSec": 2880,
+   "sources": [
+    {
+     "url": "https://demo.unified-streaming.com/k8s/features/stable/video/tears-of-steel/tears-of-steel.ism/.m3u8",
+     "kind": "HLS",
+     "label": "Multi-audio · HLS"
+    },
+    {
+     "url": "https://media.w3.org/2010/05/sintel/trailer.mp4",
+     "kind": "MP4",
+     "label": "Server 2"
+    }
+   ],
+   "subtitles": []
+  },
+  {
+   "id": "ad-011",
+   "space": "ADULT",
+   "categoryId": "ad-featured",
+   "type": "VIDEO",
+   "title": "Late Night Feature 11",
+   "year": 2025,
+   "rating": 5.9,
+   "maturity": "18+",
+   "genres": [
+    "Art House",
+    "Late Night"
+   ],
+   "synopsis": "Placeholder title for the gated 18+ space. Mock data only — no real adult content.",
+   "poster": "images/adult/ad-011-poster.webp",
+   "backdrop": "images/adult/ad-011-backdrop.webp",
+   "dominantColor": "#47192A",
+   "accentColor": "#E04E84",
+   "durationSec": 5220,
+   "sources": [
+    {
+     "url": "https://vjs.zencdn.net/v/oceans.mp4",
+     "kind": "MP4",
+     "label": "MP4"
+    },
+    {
+     "url": "https://test-videos.co.uk/vids/bigbuckbunny/mp4/h264/720/Big_Buck_Bunny_720_10s_1MB.mp4",
+     "kind": "MP4",
+     "label": "Server 2"
+    }
+   ],
+   "subtitles": [
+    {
+     "lang": "en",
+     "label": "English",
+     "url": "subs/sample-en.vtt",
+     "format": "VTT"
+    },
+    {
+     "lang": "bn",
+     "label": "বাংলা (Bangla)",
+     "url": "subs/sample-bn.vtt",
+     "format": "VTT"
+    }
+   ]
+  },
+  {
+   "id": "ad-012",
+   "space": "ADULT",
+   "categoryId": "ad-featured",
+   "type": "VIDEO",
+   "title": "Late Night Feature 12",
+   "year": 2020,
+   "rating": 6.2,
+   "maturity": "18+",
+   "genres": [
+    "Late Night",
+    "Romance"
+   ],
+   "synopsis": "Placeholder title for the gated 18+ space. Mock data only — no real adult content.",
+   "poster": "images/adult/ad-012-poster.webp",
+   "backdrop": "images/adult/ad-012-backdrop.webp",
+   "dominantColor": "#4C181A",
+   "accentColor": "#E0464C",
+   "durationSec": 1380,
+   "sources": [
+    {
+     "url": "https://storage.googleapis.com/shaka-demo-assets/angel-one/dash.mpd",
+     "kind": "DASH",
+     "label": "DASH"
+    },
+    {
+     "url": "https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8",
+     "kind": "HLS",
+     "label": "Server 2"
+    }
+   ],
+   "subtitles": []
+  }
+ ]
+}

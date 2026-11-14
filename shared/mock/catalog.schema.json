@@ -1,0 +1,194 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://cinetor.mythbrix/schema/catalog.schema.json",
+  "title": "Cinetor mock catalog file",
+  "description": "One file per Space (home.json, anime.json, ...). Image/subtitle paths are RELATIVE to the mock root (apps prefix their base URL). Colors are '#RRGGBB'.",
+  "type": "object",
+  "required": ["space", "categories", "items"],
+  "properties": {
+    "space": { "$ref": "#/definitions/Space" },
+    "version": { "type": "integer" },
+    "genres": { "type": "array", "items": { "type": "string" }, "description": "Genre chips available in this space." },
+    "epgAnchor": { "type": "integer", "description": "TV only. Fixed epoch seconds; Program.startOffsetSec / Event.startOffsetSec are relative to it. Apps may rebase the anchor to 'now' floored to 30 min." },
+    "assets": {
+      "type": "object",
+      "properties": { "avatars": { "type": "array", "items": { "$ref": "#/definitions/ImagePath" } } }
+    },
+    "categories": { "type": "array", "minItems": 1, "items": { "$ref": "#/definitions/Category" } },
+    "items": { "type": "array", "minItems": 1, "items": { "$ref": "#/definitions/Item" } }
+  },
+  "definitions": {
+    "Space": { "enum": ["HOME", "ANIME", "DRAMA", "TV", "MUSIC", "COMICS", "ADULT"] },
+    "Id": { "type": "string", "pattern": "^[a-z0-9][a-z0-9-]*$" },
+    "Color": { "type": "string", "pattern": "^#[0-9A-Fa-f]{6}$" },
+    "ImagePath": { "type": "string", "pattern": "^images/[A-Za-z0-9_/.-]+\\.webp$" },
+    "Category": {
+      "type": "object",
+      "required": ["id", "space", "title", "heroIds", "rows"],
+      "properties": {
+        "id": { "$ref": "#/definitions/Id" },
+        "space": { "$ref": "#/definitions/Space" },
+        "title": { "type": "string", "minLength": 1 },
+        "heroIds": { "type": "array", "minItems": 3, "maxItems": 5, "items": { "$ref": "#/definitions/Id" } },
+        "rows": { "type": "array", "minItems": 4, "maxItems": 8, "items": { "$ref": "#/definitions/Row" } }
+      },
+      "additionalProperties": false
+    },
+    "Row": {
+      "type": "object",
+      "required": ["id", "title", "style", "itemIds"],
+      "properties": {
+        "id": { "$ref": "#/definitions/Id" },
+        "title": { "type": "string", "minLength": 1 },
+        "style": { "enum": ["POSTER", "LANDSCAPE", "TOP10", "CONTINUE", "CIRCLE", "CHANNEL"] },
+        "itemIds": { "type": "array", "minItems": 1, "items": { "$ref": "#/definitions/Id" } }
+      },
+      "additionalProperties": false
+    },
+    "Source": {
+      "type": "object",
+      "required": ["url", "kind"],
+      "properties": {
+        "url": { "type": "string", "pattern": "^https?://" },
+        "kind": { "enum": ["HLS", "DASH", "MP4", "MKV", "WEBM", "RTSP", "SS", "MP3"] },
+        "label": { "type": "string" },
+        "headers": { "type": "object", "additionalProperties": { "type": "string" } }
+      },
+      "additionalProperties": false
+    },
+    "Sub": {
+      "type": "object",
+      "required": ["lang", "label", "url", "format"],
+      "properties": {
+        "lang": { "type": "string", "minLength": 2 },
+        "label": { "type": "string" },
+        "url": { "type": "string" },
+        "format": { "enum": ["VTT", "SRT", "ASS"] }
+      },
+      "additionalProperties": false
+    },
+    "Episode": {
+      "type": "object",
+      "required": ["id", "n", "title", "durationSec", "still", "sources", "subtitles"],
+      "properties": {
+        "id": { "$ref": "#/definitions/Id" },
+        "n": { "type": "integer", "minimum": 1 },
+        "title": { "type": "string" },
+        "synopsis": { "type": "string" },
+        "durationSec": { "type": "integer", "minimum": 1 },
+        "still": { "$ref": "#/definitions/ImagePath" },
+        "sources": { "type": "array", "minItems": 1, "items": { "$ref": "#/definitions/Source" } },
+        "subtitles": { "type": "array", "items": { "$ref": "#/definitions/Sub" } },
+        "introStartSec": { "type": "integer", "minimum": 0 },
+        "introEndSec": { "type": "integer", "minimum": 0 }
+      },
+      "additionalProperties": false
+    },
+    "Season": {
+      "type": "object",
+      "required": ["n", "episodes"],
+      "properties": {
+        "n": { "type": "integer", "minimum": 1 },
+        "title": { "type": "string" },
+        "episodes": { "type": "array", "minItems": 1, "items": { "$ref": "#/definitions/Episode" } }
+      },
+      "additionalProperties": false
+    },
+    "Chapter": {
+      "type": "object",
+      "description": "COMIC chapter. Item.pages is a list of chapters, each with its ordered page images.",
+      "required": ["id", "n", "title", "pages"],
+      "properties": {
+        "id": { "$ref": "#/definitions/Id" },
+        "n": { "type": "integer", "minimum": 1 },
+        "title": { "type": "string" },
+        "pages": { "type": "array", "minItems": 1, "items": { "$ref": "#/definitions/ImagePath" } }
+      },
+      "additionalProperties": false
+    },
+    "Program": {
+      "type": "object",
+      "required": ["id", "title", "startOffsetSec", "durationSec"],
+      "properties": {
+        "id": { "$ref": "#/definitions/Id" },
+        "title": { "type": "string" },
+        "genre": { "type": "string" },
+        "synopsis": { "type": "string" },
+        "startOffsetSec": { "type": "integer", "description": "Seconds after file-level epgAnchor." },
+        "durationSec": { "type": "integer", "minimum": 60 }
+      },
+      "additionalProperties": false
+    },
+    "Team": {
+      "type": "object",
+      "required": ["name", "short", "color"],
+      "properties": {
+        "name": { "type": "string" },
+        "short": { "type": "string" },
+        "color": { "$ref": "#/definitions/Color" },
+        "score": { "type": ["integer", "null"] }
+      },
+      "additionalProperties": false
+    },
+    "Item": {
+      "type": "object",
+      "required": ["id", "space", "categoryId", "type", "title", "year", "rating", "maturity", "genres", "synopsis",
+                   "poster", "backdrop", "dominantColor", "accentColor"],
+      "properties": {
+        "id": { "$ref": "#/definitions/Id" },
+        "space": { "$ref": "#/definitions/Space" },
+        "categoryId": { "$ref": "#/definitions/Id" },
+        "type": { "enum": ["MOVIE", "SERIES", "CHANNEL", "EVENT", "ALBUM", "TRACK", "COMIC", "VIDEO"],
+                  "description": "VIDEO = standalone video in an isolated space (ADULT); MOVIE/SERIES are reserved for HOME/ANIME/DRAMA." },
+        "title": { "type": "string", "minLength": 1 },
+        "altTitle": { "type": "string" },
+        "year": { "type": "integer", "minimum": 1900, "maximum": 2100 },
+        "rating": { "type": "number", "minimum": 0, "maximum": 10 },
+        "maturity": { "type": "string" },
+        "genres": { "type": "array", "minItems": 1, "items": { "type": "string" } },
+        "synopsis": { "type": "string" },
+        "poster": { "$ref": "#/definitions/ImagePath" },
+        "backdrop": { "$ref": "#/definitions/ImagePath" },
+        "logo": { "$ref": "#/definitions/ImagePath" },
+        "dominantColor": { "$ref": "#/definitions/Color" },
+        "accentColor": { "$ref": "#/definitions/Color" },
+        "durationSec": { "type": "integer", "minimum": 1 },
+        "seasons": { "type": "array", "minItems": 1, "items": { "$ref": "#/definitions/Season" } },
+        "sources": { "type": "array", "items": { "$ref": "#/definitions/Source" } },
+        "subtitles": { "type": "array", "items": { "$ref": "#/definitions/Sub" } },
+        "introStartSec": { "type": "integer", "minimum": 0 },
+        "introEndSec": { "type": "integer", "minimum": 0 },
+        "pages": { "type": "array", "minItems": 1, "items": { "$ref": "#/definitions/Chapter" } },
+        "format": { "enum": ["PAGED", "LONGSTRIP"], "description": "COMIC reader default." },
+        "readingDirection": { "enum": ["RTL", "LTR", "TTB"] },
+        "live": { "type": "boolean" },
+        "channelNumber": { "type": "integer", "minimum": 1 },
+        "channelGroup": { "type": "string" },
+        "programs": { "type": "array", "items": { "$ref": "#/definitions/Program" } },
+        "league": { "type": "string" },
+        "status": { "enum": ["LIVE", "UPCOMING", "FINISHED"] },
+        "startOffsetSec": { "type": "integer" },
+        "homeTeam": { "$ref": "#/definitions/Team" },
+        "awayTeam": { "$ref": "#/definitions/Team" },
+        "artist": { "type": "string" },
+        "album": { "type": "string" },
+        "albumId": { "$ref": "#/definitions/Id" },
+        "trackNumber": { "type": "integer", "minimum": 1 },
+        "trackIds": { "type": "array", "items": { "$ref": "#/definitions/Id" } },
+        "cast": { "type": "array", "items": { "type": "string" } },
+        "studio": { "type": "string" }
+      },
+      "additionalProperties": false,
+      "allOf": [
+        { "if": { "properties": { "type": { "enum": ["MOVIE", "VIDEO", "CHANNEL", "EVENT", "TRACK"] } } },
+          "then": { "required": ["sources"], "properties": { "sources": { "minItems": 1 } } } },
+        { "if": { "properties": { "type": { "const": "SERIES" } } }, "then": { "required": ["seasons"] } },
+        { "if": { "properties": { "type": { "const": "COMIC" } } }, "then": { "required": ["pages", "format", "readingDirection"] } },
+        { "if": { "properties": { "type": { "const": "CHANNEL" } } }, "then": { "required": ["channelNumber", "live", "logo", "programs"] } },
+        { "if": { "properties": { "type": { "const": "EVENT" } } }, "then": { "required": ["status", "homeTeam", "awayTeam", "league", "startOffsetSec"] } },
+        { "if": { "properties": { "type": { "const": "TRACK" } } }, "then": { "required": ["artist", "album", "albumId", "durationSec"] } },
+        { "if": { "properties": { "type": { "const": "ALBUM" } } }, "then": { "required": ["artist", "trackIds"] } }
+      ]
+    }
+  }
+}

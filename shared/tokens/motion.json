@@ -1,0 +1,13 @@
+{
+  "durationsMs": { "short": 120, "medium": 200, "long": 320, "xlong": 480 },
+  "easing": {
+    "emphasized": [0.2, 0.0, 0.0, 1.0],
+    "standard": [0.4, 0.0, 0.2, 1.0]
+  },
+  "spring": { "stiffness": 400, "dampingRatio": 0.8 },
+  "heroAutoAdvanceMs": 5000,
+  "tintAnimMs": 600,
+  "lowTierDurationScale": 0.6,
+  "crossfadeMs": { "low": 0, "mid": 150, "high": 250 },
+  "cardFocusScale": 1.08
+}

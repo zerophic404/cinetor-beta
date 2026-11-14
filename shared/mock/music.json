@@ -1,0 +1,1997 @@
+{
+ "space": "MUSIC",
+ "version": 1,
+ "genres": [
+  "Synthwave",
+  "Lo-fi",
+  "Electronic",
+  "Ambient",
+  "Indie Rock",
+  "Pop",
+  "Jazz",
+  "Cinematic"
+ ],
+ "categories": [
+  {
+   "id": "mu-discover",
+   "space": "MUSIC",
+   "title": "Discover",
+   "heroIds": [
+    "mu-al-003",
+    "mu-al-005",
+    "mu-al-006",
+    "mu-al-004"
+   ],
+   "rows": [
+    {
+     "id": "mu-discover-r1",
+     "title": "Featured Albums",
+     "style": "POSTER",
+     "itemIds": [
+      "mu-al-001",
+      "mu-al-002",
+      "mu-al-003",
+      "mu-al-004",
+      "mu-al-005",
+      "mu-al-006",
+      "mu-al-007",
+      "mu-al-008",
+      "mu-al-009",
+      "mu-al-010"
+     ]
+    },
+    {
+     "id": "mu-discover-r2",
+     "title": "Top 10 Tracks",
+     "style": "TOP10",
+     "itemIds": [
+      "mu-tr-030",
+      "mu-tr-015",
+      "mu-tr-023",
+      "mu-tr-033",
+      "mu-tr-045",
+      "mu-tr-003",
+      "mu-tr-007",
+      "mu-tr-024",
+      "mu-tr-037",
+      "mu-tr-009"
+     ]
+    },
+    {
+     "id": "mu-discover-r3",
+     "title": "Artists",
+     "style": "CIRCLE",
+     "itemIds": [
+      "mu-al-001",
+      "mu-al-002",
+      "mu-al-003",
+      "mu-al-004",
+      "mu-al-005",
+      "mu-al-006",
+      "mu-al-007",
+      "mu-al-008",
+      "mu-al-009",
+      "mu-al-010"
+     ]
+    },
+    {
+     "id": "mu-discover-r4",
+     "title": "Fresh Tracks",
+     "style": "LANDSCAPE",
+     "itemIds": [
+      "mu-tr-005",
+      "mu-tr-044",
+      "mu-tr-015",
+      "mu-tr-019",
+      "mu-tr-011",
+      "mu-tr-022",
+      "mu-tr-025",
+      "mu-tr-038",
+      "mu-tr-041",
+      "mu-tr-026",
+      "mu-tr-043",
+      "mu-tr-034"
+     ]
+    },
+    {
+     "id": "mu-discover-r5",
+     "title": "Chill Electronic",
+     "style": "POSTER",
+     "itemIds": [
+      "mu-tr-001",
+      "mu-tr-002",
+      "mu-tr-003",
+      "mu-tr-004",
+      "mu-tr-005",
+      "mu-tr-011",
+      "mu-tr-012",
+      "mu-tr-013",
+      "mu-tr-014",
+      "mu-tr-015",
+      "mu-tr-041",
+      "mu-tr-042"
+     ]
+    }
+   ]
+  },
+  {
+   "id": "mu-moods",
+   "space": "MUSIC",
+   "title": "Moods",
+   "heroIds": [
+    "mu-al-007",
+    "mu-al-004",
+    "mu-al-005"
+   ],
+   "rows": [
+    {
+     "id": "mu-moods-r1",
+     "title": "Deep Focus",
+     "style": "POSTER",
+     "itemIds": [
+      "mu-tr-016",
+      "mu-tr-017",
+      "mu-tr-018",
+      "mu-tr-019",
+      "mu-tr-020",
+      "mu-tr-026",
+      "mu-tr-027",
+      "mu-tr-028",
+      "mu-tr-029",
+      "mu-tr-030"
+     ]
+    },
+    {
+     "id": "mu-moods-r2",
+     "title": "Workout Drive",
+     "style": "POSTER",
+     "itemIds": [
+      "mu-tr-021",
+      "mu-tr-022",
+      "mu-tr-023",
+      "mu-tr-024",
+      "mu-tr-025",
+      "mu-tr-026",
+      "mu-tr-027",
+      "mu-tr-028",
+      "mu-tr-029",
+      "mu-tr-030"
+     ]
+    },
+    {
+     "id": "mu-moods-r3",
+     "title": "Late Night",
+     "style": "LANDSCAPE",
+     "itemIds": [
+      "mu-tr-006",
+      "mu-tr-007",
+      "mu-tr-008",
+      "mu-tr-009",
+      "mu-tr-010",
+      "mu-tr-043",
+      "mu-tr-032",
+      "mu-tr-001",
+      "mu-tr-045",
+      "mu-tr-034"
+     ]
+    },
+    {
+     "id": "mu-moods-r4",
+     "title": "Feel Good",
+     "style": "POSTER",
+     "itemIds": [
+      "mu-tr-001",
+      "mu-tr-002",
+      "mu-tr-003",
+      "mu-tr-004",
+      "mu-tr-005",
+      "mu-tr-016",
+      "mu-tr-017",
+      "mu-tr-018",
+      "mu-tr-019",
+      "mu-tr-020"
+     ]
+    },
+    {
+     "id": "mu-moods-r5",
+     "title": "Cinematic Moments",
+     "style": "POSTER",
+     "itemIds": [
+      "mu-tr-006",
+      "mu-tr-007",
+      "mu-tr-008",
+      "mu-tr-009",
+      "mu-tr-010",
+      "mu-tr-031",
+      "mu-tr-032",
+      "mu-tr-033",
+      "mu-tr-034",
+      "mu-tr-035"
+     ]
+    }
+   ]
+  }
+ ],
+ "items": [
+  {
+   "id": "mu-al-001",
+   "space": "MUSIC",
+   "categoryId": "mu-discover",
+   "type": "ALBUM",
+   "title": "Velvet Static",
+   "year": 2022,
+   "rating": 7.5,
+   "maturity": "All",
+   "genres": [
+    "Lo-fi",
+    "Pop"
+   ],
+   "synopsis": "Velvet Static — the latest album from Nova Kairo.",
+   "poster": "images/albums/mu-al-001.webp",
+   "backdrop": "images/backdrops/mu-al-001.webp",
+   "dominantColor": "#0F3F37",
+   "accentColor": "#41E0B6",
+   "artist": "Nova Kairo",
+   "trackIds": [
+    "mu-tr-001",
+    "mu-tr-002",
+    "mu-tr-003",
+    "mu-tr-004",
+    "mu-tr-005"
+   ],
+   "durationSec": 1371
+  },
+  {
+   "id": "mu-al-002",
+   "space": "MUSIC",
+   "categoryId": "mu-discover",
+   "type": "ALBUM",
+   "title": "Neon Monsoon",
+   "year": 2025,
+   "rating": 7.2,
+   "maturity": "All",
+   "genres": [
+    "Cinematic",
+    "Jazz"
+   ],
+   "synopsis": "Neon Monsoon — the debut album from The Low Hours.",
+   "poster": "images/albums/mu-al-002.webp",
+   "backdrop": "images/backdrops/mu-al-002.webp",
+   "dominantColor": "#835728",
+   "accentColor": "#E05147",
+   "artist": "The Low Hours",
+   "trackIds": [
+    "mu-tr-006",
+    "mu-tr-007",
+    "mu-tr-008",
+    "mu-tr-009",
+    "mu-tr-010"
+   ],
+   "durationSec": 1532
+  },
+  {
+   "id": "mu-al-003",
+   "space": "MUSIC",
+   "categoryId": "mu-discover",
+   "type": "ALBUM",
+   "title": "Paper Satellites",
+   "year": 2018,
+   "rating": 9.5,
+   "maturity": "All",
+   "genres": [
+    "Lo-fi",
+    "Indie Rock"
+   ],
+   "synopsis": "Paper Satellites — the debut album from Mira Vale.",
+   "poster": "images/albums/mu-al-003.webp",
+   "backdrop": "images/backdrops/mu-al-003.webp",
+   "dominantColor": "#982E64",
+   "accentColor": "#E04393",
+   "artist": "Mira Vale",
+   "trackIds": [
+    "mu-tr-011",
+    "mu-tr-012",
+    "mu-tr-013",
+    "mu-tr-014",
+    "mu-tr-015"
+   ],
+   "durationSec": 1187
+  },
+  {
+   "id": "mu-al-004",
+   "space": "MUSIC",
+   "categoryId": "mu-discover",
+   "type": "ALBUM",
+   "title": "Afterglow Avenue",
+   "year": 2021,
+   "rating": 8.7,
+   "maturity": "All",
+   "genres": [
+    "Ambient",
+    "Pop"
+   ],
+   "synopsis": "Afterglow Avenue — the debut album from Sundial Youth.",
+   "poster": "images/albums/mu-al-004.webp",
+   "backdrop": "images/backdrops/mu-al-004.webp",
+   "dominantColor": "#521413",
+   "accentColor": "#E04340",
+   "artist": "Sundial Youth",
+   "trackIds": [
+    "mu-tr-016",
+    "mu-tr-017",
+    "mu-tr-018",
+    "mu-tr-019",
+    "mu-tr-020"
+   ],
+   "durationSec": 1550
+  },
+  {
+   "id": "mu-al-005",
+   "space": "MUSIC",
+   "categoryId": "mu-discover",
+   "type": "ALBUM",
+   "title": "Red Shift Lullabies",
+   "year": 2022,
+   "rating": 9.5,
+   "maturity": "All",
+   "genres": [
+    "Electronic",
+    "Synthwave"
+   ],
+   "synopsis": "Red Shift Lullabies — the third album from Kestrel & Wren.",
+   "poster": "images/albums/mu-al-005.webp",
+   "backdrop": "images/backdrops/mu-al-005.webp",
+   "dominantColor": "#AF823C",
+   "accentColor": "#E0A64C",
+   "artist": "Kestrel & Wren",
+   "trackIds": [
+    "mu-tr-021",
+    "mu-tr-022",
+    "mu-tr-023",
+    "mu-tr-024",
+    "mu-tr-025"
+   ],
+   "durationSec": 1461
+  },
+  {
+   "id": "mu-al-006",
+   "space": "MUSIC",
+   "categoryId": "mu-discover",
+   "type": "ALBUM",
+   "title": "Midnight Cartography",
+   "year": 2017,
+   "rating": 9.2,
+   "maturity": "All",
+   "genres": [
+    "Synthwave",
+    "Ambient"
+   ],
+   "synopsis": "Midnight Cartography — the latest album from Lumen Drive.",
+   "poster": "images/albums/mu-al-006.webp",
+   "backdrop": "images/backdrops/mu-al-006.webp",
+   "dominantColor": "#452D95",
+   "accentColor": "#6743E0",
+   "artist": "Lumen Drive",
+   "trackIds": [
+    "mu-tr-026",
+    "mu-tr-027",
+    "mu-tr-028",
+    "mu-tr-029",
+    "mu-tr-030"
+   ],
+   "durationSec": 1669
+  },
+  {
+   "id": "mu-al-007",
+   "space": "MUSIC",
+   "categoryId": "mu-discover",
+   "type": "ALBUM",
+   "title": "Glass Garden",
+   "year": 2022,
+   "rating": 7.3,
+   "maturity": "All",
+   "genres": [
+    "Indie Rock",
+    "Cinematic"
+   ],
+   "synopsis": "Glass Garden — the second album from Arden Sol.",
+   "poster": "images/albums/mu-al-007.webp",
+   "backdrop": "images/backdrops/mu-al-007.webp",
+   "dominantColor": "#393C0D",
+   "accentColor": "#E0CC45",
+   "artist": "Arden Sol",
+   "trackIds": [
+    "mu-tr-031",
+    "mu-tr-032",
+    "mu-tr-033",
+    "mu-tr-034",
+    "mu-tr-035"
+   ],
+   "durationSec": 1441
+  },
+  {
+   "id": "mu-al-008",
+   "space": "MUSIC",
+   "categoryId": "mu-discover",
+   "type": "ALBUM",
+   "title": "Low Orbit Love",
+   "year": 2024,
+   "rating": 8.5,
+   "maturity": "All",
+   "genres": [
+    "Cinematic",
+    "Electronic"
+   ],
+   "synopsis": "Low Orbit Love — the third album from Velour Kids.",
+   "poster": "images/albums/mu-al-008.webp",
+   "backdrop": "images/backdrops/mu-al-008.webp",
+   "dominantColor": "#4683A1",
+   "accentColor": "#4EB0E0",
+   "artist": "Velour Kids",
+   "trackIds": [
+    "mu-tr-036",
+    "mu-tr-037",
+    "mu-tr-038",
+    "mu-tr-039",
+    "mu-tr-040"
+   ],
+   "durationSec": 1419
+  },
+  {
+   "id": "mu-al-009",
+   "space": "MUSIC",
+   "categoryId": "mu-discover",
+   "type": "ALBUM",
+   "title": "Ember Season",
+   "year": 2025,
+   "rating": 7.3,
+   "maturity": "All",
+   "genres": [
+    "Lo-fi",
+    "Pop"
+   ],
+   "synopsis": "Ember Season — the second album from Hollow Pines.",
+   "poster": "images/albums/mu-al-009.webp",
+   "backdrop": "images/backdrops/mu-al-009.webp",
+   "dominantColor": "#932887",
+   "accentColor": "#E03DCE",
+   "artist": "Hollow Pines",
+   "trackIds": [
+    "mu-tr-041",
+    "mu-tr-042",
+    "mu-tr-043",
+    "mu-tr-044",
+    "mu-tr-045"
+   ],
+   "durationSec": 1537
+  },
+  {
+   "id": "mu-al-010",
+   "space": "MUSIC",
+   "categoryId": "mu-discover",
+   "type": "ALBUM",
+   "title": "Static Bloom",
+   "year": 2022,
+   "rating": 8.6,
+   "maturity": "All",
+   "genres": [
+    "Pop",
+    "Ambient"
+   ],
+   "synopsis": "Static Bloom — the second album from Rhea Montclair.",
+   "poster": "images/albums/mu-al-010.webp",
+   "backdrop": "images/backdrops/mu-al-010.webp",
+   "dominantColor": "#1F5367",
+   "accentColor": "#4EB1E0",
+   "artist": "Rhea Montclair",
+   "trackIds": [
+    "mu-tr-046",
+    "mu-tr-047",
+    "mu-tr-048",
+    "mu-tr-049",
+    "mu-tr-050"
+   ],
+   "durationSec": 1560
+  },
+  {
+   "id": "mu-tr-001",
+   "space": "MUSIC",
+   "categoryId": "mu-moods",
+   "type": "TRACK",
+   "title": "Golden Highway",
+   "year": 2022,
+   "rating": 7.7,
+   "maturity": "All",
+   "genres": [
+    "Lo-fi",
+    "Pop"
+   ],
+   "synopsis": "Track 1 from Velvet Static by Nova Kairo.",
+   "poster": "images/albums/mu-al-001.webp",
+   "backdrop": "images/backdrops/mu-al-001.webp",
+   "dominantColor": "#0F3F37",
+   "accentColor": "#41E0B6",
+   "durationSec": 221,
+   "artist": "Nova Kairo",
+   "album": "Velvet Static",
+   "albumId": "mu-al-001",
+   "trackNumber": 1,
+   "sources": [
+    {
+     "url": "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3",
+     "kind": "MP3"
+    }
+   ]
+  },
+  {
+   "id": "mu-tr-002",
+   "space": "MUSIC",
+   "categoryId": "mu-moods",
+   "type": "TRACK",
+   "title": "Electric Rain",
+   "year": 2022,
+   "rating": 6.9,
+   "maturity": "All",
+   "genres": [
+    "Lo-fi",
+    "Pop"
+   ],
+   "synopsis": "Track 2 from Velvet Static by Nova Kairo.",
+   "poster": "images/albums/mu-al-001.webp",
+   "backdrop": "images/backdrops/mu-al-001.webp",
+   "dominantColor": "#0F3F37",
+   "accentColor": "#41E0B6",
+   "durationSec": 198,
+   "artist": "Nova Kairo",
+   "album": "Velvet Static",
+   "albumId": "mu-al-001",
+   "trackNumber": 2,
+   "sources": [
+    {
+     "url": "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-2.mp3",
+     "kind": "MP3"
+    }
+   ]
+  },
+  {
+   "id": "mu-tr-003",
+   "space": "MUSIC",
+   "categoryId": "mu-moods",
+   "type": "TRACK",
+   "title": "Quiet Static",
+   "year": 2022,
+   "rating": 9.1,
+   "maturity": "All",
+   "genres": [
+    "Lo-fi",
+    "Pop"
+   ],
+   "synopsis": "Track 3 from Velvet Static by Nova Kairo.",
+   "poster": "images/albums/mu-al-001.webp",
+   "backdrop": "images/backdrops/mu-al-001.webp",
+   "dominantColor": "#0F3F37",
+   "accentColor": "#41E0B6",
+   "durationSec": 350,
+   "artist": "Nova Kairo",
+   "album": "Velvet Static",
+   "albumId": "mu-al-001",
+   "trackNumber": 3,
+   "sources": [
+    {
+     "url": "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-3.mp3",
+     "kind": "MP3"
+    }
+   ]
+  },
+  {
+   "id": "mu-tr-004",
+   "space": "MUSIC",
+   "categoryId": "mu-moods",
+   "type": "TRACK",
+   "title": "Silver Rain",
+   "year": 2022,
+   "rating": 8.1,
+   "maturity": "All",
+   "genres": [
+    "Lo-fi",
+    "Pop"
+   ],
+   "synopsis": "Track 4 from Velvet Static by Nova Kairo.",
+   "poster": "images/albums/mu-al-001.webp",
+   "backdrop": "images/backdrops/mu-al-001.webp",
+   "dominantColor": "#0F3F37",
+   "accentColor": "#41E0B6",
+   "durationSec": 355,
+   "artist": "Nova Kairo",
+   "album": "Velvet Static",
+   "albumId": "mu-al-001",
+   "trackNumber": 4,
+   "sources": [
+    {
+     "url": "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-4.mp3",
+     "kind": "MP3"
+    }
+   ]
+  },
+  {
+   "id": "mu-tr-005",
+   "space": "MUSIC",
+   "categoryId": "mu-moods",
+   "type": "TRACK",
+   "title": "Silver Ghosts",
+   "year": 2022,
+   "rating": 6.8,
+   "maturity": "All",
+   "genres": [
+    "Lo-fi",
+    "Pop"
+   ],
+   "synopsis": "Track 5 from Velvet Static by Nova Kairo.",
+   "poster": "images/albums/mu-al-001.webp",
+   "backdrop": "images/backdrops/mu-al-001.webp",
+   "dominantColor": "#0F3F37",
+   "accentColor": "#41E0B6",
+   "durationSec": 247,
+   "artist": "Nova Kairo",
+   "album": "Velvet Static",
+   "albumId": "mu-al-001",
+   "trackNumber": 5,
+   "sources": [
+    {
+     "url": "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-5.mp3",
+     "kind": "MP3"
+    }
+   ]
+  },
+  {
+   "id": "mu-tr-006",
+   "space": "MUSIC",
+   "categoryId": "mu-moods",
+   "type": "TRACK",
+   "title": "Silver Hearts",
+   "year": 2025,
+   "rating": 8.5,
+   "maturity": "All",
+   "genres": [
+    "Cinematic",
+    "Jazz"
+   ],
+   "synopsis": "Track 1 from Neon Monsoon by The Low Hours.",
+   "poster": "images/albums/mu-al-002.webp",
+   "backdrop": "images/backdrops/mu-al-002.webp",
+   "dominantColor": "#835728",
+   "accentColor": "#E05147",
+   "durationSec": 228,
+   "artist": "The Low Hours",
+   "album": "Neon Monsoon",
+   "albumId": "mu-al-002",
+   "trackNumber": 1,
+   "sources": [
+    {
+     "url": "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-6.mp3",
+     "kind": "MP3"
+    }
+   ]
+  },
+  {
+   "id": "mu-tr-007",
+   "space": "MUSIC",
+   "categoryId": "mu-moods",
+   "type": "TRACK",
+   "title": "Slow Signals",
+   "year": 2025,
+   "rating": 9.0,
+   "maturity": "All",
+   "genres": [
+    "Cinematic",
+    "Jazz"
+   ],
+   "synopsis": "Track 2 from Neon Monsoon by The Low Hours.",
+   "poster": "images/albums/mu-al-002.webp",
+   "backdrop": "images/backdrops/mu-al-002.webp",
+   "dominantColor": "#835728",
+   "accentColor": "#E05147",
+   "durationSec": 313,
+   "artist": "The Low Hours",
+   "album": "Neon Monsoon",
+   "albumId": "mu-al-002",
+   "trackNumber": 2,
+   "sources": [
+    {
+     "url": "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-7.mp3",
+     "kind": "MP3"
+    }
+   ]
+  },
+  {
+   "id": "mu-tr-008",
+   "space": "MUSIC",
+   "categoryId": "mu-moods",
+   "type": "TRACK",
+   "title": "Velvet Signals",
+   "year": 2025,
+   "rating": 8.3,
+   "maturity": "All",
+   "genres": [
+    "Cinematic",
+    "Jazz"
+   ],
+   "synopsis": "Track 3 from Neon Monsoon by The Low Hours.",
+   "poster": "images/albums/mu-al-002.webp",
+   "backdrop": "images/backdrops/mu-al-002.webp",
+   "dominantColor": "#835728",
+   "accentColor": "#E05147",
+   "durationSec": 315,
+   "artist": "The Low Hours",
+   "album": "Neon Monsoon",
+   "albumId": "mu-al-002",
+   "trackNumber": 3,
+   "sources": [
+    {
+     "url": "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-8.mp3",
+     "kind": "MP3"
+    }
+   ]
+  },
+  {
+   "id": "mu-tr-009",
+   "space": "MUSIC",
+   "categoryId": "mu-moods",
+   "type": "TRACK",
+   "title": "Hollow Hearts",
+   "year": 2025,
+   "rating": 8.8,
+   "maturity": "All",
+   "genres": [
+    "Cinematic",
+    "Jazz"
+   ],
+   "synopsis": "Track 4 from Neon Monsoon by The Low Hours.",
+   "poster": "images/albums/mu-al-002.webp",
+   "backdrop": "images/backdrops/mu-al-002.webp",
+   "dominantColor": "#835728",
+   "accentColor": "#E05147",
+   "durationSec": 343,
+   "artist": "The Low Hours",
+   "album": "Neon Monsoon",
+   "albumId": "mu-al-002",
+   "trackNumber": 4,
+   "sources": [
+    {
+     "url": "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-9.mp3",
+     "kind": "MP3"
+    }
+   ]
+  },
+  {
+   "id": "mu-tr-010",
+   "space": "MUSIC",
+   "categoryId": "mu-moods",
+   "type": "TRACK",
+   "title": "Quiet Satellites",
+   "year": 2025,
+   "rating": 6.8,
+   "maturity": "All",
+   "genres": [
+    "Cinematic",
+    "Jazz"
+   ],
+   "synopsis": "Track 5 from Neon Monsoon by The Low Hours.",
+   "poster": "images/albums/mu-al-002.webp",
+   "backdrop": "images/backdrops/mu-al-002.webp",
+   "dominantColor": "#835728",
+   "accentColor": "#E05147",
+   "durationSec": 333,
+   "artist": "The Low Hours",
+   "album": "Neon Monsoon",
+   "albumId": "mu-al-002",
+   "trackNumber": 5,
+   "sources": [
+    {
+     "url": "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-10.mp3",
+     "kind": "MP3"
+    }
+   ]
+  },
+  {
+   "id": "mu-tr-011",
+   "space": "MUSIC",
+   "categoryId": "mu-moods",
+   "type": "TRACK",
+   "title": "Silver Rooftops",
+   "year": 2018,
+   "rating": 7.7,
+   "maturity": "All",
+   "genres": [
+    "Lo-fi",
+    "Indie Rock"
+   ],
+   "synopsis": "Track 1 from Paper Satellites by Mira Vale.",
+   "poster": "images/albums/mu-al-003.webp",
+   "backdrop": "images/backdrops/mu-al-003.webp",
+   "dominantColor": "#982E64",
+   "accentColor": "#E04393",
+   "durationSec": 219,
+   "artist": "Mira Vale",
+   "album": "Paper Satellites",
+   "albumId": "mu-al-003",
+   "trackNumber": 1,
+   "sources": [
+    {
+     "url": "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-11.mp3",
+     "kind": "MP3"
+    }
+   ]
+  },
+  {
+   "id": "mu-tr-012",
+   "space": "MUSIC",
+   "categoryId": "mu-moods",
+   "type": "TRACK",
+   "title": "Paper Hearts",
+   "year": 2018,
+   "rating": 7.1,
+   "maturity": "All",
+   "genres": [
+    "Lo-fi",
+    "Indie Rock"
+   ],
+   "synopsis": "Track 2 from Paper Satellites by Mira Vale.",
+   "poster": "images/albums/mu-al-003.webp",
+   "backdrop": "images/backdrops/mu-al-003.webp",
+   "dominantColor": "#982E64",
+   "accentColor": "#E04393",
+   "durationSec": 190,
+   "artist": "Mira Vale",
+   "album": "Paper Satellites",
+   "albumId": "mu-al-003",
+   "trackNumber": 2,
+   "sources": [
+    {
+     "url": "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-12.mp3",
+     "kind": "MP3"
+    }
+   ]
+  },
+  {
+   "id": "mu-tr-013",
+   "space": "MUSIC",
+   "categoryId": "mu-moods",
+   "type": "TRACK",
+   "title": "Hollow Rooftops",
+   "year": 2018,
+   "rating": 7.7,
+   "maturity": "All",
+   "genres": [
+    "Lo-fi",
+    "Indie Rock"
+   ],
+   "synopsis": "Track 3 from Paper Satellites by Mira Vale.",
+   "poster": "images/albums/mu-al-003.webp",
+   "backdrop": "images/backdrops/mu-al-003.webp",
+   "dominantColor": "#982E64",
+   "accentColor": "#E04393",
+   "durationSec": 272,
+   "artist": "Mira Vale",
+   "album": "Paper Satellites",
+   "albumId": "mu-al-003",
+   "trackNumber": 3,
+   "sources": [
+    {
+     "url": "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-13.mp3",
+     "kind": "MP3"
+    }
+   ]
+  },
+  {
+   "id": "mu-tr-014",
+   "space": "MUSIC",
+   "categoryId": "mu-moods",
+   "type": "TRACK",
+   "title": "Electric Summer",
+   "year": 2018,
+   "rating": 6.9,
+   "maturity": "All",
+   "genres": [
+    "Lo-fi",
+    "Indie Rock"
+   ],
+   "synopsis": "Track 4 from Paper Satellites by Mira Vale.",
+   "poster": "images/albums/mu-al-003.webp",
+   "backdrop": "images/backdrops/mu-al-003.webp",
+   "dominantColor": "#982E64",
+   "accentColor": "#E04393",
+   "durationSec": 209,
+   "artist": "Mira Vale",
+   "album": "Paper Satellites",
+   "albumId": "mu-al-003",
+   "trackNumber": 4,
+   "sources": [
+    {
+     "url": "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-14.mp3",
+     "kind": "MP3"
+    }
+   ]
+  },
+  {
+   "id": "mu-tr-015",
+   "space": "MUSIC",
+   "categoryId": "mu-moods",
+   "type": "TRACK",
+   "title": "Golden Summer",
+   "year": 2018,
+   "rating": 9.2,
+   "maturity": "All",
+   "genres": [
+    "Lo-fi",
+    "Indie Rock"
+   ],
+   "synopsis": "Track 5 from Paper Satellites by Mira Vale.",
+   "poster": "images/albums/mu-al-003.webp",
+   "backdrop": "images/backdrops/mu-al-003.webp",
+   "dominantColor": "#982E64",
+   "accentColor": "#E04393",
+   "durationSec": 297,
+   "artist": "Mira Vale",
+   "album": "Paper Satellites",
+   "albumId": "mu-al-003",
+   "trackNumber": 5,
+   "sources": [
+    {
+     "url": "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-15.mp3",
+     "kind": "MP3"
+    }
+   ]
+  },
+  {
+   "id": "mu-tr-016",
+   "space": "MUSIC",
+   "categoryId": "mu-moods",
+   "type": "TRACK",
+   "title": "Hollow Static",
+   "year": 2021,
+   "rating": 8.3,
+   "maturity": "All",
+   "genres": [
+    "Ambient",
+    "Pop"
+   ],
+   "synopsis": "Track 1 from Afterglow Avenue by Sundial Youth.",
+   "poster": "images/albums/mu-al-004.webp",
+   "backdrop": "images/backdrops/mu-al-004.webp",
+   "dominantColor": "#521413",
+   "accentColor": "#E04340",
+   "durationSec": 287,
+   "artist": "Sundial Youth",
+   "album": "Afterglow Avenue",
+   "albumId": "mu-al-004",
+   "trackNumber": 1,
+   "sources": [
+    {
+     "url": "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-16.mp3",
+     "kind": "MP3"
+    }
+   ]
+  },
+  {
+   "id": "mu-tr-017",
+   "space": "MUSIC",
+   "categoryId": "mu-moods",
+   "type": "TRACK",
+   "title": "Crimson Static",
+   "year": 2021,
+   "rating": 8.6,
+   "maturity": "All",
+   "genres": [
+    "Ambient",
+    "Pop"
+   ],
+   "synopsis": "Track 2 from Afterglow Avenue by Sundial Youth.",
+   "poster": "images/albums/mu-al-004.webp",
+   "backdrop": "images/backdrops/mu-al-004.webp",
+   "dominantColor": "#521413",
+   "accentColor": "#E04340",
+   "durationSec": 310,
+   "artist": "Sundial Youth",
+   "album": "Afterglow Avenue",
+   "albumId": "mu-al-004",
+   "trackNumber": 2,
+   "sources": [
+    {
+     "url": "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3",
+     "kind": "MP3"
+    }
+   ]
+  },
+  {
+   "id": "mu-tr-018",
+   "space": "MUSIC",
+   "categoryId": "mu-moods",
+   "type": "TRACK",
+   "title": "Neon Waves",
+   "year": 2021,
+   "rating": 8.2,
+   "maturity": "All",
+   "genres": [
+    "Ambient",
+    "Pop"
+   ],
+   "synopsis": "Track 3 from Afterglow Avenue by Sundial Youth.",
+   "poster": "images/albums/mu-al-004.webp",
+   "backdrop": "images/backdrops/mu-al-004.webp",
+   "dominantColor": "#521413",
+   "accentColor": "#E04340",
+   "durationSec": 335,
+   "artist": "Sundial Youth",
+   "album": "Afterglow Avenue",
+   "albumId": "mu-al-004",
+   "trackNumber": 3,
+   "sources": [
+    {
+     "url": "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-2.mp3",
+     "kind": "MP3"
+    }
+   ]
+  },
+  {
+   "id": "mu-tr-019",
+   "space": "MUSIC",
+   "categoryId": "mu-moods",
+   "type": "TRACK",
+   "title": "Hollow Lights",
+   "year": 2021,
+   "rating": 8.6,
+   "maturity": "All",
+   "genres": [
+    "Ambient",
+    "Pop"
+   ],
+   "synopsis": "Track 4 from Afterglow Avenue by Sundial Youth.",
+   "poster": "images/albums/mu-al-004.webp",
+   "backdrop": "images/backdrops/mu-al-004.webp",
+   "dominantColor": "#521413",
+   "accentColor": "#E04340",
+   "durationSec": 293,
+   "artist": "Sundial Youth",
+   "album": "Afterglow Avenue",
+   "albumId": "mu-al-004",
+   "trackNumber": 4,
+   "sources": [
+    {
+     "url": "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-3.mp3",
+     "kind": "MP3"
+    }
+   ]
+  },
+  {
+   "id": "mu-tr-020",
+   "space": "MUSIC",
+   "categoryId": "mu-moods",
+   "type": "TRACK",
+   "title": "Crimson Echoes",
+   "year": 2021,
+   "rating": 6.9,
+   "maturity": "All",
+   "genres": [
+    "Ambient",
+    "Pop"
+   ],
+   "synopsis": "Track 5 from Afterglow Avenue by Sundial Youth.",
+   "poster": "images/albums/mu-al-004.webp",
+   "backdrop": "images/backdrops/mu-al-004.webp",
+   "dominantColor": "#521413",
+   "accentColor": "#E04340",
+   "durationSec": 325,
+   "artist": "Sundial Youth",
+   "album": "Afterglow Avenue",
+   "albumId": "mu-al-004",
+   "trackNumber": 5,
+   "sources": [
+    {
+     "url": "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-4.mp3",
+     "kind": "MP3"
+    }
+   ]
+  },
+  {
+   "id": "mu-tr-021",
+   "space": "MUSIC",
+   "categoryId": "mu-moods",
+   "type": "TRACK",
+   "title": "Late Rain",
+   "year": 2022,
+   "rating": 6.8,
+   "maturity": "All",
+   "genres": [
+    "Electronic",
+    "Synthwave"
+   ],
+   "synopsis": "Track 1 from Red Shift Lullabies by Kestrel & Wren.",
+   "poster": "images/albums/mu-al-005.webp",
+   "backdrop": "images/backdrops/mu-al-005.webp",
+   "dominantColor": "#AF823C",
+   "accentColor": "#E0A64C",
+   "durationSec": 238,
+   "artist": "Kestrel & Wren",
+   "album": "Red Shift Lullabies",
+   "albumId": "mu-al-005",
+   "trackNumber": 1,
+   "sources": [
+    {
+     "url": "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-5.mp3",
+     "kind": "MP3"
+    }
+   ]
+  },
+  {
+   "id": "mu-tr-022",
+   "space": "MUSIC",
+   "categoryId": "mu-moods",
+   "type": "TRACK",
+   "title": "Golden Waves",
+   "year": 2022,
+   "rating": 8.3,
+   "maturity": "All",
+   "genres": [
+    "Electronic",
+    "Synthwave"
+   ],
+   "synopsis": "Track 2 from Red Shift Lullabies by Kestrel & Wren.",
+   "poster": "images/albums/mu-al-005.webp",
+   "backdrop": "images/backdrops/mu-al-005.webp",
+   "dominantColor": "#AF823C",
+   "accentColor": "#E0A64C",
+   "durationSec": 304,
+   "artist": "Kestrel & Wren",
+   "album": "Red Shift Lullabies",
+   "albumId": "mu-al-005",
+   "trackNumber": 2,
+   "sources": [
+    {
+     "url": "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-6.mp3",
+     "kind": "MP3"
+    }
+   ]
+  },
+  {
+   "id": "mu-tr-023",
+   "space": "MUSIC",
+   "categoryId": "mu-moods",
+   "type": "TRACK",
+   "title": "Golden Lights",
+   "year": 2022,
+   "rating": 9.2,
+   "maturity": "All",
+   "genres": [
+    "Electronic",
+    "Synthwave"
+   ],
+   "synopsis": "Track 3 from Red Shift Lullabies by Kestrel & Wren.",
+   "poster": "images/albums/mu-al-005.webp",
+   "backdrop": "images/backdrops/mu-al-005.webp",
+   "dominantColor": "#AF823C",
+   "accentColor": "#E0A64C",
+   "durationSec": 352,
+   "artist": "Kestrel & Wren",
+   "album": "Red Shift Lullabies",
+   "albumId": "mu-al-005",
+   "trackNumber": 3,
+   "sources": [
+    {
+     "url": "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-7.mp3",
+     "kind": "MP3"
+    }
+   ]
+  },
+  {
+   "id": "mu-tr-024",
+   "space": "MUSIC",
+   "categoryId": "mu-moods",
+   "type": "TRACK",
+   "title": "Slow Rooftops",
+   "year": 2022,
+   "rating": 9.0,
+   "maturity": "All",
+   "genres": [
+    "Electronic",
+    "Synthwave"
+   ],
+   "synopsis": "Track 4 from Red Shift Lullabies by Kestrel & Wren.",
+   "poster": "images/albums/mu-al-005.webp",
+   "backdrop": "images/backdrops/mu-al-005.webp",
+   "dominantColor": "#AF823C",
+   "accentColor": "#E0A64C",
+   "durationSec": 263,
+   "artist": "Kestrel & Wren",
+   "album": "Red Shift Lullabies",
+   "albumId": "mu-al-005",
+   "trackNumber": 4,
+   "sources": [
+    {
+     "url": "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-8.mp3",
+     "kind": "MP3"
+    }
+   ]
+  },
+  {
+   "id": "mu-tr-025",
+   "space": "MUSIC",
+   "categoryId": "mu-moods",
+   "type": "TRACK",
+   "title": "Paper Satellites",
+   "year": 2022,
+   "rating": 6.6,
+   "maturity": "All",
+   "genres": [
+    "Electronic",
+    "Synthwave"
+   ],
+   "synopsis": "Track 5 from Red Shift Lullabies by Kestrel & Wren.",
+   "poster": "images/albums/mu-al-005.webp",
+   "backdrop": "images/backdrops/mu-al-005.webp",
+   "dominantColor": "#AF823C",
+   "accentColor": "#E0A64C",
+   "durationSec": 304,
+   "artist": "Kestrel & Wren",
+   "album": "Red Shift Lullabies",
+   "albumId": "mu-al-005",
+   "trackNumber": 5,
+   "sources": [
+    {
+     "url": "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-9.mp3",
+     "kind": "MP3"
+    }
+   ]
+  },
+  {
+   "id": "mu-tr-026",
+   "space": "MUSIC",
+   "categoryId": "mu-moods",
+   "type": "TRACK",
+   "title": "Paper Ghosts",
+   "year": 2017,
+   "rating": 8.4,
+   "maturity": "All",
+   "genres": [
+    "Synthwave",
+    "Ambient"
+   ],
+   "synopsis": "Track 1 from Midnight Cartography by Lumen Drive.",
+   "poster": "images/albums/mu-al-006.webp",
+   "backdrop": "images/backdrops/mu-al-006.webp",
+   "dominantColor": "#452D95",
+   "accentColor": "#6743E0",
+   "durationSec": 385,
+   "artist": "Lumen Drive",
+   "album": "Midnight Cartography",
+   "albumId": "mu-al-006",
+   "trackNumber": 1,
+   "sources": [
+    {
+     "url": "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-10.mp3",
+     "kind": "MP3"
+    }
+   ]
+  },
+  {
+   "id": "mu-tr-027",
+   "space": "MUSIC",
+   "categoryId": "mu-moods",
+   "type": "TRACK",
+   "title": "Electric Signals",
+   "year": 2017,
+   "rating": 8.5,
+   "maturity": "All",
+   "genres": [
+    "Synthwave",
+    "Ambient"
+   ],
+   "synopsis": "Track 2 from Midnight Cartography by Lumen Drive.",
+   "poster": "images/albums/mu-al-006.webp",
+   "backdrop": "images/backdrops/mu-al-006.webp",
+   "dominantColor": "#452D95",
+   "accentColor": "#6743E0",
+   "durationSec": 278,
+   "artist": "Lumen Drive",
+   "album": "Midnight Cartography",
+   "albumId": "mu-al-006",
+   "trackNumber": 2,
+   "sources": [
+    {
+     "url": "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-11.mp3",
+     "kind": "MP3"
+    }
+   ]
+  },
+  {
+   "id": "mu-tr-028",
+   "space": "MUSIC",
+   "categoryId": "mu-moods",
+   "type": "TRACK",
+   "title": "Crimson Hearts",
+   "year": 2017,
+   "rating": 7.1,
+   "maturity": "All",
+   "genres": [
+    "Synthwave",
+    "Ambient"
+   ],
+   "synopsis": "Track 3 from Midnight Cartography by Lumen Drive.",
+   "poster": "images/albums/mu-al-006.webp",
+   "backdrop": "images/backdrops/mu-al-006.webp",
+   "dominantColor": "#452D95",
+   "accentColor": "#6743E0",
+   "durationSec": 304,
+   "artist": "Lumen Drive",
+   "album": "Midnight Cartography",
+   "albumId": "mu-al-006",
+   "trackNumber": 3,
+   "sources": [
+    {
+     "url": "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-12.mp3",
+     "kind": "MP3"
+    }
+   ]
+  },
+  {
+   "id": "mu-tr-029",
+   "space": "MUSIC",
+   "categoryId": "mu-moods",
+   "type": "TRACK",
+   "title": "Late Static",
+   "year": 2017,
+   "rating": 7.6,
+   "maturity": "All",
+   "genres": [
+    "Synthwave",
+    "Ambient"
+   ],
+   "synopsis": "Track 4 from Midnight Cartography by Lumen Drive.",
+   "poster": "images/albums/mu-al-006.webp",
+   "backdrop": "images/backdrops/mu-al-006.webp",
+   "dominantColor": "#452D95",
+   "accentColor": "#6743E0",
+   "durationSec": 404,
+   "artist": "Lumen Drive",
+   "album": "Midnight Cartography",
+   "albumId": "mu-al-006",
+   "trackNumber": 4,
+   "sources": [
+    {
+     "url": "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-13.mp3",
+     "kind": "MP3"
+    }
+   ]
+  },
+  {
+   "id": "mu-tr-030",
+   "space": "MUSIC",
+   "categoryId": "mu-moods",
+   "type": "TRACK",
+   "title": "Quiet Highway",
+   "year": 2017,
+   "rating": 9.6,
+   "maturity": "All",
+   "genres": [
+    "Synthwave",
+    "Ambient"
+   ],
+   "synopsis": "Track 5 from Midnight Cartography by Lumen Drive.",
+   "poster": "images/albums/mu-al-006.webp",
+   "backdrop": "images/backdrops/mu-al-006.webp",
+   "dominantColor": "#452D95",
+   "accentColor": "#6743E0",
+   "durationSec": 298,
+   "artist": "Lumen Drive",
+   "album": "Midnight Cartography",
+   "albumId": "mu-al-006",
+   "trackNumber": 5,
+   "sources": [
+    {
+     "url": "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-14.mp3",
+     "kind": "MP3"
+    }
+   ]
+  },
+  {
+   "id": "mu-tr-031",
+   "space": "MUSIC",
+   "categoryId": "mu-moods",
+   "type": "TRACK",
+   "title": "Golden Signals",
+   "year": 2022,
+   "rating": 8.1,
+   "maturity": "All",
+   "genres": [
+    "Indie Rock",
+    "Cinematic"
+   ],
+   "synopsis": "Track 1 from Glass Garden by Arden Sol.",
+   "poster": "images/albums/mu-al-007.webp",
+   "backdrop": "images/backdrops/mu-al-007.webp",
+   "dominantColor": "#393C0D",
+   "accentColor": "#E0CC45",
+   "durationSec": 359,
+   "artist": "Arden Sol",
+   "album": "Glass Garden",
+   "albumId": "mu-al-007",
+   "trackNumber": 1,
+   "sources": [
+    {
+     "url": "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-15.mp3",
+     "kind": "MP3"
+    }
+   ]
+  },
+  {
+   "id": "mu-tr-032",
+   "space": "MUSIC",
+   "categoryId": "mu-moods",
+   "type": "TRACK",
+   "title": "Velvet Rain",
+   "year": 2022,
+   "rating": 8.3,
+   "maturity": "All",
+   "genres": [
+    "Indie Rock",
+    "Cinematic"
+   ],
+   "synopsis": "Track 2 from Glass Garden by Arden Sol.",
+   "poster": "images/albums/mu-al-007.webp",
+   "backdrop": "images/backdrops/mu-al-007.webp",
+   "dominantColor": "#393C0D",
+   "accentColor": "#E0CC45",
+   "durationSec": 392,
+   "artist": "Arden Sol",
+   "album": "Glass Garden",
+   "albumId": "mu-al-007",
+   "trackNumber": 2,
+   "sources": [
+    {
+     "url": "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-16.mp3",
+     "kind": "MP3"
+    }
+   ]
+  },
+  {
+   "id": "mu-tr-033",
+   "space": "MUSIC",
+   "categoryId": "mu-moods",
+   "type": "TRACK",
+   "title": "Crimson Waves",
+   "year": 2022,
+   "rating": 9.2,
+   "maturity": "All",
+   "genres": [
+    "Indie Rock",
+    "Cinematic"
+   ],
+   "synopsis": "Track 3 from Glass Garden by Arden Sol.",
+   "poster": "images/albums/mu-al-007.webp",
+   "backdrop": "images/backdrops/mu-al-007.webp",
+   "dominantColor": "#393C0D",
+   "accentColor": "#E0CC45",
+   "durationSec": 240,
+   "artist": "Arden Sol",
+   "album": "Glass Garden",
+   "albumId": "mu-al-007",
+   "trackNumber": 3,
+   "sources": [
+    {
+     "url": "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3",
+     "kind": "MP3"
+    }
+   ]
+  },
+  {
+   "id": "mu-tr-034",
+   "space": "MUSIC",
+   "categoryId": "mu-moods",
+   "type": "TRACK",
+   "title": "Velvet Waves",
+   "year": 2022,
+   "rating": 7.4,
+   "maturity": "All",
+   "genres": [
+    "Indie Rock",
+    "Cinematic"
+   ],
+   "synopsis": "Track 4 from Glass Garden by Arden Sol.",
+   "poster": "images/albums/mu-al-007.webp",
+   "backdrop": "images/backdrops/mu-al-007.webp",
+   "dominantColor": "#393C0D",
+   "accentColor": "#E0CC45",
+   "durationSec": 205,
+   "artist": "Arden Sol",
+   "album": "Glass Garden",
+   "albumId": "mu-al-007",
+   "trackNumber": 4,
+   "sources": [
+    {
+     "url": "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-2.mp3",
+     "kind": "MP3"
+    }
+   ]
+  },
+  {
+   "id": "mu-tr-035",
+   "space": "MUSIC",
+   "categoryId": "mu-moods",
+   "type": "TRACK",
+   "title": "Distant Rain",
+   "year": 2022,
+   "rating": 8.2,
+   "maturity": "All",
+   "genres": [
+    "Indie Rock",
+    "Cinematic"
+   ],
+   "synopsis": "Track 5 from Glass Garden by Arden Sol.",
+   "poster": "images/albums/mu-al-007.webp",
+   "backdrop": "images/backdrops/mu-al-007.webp",
+   "dominantColor": "#393C0D",
+   "accentColor": "#E0CC45",
+   "durationSec": 245,
+   "artist": "Arden Sol",
+   "album": "Glass Garden",
+   "albumId": "mu-al-007",
+   "trackNumber": 5,
+   "sources": [
+    {
+     "url": "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-3.mp3",
+     "kind": "MP3"
+    }
+   ]
+  },
+  {
+   "id": "mu-tr-036",
+   "space": "MUSIC",
+   "categoryId": "mu-moods",
+   "type": "TRACK",
+   "title": "Electric Ghosts",
+   "year": 2024,
+   "rating": 6.8,
+   "maturity": "All",
+   "genres": [
+    "Cinematic",
+    "Electronic"
+   ],
+   "synopsis": "Track 1 from Low Orbit Love by Velour Kids.",
+   "poster": "images/albums/mu-al-008.webp",
+   "backdrop": "images/backdrops/mu-al-008.webp",
+   "dominantColor": "#4683A1",
+   "accentColor": "#4EB0E0",
+   "durationSec": 373,
+   "artist": "Velour Kids",
+   "album": "Low Orbit Love",
+   "albumId": "mu-al-008",
+   "trackNumber": 1,
+   "sources": [
+    {
+     "url": "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-4.mp3",
+     "kind": "MP3"
+    }
+   ]
+  },
+  {
+   "id": "mu-tr-037",
+   "space": "MUSIC",
+   "categoryId": "mu-moods",
+   "type": "TRACK",
+   "title": "Quiet Rain",
+   "year": 2024,
+   "rating": 9.0,
+   "maturity": "All",
+   "genres": [
+    "Cinematic",
+    "Electronic"
+   ],
+   "synopsis": "Track 2 from Low Orbit Love by Velour Kids.",
+   "poster": "images/albums/mu-al-008.webp",
+   "backdrop": "images/backdrops/mu-al-008.webp",
+   "dominantColor": "#4683A1",
+   "accentColor": "#4EB0E0",
+   "durationSec": 249,
+   "artist": "Velour Kids",
+   "album": "Low Orbit Love",
+   "albumId": "mu-al-008",
+   "trackNumber": 2,
+   "sources": [
+    {
+     "url": "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-5.mp3",
+     "kind": "MP3"
+    }
+   ]
+  },
+  {
+   "id": "mu-tr-038",
+   "space": "MUSIC",
+   "categoryId": "mu-moods",
+   "type": "TRACK",
+   "title": "Neon Rooftops",
+   "year": 2024,
+   "rating": 6.8,
+   "maturity": "All",
+   "genres": [
+    "Cinematic",
+    "Electronic"
+   ],
+   "synopsis": "Track 3 from Low Orbit Love by Velour Kids.",
+   "poster": "images/albums/mu-al-008.webp",
+   "backdrop": "images/backdrops/mu-al-008.webp",
+   "dominantColor": "#4683A1",
+   "accentColor": "#4EB0E0",
+   "durationSec": 336,
+   "artist": "Velour Kids",
+   "album": "Low Orbit Love",
+   "albumId": "mu-al-008",
+   "trackNumber": 3,
+   "sources": [
+    {
+     "url": "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-6.mp3",
+     "kind": "MP3"
+    }
+   ]
+  },
+  {
+   "id": "mu-tr-039",
+   "space": "MUSIC",
+   "categoryId": "mu-moods",
+   "type": "TRACK",
+   "title": "Neon Rain",
+   "year": 2024,
+   "rating": 8.2,
+   "maturity": "All",
+   "genres": [
+    "Cinematic",
+    "Electronic"
+   ],
+   "synopsis": "Track 4 from Low Orbit Love by Velour Kids.",
+   "poster": "images/albums/mu-al-008.webp",
+   "backdrop": "images/backdrops/mu-al-008.webp",
+   "dominantColor": "#4683A1",
+   "accentColor": "#4EB0E0",
+   "durationSec": 244,
+   "artist": "Velour Kids",
+   "album": "Low Orbit Love",
+   "albumId": "mu-al-008",
+   "trackNumber": 4,
+   "sources": [
+    {
+     "url": "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-7.mp3",
+     "kind": "MP3"
+    }
+   ]
+  },
+  {
+   "id": "mu-tr-040",
+   "space": "MUSIC",
+   "categoryId": "mu-moods",
+   "type": "TRACK",
+   "title": "Crimson Rain",
+   "year": 2024,
+   "rating": 7.1,
+   "maturity": "All",
+   "genres": [
+    "Cinematic",
+    "Electronic"
+   ],
+   "synopsis": "Track 5 from Low Orbit Love by Velour Kids.",
+   "poster": "images/albums/mu-al-008.webp",
+   "backdrop": "images/backdrops/mu-al-008.webp",
+   "dominantColor": "#4683A1",
+   "accentColor": "#4EB0E0",
+   "durationSec": 217,
+   "artist": "Velour Kids",
+   "album": "Low Orbit Love",
+   "albumId": "mu-al-008",
+   "trackNumber": 5,
+   "sources": [
+    {
+     "url": "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-8.mp3",
+     "kind": "MP3"
+    }
+   ]
+  },
+  {
+   "id": "mu-tr-041",
+   "space": "MUSIC",
+   "categoryId": "mu-moods",
+   "type": "TRACK",
+   "title": "Golden Satellites",
+   "year": 2025,
+   "rating": 8.7,
+   "maturity": "All",
+   "genres": [
+    "Lo-fi",
+    "Pop"
+   ],
+   "synopsis": "Track 1 from Ember Season by Hollow Pines.",
+   "poster": "images/albums/mu-al-009.webp",
+   "backdrop": "images/backdrops/mu-al-009.webp",
+   "dominantColor": "#932887",
+   "accentColor": "#E03DCE",
+   "durationSec": 180,
+   "artist": "Hollow Pines",
+   "album": "Ember Season",
+   "albumId": "mu-al-009",
+   "trackNumber": 1,
+   "sources": [
+    {
+     "url": "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-9.mp3",
+     "kind": "MP3"
+    }
+   ]
+  },
+  {
+   "id": "mu-tr-042",
+   "space": "MUSIC",
+   "categoryId": "mu-moods",
+   "type": "TRACK",
+   "title": "Crimson Rooftops",
+   "year": 2025,
+   "rating": 8.6,
+   "maturity": "All",
+   "genres": [
+    "Lo-fi",
+    "Pop"
+   ],
+   "synopsis": "Track 2 from Ember Season by Hollow Pines.",
+   "poster": "images/albums/mu-al-009.webp",
+   "backdrop": "images/backdrops/mu-al-009.webp",
+   "dominantColor": "#932887",
+   "accentColor": "#E03DCE",
+   "durationSec": 366,
+   "artist": "Hollow Pines",
+   "album": "Ember Season",
+   "albumId": "mu-al-009",
+   "trackNumber": 2,
+   "sources": [
+    {
+     "url": "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-10.mp3",
+     "kind": "MP3"
+    }
+   ]
+  },
+  {
+   "id": "mu-tr-043",
+   "space": "MUSIC",
+   "categoryId": "mu-moods",
+   "type": "TRACK",
+   "title": "Velvet Highway",
+   "year": 2025,
+   "rating": 7.9,
+   "maturity": "All",
+   "genres": [
+    "Lo-fi",
+    "Pop"
+   ],
+   "synopsis": "Track 3 from Ember Season by Hollow Pines.",
+   "poster": "images/albums/mu-al-009.webp",
+   "backdrop": "images/backdrops/mu-al-009.webp",
+   "dominantColor": "#932887",
+   "accentColor": "#E03DCE",
+   "durationSec": 363,
+   "artist": "Hollow Pines",
+   "album": "Ember Season",
+   "albumId": "mu-al-009",
+   "trackNumber": 3,
+   "sources": [
+    {
+     "url": "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-11.mp3",
+     "kind": "MP3"
+    }
+   ]
+  },
+  {
+   "id": "mu-tr-044",
+   "space": "MUSIC",
+   "categoryId": "mu-moods",
+   "type": "TRACK",
+   "title": "Golden Ghosts",
+   "year": 2025,
+   "rating": 7.0,
+   "maturity": "All",
+   "genres": [
+    "Lo-fi",
+    "Pop"
+   ],
+   "synopsis": "Track 4 from Ember Season by Hollow Pines.",
+   "poster": "images/albums/mu-al-009.webp",
+   "backdrop": "images/backdrops/mu-al-009.webp",
+   "dominantColor": "#932887",
+   "accentColor": "#E03DCE",
+   "durationSec": 323,
+   "artist": "Hollow Pines",
+   "album": "Ember Season",
+   "albumId": "mu-al-009",
+   "trackNumber": 4,
+   "sources": [
+    {
+     "url": "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-12.mp3",
+     "kind": "MP3"
+    }
+   ]
+  },
+  {
+   "id": "mu-tr-045",
+   "space": "MUSIC",
+   "categoryId": "mu-moods",
+   "type": "TRACK",
+   "title": "Slow Satellites",
+   "year": 2025,
+   "rating": 9.2,
+   "maturity": "All",
+   "genres": [
+    "Lo-fi",
+    "Pop"
+   ],
+   "synopsis": "Track 5 from Ember Season by Hollow Pines.",
+   "poster": "images/albums/mu-al-009.webp",
+   "backdrop": "images/backdrops/mu-al-009.webp",
+   "dominantColor": "#932887",
+   "accentColor": "#E03DCE",
+   "durationSec": 305,
+   "artist": "Hollow Pines",
+   "album": "Ember Season",
+   "albumId": "mu-al-009",
+   "trackNumber": 5,
+   "sources": [
+    {
+     "url": "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-13.mp3",
+     "kind": "MP3"
+    }
+   ]
+  },
+  {
+   "id": "mu-tr-046",
+   "space": "MUSIC",
+   "categoryId": "mu-moods",
+   "type": "TRACK",
+   "title": "Hollow Highway",
+   "year": 2022,
+   "rating": 8.7,
+   "maturity": "All",
+   "genres": [
+    "Pop",
+    "Ambient"
+   ],
+   "synopsis": "Track 1 from Static Bloom by Rhea Montclair.",
+   "poster": "images/albums/mu-al-010.webp",
+   "backdrop": "images/backdrops/mu-al-010.webp",
+   "dominantColor": "#1F5367",
+   "accentColor": "#4EB1E0",
+   "durationSec": 339,
+   "artist": "Rhea Montclair",
+   "album": "Static Bloom",
+   "albumId": "mu-al-010",
+   "trackNumber": 1,
+   "sources": [
+    {
+     "url": "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-14.mp3",
+     "kind": "MP3"
+    }
+   ]
+  },
+  {
+   "id": "mu-tr-047",
+   "space": "MUSIC",
+   "categoryId": "mu-moods",
+   "type": "TRACK",
+   "title": "Paper Static",
+   "year": 2022,
+   "rating": 7.9,
+   "maturity": "All",
+   "genres": [
+    "Pop",
+    "Ambient"
+   ],
+   "synopsis": "Track 2 from Static Bloom by Rhea Montclair.",
+   "poster": "images/albums/mu-al-010.webp",
+   "backdrop": "images/backdrops/mu-al-010.webp",
+   "dominantColor": "#1F5367",
+   "accentColor": "#4EB1E0",
+   "durationSec": 272,
+   "artist": "Rhea Montclair",
+   "album": "Static Bloom",
+   "albumId": "mu-al-010",
+   "trackNumber": 2,
+   "sources": [
+    {
+     "url": "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-15.mp3",
+     "kind": "MP3"
+    }
+   ]
+  },
+  {
+   "id": "mu-tr-048",
+   "space": "MUSIC",
+   "categoryId": "mu-moods",
+   "type": "TRACK",
+   "title": "Quiet Lights",
+   "year": 2022,
+   "rating": 8.5,
+   "maturity": "All",
+   "genres": [
+    "Pop",
+    "Ambient"
+   ],
+   "synopsis": "Track 3 from Static Bloom by Rhea Montclair.",
+   "poster": "images/albums/mu-al-010.webp",
+   "backdrop": "images/backdrops/mu-al-010.webp",
+   "dominantColor": "#1F5367",
+   "accentColor": "#4EB1E0",
+   "durationSec": 273,
+   "artist": "Rhea Montclair",
+   "album": "Static Bloom",
+   "albumId": "mu-al-010",
+   "trackNumber": 3,
+   "sources": [
+    {
+     "url": "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-16.mp3",
+     "kind": "MP3"
+    }
+   ]
+  },
+  {
+   "id": "mu-tr-049",
+   "space": "MUSIC",
+   "categoryId": "mu-moods",
+   "type": "TRACK",
+   "title": "Late Signals",
+   "year": 2022,
+   "rating": 8.5,
+   "maturity": "All",
+   "genres": [
+    "Pop",
+    "Ambient"
+   ],
+   "synopsis": "Track 4 from Static Bloom by Rhea Montclair.",
+   "poster": "images/albums/mu-al-010.webp",
+   "backdrop": "images/backdrops/mu-al-010.webp",
+   "dominantColor": "#1F5367",
+   "accentColor": "#4EB1E0",
+   "durationSec": 392,
+   "artist": "Rhea Montclair",
+   "album": "Static Bloom",
+   "albumId": "mu-al-010",
+   "trackNumber": 4,
+   "sources": [
+    {
+     "url": "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3",
+     "kind": "MP3"
+    }
+   ]
+  },
+  {
+   "id": "mu-tr-050",
+   "space": "MUSIC",
+   "categoryId": "mu-moods",
+   "type": "TRACK",
+   "title": "Neon Signals",
+   "year": 2022,
+   "rating": 8.1,
+   "maturity": "All",
+   "genres": [
+    "Pop",
+    "Ambient"
+   ],
+   "synopsis": "Track 5 from Static Bloom by Rhea Montclair.",
+   "poster": "images/albums/mu-al-010.webp",
+   "backdrop": "images/backdrops/mu-al-010.webp",
+   "dominantColor": "#1F5367",
+   "accentColor": "#4EB1E0",
+   "durationSec": 284,
+   "artist": "Rhea Montclair",
+   "album": "Static Bloom",
+   "albumId": "mu-al-010",
+   "trackNumber": 5,
+   "sources": [
+    {
+     "url": "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-2.mp3",
+     "kind": "MP3"
+    }
+   ]
+  }
+ ]
+}

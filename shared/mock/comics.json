@@ -1,0 +1,2735 @@
+{
+ "space": "COMICS",
+ "version": 1,
+ "genres": [
+  "Action",
+  "Fantasy",
+  "Romance",
+  "Martial Arts",
+  "Comedy",
+  "Drama",
+  "Mystery",
+  "Horror",
+  "Slice of Life",
+  "Sci-Fi"
+ ],
+ "categories": [
+  {
+   "id": "co-manga",
+   "space": "COMICS",
+   "title": "Manga",
+   "heroIds": [
+    "co-ma-002",
+    "co-ma-006",
+    "co-ma-010"
+   ],
+   "rows": [
+    {
+     "id": "co-manga-r1",
+     "title": "Popular Manga",
+     "style": "POSTER",
+     "itemIds": [
+      "co-ma-003",
+      "co-ma-010",
+      "co-ma-009",
+      "co-ma-006",
+      "co-ma-008",
+      "co-ma-007",
+      "co-ma-004",
+      "co-ma-001",
+      "co-ma-002",
+      "co-ma-005"
+     ]
+    },
+    {
+     "id": "co-manga-r2",
+     "title": "Top 10 Manga",
+     "style": "TOP10",
+     "itemIds": [
+      "co-ma-002",
+      "co-ma-006",
+      "co-ma-010",
+      "co-ma-008",
+      "co-ma-009",
+      "co-ma-005",
+      "co-ma-001",
+      "co-ma-004",
+      "co-ma-003",
+      "co-ma-007"
+     ]
+    },
+    {
+     "id": "co-manga-r3",
+     "title": "Recently Updated",
+     "style": "LANDSCAPE",
+     "itemIds": [
+      "co-ma-004",
+      "co-ma-006",
+      "co-ma-007",
+      "co-ma-002",
+      "co-ma-008",
+      "co-ma-010",
+      "co-ma-001",
+      "co-ma-003"
+     ]
+    },
+    {
+     "id": "co-manga-r4",
+     "title": "Action & Adventure",
+     "style": "POSTER",
+     "itemIds": [
+      "co-ma-001",
+      "co-ma-004",
+      "co-ma-010",
+      "co-ma-003",
+      "co-ma-006",
+      "co-ma-009",
+      "co-ma-005",
+      "co-ma-008"
+     ]
+    },
+    {
+     "id": "co-manga-r5",
+     "title": "Romance Corner",
+     "style": "POSTER",
+     "itemIds": [
+      "co-ma-003",
+      "co-ma-004",
+      "co-ma-009",
+      "co-ma-001",
+      "co-ma-006",
+      "co-ma-008",
+      "co-ma-005",
+      "co-ma-007"
+     ]
+    }
+   ]
+  },
+  {
+   "id": "co-manhwa",
+   "space": "COMICS",
+   "title": "Manhwa",
+   "heroIds": [
+    "co-mw-003",
+    "co-mw-008",
+    "co-mw-002"
+   ],
+   "rows": [
+    {
+     "id": "co-manhwa-r1",
+     "title": "Popular Manhwa",
+     "style": "POSTER",
+     "itemIds": [
+      "co-mw-003",
+      "co-mw-004",
+      "co-mw-006",
+      "co-mw-008",
+      "co-mw-007",
+      "co-mw-010",
+      "co-mw-001",
+      "co-mw-005",
+      "co-mw-009",
+      "co-mw-002"
+     ]
+    },
+    {
+     "id": "co-manhwa-r2",
+     "title": "Top 10 Manhwa",
+     "style": "TOP10",
+     "itemIds": [
+      "co-mw-003",
+      "co-mw-008",
+      "co-mw-002",
+      "co-mw-005",
+      "co-mw-001",
+      "co-mw-010",
+      "co-mw-004",
+      "co-mw-009",
+      "co-mw-006",
+      "co-mw-007"
+     ]
+    },
+    {
+     "id": "co-manhwa-r3",
+     "title": "Recently Updated",
+     "style": "LANDSCAPE",
+     "itemIds": [
+      "co-mw-005",
+      "co-mw-001",
+      "co-mw-003",
+      "co-mw-007",
+      "co-mw-010",
+      "co-mw-008",
+      "co-mw-009",
+      "co-mw-004"
+     ]
+    },
+    {
+     "id": "co-manhwa-r4",
+     "title": "Action & Adventure",
+     "style": "POSTER",
+     "itemIds": [
+      "co-mw-007",
+      "co-mw-009",
+      "co-mw-008",
+      "co-mw-004",
+      "co-mw-005",
+      "co-mw-002",
+      "co-mw-001",
+      "co-mw-003"
+     ]
+    },
+    {
+     "id": "co-manhwa-r5",
+     "title": "Romance Corner",
+     "style": "POSTER",
+     "itemIds": [
+      "co-mw-001",
+      "co-mw-002",
+      "co-mw-003",
+      "co-mw-008",
+      "co-mw-010",
+      "co-mw-005",
+      "co-mw-009",
+      "co-mw-006"
+     ]
+    }
+   ]
+  },
+  {
+   "id": "co-manhua",
+   "space": "COMICS",
+   "title": "Manhua",
+   "heroIds": [
+    "co-mh-005",
+    "co-mh-010",
+    "co-mh-004",
+    "co-mh-007",
+    "co-mh-002"
+   ],
+   "rows": [
+    {
+     "id": "co-manhua-r1",
+     "title": "Popular Manhua",
+     "style": "POSTER",
+     "itemIds": [
+      "co-mh-008",
+      "co-mh-007",
+      "co-mh-006",
+      "co-mh-001",
+      "co-mh-003",
+      "co-mh-009",
+      "co-mh-010",
+      "co-mh-005",
+      "co-mh-004",
+      "co-mh-002"
+     ]
+    },
+    {
+     "id": "co-manhua-r2",
+     "title": "Top 10 Manhua",
+     "style": "TOP10",
+     "itemIds": [
+      "co-mh-005",
+      "co-mh-010",
+      "co-mh-004",
+      "co-mh-007",
+      "co-mh-002",
+      "co-mh-006",
+      "co-mh-009",
+      "co-mh-003",
+      "co-mh-008",
+      "co-mh-001"
+     ]
+    },
+    {
+     "id": "co-manhua-r3",
+     "title": "Recently Updated",
+     "style": "LANDSCAPE",
+     "itemIds": [
+      "co-mh-006",
+      "co-mh-001",
+      "co-mh-007",
+      "co-mh-002",
+      "co-mh-003",
+      "co-mh-008",
+      "co-mh-005",
+      "co-mh-004"
+     ]
+    },
+    {
+     "id": "co-manhua-r4",
+     "title": "Action & Adventure",
+     "style": "POSTER",
+     "itemIds": [
+      "co-mh-004",
+      "co-mh-009",
+      "co-mh-006",
+      "co-mh-008",
+      "co-mh-005",
+      "co-mh-003",
+      "co-mh-010",
+      "co-mh-007"
+     ]
+    },
+    {
+     "id": "co-manhua-r5",
+     "title": "Romance Corner",
+     "style": "POSTER",
+     "itemIds": [
+      "co-mh-006",
+      "co-mh-001",
+      "co-mh-008",
+      "co-mh-009",
+      "co-mh-005",
+      "co-mh-003",
+      "co-mh-007",
+      "co-mh-004"
+     ]
+    }
+   ]
+  }
+ ],
+ "items": [
+  {
+   "id": "co-ma-001",
+   "space": "COMICS",
+   "categoryId": "co-manga",
+   "type": "COMIC",
+   "title": "Tsukinami: The Cat Who Ran a Bathhouse",
+   "year": 2023,
+   "rating": 7.1,
+   "maturity": "All",
+   "genres": [
+    "Martial Arts",
+    "Action",
+    "Comedy"
+   ],
+   "synopsis": "In a sleepy seaside town, Lena finds a letter that rewrites their past. Nothing is what it seems.",
+   "poster": "images/posters/co-ma-001.webp",
+   "backdrop": "images/backdrops/co-ma-001.webp",
+   "dominantColor": "#6E1A33",
+   "accentColor": "#E04C82",
+   "format": "PAGED",
+   "readingDirection": "RTL",
+   "pages": [
+    {
+     "id": "co-ma-001-ch1",
+     "n": 1,
+     "title": "Chapter 1",
+     "pages": [
+      "images/comics/manga/page_01.webp",
+      "images/comics/manga/page_02.webp",
+      "images/comics/manga/page_03.webp",
+      "images/comics/manga/page_04.webp",
+      "images/comics/manga/page_05.webp",
+      "images/comics/manga/page_06.webp",
+      "images/comics/manga/page_07.webp",
+      "images/comics/manga/page_08.webp",
+      "images/comics/manga/page_09.webp",
+      "images/comics/manga/page_10.webp",
+      "images/comics/manga/page_11.webp",
+      "images/comics/manga/page_12.webp"
+     ]
+    },
+    {
+     "id": "co-ma-001-ch2",
+     "n": 2,
+     "title": "Chapter 2",
+     "pages": [
+      "images/comics/manga/page_05.webp",
+      "images/comics/manga/page_06.webp",
+      "images/comics/manga/page_07.webp",
+      "images/comics/manga/page_08.webp",
+      "images/comics/manga/page_09.webp",
+      "images/comics/manga/page_10.webp",
+      "images/comics/manga/page_11.webp",
+      "images/comics/manga/page_12.webp",
+      "images/comics/manga/page_01.webp",
+      "images/comics/manga/page_02.webp",
+      "images/comics/manga/page_03.webp",
+      "images/comics/manga/page_04.webp"
+     ]
+    },
+    {
+     "id": "co-ma-001-ch3",
+     "n": 3,
+     "title": "Chapter 3",
+     "pages": [
+      "images/comics/manga/page_09.webp",
+      "images/comics/manga/page_10.webp",
+      "images/comics/manga/page_11.webp",
+      "images/comics/manga/page_12.webp",
+      "images/comics/manga/page_01.webp",
+      "images/comics/manga/page_02.webp",
+      "images/comics/manga/page_03.webp",
+      "images/comics/manga/page_04.webp",
+      "images/comics/manga/page_05.webp",
+      "images/comics/manga/page_06.webp",
+      "images/comics/manga/page_07.webp",
+      "images/comics/manga/page_08.webp"
+     ]
+    }
+   ],
+   "artist": "Juno Hartwell"
+  },
+  {
+   "id": "co-ma-002",
+   "space": "COMICS",
+   "categoryId": "co-manga",
+   "type": "COMIC",
+   "title": "Hinokage: The Blade Beneath the Snow",
+   "year": 2017,
+   "rating": 9.5,
+   "maturity": "13+",
+   "genres": [
+    "Martial Arts",
+    "Slice of Life"
+   ],
+   "synopsis": "In a crumbling empire, Tomas has one night to make an impossible choice. Trust is the first casualty.",
+   "poster": "images/posters/co-ma-002.webp",
+   "backdrop": "images/backdrops/co-ma-002.webp",
+   "dominantColor": "#42150E",
+   "accentColor": "#E0524E",
+   "format": "PAGED",
+   "readingDirection": "RTL",
+   "pages": [
+    {
+     "id": "co-ma-002-ch1",
+     "n": 1,
+     "title": "Chapter 1",
+     "pages": [
+      "images/comics/manga/page_06.webp",
+      "images/comics/manga/page_07.webp",
+      "images/comics/manga/page_08.webp",
+      "images/comics/manga/page_09.webp",
+      "images/comics/manga/page_10.webp",
+      "images/comics/manga/page_11.webp",
+      "images/comics/manga/page_12.webp",
+      "images/comics/manga/page_01.webp",
+      "images/comics/manga/page_02.webp",
+      "images/comics/manga/page_03.webp",
+      "images/comics/manga/page_04.webp",
+      "images/comics/manga/page_05.webp"
+     ]
+    },
+    {
+     "id": "co-ma-002-ch2",
+     "n": 2,
+     "title": "Chapter 2",
+     "pages": [
+      "images/comics/manga/page_10.webp",
+      "images/comics/manga/page_11.webp",
+      "images/comics/manga/page_12.webp",
+      "images/comics/manga/page_01.webp",
+      "images/comics/manga/page_02.webp",
+      "images/comics/manga/page_03.webp",
+      "images/comics/manga/page_04.webp",
+      "images/comics/manga/page_05.webp",
+      "images/comics/manga/page_06.webp",
+      "images/comics/manga/page_07.webp",
+      "images/comics/manga/page_08.webp",
+      "images/comics/manga/page_09.webp"
+     ]
+    },
+    {
+     "id": "co-ma-002-ch3",
+     "n": 3,
+     "title": "Chapter 3",
+     "pages": [
+      "images/comics/manga/page_02.webp",
+      "images/comics/manga/page_03.webp",
+      "images/comics/manga/page_04.webp",
+      "images/comics/manga/page_05.webp",
+      "images/comics/manga/page_06.webp",
+      "images/comics/manga/page_07.webp",
+      "images/comics/manga/page_08.webp",
+      "images/comics/manga/page_09.webp",
+      "images/comics/manga/page_10.webp",
+      "images/comics/manga/page_11.webp",
+      "images/comics/manga/page_12.webp",
+      "images/comics/manga/page_01.webp"
+     ]
+    }
+   ],
+   "artist": "Ines Duarte"
+  },
+  {
+   "id": "co-ma-003",
+   "space": "COMICS",
+   "categoryId": "co-manga",
+   "type": "COMIC",
+   "title": "Seiryuu: Crimson Kite Squad",
+   "year": 2017,
+   "rating": 6.2,
+   "maturity": "13+",
+   "genres": [
+    "Martial Arts",
+    "Romance",
+    "Fantasy"
+   ],
+   "synopsis": "In the spirit realm, Nadia chases a signal no one else can hear. Every choice leaves a mark.",
+   "poster": "images/posters/co-ma-003.webp",
+   "backdrop": "images/backdrops/co-ma-003.webp",
+   "dominantColor": "#892452",
+   "accentColor": "#E03A86",
+   "format": "PAGED",
+   "readingDirection": "RTL",
+   "pages": [
+    {
+     "id": "co-ma-003-ch1",
+     "n": 1,
+     "title": "Chapter 1",
+     "pages": [
+      "images/comics/manga/page_11.webp",
+      "images/comics/manga/page_12.webp",
+      "images/comics/manga/page_01.webp",
+      "images/comics/manga/page_02.webp",
+      "images/comics/manga/page_03.webp",
+      "images/comics/manga/page_04.webp",
+      "images/comics/manga/page_05.webp",
+      "images/comics/manga/page_06.webp",
+      "images/comics/manga/page_07.webp",
+      "images/comics/manga/page_08.webp",
+      "images/comics/manga/page_09.webp",
+      "images/comics/manga/page_10.webp"
+     ]
+    },
+    {
+     "id": "co-ma-003-ch2",
+     "n": 2,
+     "title": "Chapter 2",
+     "pages": [
+      "images/comics/manga/page_03.webp",
+      "images/comics/manga/page_04.webp",
+      "images/comics/manga/page_05.webp",
+      "images/comics/manga/page_06.webp",
+      "images/comics/manga/page_07.webp",
+      "images/comics/manga/page_08.webp",
+      "images/comics/manga/page_09.webp",
+      "images/comics/manga/page_10.webp",
+      "images/comics/manga/page_11.webp",
+      "images/comics/manga/page_12.webp",
+      "images/comics/manga/page_01.webp",
+      "images/comics/manga/page_02.webp"
+     ]
+    },
+    {
+     "id": "co-ma-003-ch3",
+     "n": 3,
+     "title": "Chapter 3",
+     "pages": [
+      "images/comics/manga/page_07.webp",
+      "images/comics/manga/page_08.webp",
+      "images/comics/manga/page_09.webp",
+      "images/comics/manga/page_10.webp",
+      "images/comics/manga/page_11.webp",
+      "images/comics/manga/page_12.webp",
+      "images/comics/manga/page_01.webp",
+      "images/comics/manga/page_02.webp",
+      "images/comics/manga/page_03.webp",
+      "images/comics/manga/page_04.webp",
+      "images/comics/manga/page_05.webp",
+      "images/comics/manga/page_06.webp"
+     ]
+    }
+   ],
+   "artist": "Ines Duarte"
+  },
+  {
+   "id": "co-ma-004",
+   "space": "COMICS",
+   "categoryId": "co-manga",
+   "type": "COMIC",
+   "title": "Akanezumi: Class Rep of the Underworld",
+   "year": 2022,
+   "rating": 6.7,
+   "maturity": "All",
+   "genres": [
+    "Drama",
+    "Action"
+   ],
+   "synopsis": "In the spirit realm, Zara uncovers a secret that could unravel everything. Trust is the first casualty.",
+   "poster": "images/posters/co-ma-004.webp",
+   "backdrop": "images/backdrops/co-ma-004.webp",
+   "dominantColor": "#8C2F45",
+   "accentColor": "#E04B6E",
+   "format": "PAGED",
+   "readingDirection": "RTL",
+   "pages": [
+    {
+     "id": "co-ma-004-ch1",
+     "n": 1,
+     "title": "Chapter 1",
+     "pages": [
+      "images/comics/manga/page_04.webp",
+      "images/comics/manga/page_05.webp",
+      "images/comics/manga/page_06.webp",
+      "images/comics/manga/page_07.webp",
+      "images/comics/manga/page_08.webp",
+      "images/comics/manga/page_09.webp",
+      "images/comics/manga/page_10.webp",
+      "images/comics/manga/page_11.webp",
+      "images/comics/manga/page_12.webp",
+      "images/comics/manga/page_01.webp",
+      "images/comics/manga/page_02.webp",
+      "images/comics/manga/page_03.webp"
+     ]
+    },
+    {
+     "id": "co-ma-004-ch2",
+     "n": 2,
+     "title": "Chapter 2",
+     "pages": [
+      "images/comics/manga/page_08.webp",
+      "images/comics/manga/page_09.webp",
+      "images/comics/manga/page_10.webp",
+      "images/comics/manga/page_11.webp",
+      "images/comics/manga/page_12.webp",
+      "images/comics/manga/page_01.webp",
+      "images/comics/manga/page_02.webp",
+      "images/comics/manga/page_03.webp",
+      "images/comics/manga/page_04.webp",
+      "images/comics/manga/page_05.webp",
+      "images/comics/manga/page_06.webp",
+      "images/comics/manga/page_07.webp"
+     ]
+    },
+    {
+     "id": "co-ma-004-ch3",
+     "n": 3,
+     "title": "Chapter 3",
+     "pages": [
+      "images/comics/manga/page_12.webp",
+      "images/comics/manga/page_01.webp",
+      "images/comics/manga/page_02.webp",
+      "images/comics/manga/page_03.webp",
+      "images/comics/manga/page_04.webp",
+      "images/comics/manga/page_05.webp",
+      "images/comics/manga/page_06.webp",
+      "images/comics/manga/page_07.webp",
+      "images/comics/manga/page_08.webp",
+      "images/comics/manga/page_09.webp",
+      "images/comics/manga/page_10.webp",
+      "images/comics/manga/page_11.webp"
+     ]
+    }
+   ],
+   "artist": "Idris Kael"
+  },
+  {
+   "id": "co-ma-005",
+   "space": "COMICS",
+   "categoryId": "co-manga",
+   "type": "COMIC",
+   "title": "Akanezumi: Last Bus to Yomi",
+   "year": 2010,
+   "rating": 7.5,
+   "maturity": "All",
+   "genres": [
+    "Comedy",
+    "Fantasy"
+   ],
+   "synopsis": "In a tower of a hundred floors, Elio uncovers a secret that could unravel everything. Some doors should stay closed.",
+   "poster": "images/posters/co-ma-005.webp",
+   "backdrop": "images/backdrops/co-ma-005.webp",
+   "dominantColor": "#882732",
+   "accentColor": "#E04B63",
+   "format": "PAGED",
+   "readingDirection": "RTL",
+   "pages": [
+    {
+     "id": "co-ma-005-ch1",
+     "n": 1,
+     "title": "Chapter 1",
+     "pages": [
+      "images/comics/manga/page_09.webp",
+      "images/comics/manga/page_10.webp",
+      "images/comics/manga/page_11.webp",
+      "images/comics/manga/page_12.webp",
+      "images/comics/manga/page_01.webp",
+      "images/comics/manga/page_02.webp",
+      "images/comics/manga/page_03.webp",
+      "images/comics/manga/page_04.webp",
+      "images/comics/manga/page_05.webp",
+      "images/comics/manga/page_06.webp",
+      "images/comics/manga/page_07.webp",
+      "images/comics/manga/page_08.webp"
+     ]
+    },
+    {
+     "id": "co-ma-005-ch2",
+     "n": 2,
+     "title": "Chapter 2",
+     "pages": [
+      "images/comics/manga/page_01.webp",
+      "images/comics/manga/page_02.webp",
+      "images/comics/manga/page_03.webp",
+      "images/comics/manga/page_04.webp",
+      "images/comics/manga/page_05.webp",
+      "images/comics/manga/page_06.webp",
+      "images/comics/manga/page_07.webp",
+      "images/comics/manga/page_08.webp",
+      "images/comics/manga/page_09.webp",
+      "images/comics/manga/page_10.webp",
+      "images/comics/manga/page_11.webp",
+      "images/comics/manga/page_12.webp"
+     ]
+    },
+    {
+     "id": "co-ma-005-ch3",
+     "n": 3,
+     "title": "Chapter 3",
+     "pages": [
+      "images/comics/manga/page_05.webp",
+      "images/comics/manga/page_06.webp",
+      "images/comics/manga/page_07.webp",
+      "images/comics/manga/page_08.webp",
+      "images/comics/manga/page_09.webp",
+      "images/comics/manga/page_10.webp",
+      "images/comics/manga/page_11.webp",
+      "images/comics/manga/page_12.webp",
+      "images/comics/manga/page_01.webp",
+      "images/comics/manga/page_02.webp",
+      "images/comics/manga/page_03.webp",
+      "images/comics/manga/page_04.webp"
+     ]
+    }
+   ],
+   "artist": "Lena Sorensen"
+  },
+  {
+   "id": "co-ma-006",
+   "space": "COMICS",
+   "categoryId": "co-manga",
+   "type": "COMIC",
+   "title": "Hoshiren: Shrine Keeper's Apprentice",
+   "year": 2019,
+   "rating": 9.1,
+   "maturity": "13+",
+   "genres": [
+    "Comedy",
+    "Fantasy"
+   ],
+   "synopsis": "In a tower of a hundred floors, Saanvi is pulled into a conspiracy older than the city itself. Trust is the first casualty.",
+   "poster": "images/posters/co-ma-006.webp",
+   "backdrop": "images/backdrops/co-ma-006.webp",
+   "dominantColor": "#741737",
+   "accentColor": "#E02C6A",
+   "format": "PAGED",
+   "readingDirection": "RTL",
+   "pages": [
+    {
+     "id": "co-ma-006-ch1",
+     "n": 1,
+     "title": "Chapter 1",
+     "pages": [
+      "images/comics/manga/page_02.webp",
+      "images/comics/manga/page_03.webp",
+      "images/comics/manga/page_04.webp",
+      "images/comics/manga/page_05.webp",
+      "images/comics/manga/page_06.webp",
+      "images/comics/manga/page_07.webp",
+      "images/comics/manga/page_08.webp",
+      "images/comics/manga/page_09.webp",
+      "images/comics/manga/page_10.webp",
+      "images/comics/manga/page_11.webp",
+      "images/comics/manga/page_12.webp",
+      "images/comics/manga/page_01.webp"
+     ]
+    },
+    {
+     "id": "co-ma-006-ch2",
+     "n": 2,
+     "title": "Chapter 2",
+     "pages": [
+      "images/comics/manga/page_06.webp",
+      "images/comics/manga/page_07.webp",
+      "images/comics/manga/page_08.webp",
+      "images/comics/manga/page_09.webp",
+      "images/comics/manga/page_10.webp",
+      "images/comics/manga/page_11.webp",
+      "images/comics/manga/page_12.webp",
+      "images/comics/manga/page_01.webp",
+      "images/comics/manga/page_02.webp",
+      "images/comics/manga/page_03.webp",
+      "images/comics/manga/page_04.webp",
+      "images/comics/manga/page_05.webp"
+     ]
+    },
+    {
+     "id": "co-ma-006-ch3",
+     "n": 3,
+     "title": "Chapter 3",
+     "pages": [
+      "images/comics/manga/page_10.webp",
+      "images/comics/manga/page_11.webp",
+      "images/comics/manga/page_12.webp",
+      "images/comics/manga/page_01.webp",
+      "images/comics/manga/page_02.webp",
+      "images/comics/manga/page_03.webp",
+      "images/comics/manga/page_04.webp",
+      "images/comics/manga/page_05.webp",
+      "images/comics/manga/page_06.webp",
+      "images/comics/manga/page_07.webp",
+      "images/comics/manga/page_08.webp",
+      "images/comics/manga/page_09.webp"
+     ]
+    }
+   ],
+   "artist": "Teo Lindqvist"
+  },
+  {
+   "id": "co-ma-007",
+   "space": "COMICS",
+   "categoryId": "co-manga",
+   "type": "COMIC",
+   "title": "Tsukinami: Ten Days in Kagerou Alley",
+   "year": 2012,
+   "rating": 6.2,
+   "maturity": "16+",
+   "genres": [
+    "Fantasy",
+    "Sci-Fi"
+   ],
+   "synopsis": "In a tower of a hundred floors, Zara is pulled into a conspiracy older than the city itself. Trust is the first casualty.",
+   "poster": "images/posters/co-ma-007.webp",
+   "backdrop": "images/backdrops/co-ma-007.webp",
+   "dominantColor": "#30876B",
+   "accentColor": "#4EE0B1",
+   "format": "PAGED",
+   "readingDirection": "RTL",
+   "pages": [
+    {
+     "id": "co-ma-007-ch1",
+     "n": 1,
+     "title": "Chapter 1",
+     "pages": [
+      "images/comics/manga/page_07.webp",
+      "images/comics/manga/page_08.webp",
+      "images/comics/manga/page_09.webp",
+      "images/comics/manga/page_10.webp",
+      "images/comics/manga/page_11.webp",
+      "images/comics/manga/page_12.webp",
+      "images/comics/manga/page_01.webp",
+      "images/comics/manga/page_02.webp",
+      "images/comics/manga/page_03.webp",
+      "images/comics/manga/page_04.webp",
+      "images/comics/manga/page_05.webp",
+      "images/comics/manga/page_06.webp"
+     ]
+    },
+    {
+     "id": "co-ma-007-ch2",
+     "n": 2,
+     "title": "Chapter 2",
+     "pages": [
+      "images/comics/manga/page_11.webp",
+      "images/comics/manga/page_12.webp",
+      "images/comics/manga/page_01.webp",
+      "images/comics/manga/page_02.webp",
+      "images/comics/manga/page_03.webp",
+      "images/comics/manga/page_04.webp",
+      "images/comics/manga/page_05.webp",
+      "images/comics/manga/page_06.webp",
+      "images/comics/manga/page_07.webp",
+      "images/comics/manga/page_08.webp",
+      "images/comics/manga/page_09.webp",
+      "images/comics/manga/page_10.webp"
+     ]
+    },
+    {
+     "id": "co-ma-007-ch3",
+     "n": 3,
+     "title": "Chapter 3",
+     "pages": [
+      "images/comics/manga/page_03.webp",
+      "images/comics/manga/page_04.webp",
+      "images/comics/manga/page_05.webp",
+      "images/comics/manga/page_06.webp",
+      "images/comics/manga/page_07.webp",
+      "images/comics/manga/page_08.webp",
+      "images/comics/manga/page_09.webp",
+      "images/comics/manga/page_10.webp",
+      "images/comics/manga/page_11.webp",
+      "images/comics/manga/page_12.webp",
+      "images/comics/manga/page_01.webp",
+      "images/comics/manga/page_02.webp"
+     ]
+    }
+   ],
+   "artist": "Arjun Mehta"
+  },
+  {
+   "id": "co-ma-008",
+   "space": "COMICS",
+   "categoryId": "co-manga",
+   "type": "COMIC",
+   "title": "Yozakura-cho: Ten Days in Kagerou Alley",
+   "year": 2012,
+   "rating": 7.7,
+   "maturity": "All",
+   "genres": [
+    "Drama",
+    "Martial Arts"
+   ],
+   "synopsis": "In a sleepy seaside town, Hana is pulled into a conspiracy older than the city itself. Trust is the first casualty.",
+   "poster": "images/posters/co-ma-008.webp",
+   "backdrop": "images/backdrops/co-ma-008.webp",
+   "dominantColor": "#681B25",
+   "accentColor": "#E03952",
+   "format": "PAGED",
+   "readingDirection": "RTL",
+   "pages": [
+    {
+     "id": "co-ma-008-ch1",
+     "n": 1,
+     "title": "Chapter 1",
+     "pages": [
+      "images/comics/manga/page_12.webp",
+      "images/comics/manga/page_01.webp",
+      "images/comics/manga/page_02.webp",
+      "images/comics/manga/page_03.webp",
+      "images/comics/manga/page_04.webp",
+      "images/comics/manga/page_05.webp",
+      "images/comics/manga/page_06.webp",
+      "images/comics/manga/page_07.webp",
+      "images/comics/manga/page_08.webp",
+      "images/comics/manga/page_09.webp",
+      "images/comics/manga/page_10.webp",
+      "images/comics/manga/page_11.webp"
+     ]
+    },
+    {
+     "id": "co-ma-008-ch2",
+     "n": 2,
+     "title": "Chapter 2",
+     "pages": [
+      "images/comics/manga/page_04.webp",
+      "images/comics/manga/page_05.webp",
+      "images/comics/manga/page_06.webp",
+      "images/comics/manga/page_07.webp",
+      "images/comics/manga/page_08.webp",
+      "images/comics/manga/page_09.webp",
+      "images/comics/manga/page_10.webp",
+      "images/comics/manga/page_11.webp",
+      "images/comics/manga/page_12.webp",
+      "images/comics/manga/page_01.webp",
+      "images/comics/manga/page_02.webp",
+      "images/comics/manga/page_03.webp"
+     ]
+    },
+    {
+     "id": "co-ma-008-ch3",
+     "n": 3,
+     "title": "Chapter 3",
+     "pages": [
+      "images/comics/manga/page_08.webp",
+      "images/comics/manga/page_09.webp",
+      "images/comics/manga/page_10.webp",
+      "images/comics/manga/page_11.webp",
+      "images/comics/manga/page_12.webp",
+      "images/comics/manga/page_01.webp",
+      "images/comics/manga/page_02.webp",
+      "images/comics/manga/page_03.webp",
+      "images/comics/manga/page_04.webp",
+      "images/comics/manga/page_05.webp",
+      "images/comics/manga/page_06.webp",
+      "images/comics/manga/page_07.webp"
+     ]
+    }
+   ],
+   "artist": "Lena Sorensen"
+  },
+  {
+   "id": "co-ma-009",
+   "space": "COMICS",
+   "categoryId": "co-manga",
+   "type": "COMIC",
+   "title": "Kaizora: The Blade Beneath the Snow",
+   "year": 2008,
+   "rating": 7.7,
+   "maturity": "13+",
+   "genres": [
+    "Horror",
+    "Drama"
+   ],
+   "synopsis": "In the spirit realm, Priya finds a letter that rewrites their past. Trust is the first casualty.",
+   "poster": "images/posters/co-ma-009.webp",
+   "backdrop": "images/backdrops/co-ma-009.webp",
+   "dominantColor": "#6F2720",
+   "accentColor": "#E04E40",
+   "format": "PAGED",
+   "readingDirection": "RTL",
+   "pages": [
+    {
+     "id": "co-ma-009-ch1",
+     "n": 1,
+     "title": "Chapter 1",
+     "pages": [
+      "images/comics/manga/page_05.webp",
+      "images/comics/manga/page_06.webp",
+      "images/comics/manga/page_07.webp",
+      "images/comics/manga/page_08.webp",
+      "images/comics/manga/page_09.webp",
+      "images/comics/manga/page_10.webp",
+      "images/comics/manga/page_11.webp",
+      "images/comics/manga/page_12.webp",
+      "images/comics/manga/page_01.webp",
+      "images/comics/manga/page_02.webp",
+      "images/comics/manga/page_03.webp",
+      "images/comics/manga/page_04.webp"
+     ]
+    },
+    {
+     "id": "co-ma-009-ch2",
+     "n": 2,
+     "title": "Chapter 2",
+     "pages": [
+      "images/comics/manga/page_09.webp",
+      "images/comics/manga/page_10.webp",
+      "images/comics/manga/page_11.webp",
+      "images/comics/manga/page_12.webp",
+      "images/comics/manga/page_01.webp",
+      "images/comics/manga/page_02.webp",
+      "images/comics/manga/page_03.webp",
+      "images/comics/manga/page_04.webp",
+      "images/comics/manga/page_05.webp",
+      "images/comics/manga/page_06.webp",
+      "images/comics/manga/page_07.webp",
+      "images/comics/manga/page_08.webp"
+     ]
+    },
+    {
+     "id": "co-ma-009-ch3",
+     "n": 3,
+     "title": "Chapter 3",
+     "pages": [
+      "images/comics/manga/page_01.webp",
+      "images/comics/manga/page_02.webp",
+      "images/comics/manga/page_03.webp",
+      "images/comics/manga/page_04.webp",
+      "images/comics/manga/page_05.webp",
+      "images/comics/manga/page_06.webp",
+      "images/comics/manga/page_07.webp",
+      "images/comics/manga/page_08.webp",
+      "images/comics/manga/page_09.webp",
+      "images/comics/manga/page_10.webp",
+      "images/comics/manga/page_11.webp",
+      "images/comics/manga/page_12.webp"
+     ]
+    }
+   ],
+   "artist": "Lena Sorensen"
+  },
+  {
+   "id": "co-ma-010",
+   "space": "COMICS",
+   "categoryId": "co-manga",
+   "type": "COMIC",
+   "title": "Sorabito: Moon Rabbit Express",
+   "year": 2008,
+   "rating": 8.9,
+   "maturity": "16+",
+   "genres": [
+    "Fantasy",
+    "Mystery"
+   ],
+   "synopsis": "In a crumbling empire, Zara has one night to make an impossible choice. Trust is the first casualty.",
+   "poster": "images/posters/co-ma-010.webp",
+   "backdrop": "images/backdrops/co-ma-010.webp",
+   "dominantColor": "#278141",
+   "accentColor": "#43E071",
+   "format": "PAGED",
+   "readingDirection": "RTL",
+   "pages": [
+    {
+     "id": "co-ma-010-ch1",
+     "n": 1,
+     "title": "Chapter 1",
+     "pages": [
+      "images/comics/manga/page_10.webp",
+      "images/comics/manga/page_11.webp",
+      "images/comics/manga/page_12.webp",
+      "images/comics/manga/page_01.webp",
+      "images/comics/manga/page_02.webp",
+      "images/comics/manga/page_03.webp",
+      "images/comics/manga/page_04.webp",
+      "images/comics/manga/page_05.webp",
+      "images/comics/manga/page_06.webp",
+      "images/comics/manga/page_07.webp",
+      "images/comics/manga/page_08.webp",
+      "images/comics/manga/page_09.webp"
+     ]
+    },
+    {
+     "id": "co-ma-010-ch2",
+     "n": 2,
+     "title": "Chapter 2",
+     "pages": [
+      "images/comics/manga/page_02.webp",
+      "images/comics/manga/page_03.webp",
+      "images/comics/manga/page_04.webp",
+      "images/comics/manga/page_05.webp",
+      "images/comics/manga/page_06.webp",
+      "images/comics/manga/page_07.webp",
+      "images/comics/manga/page_08.webp",
+      "images/comics/manga/page_09.webp",
+      "images/comics/manga/page_10.webp",
+      "images/comics/manga/page_11.webp",
+      "images/comics/manga/page_12.webp",
+      "images/comics/manga/page_01.webp"
+     ]
+    },
+    {
+     "id": "co-ma-010-ch3",
+     "n": 3,
+     "title": "Chapter 3",
+     "pages": [
+      "images/comics/manga/page_06.webp",
+      "images/comics/manga/page_07.webp",
+      "images/comics/manga/page_08.webp",
+      "images/comics/manga/page_09.webp",
+      "images/comics/manga/page_10.webp",
+      "images/comics/manga/page_11.webp",
+      "images/comics/manga/page_12.webp",
+      "images/comics/manga/page_01.webp",
+      "images/comics/manga/page_02.webp",
+      "images/comics/manga/page_03.webp",
+      "images/comics/manga/page_04.webp",
+      "images/comics/manga/page_05.webp"
+     ]
+    }
+   ],
+   "artist": "Mara Voss"
+  },
+  {
+   "id": "co-mw-001",
+   "space": "COMICS",
+   "categoryId": "co-manhwa",
+   "type": "COMIC",
+   "title": "Regressor of Hanbit Academy",
+   "year": 2009,
+   "rating": 7.8,
+   "maturity": "16+",
+   "genres": [
+    "Fantasy",
+    "Romance"
+   ],
+   "synopsis": "In the spirit realm, Yuki finds a letter that rewrites their past. The clock is already running.",
+   "poster": "images/posters/co-mw-001.webp",
+   "backdrop": "images/backdrops/co-mw-001.webp",
+   "dominantColor": "#937833",
+   "accentColor": "#E0B74D",
+   "format": "LONGSTRIP",
+   "readingDirection": "TTB",
+   "pages": [
+    {
+     "id": "co-mw-001-ch1",
+     "n": 1,
+     "title": "Chapter 1",
+     "pages": [
+      "images/comics/strip/page_01.webp",
+      "images/comics/strip/page_02.webp",
+      "images/comics/strip/page_03.webp",
+      "images/comics/strip/page_04.webp",
+      "images/comics/strip/page_05.webp",
+      "images/comics/strip/page_06.webp",
+      "images/comics/strip/page_07.webp",
+      "images/comics/strip/page_08.webp",
+      "images/comics/strip/page_09.webp",
+      "images/comics/strip/page_10.webp",
+      "images/comics/strip/page_11.webp",
+      "images/comics/strip/page_12.webp"
+     ]
+    },
+    {
+     "id": "co-mw-001-ch2",
+     "n": 2,
+     "title": "Chapter 2",
+     "pages": [
+      "images/comics/strip/page_05.webp",
+      "images/comics/strip/page_06.webp",
+      "images/comics/strip/page_07.webp",
+      "images/comics/strip/page_08.webp",
+      "images/comics/strip/page_09.webp",
+      "images/comics/strip/page_10.webp",
+      "images/comics/strip/page_11.webp",
+      "images/comics/strip/page_12.webp",
+      "images/comics/strip/page_01.webp",
+      "images/comics/strip/page_02.webp",
+      "images/comics/strip/page_03.webp",
+      "images/comics/strip/page_04.webp"
+     ]
+    },
+    {
+     "id": "co-mw-001-ch3",
+     "n": 3,
+     "title": "Chapter 3",
+     "pages": [
+      "images/comics/strip/page_09.webp",
+      "images/comics/strip/page_10.webp",
+      "images/comics/strip/page_11.webp",
+      "images/comics/strip/page_12.webp",
+      "images/comics/strip/page_01.webp",
+      "images/comics/strip/page_02.webp",
+      "images/comics/strip/page_03.webp",
+      "images/comics/strip/page_04.webp",
+      "images/comics/strip/page_05.webp",
+      "images/comics/strip/page_06.webp",
+      "images/comics/strip/page_07.webp",
+      "images/comics/strip/page_08.webp"
+     ]
+    }
+   ],
+   "artist": "Tomas Revel"
+  },
+  {
+   "id": "co-mw-002",
+   "space": "COMICS",
+   "categoryId": "co-manhwa",
+   "type": "COMIC",
+   "title": "I Became the Swordsmith of Byeolbit",
+   "year": 2008,
+   "rating": 8.8,
+   "maturity": "16+",
+   "genres": [
+    "Romance",
+    "Martial Arts",
+    "Horror"
+   ],
+   "synopsis": "In a tower of a hundred floors, Owen chases a signal no one else can hear. Some doors should stay closed.",
+   "poster": "images/posters/co-mw-002.webp",
+   "backdrop": "images/backdrops/co-mw-002.webp",
+   "dominantColor": "#6F1B20",
+   "accentColor": "#E03640",
+   "format": "LONGSTRIP",
+   "readingDirection": "TTB",
+   "pages": [
+    {
+     "id": "co-mw-002-ch1",
+     "n": 1,
+     "title": "Chapter 1",
+     "pages": [
+      "images/comics/strip/page_06.webp",
+      "images/comics/strip/page_07.webp",
+      "images/comics/strip/page_08.webp",
+      "images/comics/strip/page_09.webp",
+      "images/comics/strip/page_10.webp",
+      "images/comics/strip/page_11.webp",
+      "images/comics/strip/page_12.webp",
+      "images/comics/strip/page_01.webp",
+      "images/comics/strip/page_02.webp",
+      "images/comics/strip/page_03.webp",
+      "images/comics/strip/page_04.webp",
+      "images/comics/strip/page_05.webp"
+     ]
+    },
+    {
+     "id": "co-mw-002-ch2",
+     "n": 2,
+     "title": "Chapter 2",
+     "pages": [
+      "images/comics/strip/page_10.webp",
+      "images/comics/strip/page_11.webp",
+      "images/comics/strip/page_12.webp",
+      "images/comics/strip/page_01.webp",
+      "images/comics/strip/page_02.webp",
+      "images/comics/strip/page_03.webp",
+      "images/comics/strip/page_04.webp",
+      "images/comics/strip/page_05.webp",
+      "images/comics/strip/page_06.webp",
+      "images/comics/strip/page_07.webp",
+      "images/comics/strip/page_08.webp",
+      "images/comics/strip/page_09.webp"
+     ]
+    },
+    {
+     "id": "co-mw-002-ch3",
+     "n": 3,
+     "title": "Chapter 3",
+     "pages": [
+      "images/comics/strip/page_02.webp",
+      "images/comics/strip/page_03.webp",
+      "images/comics/strip/page_04.webp",
+      "images/comics/strip/page_05.webp",
+      "images/comics/strip/page_06.webp",
+      "images/comics/strip/page_07.webp",
+      "images/comics/strip/page_08.webp",
+      "images/comics/strip/page_09.webp",
+      "images/comics/strip/page_10.webp",
+      "images/comics/strip/page_11.webp",
+      "images/comics/strip/page_12.webp",
+      "images/comics/strip/page_01.webp"
+     ]
+    }
+   ],
+   "artist": "Hana Sato"
+  },
+  {
+   "id": "co-mw-003",
+   "space": "COMICS",
+   "categoryId": "co-manhwa",
+   "type": "COMIC",
+   "title": "Return of the Ninth-Rank Alchemist",
+   "year": 2013,
+   "rating": 9.4,
+   "maturity": "16+",
+   "genres": [
+    "Martial Arts",
+    "Romance"
+   ],
+   "synopsis": "In a tower of a hundred floors, Zara chases a signal no one else can hear. Nothing is what it seems.",
+   "poster": "images/posters/co-mw-003.webp",
+   "backdrop": "images/backdrops/co-mw-003.webp",
+   "dominantColor": "#641927",
+   "accentColor": "#E0385C",
+   "format": "LONGSTRIP",
+   "readingDirection": "TTB",
+   "pages": [
+    {
+     "id": "co-mw-003-ch1",
+     "n": 1,
+     "title": "Chapter 1",
+     "pages": [
+      "images/comics/strip/page_11.webp",
+      "images/comics/strip/page_12.webp",
+      "images/comics/strip/page_01.webp",
+      "images/comics/strip/page_02.webp",
+      "images/comics/strip/page_03.webp",
+      "images/comics/strip/page_04.webp",
+      "images/comics/strip/page_05.webp",
+      "images/comics/strip/page_06.webp",
+      "images/comics/strip/page_07.webp",
+      "images/comics/strip/page_08.webp",
+      "images/comics/strip/page_09.webp",
+      "images/comics/strip/page_10.webp"
+     ]
+    },
+    {
+     "id": "co-mw-003-ch2",
+     "n": 2,
+     "title": "Chapter 2",
+     "pages": [
+      "images/comics/strip/page_03.webp",
+      "images/comics/strip/page_04.webp",
+      "images/comics/strip/page_05.webp",
+      "images/comics/strip/page_06.webp",
+      "images/comics/strip/page_07.webp",
+      "images/comics/strip/page_08.webp",
+      "images/comics/strip/page_09.webp",
+      "images/comics/strip/page_10.webp",
+      "images/comics/strip/page_11.webp",
+      "images/comics/strip/page_12.webp",
+      "images/comics/strip/page_01.webp",
+      "images/comics/strip/page_02.webp"
+     ]
+    },
+    {
+     "id": "co-mw-003-ch3",
+     "n": 3,
+     "title": "Chapter 3",
+     "pages": [
+      "images/comics/strip/page_07.webp",
+      "images/comics/strip/page_08.webp",
+      "images/comics/strip/page_09.webp",
+      "images/comics/strip/page_10.webp",
+      "images/comics/strip/page_11.webp",
+      "images/comics/strip/page_12.webp",
+      "images/comics/strip/page_01.webp",
+      "images/comics/strip/page_02.webp",
+      "images/comics/strip/page_03.webp",
+      "images/comics/strip/page_04.webp",
+      "images/comics/strip/page_05.webp",
+      "images/comics/strip/page_06.webp"
+     ]
+    }
+   ],
+   "artist": "Yuki Amano"
+  },
+  {
+   "id": "co-mw-004",
+   "space": "COMICS",
+   "categoryId": "co-manhwa",
+   "type": "COMIC",
+   "title": "Return of the F-Rank Alchemist",
+   "year": 2008,
+   "rating": 7.3,
+   "maturity": "All",
+   "genres": [
+    "Martial Arts",
+    "Slice of Life"
+   ],
+   "synopsis": "In a tower of a hundred floors, Arjun must team up with a sworn rival to survive. The clock is already running.",
+   "poster": "images/posters/co-mw-004.webp",
+   "backdrop": "images/backdrops/co-mw-004.webp",
+   "dominantColor": "#414610",
+   "accentColor": "#E0E04E",
+   "format": "LONGSTRIP",
+   "readingDirection": "TTB",
+   "pages": [
+    {
+     "id": "co-mw-004-ch1",
+     "n": 1,
+     "title": "Chapter 1",
+     "pages": [
+      "images/comics/strip/page_04.webp",
+      "images/comics/strip/page_05.webp",
+      "images/comics/strip/page_06.webp",
+      "images/comics/strip/page_07.webp",
+      "images/comics/strip/page_08.webp",
+      "images/comics/strip/page_09.webp",
+      "images/comics/strip/page_10.webp",
+      "images/comics/strip/page_11.webp",
+      "images/comics/strip/page_12.webp",
+      "images/comics/strip/page_01.webp",
+      "images/comics/strip/page_02.webp",
+      "images/comics/strip/page_03.webp"
+     ]
+    },
+    {
+     "id": "co-mw-004-ch2",
+     "n": 2,
+     "title": "Chapter 2",
+     "pages": [
+      "images/comics/strip/page_08.webp",
+      "images/comics/strip/page_09.webp",
+      "images/comics/strip/page_10.webp",
+      "images/comics/strip/page_11.webp",
+      "images/comics/strip/page_12.webp",
+      "images/comics/strip/page_01.webp",
+      "images/comics/strip/page_02.webp",
+      "images/comics/strip/page_03.webp",
+      "images/comics/strip/page_04.webp",
+      "images/comics/strip/page_05.webp",
+      "images/comics/strip/page_06.webp",
+      "images/comics/strip/page_07.webp"
+     ]
+    },
+    {
+     "id": "co-mw-004-ch3",
+     "n": 3,
+     "title": "Chapter 3",
+     "pages": [
+      "images/comics/strip/page_12.webp",
+      "images/comics/strip/page_01.webp",
+      "images/comics/strip/page_02.webp",
+      "images/comics/strip/page_03.webp",
+      "images/comics/strip/page_04.webp",
+      "images/comics/strip/page_05.webp",
+      "images/comics/strip/page_06.webp",
+      "images/comics/strip/page_07.webp",
+      "images/comics/strip/page_08.webp",
+      "images/comics/strip/page_09.webp",
+      "images/comics/strip/page_10.webp",
+      "images/comics/strip/page_11.webp"
+     ]
+    }
+   ],
+   "artist": "Idris Kael"
+  },
+  {
+   "id": "co-mw-005",
+   "space": "COMICS",
+   "categoryId": "co-manhwa",
+   "type": "COMIC",
+   "title": "Return of the Ninth-Rank Strategist",
+   "year": 2013,
+   "rating": 8.2,
+   "maturity": "All",
+   "genres": [
+    "Comedy",
+    "Mystery"
+   ],
+   "synopsis": "In a sleepy seaside town, Kian returns home to settle a debt that never died. Trust is the first casualty.",
+   "poster": "images/posters/co-mw-005.webp",
+   "backdrop": "images/backdrops/co-mw-005.webp",
+   "dominantColor": "#52195F",
+   "accentColor": "#E030A1",
+   "format": "LONGSTRIP",
+   "readingDirection": "TTB",
+   "pages": [
+    {
+     "id": "co-mw-005-ch1",
+     "n": 1,
+     "title": "Chapter 1",
+     "pages": [
+      "images/comics/strip/page_09.webp",
+      "images/comics/strip/page_10.webp",
+      "images/comics/strip/page_11.webp",
+      "images/comics/strip/page_12.webp",
+      "images/comics/strip/page_01.webp",
+      "images/comics/strip/page_02.webp",
+      "images/comics/strip/page_03.webp",
+      "images/comics/strip/page_04.webp",
+      "images/comics/strip/page_05.webp",
+      "images/comics/strip/page_06.webp",
+      "images/comics/strip/page_07.webp",
+      "images/comics/strip/page_08.webp"
+     ]
+    },
+    {
+     "id": "co-mw-005-ch2",
+     "n": 2,
+     "title": "Chapter 2",
+     "pages": [
+      "images/comics/strip/page_01.webp",
+      "images/comics/strip/page_02.webp",
+      "images/comics/strip/page_03.webp",
+      "images/comics/strip/page_04.webp",
+      "images/comics/strip/page_05.webp",
+      "images/comics/strip/page_06.webp",
+      "images/comics/strip/page_07.webp",
+      "images/comics/strip/page_08.webp",
+      "images/comics/strip/page_09.webp",
+      "images/comics/strip/page_10.webp",
+      "images/comics/strip/page_11.webp",
+      "images/comics/strip/page_12.webp"
+     ]
+    },
+    {
+     "id": "co-mw-005-ch3",
+     "n": 3,
+     "title": "Chapter 3",
+     "pages": [
+      "images/comics/strip/page_05.webp",
+      "images/comics/strip/page_06.webp",
+      "images/comics/strip/page_07.webp",
+      "images/comics/strip/page_08.webp",
+      "images/comics/strip/page_09.webp",
+      "images/comics/strip/page_10.webp",
+      "images/comics/strip/page_11.webp",
+      "images/comics/strip/page_12.webp",
+      "images/comics/strip/page_01.webp",
+      "images/comics/strip/page_02.webp",
+      "images/comics/strip/page_03.webp",
+      "images/comics/strip/page_04.webp"
+     ]
+    }
+   ],
+   "artist": "Zara Ellison"
+  },
+  {
+   "id": "co-mw-006",
+   "space": "COMICS",
+   "categoryId": "co-manhwa",
+   "type": "COMIC",
+   "title": "I Became the Archer of Mirae",
+   "year": 2017,
+   "rating": 6.9,
+   "maturity": "All",
+   "genres": [
+    "Martial Arts",
+    "Fantasy"
+   ],
+   "synopsis": "In a tower of a hundred floors, Mara must team up with a sworn rival to survive. Every choice leaves a mark.",
+   "poster": "images/posters/co-mw-006.webp",
+   "backdrop": "images/backdrops/co-mw-006.webp",
+   "dominantColor": "#49120F",
+   "accentColor": "#E03A36",
+   "format": "LONGSTRIP",
+   "readingDirection": "TTB",
+   "pages": [
+    {
+     "id": "co-mw-006-ch1",
+     "n": 1,
+     "title": "Chapter 1",
+     "pages": [
+      "images/comics/strip/page_02.webp",
+      "images/comics/strip/page_03.webp",
+      "images/comics/strip/page_04.webp",
+      "images/comics/strip/page_05.webp",
+      "images/comics/strip/page_06.webp",
+      "images/comics/strip/page_07.webp",
+      "images/comics/strip/page_08.webp",
+      "images/comics/strip/page_09.webp",
+      "images/comics/strip/page_10.webp",
+      "images/comics/strip/page_11.webp",
+      "images/comics/strip/page_12.webp",
+      "images/comics/strip/page_01.webp"
+     ]
+    },
+    {
+     "id": "co-mw-006-ch2",
+     "n": 2,
+     "title": "Chapter 2",
+     "pages": [
+      "images/comics/strip/page_06.webp",
+      "images/comics/strip/page_07.webp",
+      "images/comics/strip/page_08.webp",
+      "images/comics/strip/page_09.webp",
+      "images/comics/strip/page_10.webp",
+      "images/comics/strip/page_11.webp",
+      "images/comics/strip/page_12.webp",
+      "images/comics/strip/page_01.webp",
+      "images/comics/strip/page_02.webp",
+      "images/comics/strip/page_03.webp",
+      "images/comics/strip/page_04.webp",
+      "images/comics/strip/page_05.webp"
+     ]
+    },
+    {
+     "id": "co-mw-006-ch3",
+     "n": 3,
+     "title": "Chapter 3",
+     "pages": [
+      "images/comics/strip/page_10.webp",
+      "images/comics/strip/page_11.webp",
+      "images/comics/strip/page_12.webp",
+      "images/comics/strip/page_01.webp",
+      "images/comics/strip/page_02.webp",
+      "images/comics/strip/page_03.webp",
+      "images/comics/strip/page_04.webp",
+      "images/comics/strip/page_05.webp",
+      "images/comics/strip/page_06.webp",
+      "images/comics/strip/page_07.webp",
+      "images/comics/strip/page_08.webp",
+      "images/comics/strip/page_09.webp"
+     ]
+    }
+   ],
+   "artist": "Teo Lindqvist"
+  },
+  {
+   "id": "co-mw-007",
+   "space": "COMICS",
+   "categoryId": "co-manhwa",
+   "type": "COMIC",
+   "title": "Return of the F-Rank Strategist",
+   "year": 2016,
+   "rating": 6.7,
+   "maturity": "16+",
+   "genres": [
+    "Action",
+    "Sci-Fi"
+   ],
+   "synopsis": "In a sleepy seaside town, Rafe chases a signal no one else can hear. The clock is already running.",
+   "poster": "images/posters/co-mw-007.webp",
+   "backdrop": "images/backdrops/co-mw-007.webp",
+   "dominantColor": "#67142C",
+   "accentColor": "#E02B5F",
+   "format": "LONGSTRIP",
+   "readingDirection": "TTB",
+   "pages": [
+    {
+     "id": "co-mw-007-ch1",
+     "n": 1,
+     "title": "Chapter 1",
+     "pages": [
+      "images/comics/strip/page_07.webp",
+      "images/comics/strip/page_08.webp",
+      "images/comics/strip/page_09.webp",
+      "images/comics/strip/page_10.webp",
+      "images/comics/strip/page_11.webp",
+      "images/comics/strip/page_12.webp",
+      "images/comics/strip/page_01.webp",
+      "images/comics/strip/page_02.webp",
+      "images/comics/strip/page_03.webp",
+      "images/comics/strip/page_04.webp",
+      "images/comics/strip/page_05.webp",
+      "images/comics/strip/page_06.webp"
+     ]
+    },
+    {
+     "id": "co-mw-007-ch2",
+     "n": 2,
+     "title": "Chapter 2",
+     "pages": [
+      "images/comics/strip/page_11.webp",
+      "images/comics/strip/page_12.webp",
+      "images/comics/strip/page_01.webp",
+      "images/comics/strip/page_02.webp",
+      "images/comics/strip/page_03.webp",
+      "images/comics/strip/page_04.webp",
+      "images/comics/strip/page_05.webp",
+      "images/comics/strip/page_06.webp",
+      "images/comics/strip/page_07.webp",
+      "images/comics/strip/page_08.webp",
+      "images/comics/strip/page_09.webp",
+      "images/comics/strip/page_10.webp"
+     ]
+    },
+    {
+     "id": "co-mw-007-ch3",
+     "n": 3,
+     "title": "Chapter 3",
+     "pages": [
+      "images/comics/strip/page_03.webp",
+      "images/comics/strip/page_04.webp",
+      "images/comics/strip/page_05.webp",
+      "images/comics/strip/page_06.webp",
+      "images/comics/strip/page_07.webp",
+      "images/comics/strip/page_08.webp",
+      "images/comics/strip/page_09.webp",
+      "images/comics/strip/page_10.webp",
+      "images/comics/strip/page_11.webp",
+      "images/comics/strip/page_12.webp",
+      "images/comics/strip/page_01.webp",
+      "images/comics/strip/page_02.webp"
+     ]
+    }
+   ],
+   "artist": "Lena Sorensen"
+  },
+  {
+   "id": "co-mw-008",
+   "space": "COMICS",
+   "categoryId": "co-manhwa",
+   "type": "COMIC",
+   "title": "Solo Climber of Daon Tower",
+   "year": 2015,
+   "rating": 9.0,
+   "maturity": "13+",
+   "genres": [
+    "Comedy",
+    "Slice of Life",
+    "Romance"
+   ],
+   "synopsis": "In a sleepy seaside town, Elio chases a signal no one else can hear. Trust is the first casualty.",
+   "poster": "images/posters/co-mw-008.webp",
+   "backdrop": "images/backdrops/co-mw-008.webp",
+   "dominantColor": "#8B2E2E",
+   "accentColor": "#E04A4A",
+   "format": "LONGSTRIP",
+   "readingDirection": "TTB",
+   "pages": [
+    {
+     "id": "co-mw-008-ch1",
+     "n": 1,
+     "title": "Chapter 1",
+     "pages": [
+      "images/comics/strip/page_12.webp",
+      "images/comics/strip/page_01.webp",
+      "images/comics/strip/page_02.webp",
+      "images/comics/strip/page_03.webp",
+      "images/comics/strip/page_04.webp",
+      "images/comics/strip/page_05.webp",
+      "images/comics/strip/page_06.webp",
+      "images/comics/strip/page_07.webp",
+      "images/comics/strip/page_08.webp",
+      "images/comics/strip/page_09.webp",
+      "images/comics/strip/page_10.webp",
+      "images/comics/strip/page_11.webp"
+     ]
+    },
+    {
+     "id": "co-mw-008-ch2",
+     "n": 2,
+     "title": "Chapter 2",
+     "pages": [
+      "images/comics/strip/page_04.webp",
+      "images/comics/strip/page_05.webp",
+      "images/comics/strip/page_06.webp",
+      "images/comics/strip/page_07.webp",
+      "images/comics/strip/page_08.webp",
+      "images/comics/strip/page_09.webp",
+      "images/comics/strip/page_10.webp",
+      "images/comics/strip/page_11.webp",
+      "images/comics/strip/page_12.webp",
+      "images/comics/strip/page_01.webp",
+      "images/comics/strip/page_02.webp",
+      "images/comics/strip/page_03.webp"
+     ]
+    },
+    {
+     "id": "co-mw-008-ch3",
+     "n": 3,
+     "title": "Chapter 3",
+     "pages": [
+      "images/comics/strip/page_08.webp",
+      "images/comics/strip/page_09.webp",
+      "images/comics/strip/page_10.webp",
+      "images/comics/strip/page_11.webp",
+      "images/comics/strip/page_12.webp",
+      "images/comics/strip/page_01.webp",
+      "images/comics/strip/page_02.webp",
+      "images/comics/strip/page_03.webp",
+      "images/comics/strip/page_04.webp",
+      "images/comics/strip/page_05.webp",
+      "images/comics/strip/page_06.webp",
+      "images/comics/strip/page_07.webp"
+     ]
+    }
+   ],
+   "artist": "Priya Das"
+  },
+  {
+   "id": "co-mw-009",
+   "space": "COMICS",
+   "categoryId": "co-manhwa",
+   "type": "COMIC",
+   "title": "I Became the Swordsmith of Daon",
+   "year": 2015,
+   "rating": 7.1,
+   "maturity": "13+",
+   "genres": [
+    "Action",
+    "Sci-Fi",
+    "Fantasy"
+   ],
+   "synopsis": "In a sleepy seaside town, Owen returns home to settle a debt that never died. Trust is the first casualty.",
+   "poster": "images/posters/co-mw-009.webp",
+   "backdrop": "images/backdrops/co-mw-009.webp",
+   "dominantColor": "#53125B",
+   "accentColor": "#CC2CE0",
+   "format": "LONGSTRIP",
+   "readingDirection": "TTB",
+   "pages": [
+    {
+     "id": "co-mw-009-ch1",
+     "n": 1,
+     "title": "Chapter 1",
+     "pages": [
+      "images/comics/strip/page_05.webp",
+      "images/comics/strip/page_06.webp",
+      "images/comics/strip/page_07.webp",
+      "images/comics/strip/page_08.webp",
+      "images/comics/strip/page_09.webp",
+      "images/comics/strip/page_10.webp",
+      "images/comics/strip/page_11.webp",
+      "images/comics/strip/page_12.webp",
+      "images/comics/strip/page_01.webp",
+      "images/comics/strip/page_02.webp",
+      "images/comics/strip/page_03.webp",
+      "images/comics/strip/page_04.webp"
+     ]
+    },
+    {
+     "id": "co-mw-009-ch2",
+     "n": 2,
+     "title": "Chapter 2",
+     "pages": [
+      "images/comics/strip/page_09.webp",
+      "images/comics/strip/page_10.webp",
+      "images/comics/strip/page_11.webp",
+      "images/comics/strip/page_12.webp",
+      "images/comics/strip/page_01.webp",
+      "images/comics/strip/page_02.webp",
+      "images/comics/strip/page_03.webp",
+      "images/comics/strip/page_04.webp",
+      "images/comics/strip/page_05.webp",
+      "images/comics/strip/page_06.webp",
+      "images/comics/strip/page_07.webp",
+      "images/comics/strip/page_08.webp"
+     ]
+    },
+    {
+     "id": "co-mw-009-ch3",
+     "n": 3,
+     "title": "Chapter 3",
+     "pages": [
+      "images/comics/strip/page_01.webp",
+      "images/comics/strip/page_02.webp",
+      "images/comics/strip/page_03.webp",
+      "images/comics/strip/page_04.webp",
+      "images/comics/strip/page_05.webp",
+      "images/comics/strip/page_06.webp",
+      "images/comics/strip/page_07.webp",
+      "images/comics/strip/page_08.webp",
+      "images/comics/strip/page_09.webp",
+      "images/comics/strip/page_10.webp",
+      "images/comics/strip/page_11.webp",
+      "images/comics/strip/page_12.webp"
+     ]
+    }
+   ],
+   "artist": "Hana Sato"
+  },
+  {
+   "id": "co-mw-010",
+   "space": "COMICS",
+   "categoryId": "co-manhwa",
+   "type": "COMIC",
+   "title": "The Swordsmith Who Refused to Die",
+   "year": 2014,
+   "rating": 7.5,
+   "maturity": "All",
+   "genres": [
+    "Romance",
+    "Fantasy"
+   ],
+   "synopsis": "In a sleepy seaside town, Tomas must team up with a sworn rival to survive. The clock is already running.",
+   "poster": "images/posters/co-mw-010.webp",
+   "backdrop": "images/backdrops/co-mw-010.webp",
+   "dominantColor": "#62191D",
+   "accentColor": "#E0454D",
+   "format": "LONGSTRIP",
+   "readingDirection": "TTB",
+   "pages": [
+    {
+     "id": "co-mw-010-ch1",
+     "n": 1,
+     "title": "Chapter 1",
+     "pages": [
+      "images/comics/strip/page_10.webp",
+      "images/comics/strip/page_11.webp",
+      "images/comics/strip/page_12.webp",
+      "images/comics/strip/page_01.webp",
+      "images/comics/strip/page_02.webp",
+      "images/comics/strip/page_03.webp",
+      "images/comics/strip/page_04.webp",
+      "images/comics/strip/page_05.webp",
+      "images/comics/strip/page_06.webp",
+      "images/comics/strip/page_07.webp",
+      "images/comics/strip/page_08.webp",
+      "images/comics/strip/page_09.webp"
+     ]
+    },
+    {
+     "id": "co-mw-010-ch2",
+     "n": 2,
+     "title": "Chapter 2",
+     "pages": [
+      "images/comics/strip/page_02.webp",
+      "images/comics/strip/page_03.webp",
+      "images/comics/strip/page_04.webp",
+      "images/comics/strip/page_05.webp",
+      "images/comics/strip/page_06.webp",
+      "images/comics/strip/page_07.webp",
+      "images/comics/strip/page_08.webp",
+      "images/comics/strip/page_09.webp",
+      "images/comics/strip/page_10.webp",
+      "images/comics/strip/page_11.webp",
+      "images/comics/strip/page_12.webp",
+      "images/comics/strip/page_01.webp"
+     ]
+    },
+    {
+     "id": "co-mw-010-ch3",
+     "n": 3,
+     "title": "Chapter 3",
+     "pages": [
+      "images/comics/strip/page_06.webp",
+      "images/comics/strip/page_07.webp",
+      "images/comics/strip/page_08.webp",
+      "images/comics/strip/page_09.webp",
+      "images/comics/strip/page_10.webp",
+      "images/comics/strip/page_11.webp",
+      "images/comics/strip/page_12.webp",
+      "images/comics/strip/page_01.webp",
+      "images/comics/strip/page_02.webp",
+      "images/comics/strip/page_03.webp",
+      "images/comics/strip/page_04.webp",
+      "images/comics/strip/page_05.webp"
+     ]
+    }
+   ],
+   "artist": "Idris Kael"
+  },
+  {
+   "id": "co-mh-001",
+   "space": "COMICS",
+   "categoryId": "co-manhua",
+   "type": "COMIC",
+   "title": "Peerless Physician of Mount Linyue",
+   "year": 2023,
+   "rating": 6.6,
+   "maturity": "All",
+   "genres": [
+    "Mystery",
+    "Fantasy"
+   ],
+   "synopsis": "In a tower of a hundred floors, Mara chases a signal no one else can hear. Every choice leaves a mark.",
+   "poster": "images/posters/co-mh-001.webp",
+   "backdrop": "images/backdrops/co-mh-001.webp",
+   "dominantColor": "#8D4143",
+   "accentColor": "#E04E52",
+   "format": "LONGSTRIP",
+   "readingDirection": "TTB",
+   "pages": [
+    {
+     "id": "co-mh-001-ch1",
+     "n": 1,
+     "title": "Chapter 1",
+     "pages": [
+      "images/comics/strip/page_01.webp",
+      "images/comics/strip/page_02.webp",
+      "images/comics/strip/page_03.webp",
+      "images/comics/strip/page_04.webp",
+      "images/comics/strip/page_05.webp",
+      "images/comics/strip/page_06.webp",
+      "images/comics/strip/page_07.webp",
+      "images/comics/strip/page_08.webp",
+      "images/comics/strip/page_09.webp",
+      "images/comics/strip/page_10.webp",
+      "images/comics/strip/page_11.webp",
+      "images/comics/strip/page_12.webp"
+     ]
+    },
+    {
+     "id": "co-mh-001-ch2",
+     "n": 2,
+     "title": "Chapter 2",
+     "pages": [
+      "images/comics/strip/page_05.webp",
+      "images/comics/strip/page_06.webp",
+      "images/comics/strip/page_07.webp",
+      "images/comics/strip/page_08.webp",
+      "images/comics/strip/page_09.webp",
+      "images/comics/strip/page_10.webp",
+      "images/comics/strip/page_11.webp",
+      "images/comics/strip/page_12.webp",
+      "images/comics/strip/page_01.webp",
+      "images/comics/strip/page_02.webp",
+      "images/comics/strip/page_03.webp",
+      "images/comics/strip/page_04.webp"
+     ]
+    },
+    {
+     "id": "co-mh-001-ch3",
+     "n": 3,
+     "title": "Chapter 3",
+     "pages": [
+      "images/comics/strip/page_09.webp",
+      "images/comics/strip/page_10.webp",
+      "images/comics/strip/page_11.webp",
+      "images/comics/strip/page_12.webp",
+      "images/comics/strip/page_01.webp",
+      "images/comics/strip/page_02.webp",
+      "images/comics/strip/page_03.webp",
+      "images/comics/strip/page_04.webp",
+      "images/comics/strip/page_05.webp",
+      "images/comics/strip/page_06.webp",
+      "images/comics/strip/page_07.webp",
+      "images/comics/strip/page_08.webp"
+     ]
+    }
+   ],
+   "artist": "Ines Duarte"
+  },
+  {
+   "id": "co-mh-002",
+   "space": "COMICS",
+   "categoryId": "co-manhua",
+   "type": "COMIC",
+   "title": "Supreme Alchemist of Yunluo",
+   "year": 2026,
+   "rating": 7.8,
+   "maturity": "All",
+   "genres": [
+    "Horror",
+    "Mystery",
+    "Sci-Fi"
+   ],
+   "synopsis": "In a crumbling empire, Owen chases a signal no one else can hear. The clock is already running.",
+   "poster": "images/posters/co-mh-002.webp",
+   "backdrop": "images/backdrops/co-mh-002.webp",
+   "dominantColor": "#76509C",
+   "accentColor": "#E04EB6",
+   "format": "LONGSTRIP",
+   "readingDirection": "TTB",
+   "pages": [
+    {
+     "id": "co-mh-002-ch1",
+     "n": 1,
+     "title": "Chapter 1",
+     "pages": [
+      "images/comics/strip/page_06.webp",
+      "images/comics/strip/page_07.webp",
+      "images/comics/strip/page_08.webp",
+      "images/comics/strip/page_09.webp",
+      "images/comics/strip/page_10.webp",
+      "images/comics/strip/page_11.webp",
+      "images/comics/strip/page_12.webp",
+      "images/comics/strip/page_01.webp",
+      "images/comics/strip/page_02.webp",
+      "images/comics/strip/page_03.webp",
+      "images/comics/strip/page_04.webp",
+      "images/comics/strip/page_05.webp"
+     ]
+    },
+    {
+     "id": "co-mh-002-ch2",
+     "n": 2,
+     "title": "Chapter 2",
+     "pages": [
+      "images/comics/strip/page_10.webp",
+      "images/comics/strip/page_11.webp",
+      "images/comics/strip/page_12.webp",
+      "images/comics/strip/page_01.webp",
+      "images/comics/strip/page_02.webp",
+      "images/comics/strip/page_03.webp",
+      "images/comics/strip/page_04.webp",
+      "images/comics/strip/page_05.webp",
+      "images/comics/strip/page_06.webp",
+      "images/comics/strip/page_07.webp",
+      "images/comics/strip/page_08.webp",
+      "images/comics/strip/page_09.webp"
+     ]
+    },
+    {
+     "id": "co-mh-002-ch3",
+     "n": 3,
+     "title": "Chapter 3",
+     "pages": [
+      "images/comics/strip/page_02.webp",
+      "images/comics/strip/page_03.webp",
+      "images/comics/strip/page_04.webp",
+      "images/comics/strip/page_05.webp",
+      "images/comics/strip/page_06.webp",
+      "images/comics/strip/page_07.webp",
+      "images/comics/strip/page_08.webp",
+      "images/comics/strip/page_09.webp",
+      "images/comics/strip/page_10.webp",
+      "images/comics/strip/page_11.webp",
+      "images/comics/strip/page_12.webp",
+      "images/comics/strip/page_01.webp"
+     ]
+    }
+   ],
+   "artist": "Arjun Mehta"
+  },
+  {
+   "id": "co-mh-003",
+   "space": "COMICS",
+   "categoryId": "co-manhua",
+   "type": "COMIC",
+   "title": "The Swordsman Who Swallowed the Heavens",
+   "year": 2016,
+   "rating": 6.9,
+   "maturity": "16+",
+   "genres": [
+    "Horror",
+    "Mystery",
+    "Sci-Fi"
+   ],
+   "synopsis": "In a sleepy seaside town, Teo chases a signal no one else can hear. Trust is the first casualty.",
+   "poster": "images/posters/co-mh-003.webp",
+   "backdrop": "images/backdrops/co-mh-003.webp",
+   "dominantColor": "#702869",
+   "accentColor": "#E043C2",
+   "format": "LONGSTRIP",
+   "readingDirection": "TTB",
+   "pages": [
+    {
+     "id": "co-mh-003-ch1",
+     "n": 1,
+     "title": "Chapter 1",
+     "pages": [
+      "images/comics/strip/page_11.webp",
+      "images/comics/strip/page_12.webp",
+      "images/comics/strip/page_01.webp",
+      "images/comics/strip/page_02.webp",
+      "images/comics/strip/page_03.webp",
+      "images/comics/strip/page_04.webp",
+      "images/comics/strip/page_05.webp",
+      "images/comics/strip/page_06.webp",
+      "images/comics/strip/page_07.webp",
+      "images/comics/strip/page_08.webp",
+      "images/comics/strip/page_09.webp",
+      "images/comics/strip/page_10.webp"
+     ]
+    },
+    {
+     "id": "co-mh-003-ch2",
+     "n": 2,
+     "title": "Chapter 2",
+     "pages": [
+      "images/comics/strip/page_03.webp",
+      "images/comics/strip/page_04.webp",
+      "images/comics/strip/page_05.webp",
+      "images/comics/strip/page_06.webp",
+      "images/comics/strip/page_07.webp",
+      "images/comics/strip/page_08.webp",
+      "images/comics/strip/page_09.webp",
+      "images/comics/strip/page_10.webp",
+      "images/comics/strip/page_11.webp",
+      "images/comics/strip/page_12.webp",
+      "images/comics/strip/page_01.webp",
+      "images/comics/strip/page_02.webp"
+     ]
+    },
+    {
+     "id": "co-mh-003-ch3",
+     "n": 3,
+     "title": "Chapter 3",
+     "pages": [
+      "images/comics/strip/page_07.webp",
+      "images/comics/strip/page_08.webp",
+      "images/comics/strip/page_09.webp",
+      "images/comics/strip/page_10.webp",
+      "images/comics/strip/page_11.webp",
+      "images/comics/strip/page_12.webp",
+      "images/comics/strip/page_01.webp",
+      "images/comics/strip/page_02.webp",
+      "images/comics/strip/page_03.webp",
+      "images/comics/strip/page_04.webp",
+      "images/comics/strip/page_05.webp",
+      "images/comics/strip/page_06.webp"
+     ]
+    }
+   ],
+   "artist": "Idris Kael"
+  },
+  {
+   "id": "co-mh-004",
+   "space": "COMICS",
+   "categoryId": "co-manhua",
+   "type": "COMIC",
+   "title": "Ten Thousand Years of Thunder",
+   "year": 2013,
+   "rating": 8.7,
+   "maturity": "All",
+   "genres": [
+    "Horror",
+    "Action",
+    "Mystery"
+   ],
+   "synopsis": "In a crumbling empire, Yuki returns home to settle a debt that never died. Nothing is what it seems.",
+   "poster": "images/posters/co-mh-004.webp",
+   "backdrop": "images/backdrops/co-mh-004.webp",
+   "dominantColor": "#8A562E",
+   "accentColor": "#E08B4A",
+   "format": "LONGSTRIP",
+   "readingDirection": "TTB",
+   "pages": [
+    {
+     "id": "co-mh-004-ch1",
+     "n": 1,
+     "title": "Chapter 1",
+     "pages": [
+      "images/comics/strip/page_04.webp",
+      "images/comics/strip/page_05.webp",
+      "images/comics/strip/page_06.webp",
+      "images/comics/strip/page_07.webp",
+      "images/comics/strip/page_08.webp",
+      "images/comics/strip/page_09.webp",
+      "images/comics/strip/page_10.webp",
+      "images/comics/strip/page_11.webp",
+      "images/comics/strip/page_12.webp",
+      "images/comics/strip/page_01.webp",
+      "images/comics/strip/page_02.webp",
+      "images/comics/strip/page_03.webp"
+     ]
+    },
+    {
+     "id": "co-mh-004-ch2",
+     "n": 2,
+     "title": "Chapter 2",
+     "pages": [
+      "images/comics/strip/page_08.webp",
+      "images/comics/strip/page_09.webp",
+      "images/comics/strip/page_10.webp",
+      "images/comics/strip/page_11.webp",
+      "images/comics/strip/page_12.webp",
+      "images/comics/strip/page_01.webp",
+      "images/comics/strip/page_02.webp",
+      "images/comics/strip/page_03.webp",
+      "images/comics/strip/page_04.webp",
+      "images/comics/strip/page_05.webp",
+      "images/comics/strip/page_06.webp",
+      "images/comics/strip/page_07.webp"
+     ]
+    },
+    {
+     "id": "co-mh-004-ch3",
+     "n": 3,
+     "title": "Chapter 3",
+     "pages": [
+      "images/comics/strip/page_12.webp",
+      "images/comics/strip/page_01.webp",
+      "images/comics/strip/page_02.webp",
+      "images/comics/strip/page_03.webp",
+      "images/comics/strip/page_04.webp",
+      "images/comics/strip/page_05.webp",
+      "images/comics/strip/page_06.webp",
+      "images/comics/strip/page_07.webp",
+      "images/comics/strip/page_08.webp",
+      "images/comics/strip/page_09.webp",
+      "images/comics/strip/page_10.webp",
+      "images/comics/strip/page_11.webp"
+     ]
+    }
+   ],
+   "artist": "Juno Hartwell"
+  },
+  {
+   "id": "co-mh-005",
+   "space": "COMICS",
+   "categoryId": "co-manhua",
+   "type": "COMIC",
+   "title": "Peerless Beast Tamer of Mount Feixue",
+   "year": 2010,
+   "rating": 9.4,
+   "maturity": "13+",
+   "genres": [
+    "Mystery",
+    "Horror",
+    "Martial Arts"
+   ],
+   "synopsis": "In a tower of a hundred floors, Owen has one night to make an impossible choice. Every choice leaves a mark.",
+   "poster": "images/posters/co-mh-005.webp",
+   "backdrop": "images/backdrops/co-mh-005.webp",
+   "dominantColor": "#8D2B25",
+   "accentColor": "#E0443A",
+   "format": "LONGSTRIP",
+   "readingDirection": "TTB",
+   "pages": [
+    {
+     "id": "co-mh-005-ch1",
+     "n": 1,
+     "title": "Chapter 1",
+     "pages": [
+      "images/comics/strip/page_09.webp",
+      "images/comics/strip/page_10.webp",
+      "images/comics/strip/page_11.webp",
+      "images/comics/strip/page_12.webp",
+      "images/comics/strip/page_01.webp",
+      "images/comics/strip/page_02.webp",
+      "images/comics/strip/page_03.webp",
+      "images/comics/strip/page_04.webp",
+      "images/comics/strip/page_05.webp",
+      "images/comics/strip/page_06.webp",
+      "images/comics/strip/page_07.webp",
+      "images/comics/strip/page_08.webp"
+     ]
+    },
+    {
+     "id": "co-mh-005-ch2",
+     "n": 2,
+     "title": "Chapter 2",
+     "pages": [
+      "images/comics/strip/page_01.webp",
+      "images/comics/strip/page_02.webp",
+      "images/comics/strip/page_03.webp",
+      "images/comics/strip/page_04.webp",
+      "images/comics/strip/page_05.webp",
+      "images/comics/strip/page_06.webp",
+      "images/comics/strip/page_07.webp",
+      "images/comics/strip/page_08.webp",
+      "images/comics/strip/page_09.webp",
+      "images/comics/strip/page_10.webp",
+      "images/comics/strip/page_11.webp",
+      "images/comics/strip/page_12.webp"
+     ]
+    },
+    {
+     "id": "co-mh-005-ch3",
+     "n": 3,
+     "title": "Chapter 3",
+     "pages": [
+      "images/comics/strip/page_05.webp",
+      "images/comics/strip/page_06.webp",
+      "images/comics/strip/page_07.webp",
+      "images/comics/strip/page_08.webp",
+      "images/comics/strip/page_09.webp",
+      "images/comics/strip/page_10.webp",
+      "images/comics/strip/page_11.webp",
+      "images/comics/strip/page_12.webp",
+      "images/comics/strip/page_01.webp",
+      "images/comics/strip/page_02.webp",
+      "images/comics/strip/page_03.webp",
+      "images/comics/strip/page_04.webp"
+     ]
+    }
+   ],
+   "artist": "Yuki Amano"
+  },
+  {
+   "id": "co-mh-006",
+   "space": "COMICS",
+   "categoryId": "co-manhua",
+   "type": "COMIC",
+   "title": "Rebirth of the Flame Sovereign",
+   "year": 2025,
+   "rating": 7.7,
+   "maturity": "All",
+   "genres": [
+    "Romance",
+    "Comedy"
+   ],
+   "synopsis": "In a tower of a hundred floors, Yuki finds a letter that rewrites their past. Every choice leaves a mark.",
+   "poster": "images/posters/co-mh-006.webp",
+   "backdrop": "images/backdrops/co-mh-006.webp",
+   "dominantColor": "#816E39",
+   "accentColor": "#E0B94E",
+   "format": "LONGSTRIP",
+   "readingDirection": "TTB",
+   "pages": [
+    {
+     "id": "co-mh-006-ch1",
+     "n": 1,
+     "title": "Chapter 1",
+     "pages": [
+      "images/comics/strip/page_02.webp",
+      "images/comics/strip/page_03.webp",
+      "images/comics/strip/page_04.webp",
+      "images/comics/strip/page_05.webp",
+      "images/comics/strip/page_06.webp",
+      "images/comics/strip/page_07.webp",
+      "images/comics/strip/page_08.webp",
+      "images/comics/strip/page_09.webp",
+      "images/comics/strip/page_10.webp",
+      "images/comics/strip/page_11.webp",
+      "images/comics/strip/page_12.webp",
+      "images/comics/strip/page_01.webp"
+     ]
+    },
+    {
+     "id": "co-mh-006-ch2",
+     "n": 2,
+     "title": "Chapter 2",
+     "pages": [
+      "images/comics/strip/page_06.webp",
+      "images/comics/strip/page_07.webp",
+      "images/comics/strip/page_08.webp",
+      "images/comics/strip/page_09.webp",
+      "images/comics/strip/page_10.webp",
+      "images/comics/strip/page_11.webp",
+      "images/comics/strip/page_12.webp",
+      "images/comics/strip/page_01.webp",
+      "images/comics/strip/page_02.webp",
+      "images/comics/strip/page_03.webp",
+      "images/comics/strip/page_04.webp",
+      "images/comics/strip/page_05.webp"
+     ]
+    },
+    {
+     "id": "co-mh-006-ch3",
+     "n": 3,
+     "title": "Chapter 3",
+     "pages": [
+      "images/comics/strip/page_10.webp",
+      "images/comics/strip/page_11.webp",
+      "images/comics/strip/page_12.webp",
+      "images/comics/strip/page_01.webp",
+      "images/comics/strip/page_02.webp",
+      "images/comics/strip/page_03.webp",
+      "images/comics/strip/page_04.webp",
+      "images/comics/strip/page_05.webp",
+      "images/comics/strip/page_06.webp",
+      "images/comics/strip/page_07.webp",
+      "images/comics/strip/page_08.webp",
+      "images/comics/strip/page_09.webp"
+     ]
+    }
+   ],
+   "artist": "Tomas Revel"
+  },
+  {
+   "id": "co-mh-007",
+   "space": "COMICS",
+   "categoryId": "co-manhua",
+   "type": "COMIC",
+   "title": "Ten Thousand Years of Lotus",
+   "year": 2012,
+   "rating": 8.5,
+   "maturity": "16+",
+   "genres": [
+    "Comedy",
+    "Drama"
+   ],
+   "synopsis": "In a sleepy seaside town, Zara has one night to make an impossible choice. Every choice leaves a mark.",
+   "poster": "images/posters/co-mh-007.webp",
+   "backdrop": "images/backdrops/co-mh-007.webp",
+   "dominantColor": "#1A704D",
+   "accentColor": "#34E09A",
+   "format": "LONGSTRIP",
+   "readingDirection": "TTB",
+   "pages": [
+    {
+     "id": "co-mh-007-ch1",
+     "n": 1,
+     "title": "Chapter 1",
+     "pages": [
+      "images/comics/strip/page_07.webp",
+      "images/comics/strip/page_08.webp",
+      "images/comics/strip/page_09.webp",
+      "images/comics/strip/page_10.webp",
+      "images/comics/strip/page_11.webp",
+      "images/comics/strip/page_12.webp",
+      "images/comics/strip/page_01.webp",
+      "images/comics/strip/page_02.webp",
+      "images/comics/strip/page_03.webp",
+      "images/comics/strip/page_04.webp",
+      "images/comics/strip/page_05.webp",
+      "images/comics/strip/page_06.webp"
+     ]
+    },
+    {
+     "id": "co-mh-007-ch2",
+     "n": 2,
+     "title": "Chapter 2",
+     "pages": [
+      "images/comics/strip/page_11.webp",
+      "images/comics/strip/page_12.webp",
+      "images/comics/strip/page_01.webp",
+      "images/comics/strip/page_02.webp",
+      "images/comics/strip/page_03.webp",
+      "images/comics/strip/page_04.webp",
+      "images/comics/strip/page_05.webp",
+      "images/comics/strip/page_06.webp",
+      "images/comics/strip/page_07.webp",
+      "images/comics/strip/page_08.webp",
+      "images/comics/strip/page_09.webp",
+      "images/comics/strip/page_10.webp"
+     ]
+    },
+    {
+     "id": "co-mh-007-ch3",
+     "n": 3,
+     "title": "Chapter 3",
+     "pages": [
+      "images/comics/strip/page_03.webp",
+      "images/comics/strip/page_04.webp",
+      "images/comics/strip/page_05.webp",
+      "images/comics/strip/page_06.webp",
+      "images/comics/strip/page_07.webp",
+      "images/comics/strip/page_08.webp",
+      "images/comics/strip/page_09.webp",
+      "images/comics/strip/page_10.webp",
+      "images/comics/strip/page_11.webp",
+      "images/comics/strip/page_12.webp",
+      "images/comics/strip/page_01.webp",
+      "images/comics/strip/page_02.webp"
+     ]
+    }
+   ],
+   "artist": "Teo Lindqvist"
+  },
+  {
+   "id": "co-mh-008",
+   "space": "COMICS",
+   "categoryId": "co-manhua",
+   "type": "COMIC",
+   "title": "Supreme Sect Master of Yunluo",
+   "year": 2018,
+   "rating": 6.7,
+   "maturity": "16+",
+   "genres": [
+    "Fantasy",
+    "Sci-Fi",
+    "Drama"
+   ],
+   "synopsis": "In the spirit realm, Owen must team up with a sworn rival to survive. Trust is the first casualty.",
+   "poster": "images/posters/co-mh-008.webp",
+   "backdrop": "images/backdrops/co-mh-008.webp",
+   "dominantColor": "#2C4312",
+   "accentColor": "#B1E04E",
+   "format": "LONGSTRIP",
+   "readingDirection": "TTB",
+   "pages": [
+    {
+     "id": "co-mh-008-ch1",
+     "n": 1,
+     "title": "Chapter 1",
+     "pages": [
+      "images/comics/strip/page_12.webp",
+      "images/comics/strip/page_01.webp",
+      "images/comics/strip/page_02.webp",
+      "images/comics/strip/page_03.webp",
+      "images/comics/strip/page_04.webp",
+      "images/comics/strip/page_05.webp",
+      "images/comics/strip/page_06.webp",
+      "images/comics/strip/page_07.webp",
+      "images/comics/strip/page_08.webp",
+      "images/comics/strip/page_09.webp",
+      "images/comics/strip/page_10.webp",
+      "images/comics/strip/page_11.webp"
+     ]
+    },
+    {
+     "id": "co-mh-008-ch2",
+     "n": 2,
+     "title": "Chapter 2",
+     "pages": [
+      "images/comics/strip/page_04.webp",
+      "images/comics/strip/page_05.webp",
+      "images/comics/strip/page_06.webp",
+      "images/comics/strip/page_07.webp",
+      "images/comics/strip/page_08.webp",
+      "images/comics/strip/page_09.webp",
+      "images/comics/strip/page_10.webp",
+      "images/comics/strip/page_11.webp",
+      "images/comics/strip/page_12.webp",
+      "images/comics/strip/page_01.webp",
+      "images/comics/strip/page_02.webp",
+      "images/comics/strip/page_03.webp"
+     ]
+    },
+    {
+     "id": "co-mh-008-ch3",
+     "n": 3,
+     "title": "Chapter 3",
+     "pages": [
+      "images/comics/strip/page_08.webp",
+      "images/comics/strip/page_09.webp",
+      "images/comics/strip/page_10.webp",
+      "images/comics/strip/page_11.webp",
+      "images/comics/strip/page_12.webp",
+      "images/comics/strip/page_01.webp",
+      "images/comics/strip/page_02.webp",
+      "images/comics/strip/page_03.webp",
+      "images/comics/strip/page_04.webp",
+      "images/comics/strip/page_05.webp",
+      "images/comics/strip/page_06.webp",
+      "images/comics/strip/page_07.webp"
+     ]
+    }
+   ],
+   "artist": "Saanvi Rao"
+  },
+  {
+   "id": "co-mh-009",
+   "space": "COMICS",
+   "categoryId": "co-manhua",
+   "type": "COMIC",
+   "title": "Rebirth of the Lotus Sovereign",
+   "year": 2016,
+   "rating": 7.4,
+   "maturity": "13+",
+   "genres": [
+    "Action",
+    "Fantasy"
+   ],
+   "synopsis": "In the spirit realm, Tomas uncovers a secret that could unravel everything. The clock is already running.",
+   "poster": "images/posters/co-mh-009.webp",
+   "backdrop": "images/backdrops/co-mh-009.webp",
+   "dominantColor": "#68181B",
+   "accentColor": "#E0333A",
+   "format": "LONGSTRIP",
+   "readingDirection": "TTB",
+   "pages": [
+    {
+     "id": "co-mh-009-ch1",
+     "n": 1,
+     "title": "Chapter 1",
+     "pages": [
+      "images/comics/strip/page_05.webp",
+      "images/comics/strip/page_06.webp",
+      "images/comics/strip/page_07.webp",
+      "images/comics/strip/page_08.webp",
+      "images/comics/strip/page_09.webp",
+      "images/comics/strip/page_10.webp",
+      "images/comics/strip/page_11.webp",
+      "images/comics/strip/page_12.webp",
+      "images/comics/strip/page_01.webp",
+      "images/comics/strip/page_02.webp",
+      "images/comics/strip/page_03.webp",
+      "images/comics/strip/page_04.webp"
+     ]
+    },
+    {
+     "id": "co-mh-009-ch2",
+     "n": 2,
+     "title": "Chapter 2",
+     "pages": [
+      "images/comics/strip/page_09.webp",
+      "images/comics/strip/page_10.webp",
+      "images/comics/strip/page_11.webp",
+      "images/comics/strip/page_12.webp",
+      "images/comics/strip/page_01.webp",
+      "images/comics/strip/page_02.webp",
+      "images/comics/strip/page_03.webp",
+      "images/comics/strip/page_04.webp",
+      "images/comics/strip/page_05.webp",
+      "images/comics/strip/page_06.webp",
+      "images/comics/strip/page_07.webp",
+      "images/comics/strip/page_08.webp"
+     ]
+    },
+    {
+     "id": "co-mh-009-ch3",
+     "n": 3,
+     "title": "Chapter 3",
+     "pages": [
+      "images/comics/strip/page_01.webp",
+      "images/comics/strip/page_02.webp",
+      "images/comics/strip/page_03.webp",
+      "images/comics/strip/page_04.webp",
+      "images/comics/strip/page_05.webp",
+      "images/comics/strip/page_06.webp",
+      "images/comics/strip/page_07.webp",
+      "images/comics/strip/page_08.webp",
+      "images/comics/strip/page_09.webp",
+      "images/comics/strip/page_10.webp",
+      "images/comics/strip/page_11.webp",
+      "images/comics/strip/page_12.webp"
+     ]
+    }
+   ],
+   "artist": "Kian Rahimi"
+  },
+  {
+   "id": "co-mh-010",
+   "space": "COMICS",
+   "categoryId": "co-manhua",
+   "type": "COMIC",
+   "title": "Ten Thousand Years of Jade",
+   "year": 2014,
+   "rating": 9.0,
+   "maturity": "13+",
+   "genres": [
+    "Sci-Fi",
+    "Horror"
+   ],
+   "synopsis": "In the spirit realm, Zara is pulled into a conspiracy older than the city itself. Nothing is what it seems.",
+   "poster": "images/posters/co-mh-010.webp",
+   "backdrop": "images/backdrops/co-mh-010.webp",
+   "dominantColor": "#952A93",
+   "accentColor": "#E03FDD",
+   "format": "LONGSTRIP",
+   "readingDirection": "TTB",
+   "pages": [
+    {
+     "id": "co-mh-010-ch1",
+     "n": 1,
+     "title": "Chapter 1",
+     "pages": [
+      "images/comics/strip/page_10.webp",
+      "images/comics/strip/page_11.webp",
+      "images/comics/strip/page_12.webp",
+      "images/comics/strip/page_01.webp",
+      "images/comics/strip/page_02.webp",
+      "images/comics/strip/page_03.webp",
+      "images/comics/strip/page_04.webp",
+      "images/comics/strip/page_05.webp",
+      "images/comics/strip/page_06.webp",
+      "images/comics/strip/page_07.webp",
+      "images/comics/strip/page_08.webp",
+      "images/comics/strip/page_09.webp"
+     ]
+    },
+    {
+     "id": "co-mh-010-ch2",
+     "n": 2,
+     "title": "Chapter 2",
+     "pages": [
+      "images/comics/strip/page_02.webp",
+      "images/comics/strip/page_03.webp",
+      "images/comics/strip/page_04.webp",
+      "images/comics/strip/page_05.webp",
+      "images/comics/strip/page_06.webp",
+      "images/comics/strip/page_07.webp",
+      "images/comics/strip/page_08.webp",
+      "images/comics/strip/page_09.webp",
+      "images/comics/strip/page_10.webp",
+      "images/comics/strip/page_11.webp",
+      "images/comics/strip/page_12.webp",
+      "images/comics/strip/page_01.webp"
+     ]
+    },
+    {
+     "id": "co-mh-010-ch3",
+     "n": 3,
+     "title": "Chapter 3",
+     "pages": [
+      "images/comics/strip/page_06.webp",
+      "images/comics/strip/page_07.webp",
+      "images/comics/strip/page_08.webp",
+      "images/comics/strip/page_09.webp",
+      "images/comics/strip/page_10.webp",
+      "images/comics/strip/page_11.webp",
+      "images/comics/strip/page_12.webp",
+      "images/comics/strip/page_01.webp",
+      "images/comics/strip/page_02.webp",
+      "images/comics/strip/page_03.webp",
+      "images/comics/strip/page_04.webp",
+      "images/comics/strip/page_05.webp"
+     ]
+    }
+   ],
+   "artist": "Selin Kaya"
+  }
+ ]
+}

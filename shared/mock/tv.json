@@ -1,0 +1,4984 @@
+{
+ "space": "TV",
+ "version": 1,
+ "genres": [
+  "News",
+  "Entertainment",
+  "Kids",
+  "Movies",
+  "Music",
+  "Sports",
+  "Football",
+  "Basketball",
+  "Cricket",
+  "Rugby"
+ ],
+ "epgAnchor": 1794614400,
+ "categories": [
+  {
+   "id": "tv-live",
+   "space": "TV",
+   "title": "Live TV",
+   "heroIds": [
+    "tv-ch-106",
+    "tv-ch-116",
+    "tv-ch-126",
+    "tv-ch-101"
+   ],
+   "rows": [
+    {
+     "id": "tv-live-r1",
+     "title": "Popular Now",
+     "style": "CHANNEL",
+     "itemIds": [
+      "tv-ch-108",
+      "tv-ch-110",
+      "tv-ch-114",
+      "tv-ch-115",
+      "tv-ch-109",
+      "tv-ch-104",
+      "tv-ch-107",
+      "tv-ch-125",
+      "tv-ch-129",
+      "tv-ch-121"
+     ]
+    },
+    {
+     "id": "tv-live-r2",
+     "title": "News",
+     "style": "CHANNEL",
+     "itemIds": [
+      "tv-ch-101",
+      "tv-ch-102",
+      "tv-ch-103",
+      "tv-ch-104",
+      "tv-ch-105"
+     ]
+    },
+    {
+     "id": "tv-live-r3",
+     "title": "Entertainment",
+     "style": "CHANNEL",
+     "itemIds": [
+      "tv-ch-106",
+      "tv-ch-107",
+      "tv-ch-108",
+      "tv-ch-109",
+      "tv-ch-110"
+     ]
+    },
+    {
+     "id": "tv-live-r4",
+     "title": "Kids",
+     "style": "CHANNEL",
+     "itemIds": [
+      "tv-ch-111",
+      "tv-ch-112",
+      "tv-ch-113",
+      "tv-ch-114",
+      "tv-ch-115"
+     ]
+    },
+    {
+     "id": "tv-live-r5",
+     "title": "Movies",
+     "style": "CHANNEL",
+     "itemIds": [
+      "tv-ch-116",
+      "tv-ch-117",
+      "tv-ch-118",
+      "tv-ch-119",
+      "tv-ch-120"
+     ]
+    },
+    {
+     "id": "tv-live-r6",
+     "title": "Music",
+     "style": "CHANNEL",
+     "itemIds": [
+      "tv-ch-121",
+      "tv-ch-122",
+      "tv-ch-123",
+      "tv-ch-124",
+      "tv-ch-125"
+     ]
+    },
+    {
+     "id": "tv-live-r7",
+     "title": "Sports",
+     "style": "CHANNEL",
+     "itemIds": [
+      "tv-ch-126",
+      "tv-ch-127",
+      "tv-ch-128",
+      "tv-ch-129",
+      "tv-ch-130"
+     ]
+    }
+   ]
+  },
+  {
+   "id": "tv-sports",
+   "space": "TV",
+   "title": "Sports",
+   "heroIds": [
+    "tv-ev-001",
+    "tv-ev-002",
+    "tv-ev-003",
+    "tv-ev-004"
+   ],
+   "rows": [
+    {
+     "id": "tv-sports-r1",
+     "title": "Live Now",
+     "style": "LANDSCAPE",
+     "itemIds": [
+      "tv-ev-001",
+      "tv-ev-002",
+      "tv-ev-003"
+     ]
+    },
+    {
+     "id": "tv-sports-r2",
+     "title": "Upcoming",
+     "style": "LANDSCAPE",
+     "itemIds": [
+      "tv-ev-004",
+      "tv-ev-005",
+      "tv-ev-006",
+      "tv-ev-007"
+     ]
+    },
+    {
+     "id": "tv-sports-r3",
+     "title": "Results",
+     "style": "LANDSCAPE",
+     "itemIds": [
+      "tv-ev-008",
+      "tv-ev-009",
+      "tv-ev-010"
+     ]
+    },
+    {
+     "id": "tv-sports-r4",
+     "title": "All Events",
+     "style": "POSTER",
+     "itemIds": [
+      "tv-ev-001",
+      "tv-ev-002",
+      "tv-ev-003",
+      "tv-ev-004",
+      "tv-ev-005",
+      "tv-ev-006",
+      "tv-ev-007",
+      "tv-ev-008",
+      "tv-ev-009",
+      "tv-ev-010"
+     ]
+    },
+    {
+     "id": "tv-sports-r5",
+     "title": "Sports Channels",
+     "style": "CHANNEL",
+     "itemIds": [
+      "tv-ch-126",
+      "tv-ch-127",
+      "tv-ch-128",
+      "tv-ch-129",
+      "tv-ch-130"
+     ]
+    }
+   ]
+  }
+ ],
+ "items": [
+  {
+   "id": "tv-ch-101",
+   "space": "TV",
+   "categoryId": "tv-live",
+   "type": "CHANNEL",
+   "title": "Cinetor News 24",
+   "altTitle": "CN24",
+   "year": 2026,
+   "rating": 7.3,
+   "maturity": "TV-PG",
+   "genres": [
+    "News"
+   ],
+   "synopsis": "Cinetor News 24 — 24/7 news channel.",
+   "poster": "images/logos/tv-ch-101.webp",
+   "backdrop": "images/backdrops/tv-ch-101.webp",
+   "logo": "images/logos/tv-ch-101.webp",
+   "dominantColor": "#17275F",
+   "accentColor": "#3A76E0",
+   "live": true,
+   "channelNumber": 101,
+   "channelGroup": "News",
+   "sources": [
+    {
+     "url": "https://cph-p2p-msl.akamaized.net/hls/live/2000341/test/master.m3u8",
+     "kind": "HLS",
+     "label": "Live"
+    },
+    {
+     "url": "https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8",
+     "kind": "HLS",
+     "label": "Backup"
+    }
+   ],
+   "subtitles": [],
+   "programs": [
+    {
+     "id": "tv-ch-101-p01",
+     "title": "The Interview",
+     "genre": "News",
+     "startOffsetSec": -900,
+     "durationSec": 2700,
+     "synopsis": "The Interview on Cinetor News 24."
+    },
+    {
+     "id": "tv-ch-101-p02",
+     "title": "The Interview",
+     "genre": "News",
+     "startOffsetSec": 1800,
+     "durationSec": 2700,
+     "synopsis": "The Interview on Cinetor News 24."
+    },
+    {
+     "id": "tv-ch-101-p03",
+     "title": "Market Watch",
+     "genre": "News",
+     "startOffsetSec": 4500,
+     "durationSec": 2700,
+     "synopsis": "Market Watch on Cinetor News 24."
+    },
+    {
+     "id": "tv-ch-101-p04",
+     "title": "Market Watch",
+     "genre": "News",
+     "startOffsetSec": 7200,
+     "durationSec": 1800,
+     "synopsis": "Market Watch on Cinetor News 24."
+    },
+    {
+     "id": "tv-ch-101-p05",
+     "title": "Market Watch",
+     "genre": "News",
+     "startOffsetSec": 9000,
+     "durationSec": 2700,
+     "synopsis": "Market Watch on Cinetor News 24."
+    },
+    {
+     "id": "tv-ch-101-p06",
+     "title": "Weather Now",
+     "genre": "News",
+     "startOffsetSec": 11700,
+     "durationSec": 3600,
+     "synopsis": "Weather Now on Cinetor News 24."
+    },
+    {
+     "id": "tv-ch-101-p07",
+     "title": "World Desk",
+     "genre": "News",
+     "startOffsetSec": 15300,
+     "durationSec": 3600,
+     "synopsis": "World Desk on Cinetor News 24."
+    },
+    {
+     "id": "tv-ch-101-p08",
+     "title": "Morning Brief",
+     "genre": "News",
+     "startOffsetSec": 18900,
+     "durationSec": 3600,
+     "synopsis": "Morning Brief on Cinetor News 24."
+    },
+    {
+     "id": "tv-ch-101-p09",
+     "title": "Late Edition",
+     "genre": "News",
+     "startOffsetSec": 22500,
+     "durationSec": 5400,
+     "synopsis": "Late Edition on Cinetor News 24."
+    },
+    {
+     "id": "tv-ch-101-p10",
+     "title": "Morning Brief",
+     "genre": "News",
+     "startOffsetSec": 27900,
+     "durationSec": 1800,
+     "synopsis": "Morning Brief on Cinetor News 24."
+    },
+    {
+     "id": "tv-ch-101-p11",
+     "title": "Morning Brief",
+     "genre": "News",
+     "startOffsetSec": 29700,
+     "durationSec": 3600,
+     "synopsis": "Morning Brief on Cinetor News 24."
+    },
+    {
+     "id": "tv-ch-101-p12",
+     "title": "The Interview",
+     "genre": "News",
+     "startOffsetSec": 33300,
+     "durationSec": 5400,
+     "synopsis": "The Interview on Cinetor News 24."
+    },
+    {
+     "id": "tv-ch-101-p13",
+     "title": "Morning Brief",
+     "genre": "News",
+     "startOffsetSec": 38700,
+     "durationSec": 3600,
+     "synopsis": "Morning Brief on Cinetor News 24."
+    },
+    {
+     "id": "tv-ch-101-p14",
+     "title": "Tech Roundup",
+     "genre": "News",
+     "startOffsetSec": 42300,
+     "durationSec": 3600,
+     "synopsis": "Tech Roundup on Cinetor News 24."
+    }
+   ]
+  },
+  {
+   "id": "tv-ch-102",
+   "space": "TV",
+   "categoryId": "tv-live",
+   "type": "CHANNEL",
+   "title": "Meridian World",
+   "altTitle": "MWN",
+   "year": 2026,
+   "rating": 6.7,
+   "maturity": "TV-PG",
+   "genres": [
+    "News"
+   ],
+   "synopsis": "Meridian World — 24/7 news channel.",
+   "poster": "images/logos/tv-ch-102.webp",
+   "backdrop": "images/backdrops/tv-ch-102.webp",
+   "logo": "images/logos/tv-ch-102.webp",
+   "dominantColor": "#207076",
+   "accentColor": "#4ECDE0",
+   "live": true,
+   "channelNumber": 102,
+   "channelGroup": "News",
+   "sources": [
+    {
+     "url": "https://cph-p2p-msl.akamaized.net/hls/live/2000341/test/master.m3u8",
+     "kind": "HLS",
+     "label": "Live"
+    },
+    {
+     "url": "https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8",
+     "kind": "HLS",
+     "label": "Backup"
+    }
+   ],
+   "subtitles": [],
+   "programs": [
+    {
+     "id": "tv-ch-102-p01",
+     "title": "Headlines Hour",
+     "genre": "News",
+     "startOffsetSec": -1800,
+     "durationSec": 3600,
+     "synopsis": "Headlines Hour on Meridian World."
+    },
+    {
+     "id": "tv-ch-102-p02",
+     "title": "Headlines Hour",
+     "genre": "News",
+     "startOffsetSec": 1800,
+     "durationSec": 5400,
+     "synopsis": "Headlines Hour on Meridian World."
+    },
+    {
+     "id": "tv-ch-102-p03",
+     "title": "The Interview",
+     "genre": "News",
+     "startOffsetSec": 7200,
+     "durationSec": 3600,
+     "synopsis": "The Interview on Meridian World."
+    },
+    {
+     "id": "tv-ch-102-p04",
+     "title": "Headlines Hour",
+     "genre": "News",
+     "startOffsetSec": 10800,
+     "durationSec": 2700,
+     "synopsis": "Headlines Hour on Meridian World."
+    },
+    {
+     "id": "tv-ch-102-p05",
+     "title": "Tech Roundup",
+     "genre": "News",
+     "startOffsetSec": 13500,
+     "durationSec": 1800,
+     "synopsis": "Tech Roundup on Meridian World."
+    },
+    {
+     "id": "tv-ch-102-p06",
+     "title": "Market Watch",
+     "genre": "News",
+     "startOffsetSec": 15300,
+     "durationSec": 3600,
+     "synopsis": "Market Watch on Meridian World."
+    },
+    {
+     "id": "tv-ch-102-p07",
+     "title": "Weather Now",
+     "genre": "News",
+     "startOffsetSec": 18900,
+     "durationSec": 5400,
+     "synopsis": "Weather Now on Meridian World."
+    },
+    {
+     "id": "tv-ch-102-p08",
+     "title": "Tech Roundup",
+     "genre": "News",
+     "startOffsetSec": 24300,
+     "durationSec": 2700,
+     "synopsis": "Tech Roundup on Meridian World."
+    },
+    {
+     "id": "tv-ch-102-p09",
+     "title": "Morning Brief",
+     "genre": "News",
+     "startOffsetSec": 27000,
+     "durationSec": 3600,
+     "synopsis": "Morning Brief on Meridian World."
+    },
+    {
+     "id": "tv-ch-102-p10",
+     "title": "Late Edition",
+     "genre": "News",
+     "startOffsetSec": 30600,
+     "durationSec": 3600,
+     "synopsis": "Late Edition on Meridian World."
+    },
+    {
+     "id": "tv-ch-102-p11",
+     "title": "Weather Now",
+     "genre": "News",
+     "startOffsetSec": 34200,
+     "durationSec": 3600,
+     "synopsis": "Weather Now on Meridian World."
+    },
+    {
+     "id": "tv-ch-102-p12",
+     "title": "Headlines Hour",
+     "genre": "News",
+     "startOffsetSec": 37800,
+     "durationSec": 2700,
+     "synopsis": "Headlines Hour on Meridian World."
+    },
+    {
+     "id": "tv-ch-102-p13",
+     "title": "World Desk",
+     "genre": "News",
+     "startOffsetSec": 40500,
+     "durationSec": 2700,
+     "synopsis": "World Desk on Meridian World."
+    }
+   ]
+  },
+  {
+   "id": "tv-ch-103",
+   "space": "TV",
+   "categoryId": "tv-live",
+   "type": "CHANNEL",
+   "title": "Pulse Report",
+   "altTitle": "PULSE",
+   "year": 2026,
+   "rating": 7.4,
+   "maturity": "TV-PG",
+   "genres": [
+    "News"
+   ],
+   "synopsis": "Pulse Report — 24/7 news channel.",
+   "poster": "images/logos/tv-ch-103.webp",
+   "backdrop": "images/backdrops/tv-ch-103.webp",
+   "logo": "images/logos/tv-ch-103.webp",
+   "dominantColor": "#276477",
+   "accentColor": "#49BCE0",
+   "live": true,
+   "channelNumber": 103,
+   "channelGroup": "News",
+   "sources": [
+    {
+     "url": "https://cph-p2p-msl.akamaized.net/hls/live/2000341/test/master.m3u8",
+     "kind": "HLS",
+     "label": "Live"
+    },
+    {
+     "url": "https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8",
+     "kind": "HLS",
+     "label": "Backup"
+    }
+   ],
+   "subtitles": [],
+   "programs": [
+    {
+     "id": "tv-ch-103-p01",
+     "title": "Market Watch",
+     "genre": "News",
+     "startOffsetSec": 0,
+     "durationSec": 5400,
+     "synopsis": "Market Watch on Pulse Report."
+    },
+    {
+     "id": "tv-ch-103-p02",
+     "title": "Late Edition",
+     "genre": "News",
+     "startOffsetSec": 5400,
+     "durationSec": 5400,
+     "synopsis": "Late Edition on Pulse Report."
+    },
+    {
+     "id": "tv-ch-103-p03",
+     "title": "Late Edition",
+     "genre": "News",
+     "startOffsetSec": 10800,
+     "durationSec": 3600,
+     "synopsis": "Late Edition on Pulse Report."
+    },
+    {
+     "id": "tv-ch-103-p04",
+     "title": "Weather Now",
+     "genre": "News",
+     "startOffsetSec": 14400,
+     "durationSec": 2700,
+     "synopsis": "Weather Now on Pulse Report."
+    },
+    {
+     "id": "tv-ch-103-p05",
+     "title": "Late Edition",
+     "genre": "News",
+     "startOffsetSec": 17100,
+     "durationSec": 2700,
+     "synopsis": "Late Edition on Pulse Report."
+    },
+    {
+     "id": "tv-ch-103-p06",
+     "title": "World Desk",
+     "genre": "News",
+     "startOffsetSec": 19800,
+     "durationSec": 2700,
+     "synopsis": "World Desk on Pulse Report."
+    },
+    {
+     "id": "tv-ch-103-p07",
+     "title": "Headlines Hour",
+     "genre": "News",
+     "startOffsetSec": 22500,
+     "durationSec": 1800,
+     "synopsis": "Headlines Hour on Pulse Report."
+    },
+    {
+     "id": "tv-ch-103-p08",
+     "title": "World Desk",
+     "genre": "News",
+     "startOffsetSec": 24300,
+     "durationSec": 2700,
+     "synopsis": "World Desk on Pulse Report."
+    },
+    {
+     "id": "tv-ch-103-p09",
+     "title": "Market Watch",
+     "genre": "News",
+     "startOffsetSec": 27000,
+     "durationSec": 2700,
+     "synopsis": "Market Watch on Pulse Report."
+    },
+    {
+     "id": "tv-ch-103-p10",
+     "title": "Morning Brief",
+     "genre": "News",
+     "startOffsetSec": 29700,
+     "durationSec": 3600,
+     "synopsis": "Morning Brief on Pulse Report."
+    },
+    {
+     "id": "tv-ch-103-p11",
+     "title": "Tech Roundup",
+     "genre": "News",
+     "startOffsetSec": 33300,
+     "durationSec": 2700,
+     "synopsis": "Tech Roundup on Pulse Report."
+    },
+    {
+     "id": "tv-ch-103-p12",
+     "title": "Morning Brief",
+     "genre": "News",
+     "startOffsetSec": 36000,
+     "durationSec": 1800,
+     "synopsis": "Morning Brief on Pulse Report."
+    },
+    {
+     "id": "tv-ch-103-p13",
+     "title": "The Interview",
+     "genre": "News",
+     "startOffsetSec": 37800,
+     "durationSec": 1800,
+     "synopsis": "The Interview on Pulse Report."
+    },
+    {
+     "id": "tv-ch-103-p14",
+     "title": "Late Edition",
+     "genre": "News",
+     "startOffsetSec": 39600,
+     "durationSec": 5400,
+     "synopsis": "Late Edition on Pulse Report."
+    }
+   ]
+  },
+  {
+   "id": "tv-ch-104",
+   "space": "TV",
+   "categoryId": "tv-live",
+   "type": "CHANNEL",
+   "title": "Nordline News",
+   "altTitle": "NLN",
+   "year": 2026,
+   "rating": 8.9,
+   "maturity": "TV-14",
+   "genres": [
+    "News"
+   ],
+   "synopsis": "Nordline News — 24/7 news channel.",
+   "poster": "images/logos/tv-ch-104.webp",
+   "backdrop": "images/backdrops/tv-ch-104.webp",
+   "logo": "images/logos/tv-ch-104.webp",
+   "dominantColor": "#172D42",
+   "accentColor": "#4E81E0",
+   "live": true,
+   "channelNumber": 104,
+   "channelGroup": "News",
+   "sources": [
+    {
+     "url": "https://cph-p2p-msl.akamaized.net/hls/live/2000341/test/master.m3u8",
+     "kind": "HLS",
+     "label": "Live"
+    },
+    {
+     "url": "https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8",
+     "kind": "HLS",
+     "label": "Backup"
+    }
+   ],
+   "subtitles": [],
+   "programs": [
+    {
+     "id": "tv-ch-104-p01",
+     "title": "Market Watch",
+     "genre": "News",
+     "startOffsetSec": -900,
+     "durationSec": 2700,
+     "synopsis": "Market Watch on Nordline News."
+    },
+    {
+     "id": "tv-ch-104-p02",
+     "title": "Morning Brief",
+     "genre": "News",
+     "startOffsetSec": 1800,
+     "durationSec": 5400,
+     "synopsis": "Morning Brief on Nordline News."
+    },
+    {
+     "id": "tv-ch-104-p03",
+     "title": "The Interview",
+     "genre": "News",
+     "startOffsetSec": 7200,
+     "durationSec": 1800,
+     "synopsis": "The Interview on Nordline News."
+    },
+    {
+     "id": "tv-ch-104-p04",
+     "title": "Weather Now",
+     "genre": "News",
+     "startOffsetSec": 9000,
+     "durationSec": 5400,
+     "synopsis": "Weather Now on Nordline News."
+    },
+    {
+     "id": "tv-ch-104-p05",
+     "title": "Weather Now",
+     "genre": "News",
+     "startOffsetSec": 14400,
+     "durationSec": 3600,
+     "synopsis": "Weather Now on Nordline News."
+    },
+    {
+     "id": "tv-ch-104-p06",
+     "title": "World Desk",
+     "genre": "News",
+     "startOffsetSec": 18000,
+     "durationSec": 3600,
+     "synopsis": "World Desk on Nordline News."
+    },
+    {
+     "id": "tv-ch-104-p07",
+     "title": "The Interview",
+     "genre": "News",
+     "startOffsetSec": 21600,
+     "durationSec": 5400,
+     "synopsis": "The Interview on Nordline News."
+    },
+    {
+     "id": "tv-ch-104-p08",
+     "title": "Market Watch",
+     "genre": "News",
+     "startOffsetSec": 27000,
+     "durationSec": 3600,
+     "synopsis": "Market Watch on Nordline News."
+    },
+    {
+     "id": "tv-ch-104-p09",
+     "title": "Market Watch",
+     "genre": "News",
+     "startOffsetSec": 30600,
+     "durationSec": 3600,
+     "synopsis": "Market Watch on Nordline News."
+    },
+    {
+     "id": "tv-ch-104-p10",
+     "title": "Headlines Hour",
+     "genre": "News",
+     "startOffsetSec": 34200,
+     "durationSec": 3600,
+     "synopsis": "Headlines Hour on Nordline News."
+    },
+    {
+     "id": "tv-ch-104-p11",
+     "title": "Weather Now",
+     "genre": "News",
+     "startOffsetSec": 37800,
+     "durationSec": 3600,
+     "synopsis": "Weather Now on Nordline News."
+    },
+    {
+     "id": "tv-ch-104-p12",
+     "title": "Market Watch",
+     "genre": "News",
+     "startOffsetSec": 41400,
+     "durationSec": 3600,
+     "synopsis": "Market Watch on Nordline News."
+    }
+   ]
+  },
+  {
+   "id": "tv-ch-105",
+   "space": "TV",
+   "categoryId": "tv-live",
+   "type": "CHANNEL",
+   "title": "Capital Wire",
+   "altTitle": "CW",
+   "year": 2026,
+   "rating": 6.9,
+   "maturity": "TV-14",
+   "genres": [
+    "News"
+   ],
+   "synopsis": "Capital Wire — 24/7 news channel.",
+   "poster": "images/logos/tv-ch-105.webp",
+   "backdrop": "images/backdrops/tv-ch-105.webp",
+   "logo": "images/logos/tv-ch-105.webp",
+   "dominantColor": "#214F72",
+   "accentColor": "#4AA6E0",
+   "live": true,
+   "channelNumber": 105,
+   "channelGroup": "News",
+   "sources": [
+    {
+     "url": "https://cph-p2p-msl.akamaized.net/hls/live/2000341/test/master.m3u8",
+     "kind": "HLS",
+     "label": "Live"
+    },
+    {
+     "url": "https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8",
+     "kind": "HLS",
+     "label": "Backup"
+    }
+   ],
+   "subtitles": [],
+   "programs": [
+    {
+     "id": "tv-ch-105-p01",
+     "title": "The Interview",
+     "genre": "News",
+     "startOffsetSec": 0,
+     "durationSec": 1800,
+     "synopsis": "The Interview on Capital Wire."
+    },
+    {
+     "id": "tv-ch-105-p02",
+     "title": "Market Watch",
+     "genre": "News",
+     "startOffsetSec": 1800,
+     "durationSec": 5400,
+     "synopsis": "Market Watch on Capital Wire."
+    },
+    {
+     "id": "tv-ch-105-p03",
+     "title": "Headlines Hour",
+     "genre": "News",
+     "startOffsetSec": 7200,
+     "durationSec": 5400,
+     "synopsis": "Headlines Hour on Capital Wire."
+    },
+    {
+     "id": "tv-ch-105-p04",
+     "title": "Tech Roundup",
+     "genre": "News",
+     "startOffsetSec": 12600,
+     "durationSec": 1800,
+     "synopsis": "Tech Roundup on Capital Wire."
+    },
+    {
+     "id": "tv-ch-105-p05",
+     "title": "Tech Roundup",
+     "genre": "News",
+     "startOffsetSec": 14400,
+     "durationSec": 1800,
+     "synopsis": "Tech Roundup on Capital Wire."
+    },
+    {
+     "id": "tv-ch-105-p06",
+     "title": "Late Edition",
+     "genre": "News",
+     "startOffsetSec": 16200,
+     "durationSec": 2700,
+     "synopsis": "Late Edition on Capital Wire."
+    },
+    {
+     "id": "tv-ch-105-p07",
+     "title": "Market Watch",
+     "genre": "News",
+     "startOffsetSec": 18900,
+     "durationSec": 1800,
+     "synopsis": "Market Watch on Capital Wire."
+    },
+    {
+     "id": "tv-ch-105-p08",
+     "title": "Headlines Hour",
+     "genre": "News",
+     "startOffsetSec": 20700,
+     "durationSec": 5400,
+     "synopsis": "Headlines Hour on Capital Wire."
+    },
+    {
+     "id": "tv-ch-105-p09",
+     "title": "Headlines Hour",
+     "genre": "News",
+     "startOffsetSec": 26100,
+     "durationSec": 2700,
+     "synopsis": "Headlines Hour on Capital Wire."
+    },
+    {
+     "id": "tv-ch-105-p10",
+     "title": "The Interview",
+     "genre": "News",
+     "startOffsetSec": 28800,
+     "durationSec": 3600,
+     "synopsis": "The Interview on Capital Wire."
+    },
+    {
+     "id": "tv-ch-105-p11",
+     "title": "World Desk",
+     "genre": "News",
+     "startOffsetSec": 32400,
+     "durationSec": 2700,
+     "synopsis": "World Desk on Capital Wire."
+    },
+    {
+     "id": "tv-ch-105-p12",
+     "title": "Weather Now",
+     "genre": "News",
+     "startOffsetSec": 35100,
+     "durationSec": 1800,
+     "synopsis": "Weather Now on Capital Wire."
+    },
+    {
+     "id": "tv-ch-105-p13",
+     "title": "Late Edition",
+     "genre": "News",
+     "startOffsetSec": 36900,
+     "durationSec": 5400,
+     "synopsis": "Late Edition on Capital Wire."
+    },
+    {
+     "id": "tv-ch-105-p14",
+     "title": "Market Watch",
+     "genre": "News",
+     "startOffsetSec": 42300,
+     "durationSec": 3600,
+     "synopsis": "Market Watch on Capital Wire."
+    }
+   ]
+  },
+  {
+   "id": "tv-ch-106",
+   "space": "TV",
+   "categoryId": "tv-live",
+   "type": "CHANNEL",
+   "title": "Velvet TV",
+   "altTitle": "VTV",
+   "year": 2026,
+   "rating": 8.2,
+   "maturity": "TV-14",
+   "genres": [
+    "Entertainment"
+   ],
+   "synopsis": "Velvet TV — 24/7 entertainment channel.",
+   "poster": "images/logos/tv-ch-106.webp",
+   "backdrop": "images/backdrops/tv-ch-106.webp",
+   "logo": "images/logos/tv-ch-106.webp",
+   "dominantColor": "#521321",
+   "accentColor": "#E03B67",
+   "live": true,
+   "channelNumber": 106,
+   "channelGroup": "Entertainment",
+   "sources": [
+    {
+     "url": "https://cph-p2p-msl.akamaized.net/hls/live/2000341/test/master.m3u8",
+     "kind": "HLS",
+     "label": "Live"
+    },
+    {
+     "url": "https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8",
+     "kind": "HLS",
+     "label": "Backup"
+    }
+   ],
+   "subtitles": [],
+   "programs": [
+    {
+     "id": "tv-ch-106-p01",
+     "title": "Home Rescue",
+     "genre": "Entertainment",
+     "startOffsetSec": 0,
+     "durationSec": 2700,
+     "synopsis": "Home Rescue on Velvet TV."
+    },
+    {
+     "id": "tv-ch-106-p02",
+     "title": "Kitchen Clash",
+     "genre": "Entertainment",
+     "startOffsetSec": 2700,
+     "durationSec": 3600,
+     "synopsis": "Kitchen Clash on Velvet TV."
+    },
+    {
+     "id": "tv-ch-106-p03",
+     "title": "Quiz Royale",
+     "genre": "Entertainment",
+     "startOffsetSec": 6300,
+     "durationSec": 2700,
+     "synopsis": "Quiz Royale on Velvet TV."
+    },
+    {
+     "id": "tv-ch-106-p04",
+     "title": "Quiz Royale",
+     "genre": "Entertainment",
+     "startOffsetSec": 9000,
+     "durationSec": 2700,
+     "synopsis": "Quiz Royale on Velvet TV."
+    },
+    {
+     "id": "tv-ch-106-p05",
+     "title": "Star Stories",
+     "genre": "Entertainment",
+     "startOffsetSec": 11700,
+     "durationSec": 1800,
+     "synopsis": "Star Stories on Velvet TV."
+    },
+    {
+     "id": "tv-ch-106-p06",
+     "title": "Kitchen Clash",
+     "genre": "Entertainment",
+     "startOffsetSec": 13500,
+     "durationSec": 3600,
+     "synopsis": "Kitchen Clash on Velvet TV."
+    },
+    {
+     "id": "tv-ch-106-p07",
+     "title": "Kitchen Clash",
+     "genre": "Entertainment",
+     "startOffsetSec": 17100,
+     "durationSec": 3600,
+     "synopsis": "Kitchen Clash on Velvet TV."
+    },
+    {
+     "id": "tv-ch-106-p08",
+     "title": "Kitchen Clash",
+     "genre": "Entertainment",
+     "startOffsetSec": 20700,
+     "durationSec": 2700,
+     "synopsis": "Kitchen Clash on Velvet TV."
+    },
+    {
+     "id": "tv-ch-106-p09",
+     "title": "Quiz Royale",
+     "genre": "Entertainment",
+     "startOffsetSec": 23400,
+     "durationSec": 1800,
+     "synopsis": "Quiz Royale on Velvet TV."
+    },
+    {
+     "id": "tv-ch-106-p10",
+     "title": "Mystery Theater",
+     "genre": "Entertainment",
+     "startOffsetSec": 25200,
+     "durationSec": 2700,
+     "synopsis": "Mystery Theater on Velvet TV."
+    },
+    {
+     "id": "tv-ch-106-p11",
+     "title": "Star Stories",
+     "genre": "Entertainment",
+     "startOffsetSec": 27900,
+     "durationSec": 3600,
+     "synopsis": "Star Stories on Velvet TV."
+    },
+    {
+     "id": "tv-ch-106-p12",
+     "title": "Kitchen Clash",
+     "genre": "Entertainment",
+     "startOffsetSec": 31500,
+     "durationSec": 3600,
+     "synopsis": "Kitchen Clash on Velvet TV."
+    },
+    {
+     "id": "tv-ch-106-p13",
+     "title": "Quiz Royale",
+     "genre": "Entertainment",
+     "startOffsetSec": 35100,
+     "durationSec": 2700,
+     "synopsis": "Quiz Royale on Velvet TV."
+    },
+    {
+     "id": "tv-ch-106-p14",
+     "title": "Comedy Hour",
+     "genre": "Entertainment",
+     "startOffsetSec": 37800,
+     "durationSec": 3600,
+     "synopsis": "Comedy Hour on Velvet TV."
+    },
+    {
+     "id": "tv-ch-106-p15",
+     "title": "Star Stories",
+     "genre": "Entertainment",
+     "startOffsetSec": 41400,
+     "durationSec": 3600,
+     "synopsis": "Star Stories on Velvet TV."
+    }
+   ]
+  },
+  {
+   "id": "tv-ch-107",
+   "space": "TV",
+   "categoryId": "tv-live",
+   "type": "CHANNEL",
+   "title": "Ember One",
+   "altTitle": "E1",
+   "year": 2026,
+   "rating": 8.8,
+   "maturity": "TV-14",
+   "genres": [
+    "Entertainment"
+   ],
+   "synopsis": "Ember One — 24/7 entertainment channel.",
+   "poster": "images/logos/tv-ch-107.webp",
+   "backdrop": "images/backdrops/tv-ch-107.webp",
+   "logo": "images/logos/tv-ch-107.webp",
+   "dominantColor": "#521630",
+   "accentColor": "#E04785",
+   "live": true,
+   "channelNumber": 107,
+   "channelGroup": "Entertainment",
+   "sources": [
+    {
+     "url": "https://cph-p2p-msl.akamaized.net/hls/live/2000341/test/master.m3u8",
+     "kind": "HLS",
+     "label": "Live"
+    },
+    {
+     "url": "https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8",
+     "kind": "HLS",
+     "label": "Backup"
+    }
+   ],
+   "subtitles": [],
+   "programs": [
+    {
+     "id": "tv-ch-107-p01",
+     "title": "Comedy Hour",
+     "genre": "Entertainment",
+     "startOffsetSec": -900,
+     "durationSec": 2700,
+     "synopsis": "Comedy Hour on Ember One."
+    },
+    {
+     "id": "tv-ch-107-p02",
+     "title": "Home Rescue",
+     "genre": "Entertainment",
+     "startOffsetSec": 1800,
+     "durationSec": 3600,
+     "synopsis": "Home Rescue on Ember One."
+    },
+    {
+     "id": "tv-ch-107-p03",
+     "title": "Home Rescue",
+     "genre": "Entertainment",
+     "startOffsetSec": 5400,
+     "durationSec": 1800,
+     "synopsis": "Home Rescue on Ember One."
+    },
+    {
+     "id": "tv-ch-107-p04",
+     "title": "Talk Tonight",
+     "genre": "Entertainment",
+     "startOffsetSec": 7200,
+     "durationSec": 3600,
+     "synopsis": "Talk Tonight on Ember One."
+    },
+    {
+     "id": "tv-ch-107-p05",
+     "title": "Mystery Theater",
+     "genre": "Entertainment",
+     "startOffsetSec": 10800,
+     "durationSec": 2700,
+     "synopsis": "Mystery Theater on Ember One."
+    },
+    {
+     "id": "tv-ch-107-p06",
+     "title": "Kitchen Clash",
+     "genre": "Entertainment",
+     "startOffsetSec": 13500,
+     "durationSec": 3600,
+     "synopsis": "Kitchen Clash on Ember One."
+    },
+    {
+     "id": "tv-ch-107-p07",
+     "title": "Quiz Royale",
+     "genre": "Entertainment",
+     "startOffsetSec": 17100,
+     "durationSec": 3600,
+     "synopsis": "Quiz Royale on Ember One."
+    },
+    {
+     "id": "tv-ch-107-p08",
+     "title": "Kitchen Clash",
+     "genre": "Entertainment",
+     "startOffsetSec": 20700,
+     "durationSec": 2700,
+     "synopsis": "Kitchen Clash on Ember One."
+    },
+    {
+     "id": "tv-ch-107-p09",
+     "title": "Talk Tonight",
+     "genre": "Entertainment",
+     "startOffsetSec": 23400,
+     "durationSec": 1800,
+     "synopsis": "Talk Tonight on Ember One."
+    },
+    {
+     "id": "tv-ch-107-p10",
+     "title": "Quiz Royale",
+     "genre": "Entertainment",
+     "startOffsetSec": 25200,
+     "durationSec": 3600,
+     "synopsis": "Quiz Royale on Ember One."
+    },
+    {
+     "id": "tv-ch-107-p11",
+     "title": "Talk Tonight",
+     "genre": "Entertainment",
+     "startOffsetSec": 28800,
+     "durationSec": 3600,
+     "synopsis": "Talk Tonight on Ember One."
+    },
+    {
+     "id": "tv-ch-107-p12",
+     "title": "Mystery Theater",
+     "genre": "Entertainment",
+     "startOffsetSec": 32400,
+     "durationSec": 3600,
+     "synopsis": "Mystery Theater on Ember One."
+    },
+    {
+     "id": "tv-ch-107-p13",
+     "title": "Comedy Hour",
+     "genre": "Entertainment",
+     "startOffsetSec": 36000,
+     "durationSec": 3600,
+     "synopsis": "Comedy Hour on Ember One."
+    },
+    {
+     "id": "tv-ch-107-p14",
+     "title": "Comedy Hour",
+     "genre": "Entertainment",
+     "startOffsetSec": 39600,
+     "durationSec": 5400,
+     "synopsis": "Comedy Hour on Ember One."
+    }
+   ]
+  },
+  {
+   "id": "tv-ch-108",
+   "space": "TV",
+   "categoryId": "tv-live",
+   "type": "CHANNEL",
+   "title": "Starlit",
+   "altTitle": "STAR",
+   "year": 2026,
+   "rating": 9.1,
+   "maturity": "TV-14",
+   "genres": [
+    "Entertainment"
+   ],
+   "synopsis": "Starlit — 24/7 entertainment channel.",
+   "poster": "images/logos/tv-ch-108.webp",
+   "backdrop": "images/backdrops/tv-ch-108.webp",
+   "logo": "images/logos/tv-ch-108.webp",
+   "dominantColor": "#491E11",
+   "accentColor": "#E06B45",
+   "live": true,
+   "channelNumber": 108,
+   "channelGroup": "Entertainment",
+   "sources": [
+    {
+     "url": "https://cph-p2p-msl.akamaized.net/hls/live/2000341/test/master.m3u8",
+     "kind": "HLS",
+     "label": "Live"
+    },
+    {
+     "url": "https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8",
+     "kind": "HLS",
+     "label": "Backup"
+    }
+   ],
+   "subtitles": [],
+   "programs": [
+    {
+     "id": "tv-ch-108-p01",
+     "title": "Comedy Hour",
+     "genre": "Entertainment",
+     "startOffsetSec": -900,
+     "durationSec": 2700,
+     "synopsis": "Comedy Hour on Starlit."
+    },
+    {
+     "id": "tv-ch-108-p02",
+     "title": "Quiz Royale",
+     "genre": "Entertainment",
+     "startOffsetSec": 1800,
+     "durationSec": 5400,
+     "synopsis": "Quiz Royale on Starlit."
+    },
+    {
+     "id": "tv-ch-108-p03",
+     "title": "Comedy Hour",
+     "genre": "Entertainment",
+     "startOffsetSec": 7200,
+     "durationSec": 2700,
+     "synopsis": "Comedy Hour on Starlit."
+    },
+    {
+     "id": "tv-ch-108-p04",
+     "title": "Star Stories",
+     "genre": "Entertainment",
+     "startOffsetSec": 9900,
+     "durationSec": 5400,
+     "synopsis": "Star Stories on Starlit."
+    },
+    {
+     "id": "tv-ch-108-p05",
+     "title": "Star Stories",
+     "genre": "Entertainment",
+     "startOffsetSec": 15300,
+     "durationSec": 5400,
+     "synopsis": "Star Stories on Starlit."
+    },
+    {
+     "id": "tv-ch-108-p06",
+     "title": "Star Stories",
+     "genre": "Entertainment",
+     "startOffsetSec": 20700,
+     "durationSec": 3600,
+     "synopsis": "Star Stories on Starlit."
+    },
+    {
+     "id": "tv-ch-108-p07",
+     "title": "Kitchen Clash",
+     "genre": "Entertainment",
+     "startOffsetSec": 24300,
+     "durationSec": 5400,
+     "synopsis": "Kitchen Clash on Starlit."
+    },
+    {
+     "id": "tv-ch-108-p08",
+     "title": "Mystery Theater",
+     "genre": "Entertainment",
+     "startOffsetSec": 29700,
+     "durationSec": 1800,
+     "synopsis": "Mystery Theater on Starlit."
+    },
+    {
+     "id": "tv-ch-108-p09",
+     "title": "Talk Tonight",
+     "genre": "Entertainment",
+     "startOffsetSec": 31500,
+     "durationSec": 2700,
+     "synopsis": "Talk Tonight on Starlit."
+    },
+    {
+     "id": "tv-ch-108-p10",
+     "title": "Home Rescue",
+     "genre": "Entertainment",
+     "startOffsetSec": 34200,
+     "durationSec": 3600,
+     "synopsis": "Home Rescue on Starlit."
+    },
+    {
+     "id": "tv-ch-108-p11",
+     "title": "Talk Tonight",
+     "genre": "Entertainment",
+     "startOffsetSec": 37800,
+     "durationSec": 3600,
+     "synopsis": "Talk Tonight on Starlit."
+    },
+    {
+     "id": "tv-ch-108-p12",
+     "title": "Comedy Hour",
+     "genre": "Entertainment",
+     "startOffsetSec": 41400,
+     "durationSec": 1800,
+     "synopsis": "Comedy Hour on Starlit."
+    }
+   ]
+  },
+  {
+   "id": "tv-ch-109",
+   "space": "TV",
+   "categoryId": "tv-live",
+   "type": "CHANNEL",
+   "title": "Halo Plus",
+   "altTitle": "HALO+",
+   "year": 2026,
+   "rating": 9.0,
+   "maturity": "TV-14",
+   "genres": [
+    "Entertainment"
+   ],
+   "synopsis": "Halo Plus — 24/7 entertainment channel.",
+   "poster": "images/logos/tv-ch-109.webp",
+   "backdrop": "images/backdrops/tv-ch-109.webp",
+   "logo": "images/logos/tv-ch-109.webp",
+   "dominantColor": "#40150E",
+   "accentColor": "#E04540",
+   "live": true,
+   "channelNumber": 109,
+   "channelGroup": "Entertainment",
+   "sources": [
+    {
+     "url": "https://cph-p2p-msl.akamaized.net/hls/live/2000341/test/master.m3u8",
+     "kind": "HLS",
+     "label": "Live"
+    },
+    {
+     "url": "https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8",
+     "kind": "HLS",
+     "label": "Backup"
+    }
+   ],
+   "subtitles": [],
+   "programs": [
+    {
+     "id": "tv-ch-109-p01",
+     "title": "Mystery Theater",
+     "genre": "Entertainment",
+     "startOffsetSec": 0,
+     "durationSec": 3600,
+     "synopsis": "Mystery Theater on Halo Plus."
+    },
+    {
+     "id": "tv-ch-109-p02",
+     "title": "Kitchen Clash",
+     "genre": "Entertainment",
+     "startOffsetSec": 3600,
+     "durationSec": 3600,
+     "synopsis": "Kitchen Clash on Halo Plus."
+    },
+    {
+     "id": "tv-ch-109-p03",
+     "title": "Mystery Theater",
+     "genre": "Entertainment",
+     "startOffsetSec": 7200,
+     "durationSec": 3600,
+     "synopsis": "Mystery Theater on Halo Plus."
+    },
+    {
+     "id": "tv-ch-109-p04",
+     "title": "Home Rescue",
+     "genre": "Entertainment",
+     "startOffsetSec": 10800,
+     "durationSec": 3600,
+     "synopsis": "Home Rescue on Halo Plus."
+    },
+    {
+     "id": "tv-ch-109-p05",
+     "title": "Comedy Hour",
+     "genre": "Entertainment",
+     "startOffsetSec": 14400,
+     "durationSec": 3600,
+     "synopsis": "Comedy Hour on Halo Plus."
+    },
+    {
+     "id": "tv-ch-109-p06",
+     "title": "Comedy Hour",
+     "genre": "Entertainment",
+     "startOffsetSec": 18000,
+     "durationSec": 3600,
+     "synopsis": "Comedy Hour on Halo Plus."
+    },
+    {
+     "id": "tv-ch-109-p07",
+     "title": "Star Stories",
+     "genre": "Entertainment",
+     "startOffsetSec": 21600,
+     "durationSec": 5400,
+     "synopsis": "Star Stories on Halo Plus."
+    },
+    {
+     "id": "tv-ch-109-p08",
+     "title": "Home Rescue",
+     "genre": "Entertainment",
+     "startOffsetSec": 27000,
+     "durationSec": 2700,
+     "synopsis": "Home Rescue on Halo Plus."
+    },
+    {
+     "id": "tv-ch-109-p09",
+     "title": "Home Rescue",
+     "genre": "Entertainment",
+     "startOffsetSec": 29700,
+     "durationSec": 3600,
+     "synopsis": "Home Rescue on Halo Plus."
+    },
+    {
+     "id": "tv-ch-109-p10",
+     "title": "Home Rescue",
+     "genre": "Entertainment",
+     "startOffsetSec": 33300,
+     "durationSec": 3600,
+     "synopsis": "Home Rescue on Halo Plus."
+    },
+    {
+     "id": "tv-ch-109-p11",
+     "title": "Mystery Theater",
+     "genre": "Entertainment",
+     "startOffsetSec": 36900,
+     "durationSec": 5400,
+     "synopsis": "Mystery Theater on Halo Plus."
+    },
+    {
+     "id": "tv-ch-109-p12",
+     "title": "Mystery Theater",
+     "genre": "Entertainment",
+     "startOffsetSec": 42300,
+     "durationSec": 1800,
+     "synopsis": "Mystery Theater on Halo Plus."
+    }
+   ]
+  },
+  {
+   "id": "tv-ch-110",
+   "space": "TV",
+   "categoryId": "tv-live",
+   "type": "CHANNEL",
+   "title": "Orbit Prime",
+   "altTitle": "ORBIT",
+   "year": 2026,
+   "rating": 9.1,
+   "maturity": "TV-14",
+   "genres": [
+    "Entertainment"
+   ],
+   "synopsis": "Orbit Prime — 24/7 entertainment channel.",
+   "poster": "images/logos/tv-ch-110.webp",
+   "backdrop": "images/backdrops/tv-ch-110.webp",
+   "logo": "images/logos/tv-ch-110.webp",
+   "dominantColor": "#472E11",
+   "accentColor": "#E0813D",
+   "live": true,
+   "channelNumber": 110,
+   "channelGroup": "Entertainment",
+   "sources": [
+    {
+     "url": "https://cph-p2p-msl.akamaized.net/hls/live/2000341/test/master.m3u8",
+     "kind": "HLS",
+     "label": "Live"
+    },
+    {
+     "url": "https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8",
+     "kind": "HLS",
+     "label": "Backup"
+    }
+   ],
+   "subtitles": [],
+   "programs": [
+    {
+     "id": "tv-ch-110-p01",
+     "title": "Talk Tonight",
+     "genre": "Entertainment",
+     "startOffsetSec": -900,
+     "durationSec": 3600,
+     "synopsis": "Talk Tonight on Orbit Prime."
+    },
+    {
+     "id": "tv-ch-110-p02",
+     "title": "Kitchen Clash",
+     "genre": "Entertainment",
+     "startOffsetSec": 2700,
+     "durationSec": 2700,
+     "synopsis": "Kitchen Clash on Orbit Prime."
+    },
+    {
+     "id": "tv-ch-110-p03",
+     "title": "Mystery Theater",
+     "genre": "Entertainment",
+     "startOffsetSec": 5400,
+     "durationSec": 3600,
+     "synopsis": "Mystery Theater on Orbit Prime."
+    },
+    {
+     "id": "tv-ch-110-p04",
+     "title": "Star Stories",
+     "genre": "Entertainment",
+     "startOffsetSec": 9000,
+     "durationSec": 3600,
+     "synopsis": "Star Stories on Orbit Prime."
+    },
+    {
+     "id": "tv-ch-110-p05",
+     "title": "Mystery Theater",
+     "genre": "Entertainment",
+     "startOffsetSec": 12600,
+     "durationSec": 1800,
+     "synopsis": "Mystery Theater on Orbit Prime."
+    },
+    {
+     "id": "tv-ch-110-p06",
+     "title": "Quiz Royale",
+     "genre": "Entertainment",
+     "startOffsetSec": 14400,
+     "durationSec": 3600,
+     "synopsis": "Quiz Royale on Orbit Prime."
+    },
+    {
+     "id": "tv-ch-110-p07",
+     "title": "Kitchen Clash",
+     "genre": "Entertainment",
+     "startOffsetSec": 18000,
+     "durationSec": 3600,
+     "synopsis": "Kitchen Clash on Orbit Prime."
+    },
+    {
+     "id": "tv-ch-110-p08",
+     "title": "Quiz Royale",
+     "genre": "Entertainment",
+     "startOffsetSec": 21600,
+     "durationSec": 3600,
+     "synopsis": "Quiz Royale on Orbit Prime."
+    },
+    {
+     "id": "tv-ch-110-p09",
+     "title": "Star Stories",
+     "genre": "Entertainment",
+     "startOffsetSec": 25200,
+     "durationSec": 2700,
+     "synopsis": "Star Stories on Orbit Prime."
+    },
+    {
+     "id": "tv-ch-110-p10",
+     "title": "Kitchen Clash",
+     "genre": "Entertainment",
+     "startOffsetSec": 27900,
+     "durationSec": 3600,
+     "synopsis": "Kitchen Clash on Orbit Prime."
+    },
+    {
+     "id": "tv-ch-110-p11",
+     "title": "Quiz Royale",
+     "genre": "Entertainment",
+     "startOffsetSec": 31500,
+     "durationSec": 1800,
+     "synopsis": "Quiz Royale on Orbit Prime."
+    },
+    {
+     "id": "tv-ch-110-p12",
+     "title": "Quiz Royale",
+     "genre": "Entertainment",
+     "startOffsetSec": 33300,
+     "durationSec": 3600,
+     "synopsis": "Quiz Royale on Orbit Prime."
+    },
+    {
+     "id": "tv-ch-110-p13",
+     "title": "Comedy Hour",
+     "genre": "Entertainment",
+     "startOffsetSec": 36900,
+     "durationSec": 5400,
+     "synopsis": "Comedy Hour on Orbit Prime."
+    },
+    {
+     "id": "tv-ch-110-p14",
+     "title": "Talk Tonight",
+     "genre": "Entertainment",
+     "startOffsetSec": 42300,
+     "durationSec": 1800,
+     "synopsis": "Talk Tonight on Orbit Prime."
+    }
+   ]
+  },
+  {
+   "id": "tv-ch-111",
+   "space": "TV",
+   "categoryId": "tv-live",
+   "type": "CHANNEL",
+   "title": "Nimbus Kids",
+   "altTitle": "NIMBUS",
+   "year": 2026,
+   "rating": 8.5,
+   "maturity": "TV-Y",
+   "genres": [
+    "Kids"
+   ],
+   "synopsis": "Nimbus Kids — 24/7 kids channel.",
+   "poster": "images/logos/tv-ch-111.webp",
+   "backdrop": "images/backdrops/tv-ch-111.webp",
+   "logo": "images/logos/tv-ch-111.webp",
+   "dominantColor": "#8B7822",
+   "accentColor": "#E0C136",
+   "live": true,
+   "channelNumber": 111,
+   "channelGroup": "Kids",
+   "sources": [
+    {
+     "url": "https://cph-p2p-msl.akamaized.net/hls/live/2000341/test/master.m3u8",
+     "kind": "HLS",
+     "label": "Live"
+    },
+    {
+     "url": "https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8",
+     "kind": "HLS",
+     "label": "Backup"
+    }
+   ],
+   "subtitles": [],
+   "programs": [
+    {
+     "id": "tv-ch-111-p01",
+     "title": "Space Kittens",
+     "genre": "Kids",
+     "startOffsetSec": -900,
+     "durationSec": 2700,
+     "synopsis": "Space Kittens on Nimbus Kids."
+    },
+    {
+     "id": "tv-ch-111-p02",
+     "title": "Robo Pals",
+     "genre": "Kids",
+     "startOffsetSec": 1800,
+     "durationSec": 3600,
+     "synopsis": "Robo Pals on Nimbus Kids."
+    },
+    {
+     "id": "tv-ch-111-p03",
+     "title": "Bedtime Tales",
+     "genre": "Kids",
+     "startOffsetSec": 5400,
+     "durationSec": 3600,
+     "synopsis": "Bedtime Tales on Nimbus Kids."
+    },
+    {
+     "id": "tv-ch-111-p04",
+     "title": "Space Kittens",
+     "genre": "Kids",
+     "startOffsetSec": 9000,
+     "durationSec": 1800,
+     "synopsis": "Space Kittens on Nimbus Kids."
+    },
+    {
+     "id": "tv-ch-111-p05",
+     "title": "Robo Pals",
+     "genre": "Kids",
+     "startOffsetSec": 10800,
+     "durationSec": 5400,
+     "synopsis": "Robo Pals on Nimbus Kids."
+    },
+    {
+     "id": "tv-ch-111-p06",
+     "title": "Bedtime Tales",
+     "genre": "Kids",
+     "startOffsetSec": 16200,
+     "durationSec": 5400,
+     "synopsis": "Bedtime Tales on Nimbus Kids."
+    },
+    {
+     "id": "tv-ch-111-p07",
+     "title": "Robo Pals",
+     "genre": "Kids",
+     "startOffsetSec": 21600,
+     "durationSec": 5400,
+     "synopsis": "Robo Pals on Nimbus Kids."
+    },
+    {
+     "id": "tv-ch-111-p08",
+     "title": "Bedtime Tales",
+     "genre": "Kids",
+     "startOffsetSec": 27000,
+     "durationSec": 2700,
+     "synopsis": "Bedtime Tales on Nimbus Kids."
+    },
+    {
+     "id": "tv-ch-111-p09",
+     "title": "Space Kittens",
+     "genre": "Kids",
+     "startOffsetSec": 29700,
+     "durationSec": 5400,
+     "synopsis": "Space Kittens on Nimbus Kids."
+    },
+    {
+     "id": "tv-ch-111-p10",
+     "title": "Space Kittens",
+     "genre": "Kids",
+     "startOffsetSec": 35100,
+     "durationSec": 3600,
+     "synopsis": "Space Kittens on Nimbus Kids."
+    },
+    {
+     "id": "tv-ch-111-p11",
+     "title": "Forest Friends",
+     "genre": "Kids",
+     "startOffsetSec": 38700,
+     "durationSec": 1800,
+     "synopsis": "Forest Friends on Nimbus Kids."
+    },
+    {
+     "id": "tv-ch-111-p12",
+     "title": "Captain Pebble",
+     "genre": "Kids",
+     "startOffsetSec": 40500,
+     "durationSec": 2700,
+     "synopsis": "Captain Pebble on Nimbus Kids."
+    }
+   ]
+  },
+  {
+   "id": "tv-ch-112",
+   "space": "TV",
+   "categoryId": "tv-live",
+   "type": "CHANNEL",
+   "title": "Pip & Pals",
+   "altTitle": "PIP",
+   "year": 2026,
+   "rating": 8.3,
+   "maturity": "TV-Y",
+   "genres": [
+    "Kids"
+   ],
+   "synopsis": "Pip & Pals — 24/7 kids channel.",
+   "poster": "images/logos/tv-ch-112.webp",
+   "backdrop": "images/backdrops/tv-ch-112.webp",
+   "logo": "images/logos/tv-ch-112.webp",
+   "dominantColor": "#774424",
+   "accentColor": "#E0AA4E",
+   "live": true,
+   "channelNumber": 112,
+   "channelGroup": "Kids",
+   "sources": [
+    {
+     "url": "https://cph-p2p-msl.akamaized.net/hls/live/2000341/test/master.m3u8",
+     "kind": "HLS",
+     "label": "Live"
+    },
+    {
+     "url": "https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8",
+     "kind": "HLS",
+     "label": "Backup"
+    }
+   ],
+   "subtitles": [],
+   "programs": [
+    {
+     "id": "tv-ch-112-p01",
+     "title": "Space Kittens",
+     "genre": "Kids",
+     "startOffsetSec": 0,
+     "durationSec": 2700,
+     "synopsis": "Space Kittens on Pip & Pals."
+    },
+    {
+     "id": "tv-ch-112-p02",
+     "title": "Forest Friends",
+     "genre": "Kids",
+     "startOffsetSec": 2700,
+     "durationSec": 2700,
+     "synopsis": "Forest Friends on Pip & Pals."
+    },
+    {
+     "id": "tv-ch-112-p03",
+     "title": "Robo Pals",
+     "genre": "Kids",
+     "startOffsetSec": 5400,
+     "durationSec": 5400,
+     "synopsis": "Robo Pals on Pip & Pals."
+    },
+    {
+     "id": "tv-ch-112-p04",
+     "title": "Robo Pals",
+     "genre": "Kids",
+     "startOffsetSec": 10800,
+     "durationSec": 2700,
+     "synopsis": "Robo Pals on Pip & Pals."
+    },
+    {
+     "id": "tv-ch-112-p05",
+     "title": "Bedtime Tales",
+     "genre": "Kids",
+     "startOffsetSec": 13500,
+     "durationSec": 5400,
+     "synopsis": "Bedtime Tales on Pip & Pals."
+    },
+    {
+     "id": "tv-ch-112-p06",
+     "title": "Space Kittens",
+     "genre": "Kids",
+     "startOffsetSec": 18900,
+     "durationSec": 3600,
+     "synopsis": "Space Kittens on Pip & Pals."
+    },
+    {
+     "id": "tv-ch-112-p07",
+     "title": "Robo Pals",
+     "genre": "Kids",
+     "startOffsetSec": 22500,
+     "durationSec": 2700,
+     "synopsis": "Robo Pals on Pip & Pals."
+    },
+    {
+     "id": "tv-ch-112-p08",
+     "title": "Doodle Lab",
+     "genre": "Kids",
+     "startOffsetSec": 25200,
+     "durationSec": 5400,
+     "synopsis": "Doodle Lab on Pip & Pals."
+    },
+    {
+     "id": "tv-ch-112-p09",
+     "title": "Doodle Lab",
+     "genre": "Kids",
+     "startOffsetSec": 30600,
+     "durationSec": 3600,
+     "synopsis": "Doodle Lab on Pip & Pals."
+    },
+    {
+     "id": "tv-ch-112-p10",
+     "title": "Robo Pals",
+     "genre": "Kids",
+     "startOffsetSec": 34200,
+     "durationSec": 2700,
+     "synopsis": "Robo Pals on Pip & Pals."
+    },
+    {
+     "id": "tv-ch-112-p11",
+     "title": "Forest Friends",
+     "genre": "Kids",
+     "startOffsetSec": 36900,
+     "durationSec": 3600,
+     "synopsis": "Forest Friends on Pip & Pals."
+    },
+    {
+     "id": "tv-ch-112-p12",
+     "title": "Forest Friends",
+     "genre": "Kids",
+     "startOffsetSec": 40500,
+     "durationSec": 2700,
+     "synopsis": "Forest Friends on Pip & Pals."
+    }
+   ]
+  },
+  {
+   "id": "tv-ch-113",
+   "space": "TV",
+   "categoryId": "tv-live",
+   "type": "CHANNEL",
+   "title": "Toon Harbor",
+   "altTitle": "TOON",
+   "year": 2026,
+   "rating": 7.1,
+   "maturity": "TV-Y",
+   "genres": [
+    "Kids"
+   ],
+   "synopsis": "Toon Harbor — 24/7 kids channel.",
+   "poster": "images/logos/tv-ch-113.webp",
+   "backdrop": "images/backdrops/tv-ch-113.webp",
+   "logo": "images/logos/tv-ch-113.webp",
+   "dominantColor": "#3F2218",
+   "accentColor": "#E0814E",
+   "live": true,
+   "channelNumber": 113,
+   "channelGroup": "Kids",
+   "sources": [
+    {
+     "url": "https://cph-p2p-msl.akamaized.net/hls/live/2000341/test/master.m3u8",
+     "kind": "HLS",
+     "label": "Live"
+    },
+    {
+     "url": "https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8",
+     "kind": "HLS",
+     "label": "Backup"
+    }
+   ],
+   "subtitles": [],
+   "programs": [
+    {
+     "id": "tv-ch-113-p01",
+     "title": "Bedtime Tales",
+     "genre": "Kids",
+     "startOffsetSec": -1800,
+     "durationSec": 1800,
+     "synopsis": "Bedtime Tales on Toon Harbor."
+    },
+    {
+     "id": "tv-ch-113-p02",
+     "title": "Bedtime Tales",
+     "genre": "Kids",
+     "startOffsetSec": 0,
+     "durationSec": 3600,
+     "synopsis": "Bedtime Tales on Toon Harbor."
+    },
+    {
+     "id": "tv-ch-113-p03",
+     "title": "Space Kittens",
+     "genre": "Kids",
+     "startOffsetSec": 3600,
+     "durationSec": 3600,
+     "synopsis": "Space Kittens on Toon Harbor."
+    },
+    {
+     "id": "tv-ch-113-p04",
+     "title": "Space Kittens",
+     "genre": "Kids",
+     "startOffsetSec": 7200,
+     "durationSec": 1800,
+     "synopsis": "Space Kittens on Toon Harbor."
+    },
+    {
+     "id": "tv-ch-113-p05",
+     "title": "Bedtime Tales",
+     "genre": "Kids",
+     "startOffsetSec": 9000,
+     "durationSec": 3600,
+     "synopsis": "Bedtime Tales on Toon Harbor."
+    },
+    {
+     "id": "tv-ch-113-p06",
+     "title": "Space Kittens",
+     "genre": "Kids",
+     "startOffsetSec": 12600,
+     "durationSec": 1800,
+     "synopsis": "Space Kittens on Toon Harbor."
+    },
+    {
+     "id": "tv-ch-113-p07",
+     "title": "Bedtime Tales",
+     "genre": "Kids",
+     "startOffsetSec": 14400,
+     "durationSec": 3600,
+     "synopsis": "Bedtime Tales on Toon Harbor."
+    },
+    {
+     "id": "tv-ch-113-p08",
+     "title": "Captain Pebble",
+     "genre": "Kids",
+     "startOffsetSec": 18000,
+     "durationSec": 3600,
+     "synopsis": "Captain Pebble on Toon Harbor."
+    },
+    {
+     "id": "tv-ch-113-p09",
+     "title": "Doodle Lab",
+     "genre": "Kids",
+     "startOffsetSec": 21600,
+     "durationSec": 2700,
+     "synopsis": "Doodle Lab on Toon Harbor."
+    },
+    {
+     "id": "tv-ch-113-p10",
+     "title": "Doodle Lab",
+     "genre": "Kids",
+     "startOffsetSec": 24300,
+     "durationSec": 5400,
+     "synopsis": "Doodle Lab on Toon Harbor."
+    },
+    {
+     "id": "tv-ch-113-p11",
+     "title": "Forest Friends",
+     "genre": "Kids",
+     "startOffsetSec": 29700,
+     "durationSec": 3600,
+     "synopsis": "Forest Friends on Toon Harbor."
+    },
+    {
+     "id": "tv-ch-113-p12",
+     "title": "Space Kittens",
+     "genre": "Kids",
+     "startOffsetSec": 33300,
+     "durationSec": 2700,
+     "synopsis": "Space Kittens on Toon Harbor."
+    },
+    {
+     "id": "tv-ch-113-p13",
+     "title": "Forest Friends",
+     "genre": "Kids",
+     "startOffsetSec": 36000,
+     "durationSec": 1800,
+     "synopsis": "Forest Friends on Toon Harbor."
+    },
+    {
+     "id": "tv-ch-113-p14",
+     "title": "Forest Friends",
+     "genre": "Kids",
+     "startOffsetSec": 37800,
+     "durationSec": 3600,
+     "synopsis": "Forest Friends on Toon Harbor."
+    },
+    {
+     "id": "tv-ch-113-p15",
+     "title": "Space Kittens",
+     "genre": "Kids",
+     "startOffsetSec": 41400,
+     "durationSec": 3600,
+     "synopsis": "Space Kittens on Toon Harbor."
+    }
+   ]
+  },
+  {
+   "id": "tv-ch-114",
+   "space": "TV",
+   "categoryId": "tv-live",
+   "type": "CHANNEL",
+   "title": "Little Comet",
+   "altTitle": "COMET",
+   "year": 2026,
+   "rating": 9.1,
+   "maturity": "TV-Y",
+   "genres": [
+    "Kids"
+   ],
+   "synopsis": "Little Comet — 24/7 kids channel.",
+   "poster": "images/logos/tv-ch-114.webp",
+   "backdrop": "images/backdrops/tv-ch-114.webp",
+   "logo": "images/logos/tv-ch-114.webp",
+   "dominantColor": "#6C6126",
+   "accentColor": "#E0C82E",
+   "live": true,
+   "channelNumber": 114,
+   "channelGroup": "Kids",
+   "sources": [
+    {
+     "url": "https://cph-p2p-msl.akamaized.net/hls/live/2000341/test/master.m3u8",
+     "kind": "HLS",
+     "label": "Live"
+    },
+    {
+     "url": "https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8",
+     "kind": "HLS",
+     "label": "Backup"
+    }
+   ],
+   "subtitles": [],
+   "programs": [
+    {
+     "id": "tv-ch-114-p01",
+     "title": "Doodle Lab",
+     "genre": "Kids",
+     "startOffsetSec": 0,
+     "durationSec": 3600,
+     "synopsis": "Doodle Lab on Little Comet."
+    },
+    {
+     "id": "tv-ch-114-p02",
+     "title": "Captain Pebble",
+     "genre": "Kids",
+     "startOffsetSec": 3600,
+     "durationSec": 2700,
+     "synopsis": "Captain Pebble on Little Comet."
+    },
+    {
+     "id": "tv-ch-114-p03",
+     "title": "Doodle Lab",
+     "genre": "Kids",
+     "startOffsetSec": 6300,
+     "durationSec": 2700,
+     "synopsis": "Doodle Lab on Little Comet."
+    },
+    {
+     "id": "tv-ch-114-p04",
+     "title": "Captain Pebble",
+     "genre": "Kids",
+     "startOffsetSec": 9000,
+     "durationSec": 5400,
+     "synopsis": "Captain Pebble on Little Comet."
+    },
+    {
+     "id": "tv-ch-114-p05",
+     "title": "Forest Friends",
+     "genre": "Kids",
+     "startOffsetSec": 14400,
+     "durationSec": 3600,
+     "synopsis": "Forest Friends on Little Comet."
+    },
+    {
+     "id": "tv-ch-114-p06",
+     "title": "Captain Pebble",
+     "genre": "Kids",
+     "startOffsetSec": 18000,
+     "durationSec": 2700,
+     "synopsis": "Captain Pebble on Little Comet."
+    },
+    {
+     "id": "tv-ch-114-p07",
+     "title": "Doodle Lab",
+     "genre": "Kids",
+     "startOffsetSec": 20700,
+     "durationSec": 5400,
+     "synopsis": "Doodle Lab on Little Comet."
+    },
+    {
+     "id": "tv-ch-114-p08",
+     "title": "Bedtime Tales",
+     "genre": "Kids",
+     "startOffsetSec": 26100,
+     "durationSec": 2700,
+     "synopsis": "Bedtime Tales on Little Comet."
+    },
+    {
+     "id": "tv-ch-114-p09",
+     "title": "Forest Friends",
+     "genre": "Kids",
+     "startOffsetSec": 28800,
+     "durationSec": 5400,
+     "synopsis": "Forest Friends on Little Comet."
+    },
+    {
+     "id": "tv-ch-114-p10",
+     "title": "Bedtime Tales",
+     "genre": "Kids",
+     "startOffsetSec": 34200,
+     "durationSec": 3600,
+     "synopsis": "Bedtime Tales on Little Comet."
+    },
+    {
+     "id": "tv-ch-114-p11",
+     "title": "Captain Pebble",
+     "genre": "Kids",
+     "startOffsetSec": 37800,
+     "durationSec": 1800,
+     "synopsis": "Captain Pebble on Little Comet."
+    },
+    {
+     "id": "tv-ch-114-p12",
+     "title": "Forest Friends",
+     "genre": "Kids",
+     "startOffsetSec": 39600,
+     "durationSec": 1800,
+     "synopsis": "Forest Friends on Little Comet."
+    },
+    {
+     "id": "tv-ch-114-p13",
+     "title": "Doodle Lab",
+     "genre": "Kids",
+     "startOffsetSec": 41400,
+     "durationSec": 2700,
+     "synopsis": "Doodle Lab on Little Comet."
+    }
+   ]
+  },
+  {
+   "id": "tv-ch-115",
+   "space": "TV",
+   "categoryId": "tv-live",
+   "type": "CHANNEL",
+   "title": "Bramble",
+   "altTitle": "BRAM",
+   "year": 2026,
+   "rating": 9.1,
+   "maturity": "TV-Y",
+   "genres": [
+    "Kids"
+   ],
+   "synopsis": "Bramble — 24/7 kids channel.",
+   "poster": "images/logos/tv-ch-115.webp",
+   "backdrop": "images/backdrops/tv-ch-115.webp",
+   "logo": "images/logos/tv-ch-115.webp",
+   "dominantColor": "#453410",
+   "accentColor": "#E0AF4E",
+   "live": true,
+   "channelNumber": 115,
+   "channelGroup": "Kids",
+   "sources": [
+    {
+     "url": "https://cph-p2p-msl.akamaized.net/hls/live/2000341/test/master.m3u8",
+     "kind": "HLS",
+     "label": "Live"
+    },
+    {
+     "url": "https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8",
+     "kind": "HLS",
+     "label": "Backup"
+    }
+   ],
+   "subtitles": [],
+   "programs": [
+    {
+     "id": "tv-ch-115-p01",
+     "title": "Forest Friends",
+     "genre": "Kids",
+     "startOffsetSec": 0,
+     "durationSec": 3600,
+     "synopsis": "Forest Friends on Bramble."
+    },
+    {
+     "id": "tv-ch-115-p02",
+     "title": "Space Kittens",
+     "genre": "Kids",
+     "startOffsetSec": 3600,
+     "durationSec": 5400,
+     "synopsis": "Space Kittens on Bramble."
+    },
+    {
+     "id": "tv-ch-115-p03",
+     "title": "Doodle Lab",
+     "genre": "Kids",
+     "startOffsetSec": 9000,
+     "durationSec": 5400,
+     "synopsis": "Doodle Lab on Bramble."
+    },
+    {
+     "id": "tv-ch-115-p04",
+     "title": "Space Kittens",
+     "genre": "Kids",
+     "startOffsetSec": 14400,
+     "durationSec": 3600,
+     "synopsis": "Space Kittens on Bramble."
+    },
+    {
+     "id": "tv-ch-115-p05",
+     "title": "Forest Friends",
+     "genre": "Kids",
+     "startOffsetSec": 18000,
+     "durationSec": 1800,
+     "synopsis": "Forest Friends on Bramble."
+    },
+    {
+     "id": "tv-ch-115-p06",
+     "title": "Robo Pals",
+     "genre": "Kids",
+     "startOffsetSec": 19800,
+     "durationSec": 3600,
+     "synopsis": "Robo Pals on Bramble."
+    },
+    {
+     "id": "tv-ch-115-p07",
+     "title": "Bedtime Tales",
+     "genre": "Kids",
+     "startOffsetSec": 23400,
+     "durationSec": 2700,
+     "synopsis": "Bedtime Tales on Bramble."
+    },
+    {
+     "id": "tv-ch-115-p08",
+     "title": "Doodle Lab",
+     "genre": "Kids",
+     "startOffsetSec": 26100,
+     "durationSec": 3600,
+     "synopsis": "Doodle Lab on Bramble."
+    },
+    {
+     "id": "tv-ch-115-p09",
+     "title": "Bedtime Tales",
+     "genre": "Kids",
+     "startOffsetSec": 29700,
+     "durationSec": 1800,
+     "synopsis": "Bedtime Tales on Bramble."
+    },
+    {
+     "id": "tv-ch-115-p10",
+     "title": "Doodle Lab",
+     "genre": "Kids",
+     "startOffsetSec": 31500,
+     "durationSec": 3600,
+     "synopsis": "Doodle Lab on Bramble."
+    },
+    {
+     "id": "tv-ch-115-p11",
+     "title": "Space Kittens",
+     "genre": "Kids",
+     "startOffsetSec": 35100,
+     "durationSec": 2700,
+     "synopsis": "Space Kittens on Bramble."
+    },
+    {
+     "id": "tv-ch-115-p12",
+     "title": "Space Kittens",
+     "genre": "Kids",
+     "startOffsetSec": 37800,
+     "durationSec": 3600,
+     "synopsis": "Space Kittens on Bramble."
+    },
+    {
+     "id": "tv-ch-115-p13",
+     "title": "Robo Pals",
+     "genre": "Kids",
+     "startOffsetSec": 41400,
+     "durationSec": 3600,
+     "synopsis": "Robo Pals on Bramble."
+    }
+   ]
+  },
+  {
+   "id": "tv-ch-116",
+   "space": "TV",
+   "categoryId": "tv-live",
+   "type": "CHANNEL",
+   "title": "Reel Noir",
+   "altTitle": "NOIR",
+   "year": 2026,
+   "rating": 7.1,
+   "maturity": "TV-14",
+   "genres": [
+    "Movies"
+   ],
+   "synopsis": "Reel Noir — 24/7 movies channel.",
+   "poster": "images/logos/tv-ch-116.webp",
+   "backdrop": "images/backdrops/tv-ch-116.webp",
+   "logo": "images/logos/tv-ch-116.webp",
+   "dominantColor": "#832462",
+   "accentColor": "#E040A1",
+   "live": true,
+   "channelNumber": 116,
+   "channelGroup": "Movies",
+   "sources": [
+    {
+     "url": "https://cph-p2p-msl.akamaized.net/hls/live/2000341/test/master.m3u8",
+     "kind": "HLS",
+     "label": "Live"
+    },
+    {
+     "url": "https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8",
+     "kind": "HLS",
+     "label": "Backup"
+    }
+   ],
+   "subtitles": [],
+   "programs": [
+    {
+     "id": "tv-ch-116-p01",
+     "title": "Premiere Night",
+     "genre": "Movies",
+     "startOffsetSec": -900,
+     "durationSec": 1800,
+     "synopsis": "Premiere Night on Reel Noir."
+    },
+    {
+     "id": "tv-ch-116-p02",
+     "title": "Feature Presentation",
+     "genre": "Movies",
+     "startOffsetSec": 900,
+     "durationSec": 2700,
+     "synopsis": "Feature Presentation on Reel Noir."
+    },
+    {
+     "id": "tv-ch-116-p03",
+     "title": "Movie: Last Light over Varrow",
+     "genre": "Movies",
+     "startOffsetSec": 3600,
+     "durationSec": 1800,
+     "synopsis": "Movie: Last Light over Varrow on Reel Noir."
+    },
+    {
+     "id": "tv-ch-116-p04",
+     "title": "Movie: Archive at Kelstane",
+     "genre": "Movies",
+     "startOffsetSec": 5400,
+     "durationSec": 1800,
+     "synopsis": "Movie: Archive at Kelstane on Reel Noir."
+    },
+    {
+     "id": "tv-ch-116-p05",
+     "title": "Movie: Esk Hollow Monolith",
+     "genre": "Movies",
+     "startOffsetSec": 7200,
+     "durationSec": 3600,
+     "synopsis": "Movie: Esk Hollow Monolith on Reel Noir."
+    },
+    {
+     "id": "tv-ch-116-p06",
+     "title": "Movie: Hakuren: My Rival Is a Dragon",
+     "genre": "Movies",
+     "startOffsetSec": 10800,
+     "durationSec": 3600,
+     "synopsis": "Movie: Hakuren: My Rival Is a Dragon on Reel Noir."
+    },
+    {
+     "id": "tv-ch-116-p07",
+     "title": "Movie: Iron Sanctum",
+     "genre": "Movies",
+     "startOffsetSec": 14400,
+     "durationSec": 5400,
+     "synopsis": "Movie: Iron Sanctum on Reel Noir."
+    },
+    {
+     "id": "tv-ch-116-p08",
+     "title": "Movie: House of Ostravel",
+     "genre": "Movies",
+     "startOffsetSec": 19800,
+     "durationSec": 3600,
+     "synopsis": "Movie: House of Ostravel on Reel Noir."
+    },
+    {
+     "id": "tv-ch-116-p09",
+     "title": "Movie: Ginrei the Movie: Chronicle of the Last Summoner",
+     "genre": "Movies",
+     "startOffsetSec": 23400,
+     "durationSec": 3600,
+     "synopsis": "Movie: Ginrei the Movie: Chronicle of the Last Summoner on Reel Noir."
+    },
+    {
+     "id": "tv-ch-116-p10",
+     "title": "Movie: Last Light over Varrow",
+     "genre": "Movies",
+     "startOffsetSec": 27000,
+     "durationSec": 1800,
+     "synopsis": "Movie: Last Light over Varrow on Reel Noir."
+    },
+    {
+     "id": "tv-ch-116-p11",
+     "title": "Movie: Hoshiren the Movie: The Girl Who Folded Stars",
+     "genre": "Movies",
+     "startOffsetSec": 28800,
+     "durationSec": 3600,
+     "synopsis": "Movie: Hoshiren the Movie: The Girl Who Folded Stars on Reel Noir."
+    },
+    {
+     "id": "tv-ch-116-p12",
+     "title": "Movie: Benimaru: Hunters of the Hollow Sky",
+     "genre": "Movies",
+     "startOffsetSec": 32400,
+     "durationSec": 1800,
+     "synopsis": "Movie: Benimaru: Hunters of the Hollow Sky on Reel Noir."
+    },
+    {
+     "id": "tv-ch-116-p13",
+     "title": "Movie: Esk Hollow Monolith",
+     "genre": "Movies",
+     "startOffsetSec": 34200,
+     "durationSec": 3600,
+     "synopsis": "Movie: Esk Hollow Monolith on Reel Noir."
+    },
+    {
+     "id": "tv-ch-116-p14",
+     "title": "Movie: Hoshiren: Rebellion of the Clockwork Saint",
+     "genre": "Movies",
+     "startOffsetSec": 37800,
+     "durationSec": 1800,
+     "synopsis": "Movie: Hoshiren: Rebellion of the Clockwork Saint on Reel Noir."
+    },
+    {
+     "id": "tv-ch-116-p15",
+     "title": "Movie: Esk Hollow Monolith",
+     "genre": "Movies",
+     "startOffsetSec": 39600,
+     "durationSec": 3600,
+     "synopsis": "Movie: Esk Hollow Monolith on Reel Noir."
+    }
+   ]
+  },
+  {
+   "id": "tv-ch-117",
+   "space": "TV",
+   "categoryId": "tv-live",
+   "type": "CHANNEL",
+   "title": "Crimson Cinema",
+   "altTitle": "CRIM",
+   "year": 2026,
+   "rating": 7.2,
+   "maturity": "TV-14",
+   "genres": [
+    "Movies"
+   ],
+   "synopsis": "Crimson Cinema — 24/7 movies channel.",
+   "poster": "images/logos/tv-ch-117.webp",
+   "backdrop": "images/backdrops/tv-ch-117.webp",
+   "logo": "images/logos/tv-ch-117.webp",
+   "dominantColor": "#63161F",
+   "accentColor": "#E0364D",
+   "live": true,
+   "channelNumber": 117,
+   "channelGroup": "Movies",
+   "sources": [
+    {
+     "url": "https://cph-p2p-msl.akamaized.net/hls/live/2000341/test/master.m3u8",
+     "kind": "HLS",
+     "label": "Live"
+    },
+    {
+     "url": "https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8",
+     "kind": "HLS",
+     "label": "Backup"
+    }
+   ],
+   "subtitles": [],
+   "programs": [
+    {
+     "id": "tv-ch-117-p01",
+     "title": "Director's Cut",
+     "genre": "Movies",
+     "startOffsetSec": 0,
+     "durationSec": 1800,
+     "synopsis": "Director's Cut on Crimson Cinema."
+    },
+    {
+     "id": "tv-ch-117-p02",
+     "title": "Movie: House of Brannoch",
+     "genre": "Movies",
+     "startOffsetSec": 1800,
+     "durationSec": 5400,
+     "synopsis": "Movie: House of Brannoch on Crimson Cinema."
+    },
+    {
+     "id": "tv-ch-117-p03",
+     "title": "Movie: Iron Harbor",
+     "genre": "Movies",
+     "startOffsetSec": 7200,
+     "durationSec": 2700,
+     "synopsis": "Movie: Iron Harbor on Crimson Cinema."
+    },
+    {
+     "id": "tv-ch-117-p04",
+     "title": "Movie: Ginrei the Movie: Chronicle of the Last Summoner",
+     "genre": "Movies",
+     "startOffsetSec": 9900,
+     "durationSec": 3600,
+     "synopsis": "Movie: Ginrei the Movie: Chronicle of the Last Summoner on Crimson Cinema."
+    },
+    {
+     "id": "tv-ch-117-p05",
+     "title": "Feature Presentation",
+     "genre": "Movies",
+     "startOffsetSec": 13500,
+     "durationSec": 5400,
+     "synopsis": "Feature Presentation on Crimson Cinema."
+    },
+    {
+     "id": "tv-ch-117-p06",
+     "title": "Movie: House of Esk Hollow",
+     "genre": "Movies",
+     "startOffsetSec": 18900,
+     "durationSec": 2700,
+     "synopsis": "Movie: House of Esk Hollow on Crimson Cinema."
+    },
+    {
+     "id": "tv-ch-117-p07",
+     "title": "Movie: Last Train to Aozaki",
+     "genre": "Movies",
+     "startOffsetSec": 21600,
+     "durationSec": 3600,
+     "synopsis": "Movie: Last Train to Aozaki on Crimson Cinema."
+    },
+    {
+     "id": "tv-ch-117-p08",
+     "title": "Movie: Last Light over Ostravel",
+     "genre": "Movies",
+     "startOffsetSec": 25200,
+     "durationSec": 1800,
+     "synopsis": "Movie: Last Light over Ostravel on Crimson Cinema."
+    },
+    {
+     "id": "tv-ch-117-p09",
+     "title": "Movie: Hakuren: Hunters of the Hollow Sky",
+     "genre": "Movies",
+     "startOffsetSec": 27000,
+     "durationSec": 2700,
+     "synopsis": "Movie: Hakuren: Hunters of the Hollow Sky on Crimson Cinema."
+    },
+    {
+     "id": "tv-ch-117-p10",
+     "title": "Feature Presentation",
+     "genre": "Movies",
+     "startOffsetSec": 29700,
+     "durationSec": 3600,
+     "synopsis": "Feature Presentation on Crimson Cinema."
+    },
+    {
+     "id": "tv-ch-117-p11",
+     "title": "Classic Matinee",
+     "genre": "Movies",
+     "startOffsetSec": 33300,
+     "durationSec": 1800,
+     "synopsis": "Classic Matinee on Crimson Cinema."
+    },
+    {
+     "id": "tv-ch-117-p12",
+     "title": "Feature Presentation",
+     "genre": "Movies",
+     "startOffsetSec": 35100,
+     "durationSec": 3600,
+     "synopsis": "Feature Presentation on Crimson Cinema."
+    },
+    {
+     "id": "tv-ch-117-p13",
+     "title": "Midnight Double Bill",
+     "genre": "Movies",
+     "startOffsetSec": 38700,
+     "durationSec": 3600,
+     "synopsis": "Midnight Double Bill on Crimson Cinema."
+    },
+    {
+     "id": "tv-ch-117-p14",
+     "title": "Movie: Aoibara: The Cursed Courier",
+     "genre": "Movies",
+     "startOffsetSec": 42300,
+     "durationSec": 3600,
+     "synopsis": "Movie: Aoibara: The Cursed Courier on Crimson Cinema."
+    }
+   ]
+  },
+  {
+   "id": "tv-ch-118",
+   "space": "TV",
+   "categoryId": "tv-live",
+   "type": "CHANNEL",
+   "title": "Matinee Max",
+   "altTitle": "MAX",
+   "year": 2026,
+   "rating": 8.5,
+   "maturity": "TV-PG",
+   "genres": [
+    "Movies"
+   ],
+   "synopsis": "Matinee Max — 24/7 movies channel.",
+   "poster": "images/logos/tv-ch-118.webp",
+   "backdrop": "images/backdrops/tv-ch-118.webp",
+   "logo": "images/logos/tv-ch-118.webp",
+   "dominantColor": "#641632",
+   "accentColor": "#E03976",
+   "live": true,
+   "channelNumber": 118,
+   "channelGroup": "Movies",
+   "sources": [
+    {
+     "url": "https://cph-p2p-msl.akamaized.net/hls/live/2000341/test/master.m3u8",
+     "kind": "HLS",
+     "label": "Live"
+    },
+    {
+     "url": "https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8",
+     "kind": "HLS",
+     "label": "Backup"
+    }
+   ],
+   "subtitles": [],
+   "programs": [
+    {
+     "id": "tv-ch-118-p01",
+     "title": "Movie: Benimaru: Hunters of the Hollow Sky",
+     "genre": "Movies",
+     "startOffsetSec": 0,
+     "durationSec": 2700,
+     "synopsis": "Movie: Benimaru: Hunters of the Hollow Sky on Matinee Max."
+    },
+    {
+     "id": "tv-ch-118-p02",
+     "title": "Movie: Kazemaru: Academy of Broken Crowns",
+     "genre": "Movies",
+     "startOffsetSec": 2700,
+     "durationSec": 1800,
+     "synopsis": "Movie: Kazemaru: Academy of Broken Crowns on Matinee Max."
+    },
+    {
+     "id": "tv-ch-118-p03",
+     "title": "Movie: Hakuren: My Rival Is a Dragon",
+     "genre": "Movies",
+     "startOffsetSec": 4500,
+     "durationSec": 3600,
+     "synopsis": "Movie: Hakuren: My Rival Is a Dragon on Matinee Max."
+    },
+    {
+     "id": "tv-ch-118-p04",
+     "title": "Movie: House of Dunmere",
+     "genre": "Movies",
+     "startOffsetSec": 8100,
+     "durationSec": 1800,
+     "synopsis": "Movie: House of Dunmere on Matinee Max."
+    },
+    {
+     "id": "tv-ch-118-p05",
+     "title": "Movie: Aoibara: The Cursed Courier",
+     "genre": "Movies",
+     "startOffsetSec": 9900,
+     "durationSec": 2700,
+     "synopsis": "Movie: Aoibara: The Cursed Courier on Matinee Max."
+    },
+    {
+     "id": "tv-ch-118-p06",
+     "title": "Movie: House of Varrow",
+     "genre": "Movies",
+     "startOffsetSec": 12600,
+     "durationSec": 1800,
+     "synopsis": "Movie: House of Varrow on Matinee Max."
+    },
+    {
+     "id": "tv-ch-118-p07",
+     "title": "Movie: Lantern at Maelport",
+     "genre": "Movies",
+     "startOffsetSec": 14400,
+     "durationSec": 5400,
+     "synopsis": "Movie: Lantern at Maelport on Matinee Max."
+    },
+    {
+     "id": "tv-ch-118-p08",
+     "title": "Feature Presentation",
+     "genre": "Movies",
+     "startOffsetSec": 19800,
+     "durationSec": 5400,
+     "synopsis": "Feature Presentation on Matinee Max."
+    },
+    {
+     "id": "tv-ch-118-p09",
+     "title": "Premiere Night",
+     "genre": "Movies",
+     "startOffsetSec": 25200,
+     "durationSec": 5400,
+     "synopsis": "Premiere Night on Matinee Max."
+    },
+    {
+     "id": "tv-ch-118-p10",
+     "title": "Classic Matinee",
+     "genre": "Movies",
+     "startOffsetSec": 30600,
+     "durationSec": 3600,
+     "synopsis": "Classic Matinee on Matinee Max."
+    },
+    {
+     "id": "tv-ch-118-p11",
+     "title": "Feature Presentation",
+     "genre": "Movies",
+     "startOffsetSec": 34200,
+     "durationSec": 3600,
+     "synopsis": "Feature Presentation on Matinee Max."
+    },
+    {
+     "id": "tv-ch-118-p12",
+     "title": "Movie: Lantern-lit Lantern",
+     "genre": "Movies",
+     "startOffsetSec": 37800,
+     "durationSec": 5400,
+     "synopsis": "Movie: Lantern-lit Lantern on Matinee Max."
+    }
+   ]
+  },
+  {
+   "id": "tv-ch-119",
+   "space": "TV",
+   "categoryId": "tv-live",
+   "type": "CHANNEL",
+   "title": "Silver Screen 2",
+   "altTitle": "SS2",
+   "year": 2026,
+   "rating": 7.2,
+   "maturity": "TV-14",
+   "genres": [
+    "Movies"
+   ],
+   "synopsis": "Silver Screen 2 — 24/7 movies channel.",
+   "poster": "images/logos/tv-ch-119.webp",
+   "backdrop": "images/backdrops/tv-ch-119.webp",
+   "logo": "images/logos/tv-ch-119.webp",
+   "dominantColor": "#601619",
+   "accentColor": "#E03949",
+   "live": true,
+   "channelNumber": 119,
+   "channelGroup": "Movies",
+   "sources": [
+    {
+     "url": "https://cph-p2p-msl.akamaized.net/hls/live/2000341/test/master.m3u8",
+     "kind": "HLS",
+     "label": "Live"
+    },
+    {
+     "url": "https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8",
+     "kind": "HLS",
+     "label": "Backup"
+    }
+   ],
+   "subtitles": [],
+   "programs": [
+    {
+     "id": "tv-ch-119-p01",
+     "title": "Classic Matinee",
+     "genre": "Movies",
+     "startOffsetSec": -1800,
+     "durationSec": 3600,
+     "synopsis": "Classic Matinee on Silver Screen 2."
+    },
+    {
+     "id": "tv-ch-119-p02",
+     "title": "Movie: House of Esk Hollow",
+     "genre": "Movies",
+     "startOffsetSec": 1800,
+     "durationSec": 1800,
+     "synopsis": "Movie: House of Esk Hollow on Silver Screen 2."
+    },
+    {
+     "id": "tv-ch-119-p03",
+     "title": "Movie: House of Esk Hollow",
+     "genre": "Movies",
+     "startOffsetSec": 3600,
+     "durationSec": 3600,
+     "synopsis": "Movie: House of Esk Hollow on Silver Screen 2."
+    },
+    {
+     "id": "tv-ch-119-p04",
+     "title": "Movie: Last Light over Esk Hollow",
+     "genre": "Movies",
+     "startOffsetSec": 7200,
+     "durationSec": 3600,
+     "synopsis": "Movie: Last Light over Esk Hollow on Silver Screen 2."
+    },
+    {
+     "id": "tv-ch-119-p05",
+     "title": "Movie: Archive at Kelstane",
+     "genre": "Movies",
+     "startOffsetSec": 10800,
+     "durationSec": 1800,
+     "synopsis": "Movie: Archive at Kelstane on Silver Screen 2."
+    },
+    {
+     "id": "tv-ch-119-p06",
+     "title": "Movie: Last Light over Ostravel",
+     "genre": "Movies",
+     "startOffsetSec": 12600,
+     "durationSec": 3600,
+     "synopsis": "Movie: Last Light over Ostravel on Silver Screen 2."
+    },
+    {
+     "id": "tv-ch-119-p07",
+     "title": "Classic Matinee",
+     "genre": "Movies",
+     "startOffsetSec": 16200,
+     "durationSec": 1800,
+     "synopsis": "Classic Matinee on Silver Screen 2."
+    },
+    {
+     "id": "tv-ch-119-p08",
+     "title": "Movie: Hakuren: My Rival Is a Dragon",
+     "genre": "Movies",
+     "startOffsetSec": 18000,
+     "durationSec": 3600,
+     "synopsis": "Movie: Hakuren: My Rival Is a Dragon on Silver Screen 2."
+    },
+    {
+     "id": "tv-ch-119-p09",
+     "title": "Movie: Hinokage: Hunters of the Hollow Sky",
+     "genre": "Movies",
+     "startOffsetSec": 21600,
+     "durationSec": 1800,
+     "synopsis": "Movie: Hinokage: Hunters of the Hollow Sky on Silver Screen 2."
+    },
+    {
+     "id": "tv-ch-119-p10",
+     "title": "Movie: Aoibara the Movie: My Rival Is a Dragon",
+     "genre": "Movies",
+     "startOffsetSec": 23400,
+     "durationSec": 3600,
+     "synopsis": "Movie: Aoibara the Movie: My Rival Is a Dragon on Silver Screen 2."
+    },
+    {
+     "id": "tv-ch-119-p11",
+     "title": "Movie: Ginrei: Academy of Broken Crowns",
+     "genre": "Movies",
+     "startOffsetSec": 27000,
+     "durationSec": 5400,
+     "synopsis": "Movie: Ginrei: Academy of Broken Crowns on Silver Screen 2."
+    },
+    {
+     "id": "tv-ch-119-p12",
+     "title": "Movie: Hinokage: Hunters of the Hollow Sky",
+     "genre": "Movies",
+     "startOffsetSec": 32400,
+     "durationSec": 3600,
+     "synopsis": "Movie: Hinokage: Hunters of the Hollow Sky on Silver Screen 2."
+    },
+    {
+     "id": "tv-ch-119-p13",
+     "title": "Director's Cut",
+     "genre": "Movies",
+     "startOffsetSec": 36000,
+     "durationSec": 2700,
+     "synopsis": "Director's Cut on Silver Screen 2."
+    },
+    {
+     "id": "tv-ch-119-p14",
+     "title": "Movie: Kazemaru: Academy of Broken Crowns",
+     "genre": "Movies",
+     "startOffsetSec": 38700,
+     "durationSec": 1800,
+     "synopsis": "Movie: Kazemaru: Academy of Broken Crowns on Silver Screen 2."
+    },
+    {
+     "id": "tv-ch-119-p15",
+     "title": "Movie: Ivory Palace Chronicles",
+     "genre": "Movies",
+     "startOffsetSec": 40500,
+     "durationSec": 3600,
+     "synopsis": "Movie: Ivory Palace Chronicles on Silver Screen 2."
+    }
+   ]
+  },
+  {
+   "id": "tv-ch-120",
+   "space": "TV",
+   "categoryId": "tv-live",
+   "type": "CHANNEL",
+   "title": "Midnight Reel",
+   "altTitle": "MID",
+   "year": 2026,
+   "rating": 8.0,
+   "maturity": "TV-PG",
+   "genres": [
+    "Movies"
+   ],
+   "synopsis": "Midnight Reel — 24/7 movies channel.",
+   "poster": "images/logos/tv-ch-120.webp",
+   "backdrop": "images/backdrops/tv-ch-120.webp",
+   "logo": "images/logos/tv-ch-120.webp",
+   "dominantColor": "#64231B",
+   "accentColor": "#E0524E",
+   "live": true,
+   "channelNumber": 120,
+   "channelGroup": "Movies",
+   "sources": [
+    {
+     "url": "https://cph-p2p-msl.akamaized.net/hls/live/2000341/test/master.m3u8",
+     "kind": "HLS",
+     "label": "Live"
+    },
+    {
+     "url": "https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8",
+     "kind": "HLS",
+     "label": "Backup"
+    }
+   ],
+   "subtitles": [],
+   "programs": [
+    {
+     "id": "tv-ch-120-p01",
+     "title": "Feature Presentation",
+     "genre": "Movies",
+     "startOffsetSec": 0,
+     "durationSec": 1800,
+     "synopsis": "Feature Presentation on Midnight Reel."
+    },
+    {
+     "id": "tv-ch-120-p02",
+     "title": "Classic Matinee",
+     "genre": "Movies",
+     "startOffsetSec": 1800,
+     "durationSec": 3600,
+     "synopsis": "Classic Matinee on Midnight Reel."
+    },
+    {
+     "id": "tv-ch-120-p03",
+     "title": "Movie: Iron Harbor",
+     "genre": "Movies",
+     "startOffsetSec": 5400,
+     "durationSec": 1800,
+     "synopsis": "Movie: Iron Harbor on Midnight Reel."
+    },
+    {
+     "id": "tv-ch-120-p04",
+     "title": "Movie: Gilded Hours of Ostravel",
+     "genre": "Movies",
+     "startOffsetSec": 7200,
+     "durationSec": 2700,
+     "synopsis": "Movie: Gilded Hours of Ostravel on Midnight Reel."
+    },
+    {
+     "id": "tv-ch-120-p05",
+     "title": "Feature Presentation",
+     "genre": "Movies",
+     "startOffsetSec": 9900,
+     "durationSec": 5400,
+     "synopsis": "Feature Presentation on Midnight Reel."
+    },
+    {
+     "id": "tv-ch-120-p06",
+     "title": "Movie: Iron Harbor",
+     "genre": "Movies",
+     "startOffsetSec": 15300,
+     "durationSec": 3600,
+     "synopsis": "Movie: Iron Harbor on Midnight Reel."
+    },
+    {
+     "id": "tv-ch-120-p07",
+     "title": "Director's Cut",
+     "genre": "Movies",
+     "startOffsetSec": 18900,
+     "durationSec": 3600,
+     "synopsis": "Director's Cut on Midnight Reel."
+    },
+    {
+     "id": "tv-ch-120-p08",
+     "title": "Movie: Hoshiren the Movie: The Girl Who Folded Stars",
+     "genre": "Movies",
+     "startOffsetSec": 22500,
+     "durationSec": 2700,
+     "synopsis": "Movie: Hoshiren the Movie: The Girl Who Folded Stars on Midnight Reel."
+    },
+    {
+     "id": "tv-ch-120-p09",
+     "title": "Movie: Ginrei the Movie: A Thousand Lanterns Rising",
+     "genre": "Movies",
+     "startOffsetSec": 25200,
+     "durationSec": 3600,
+     "synopsis": "Movie: Ginrei the Movie: A Thousand Lanterns Rising on Midnight Reel."
+    },
+    {
+     "id": "tv-ch-120-p10",
+     "title": "Movie: Kazemaru: Academy of Broken Crowns",
+     "genre": "Movies",
+     "startOffsetSec": 28800,
+     "durationSec": 3600,
+     "synopsis": "Movie: Kazemaru: Academy of Broken Crowns on Midnight Reel."
+    },
+    {
+     "id": "tv-ch-120-p11",
+     "title": "Movie: Crimson Signal",
+     "genre": "Movies",
+     "startOffsetSec": 32400,
+     "durationSec": 3600,
+     "synopsis": "Movie: Crimson Signal on Midnight Reel."
+    },
+    {
+     "id": "tv-ch-120-p12",
+     "title": "Movie: Kazemaru: Academy of Broken Crowns",
+     "genre": "Movies",
+     "startOffsetSec": 36000,
+     "durationSec": 1800,
+     "synopsis": "Movie: Kazemaru: Academy of Broken Crowns on Midnight Reel."
+    },
+    {
+     "id": "tv-ch-120-p13",
+     "title": "Feature Presentation",
+     "genre": "Movies",
+     "startOffsetSec": 37800,
+     "durationSec": 5400,
+     "synopsis": "Feature Presentation on Midnight Reel."
+    }
+   ]
+  },
+  {
+   "id": "tv-ch-121",
+   "space": "TV",
+   "categoryId": "tv-live",
+   "type": "CHANNEL",
+   "title": "Bassline",
+   "altTitle": "BASS",
+   "year": 2026,
+   "rating": 8.6,
+   "maturity": "TV-14",
+   "genres": [
+    "Music"
+   ],
+   "synopsis": "Bassline — 24/7 music channel.",
+   "poster": "images/logos/tv-ch-121.webp",
+   "backdrop": "images/backdrops/tv-ch-121.webp",
+   "logo": "images/logos/tv-ch-121.webp",
+   "dominantColor": "#3B1C68",
+   "accentColor": "#893EE0",
+   "live": true,
+   "channelNumber": 121,
+   "channelGroup": "Music",
+   "sources": [
+    {
+     "url": "https://cph-p2p-msl.akamaized.net/hls/live/2000341/test/master.m3u8",
+     "kind": "HLS",
+     "label": "Live"
+    },
+    {
+     "url": "https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8",
+     "kind": "HLS",
+     "label": "Backup"
+    }
+   ],
+   "subtitles": [],
+   "programs": [
+    {
+     "id": "tv-ch-121-p01",
+     "title": "Top 40 Countdown",
+     "genre": "Music",
+     "startOffsetSec": -1800,
+     "durationSec": 1800,
+     "synopsis": "Top 40 Countdown on Bassline."
+    },
+    {
+     "id": "tv-ch-121-p02",
+     "title": "Night Grooves",
+     "genre": "Music",
+     "startOffsetSec": 0,
+     "durationSec": 5400,
+     "synopsis": "Night Grooves on Bassline."
+    },
+    {
+     "id": "tv-ch-121-p03",
+     "title": "Top 40 Countdown",
+     "genre": "Music",
+     "startOffsetSec": 5400,
+     "durationSec": 3600,
+     "synopsis": "Top 40 Countdown on Bassline."
+    },
+    {
+     "id": "tv-ch-121-p04",
+     "title": "Studio Unplugged",
+     "genre": "Music",
+     "startOffsetSec": 9000,
+     "durationSec": 2700,
+     "synopsis": "Studio Unplugged on Bassline."
+    },
+    {
+     "id": "tv-ch-121-p05",
+     "title": "Studio Unplugged",
+     "genre": "Music",
+     "startOffsetSec": 11700,
+     "durationSec": 1800,
+     "synopsis": "Studio Unplugged on Bassline."
+    },
+    {
+     "id": "tv-ch-121-p06",
+     "title": "Top 40 Countdown",
+     "genre": "Music",
+     "startOffsetSec": 13500,
+     "durationSec": 2700,
+     "synopsis": "Top 40 Countdown on Bassline."
+    },
+    {
+     "id": "tv-ch-121-p07",
+     "title": "Night Grooves",
+     "genre": "Music",
+     "startOffsetSec": 16200,
+     "durationSec": 2700,
+     "synopsis": "Night Grooves on Bassline."
+    },
+    {
+     "id": "tv-ch-121-p08",
+     "title": "Studio Unplugged",
+     "genre": "Music",
+     "startOffsetSec": 18900,
+     "durationSec": 5400,
+     "synopsis": "Studio Unplugged on Bassline."
+    },
+    {
+     "id": "tv-ch-121-p09",
+     "title": "Top 40 Countdown",
+     "genre": "Music",
+     "startOffsetSec": 24300,
+     "durationSec": 3600,
+     "synopsis": "Top 40 Countdown on Bassline."
+    },
+    {
+     "id": "tv-ch-121-p10",
+     "title": "Top 40 Countdown",
+     "genre": "Music",
+     "startOffsetSec": 27900,
+     "durationSec": 2700,
+     "synopsis": "Top 40 Countdown on Bassline."
+    },
+    {
+     "id": "tv-ch-121-p11",
+     "title": "Top 40 Countdown",
+     "genre": "Music",
+     "startOffsetSec": 30600,
+     "durationSec": 3600,
+     "synopsis": "Top 40 Countdown on Bassline."
+    },
+    {
+     "id": "tv-ch-121-p12",
+     "title": "Throwback Mix",
+     "genre": "Music",
+     "startOffsetSec": 34200,
+     "durationSec": 5400,
+     "synopsis": "Throwback Mix on Bassline."
+    },
+    {
+     "id": "tv-ch-121-p13",
+     "title": "Live Sessions",
+     "genre": "Music",
+     "startOffsetSec": 39600,
+     "durationSec": 3600,
+     "synopsis": "Live Sessions on Bassline."
+    }
+   ]
+  },
+  {
+   "id": "tv-ch-122",
+   "space": "TV",
+   "categoryId": "tv-live",
+   "type": "CHANNEL",
+   "title": "Loop TV",
+   "altTitle": "LOOP",
+   "year": 2026,
+   "rating": 8.0,
+   "maturity": "TV-14",
+   "genres": [
+    "Music"
+   ],
+   "synopsis": "Loop TV — 24/7 music channel.",
+   "poster": "images/logos/tv-ch-122.webp",
+   "backdrop": "images/backdrops/tv-ch-122.webp",
+   "logo": "images/logos/tv-ch-122.webp",
+   "dominantColor": "#601753",
+   "accentColor": "#E044D9",
+   "live": true,
+   "channelNumber": 122,
+   "channelGroup": "Music",
+   "sources": [
+    {
+     "url": "https://cph-p2p-msl.akamaized.net/hls/live/2000341/test/master.m3u8",
+     "kind": "HLS",
+     "label": "Live"
+    },
+    {
+     "url": "https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8",
+     "kind": "HLS",
+     "label": "Backup"
+    }
+   ],
+   "subtitles": [],
+   "programs": [
+    {
+     "id": "tv-ch-122-p01",
+     "title": "Night Grooves",
+     "genre": "Music",
+     "startOffsetSec": 0,
+     "durationSec": 5400,
+     "synopsis": "Night Grooves on Loop TV."
+    },
+    {
+     "id": "tv-ch-122-p02",
+     "title": "Night Grooves",
+     "genre": "Music",
+     "startOffsetSec": 5400,
+     "durationSec": 3600,
+     "synopsis": "Night Grooves on Loop TV."
+    },
+    {
+     "id": "tv-ch-122-p03",
+     "title": "Throwback Mix",
+     "genre": "Music",
+     "startOffsetSec": 9000,
+     "durationSec": 5400,
+     "synopsis": "Throwback Mix on Loop TV."
+    },
+    {
+     "id": "tv-ch-122-p04",
+     "title": "Night Grooves",
+     "genre": "Music",
+     "startOffsetSec": 14400,
+     "durationSec": 5400,
+     "synopsis": "Night Grooves on Loop TV."
+    },
+    {
+     "id": "tv-ch-122-p05",
+     "title": "Studio Unplugged",
+     "genre": "Music",
+     "startOffsetSec": 19800,
+     "durationSec": 1800,
+     "synopsis": "Studio Unplugged on Loop TV."
+    },
+    {
+     "id": "tv-ch-122-p06",
+     "title": "Studio Unplugged",
+     "genre": "Music",
+     "startOffsetSec": 21600,
+     "durationSec": 2700,
+     "synopsis": "Studio Unplugged on Loop TV."
+    },
+    {
+     "id": "tv-ch-122-p07",
+     "title": "Throwback Mix",
+     "genre": "Music",
+     "startOffsetSec": 24300,
+     "durationSec": 1800,
+     "synopsis": "Throwback Mix on Loop TV."
+    },
+    {
+     "id": "tv-ch-122-p08",
+     "title": "Top 40 Countdown",
+     "genre": "Music",
+     "startOffsetSec": 26100,
+     "durationSec": 1800,
+     "synopsis": "Top 40 Countdown on Loop TV."
+    },
+    {
+     "id": "tv-ch-122-p09",
+     "title": "Live Sessions",
+     "genre": "Music",
+     "startOffsetSec": 27900,
+     "durationSec": 2700,
+     "synopsis": "Live Sessions on Loop TV."
+    },
+    {
+     "id": "tv-ch-122-p10",
+     "title": "Night Grooves",
+     "genre": "Music",
+     "startOffsetSec": 30600,
+     "durationSec": 2700,
+     "synopsis": "Night Grooves on Loop TV."
+    },
+    {
+     "id": "tv-ch-122-p11",
+     "title": "Throwback Mix",
+     "genre": "Music",
+     "startOffsetSec": 33300,
+     "durationSec": 1800,
+     "synopsis": "Throwback Mix on Loop TV."
+    },
+    {
+     "id": "tv-ch-122-p12",
+     "title": "Night Grooves",
+     "genre": "Music",
+     "startOffsetSec": 35100,
+     "durationSec": 2700,
+     "synopsis": "Night Grooves on Loop TV."
+    },
+    {
+     "id": "tv-ch-122-p13",
+     "title": "Throwback Mix",
+     "genre": "Music",
+     "startOffsetSec": 37800,
+     "durationSec": 3600,
+     "synopsis": "Throwback Mix on Loop TV."
+    },
+    {
+     "id": "tv-ch-122-p14",
+     "title": "Throwback Mix",
+     "genre": "Music",
+     "startOffsetSec": 41400,
+     "durationSec": 3600,
+     "synopsis": "Throwback Mix on Loop TV."
+    }
+   ]
+  },
+  {
+   "id": "tv-ch-123",
+   "space": "TV",
+   "categoryId": "tv-live",
+   "type": "CHANNEL",
+   "title": "Encore",
+   "altTitle": "ENC",
+   "year": 2026,
+   "rating": 6.8,
+   "maturity": "TV-PG",
+   "genres": [
+    "Music"
+   ],
+   "synopsis": "Encore — 24/7 music channel.",
+   "poster": "images/logos/tv-ch-123.webp",
+   "backdrop": "images/backdrops/tv-ch-123.webp",
+   "logo": "images/logos/tv-ch-123.webp",
+   "dominantColor": "#671860",
+   "accentColor": "#E039DA",
+   "live": true,
+   "channelNumber": 123,
+   "channelGroup": "Music",
+   "sources": [
+    {
+     "url": "https://cph-p2p-msl.akamaized.net/hls/live/2000341/test/master.m3u8",
+     "kind": "HLS",
+     "label": "Live"
+    },
+    {
+     "url": "https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8",
+     "kind": "HLS",
+     "label": "Backup"
+    }
+   ],
+   "subtitles": [],
+   "programs": [
+    {
+     "id": "tv-ch-123-p01",
+     "title": "Night Grooves",
+     "genre": "Music",
+     "startOffsetSec": -900,
+     "durationSec": 5400,
+     "synopsis": "Night Grooves on Encore."
+    },
+    {
+     "id": "tv-ch-123-p02",
+     "title": "Throwback Mix",
+     "genre": "Music",
+     "startOffsetSec": 4500,
+     "durationSec": 2700,
+     "synopsis": "Throwback Mix on Encore."
+    },
+    {
+     "id": "tv-ch-123-p03",
+     "title": "Night Grooves",
+     "genre": "Music",
+     "startOffsetSec": 7200,
+     "durationSec": 3600,
+     "synopsis": "Night Grooves on Encore."
+    },
+    {
+     "id": "tv-ch-123-p04",
+     "title": "Studio Unplugged",
+     "genre": "Music",
+     "startOffsetSec": 10800,
+     "durationSec": 5400,
+     "synopsis": "Studio Unplugged on Encore."
+    },
+    {
+     "id": "tv-ch-123-p05",
+     "title": "Night Grooves",
+     "genre": "Music",
+     "startOffsetSec": 16200,
+     "durationSec": 2700,
+     "synopsis": "Night Grooves on Encore."
+    },
+    {
+     "id": "tv-ch-123-p06",
+     "title": "Night Grooves",
+     "genre": "Music",
+     "startOffsetSec": 18900,
+     "durationSec": 2700,
+     "synopsis": "Night Grooves on Encore."
+    },
+    {
+     "id": "tv-ch-123-p07",
+     "title": "Studio Unplugged",
+     "genre": "Music",
+     "startOffsetSec": 21600,
+     "durationSec": 1800,
+     "synopsis": "Studio Unplugged on Encore."
+    },
+    {
+     "id": "tv-ch-123-p08",
+     "title": "Night Grooves",
+     "genre": "Music",
+     "startOffsetSec": 23400,
+     "durationSec": 2700,
+     "synopsis": "Night Grooves on Encore."
+    },
+    {
+     "id": "tv-ch-123-p09",
+     "title": "Night Grooves",
+     "genre": "Music",
+     "startOffsetSec": 26100,
+     "durationSec": 2700,
+     "synopsis": "Night Grooves on Encore."
+    },
+    {
+     "id": "tv-ch-123-p10",
+     "title": "Throwback Mix",
+     "genre": "Music",
+     "startOffsetSec": 28800,
+     "durationSec": 3600,
+     "synopsis": "Throwback Mix on Encore."
+    },
+    {
+     "id": "tv-ch-123-p11",
+     "title": "Throwback Mix",
+     "genre": "Music",
+     "startOffsetSec": 32400,
+     "durationSec": 3600,
+     "synopsis": "Throwback Mix on Encore."
+    },
+    {
+     "id": "tv-ch-123-p12",
+     "title": "Throwback Mix",
+     "genre": "Music",
+     "startOffsetSec": 36000,
+     "durationSec": 5400,
+     "synopsis": "Throwback Mix on Encore."
+    },
+    {
+     "id": "tv-ch-123-p13",
+     "title": "Night Grooves",
+     "genre": "Music",
+     "startOffsetSec": 41400,
+     "durationSec": 3600,
+     "synopsis": "Night Grooves on Encore."
+    }
+   ]
+  },
+  {
+   "id": "tv-ch-124",
+   "space": "TV",
+   "categoryId": "tv-live",
+   "type": "CHANNEL",
+   "title": "Neon Beat",
+   "altTitle": "BEAT",
+   "year": 2026,
+   "rating": 7.1,
+   "maturity": "TV-14",
+   "genres": [
+    "Music"
+   ],
+   "synopsis": "Neon Beat — 24/7 music channel.",
+   "poster": "images/logos/tv-ch-124.webp",
+   "backdrop": "images/backdrops/tv-ch-124.webp",
+   "logo": "images/logos/tv-ch-124.webp",
+   "dominantColor": "#692371",
+   "accentColor": "#C44EE0",
+   "live": true,
+   "channelNumber": 124,
+   "channelGroup": "Music",
+   "sources": [
+    {
+     "url": "https://cph-p2p-msl.akamaized.net/hls/live/2000341/test/master.m3u8",
+     "kind": "HLS",
+     "label": "Live"
+    },
+    {
+     "url": "https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8",
+     "kind": "HLS",
+     "label": "Backup"
+    }
+   ],
+   "subtitles": [],
+   "programs": [
+    {
+     "id": "tv-ch-124-p01",
+     "title": "Top 40 Countdown",
+     "genre": "Music",
+     "startOffsetSec": 0,
+     "durationSec": 3600,
+     "synopsis": "Top 40 Countdown on Neon Beat."
+    },
+    {
+     "id": "tv-ch-124-p02",
+     "title": "Night Grooves",
+     "genre": "Music",
+     "startOffsetSec": 3600,
+     "durationSec": 3600,
+     "synopsis": "Night Grooves on Neon Beat."
+    },
+    {
+     "id": "tv-ch-124-p03",
+     "title": "Night Grooves",
+     "genre": "Music",
+     "startOffsetSec": 7200,
+     "durationSec": 3600,
+     "synopsis": "Night Grooves on Neon Beat."
+    },
+    {
+     "id": "tv-ch-124-p04",
+     "title": "Studio Unplugged",
+     "genre": "Music",
+     "startOffsetSec": 10800,
+     "durationSec": 3600,
+     "synopsis": "Studio Unplugged on Neon Beat."
+    },
+    {
+     "id": "tv-ch-124-p05",
+     "title": "Throwback Mix",
+     "genre": "Music",
+     "startOffsetSec": 14400,
+     "durationSec": 1800,
+     "synopsis": "Throwback Mix on Neon Beat."
+    },
+    {
+     "id": "tv-ch-124-p06",
+     "title": "Studio Unplugged",
+     "genre": "Music",
+     "startOffsetSec": 16200,
+     "durationSec": 2700,
+     "synopsis": "Studio Unplugged on Neon Beat."
+    },
+    {
+     "id": "tv-ch-124-p07",
+     "title": "Live Sessions",
+     "genre": "Music",
+     "startOffsetSec": 18900,
+     "durationSec": 5400,
+     "synopsis": "Live Sessions on Neon Beat."
+    },
+    {
+     "id": "tv-ch-124-p08",
+     "title": "Night Grooves",
+     "genre": "Music",
+     "startOffsetSec": 24300,
+     "durationSec": 1800,
+     "synopsis": "Night Grooves on Neon Beat."
+    },
+    {
+     "id": "tv-ch-124-p09",
+     "title": "Live Sessions",
+     "genre": "Music",
+     "startOffsetSec": 26100,
+     "durationSec": 3600,
+     "synopsis": "Live Sessions on Neon Beat."
+    },
+    {
+     "id": "tv-ch-124-p10",
+     "title": "Studio Unplugged",
+     "genre": "Music",
+     "startOffsetSec": 29700,
+     "durationSec": 3600,
+     "synopsis": "Studio Unplugged on Neon Beat."
+    },
+    {
+     "id": "tv-ch-124-p11",
+     "title": "Live Sessions",
+     "genre": "Music",
+     "startOffsetSec": 33300,
+     "durationSec": 2700,
+     "synopsis": "Live Sessions on Neon Beat."
+    },
+    {
+     "id": "tv-ch-124-p12",
+     "title": "Live Sessions",
+     "genre": "Music",
+     "startOffsetSec": 36000,
+     "durationSec": 5400,
+     "synopsis": "Live Sessions on Neon Beat."
+    },
+    {
+     "id": "tv-ch-124-p13",
+     "title": "Night Grooves",
+     "genre": "Music",
+     "startOffsetSec": 41400,
+     "durationSec": 2700,
+     "synopsis": "Night Grooves on Neon Beat."
+    }
+   ]
+  },
+  {
+   "id": "tv-ch-125",
+   "space": "TV",
+   "categoryId": "tv-live",
+   "type": "CHANNEL",
+   "title": "Velour Live",
+   "altTitle": "VLR",
+   "year": 2026,
+   "rating": 8.8,
+   "maturity": "TV-PG",
+   "genres": [
+    "Music"
+   ],
+   "synopsis": "Velour Live — 24/7 music channel.",
+   "poster": "images/logos/tv-ch-125.webp",
+   "backdrop": "images/backdrops/tv-ch-125.webp",
+   "logo": "images/logos/tv-ch-125.webp",
+   "dominantColor": "#5E1E45",
+   "accentColor": "#E04EB4",
+   "live": true,
+   "channelNumber": 125,
+   "channelGroup": "Music",
+   "sources": [
+    {
+     "url": "https://cph-p2p-msl.akamaized.net/hls/live/2000341/test/master.m3u8",
+     "kind": "HLS",
+     "label": "Live"
+    },
+    {
+     "url": "https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8",
+     "kind": "HLS",
+     "label": "Backup"
+    }
+   ],
+   "subtitles": [],
+   "programs": [
+    {
+     "id": "tv-ch-125-p01",
+     "title": "Studio Unplugged",
+     "genre": "Music",
+     "startOffsetSec": -1800,
+     "durationSec": 3600,
+     "synopsis": "Studio Unplugged on Velour Live."
+    },
+    {
+     "id": "tv-ch-125-p02",
+     "title": "Throwback Mix",
+     "genre": "Music",
+     "startOffsetSec": 1800,
+     "durationSec": 1800,
+     "synopsis": "Throwback Mix on Velour Live."
+    },
+    {
+     "id": "tv-ch-125-p03",
+     "title": "Top 40 Countdown",
+     "genre": "Music",
+     "startOffsetSec": 3600,
+     "durationSec": 1800,
+     "synopsis": "Top 40 Countdown on Velour Live."
+    },
+    {
+     "id": "tv-ch-125-p04",
+     "title": "Night Grooves",
+     "genre": "Music",
+     "startOffsetSec": 5400,
+     "durationSec": 1800,
+     "synopsis": "Night Grooves on Velour Live."
+    },
+    {
+     "id": "tv-ch-125-p05",
+     "title": "Live Sessions",
+     "genre": "Music",
+     "startOffsetSec": 7200,
+     "durationSec": 5400,
+     "synopsis": "Live Sessions on Velour Live."
+    },
+    {
+     "id": "tv-ch-125-p06",
+     "title": "Top 40 Countdown",
+     "genre": "Music",
+     "startOffsetSec": 12600,
+     "durationSec": 1800,
+     "synopsis": "Top 40 Countdown on Velour Live."
+    },
+    {
+     "id": "tv-ch-125-p07",
+     "title": "Live Sessions",
+     "genre": "Music",
+     "startOffsetSec": 14400,
+     "durationSec": 3600,
+     "synopsis": "Live Sessions on Velour Live."
+    },
+    {
+     "id": "tv-ch-125-p08",
+     "title": "Live Sessions",
+     "genre": "Music",
+     "startOffsetSec": 18000,
+     "durationSec": 2700,
+     "synopsis": "Live Sessions on Velour Live."
+    },
+    {
+     "id": "tv-ch-125-p09",
+     "title": "Throwback Mix",
+     "genre": "Music",
+     "startOffsetSec": 20700,
+     "durationSec": 2700,
+     "synopsis": "Throwback Mix on Velour Live."
+    },
+    {
+     "id": "tv-ch-125-p10",
+     "title": "Night Grooves",
+     "genre": "Music",
+     "startOffsetSec": 23400,
+     "durationSec": 2700,
+     "synopsis": "Night Grooves on Velour Live."
+    },
+    {
+     "id": "tv-ch-125-p11",
+     "title": "Night Grooves",
+     "genre": "Music",
+     "startOffsetSec": 26100,
+     "durationSec": 5400,
+     "synopsis": "Night Grooves on Velour Live."
+    },
+    {
+     "id": "tv-ch-125-p12",
+     "title": "Top 40 Countdown",
+     "genre": "Music",
+     "startOffsetSec": 31500,
+     "durationSec": 3600,
+     "synopsis": "Top 40 Countdown on Velour Live."
+    },
+    {
+     "id": "tv-ch-125-p13",
+     "title": "Throwback Mix",
+     "genre": "Music",
+     "startOffsetSec": 35100,
+     "durationSec": 2700,
+     "synopsis": "Throwback Mix on Velour Live."
+    },
+    {
+     "id": "tv-ch-125-p14",
+     "title": "Top 40 Countdown",
+     "genre": "Music",
+     "startOffsetSec": 37800,
+     "durationSec": 2700,
+     "synopsis": "Top 40 Countdown on Velour Live."
+    },
+    {
+     "id": "tv-ch-125-p15",
+     "title": "Night Grooves",
+     "genre": "Music",
+     "startOffsetSec": 40500,
+     "durationSec": 3600,
+     "synopsis": "Night Grooves on Velour Live."
+    }
+   ]
+  },
+  {
+   "id": "tv-ch-126",
+   "space": "TV",
+   "categoryId": "tv-live",
+   "type": "CHANNEL",
+   "title": "Arena 1",
+   "altTitle": "A1",
+   "year": 2026,
+   "rating": 7.3,
+   "maturity": "TV-14",
+   "genres": [
+    "Sports"
+   ],
+   "synopsis": "Arena 1 — 24/7 sports channel.",
+   "poster": "images/logos/tv-ch-126.webp",
+   "backdrop": "images/backdrops/tv-ch-126.webp",
+   "logo": "images/logos/tv-ch-126.webp",
+   "dominantColor": "#14400E",
+   "accentColor": "#79E047",
+   "live": true,
+   "channelNumber": 126,
+   "channelGroup": "Sports",
+   "sources": [
+    {
+     "url": "https://cph-p2p-msl.akamaized.net/hls/live/2000341/test/master.m3u8",
+     "kind": "HLS",
+     "label": "Live"
+    },
+    {
+     "url": "https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8",
+     "kind": "HLS",
+     "label": "Backup"
+    }
+   ],
+   "subtitles": [],
+   "programs": [
+    {
+     "id": "tv-ch-126-p01",
+     "title": "Locker Room",
+     "genre": "Sports",
+     "startOffsetSec": -1800,
+     "durationSec": 5400,
+     "synopsis": "Locker Room on Arena 1."
+    },
+    {
+     "id": "tv-ch-126-p02",
+     "title": "Pre-Game Show",
+     "genre": "Sports",
+     "startOffsetSec": 3600,
+     "durationSec": 3600,
+     "synopsis": "Pre-Game Show on Arena 1."
+    },
+    {
+     "id": "tv-ch-126-p03",
+     "title": "Motorsport Weekly",
+     "genre": "Sports",
+     "startOffsetSec": 7200,
+     "durationSec": 1800,
+     "synopsis": "Motorsport Weekly on Arena 1."
+    },
+    {
+     "id": "tv-ch-126-p04",
+     "title": "Match Day Live",
+     "genre": "Sports",
+     "startOffsetSec": 9000,
+     "durationSec": 3600,
+     "synopsis": "Match Day Live on Arena 1."
+    },
+    {
+     "id": "tv-ch-126-p05",
+     "title": "Court Side",
+     "genre": "Sports",
+     "startOffsetSec": 12600,
+     "durationSec": 3600,
+     "synopsis": "Court Side on Arena 1."
+    },
+    {
+     "id": "tv-ch-126-p06",
+     "title": "Match Day Live",
+     "genre": "Sports",
+     "startOffsetSec": 16200,
+     "durationSec": 2700,
+     "synopsis": "Match Day Live on Arena 1."
+    },
+    {
+     "id": "tv-ch-126-p07",
+     "title": "Court Side",
+     "genre": "Sports",
+     "startOffsetSec": 18900,
+     "durationSec": 2700,
+     "synopsis": "Court Side on Arena 1."
+    },
+    {
+     "id": "tv-ch-126-p08",
+     "title": "Locker Room",
+     "genre": "Sports",
+     "startOffsetSec": 21600,
+     "durationSec": 2700,
+     "synopsis": "Locker Room on Arena 1."
+    },
+    {
+     "id": "tv-ch-126-p09",
+     "title": "Highlights Reel",
+     "genre": "Sports",
+     "startOffsetSec": 24300,
+     "durationSec": 2700,
+     "synopsis": "Highlights Reel on Arena 1."
+    },
+    {
+     "id": "tv-ch-126-p10",
+     "title": "Court Side",
+     "genre": "Sports",
+     "startOffsetSec": 27000,
+     "durationSec": 3600,
+     "synopsis": "Court Side on Arena 1."
+    },
+    {
+     "id": "tv-ch-126-p11",
+     "title": "Highlights Reel",
+     "genre": "Sports",
+     "startOffsetSec": 30600,
+     "durationSec": 5400,
+     "synopsis": "Highlights Reel on Arena 1."
+    },
+    {
+     "id": "tv-ch-126-p12",
+     "title": "Highlights Reel",
+     "genre": "Sports",
+     "startOffsetSec": 36000,
+     "durationSec": 5400,
+     "synopsis": "Highlights Reel on Arena 1."
+    },
+    {
+     "id": "tv-ch-126-p13",
+     "title": "Match Day Live",
+     "genre": "Sports",
+     "startOffsetSec": 41400,
+     "durationSec": 3600,
+     "synopsis": "Match Day Live on Arena 1."
+    }
+   ]
+  },
+  {
+   "id": "tv-ch-127",
+   "space": "TV",
+   "categoryId": "tv-live",
+   "type": "CHANNEL",
+   "title": "Arena 2",
+   "altTitle": "A2",
+   "year": 2026,
+   "rating": 8.0,
+   "maturity": "TV-PG",
+   "genres": [
+    "Sports"
+   ],
+   "synopsis": "Arena 2 — 24/7 sports channel.",
+   "poster": "images/logos/tv-ch-127.webp",
+   "backdrop": "images/backdrops/tv-ch-127.webp",
+   "logo": "images/logos/tv-ch-127.webp",
+   "dominantColor": "#104E24",
+   "accentColor": "#33E067",
+   "live": true,
+   "channelNumber": 127,
+   "channelGroup": "Sports",
+   "sources": [
+    {
+     "url": "https://cph-p2p-msl.akamaized.net/hls/live/2000341/test/master.m3u8",
+     "kind": "HLS",
+     "label": "Live"
+    },
+    {
+     "url": "https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8",
+     "kind": "HLS",
+     "label": "Backup"
+    }
+   ],
+   "subtitles": [],
+   "programs": [
+    {
+     "id": "tv-ch-127-p01",
+     "title": "Highlights Reel",
+     "genre": "Sports",
+     "startOffsetSec": -1800,
+     "durationSec": 1800,
+     "synopsis": "Highlights Reel on Arena 2."
+    },
+    {
+     "id": "tv-ch-127-p02",
+     "title": "Pre-Game Show",
+     "genre": "Sports",
+     "startOffsetSec": 0,
+     "durationSec": 3600,
+     "synopsis": "Pre-Game Show on Arena 2."
+    },
+    {
+     "id": "tv-ch-127-p03",
+     "title": "Match Day Live",
+     "genre": "Sports",
+     "startOffsetSec": 3600,
+     "durationSec": 2700,
+     "synopsis": "Match Day Live on Arena 2."
+    },
+    {
+     "id": "tv-ch-127-p04",
+     "title": "Match Day Live",
+     "genre": "Sports",
+     "startOffsetSec": 6300,
+     "durationSec": 3600,
+     "synopsis": "Match Day Live on Arena 2."
+    },
+    {
+     "id": "tv-ch-127-p05",
+     "title": "Court Side",
+     "genre": "Sports",
+     "startOffsetSec": 9900,
+     "durationSec": 5400,
+     "synopsis": "Court Side on Arena 2."
+    },
+    {
+     "id": "tv-ch-127-p06",
+     "title": "Locker Room",
+     "genre": "Sports",
+     "startOffsetSec": 15300,
+     "durationSec": 5400,
+     "synopsis": "Locker Room on Arena 2."
+    },
+    {
+     "id": "tv-ch-127-p07",
+     "title": "Match Day Live",
+     "genre": "Sports",
+     "startOffsetSec": 20700,
+     "durationSec": 3600,
+     "synopsis": "Match Day Live on Arena 2."
+    },
+    {
+     "id": "tv-ch-127-p08",
+     "title": "Match Day Live",
+     "genre": "Sports",
+     "startOffsetSec": 24300,
+     "durationSec": 5400,
+     "synopsis": "Match Day Live on Arena 2."
+    },
+    {
+     "id": "tv-ch-127-p09",
+     "title": "Motorsport Weekly",
+     "genre": "Sports",
+     "startOffsetSec": 29700,
+     "durationSec": 3600,
+     "synopsis": "Motorsport Weekly on Arena 2."
+    },
+    {
+     "id": "tv-ch-127-p10",
+     "title": "Highlights Reel",
+     "genre": "Sports",
+     "startOffsetSec": 33300,
+     "durationSec": 5400,
+     "synopsis": "Highlights Reel on Arena 2."
+    },
+    {
+     "id": "tv-ch-127-p11",
+     "title": "Highlights Reel",
+     "genre": "Sports",
+     "startOffsetSec": 38700,
+     "durationSec": 2700,
+     "synopsis": "Highlights Reel on Arena 2."
+    },
+    {
+     "id": "tv-ch-127-p12",
+     "title": "Match Day Live",
+     "genre": "Sports",
+     "startOffsetSec": 41400,
+     "durationSec": 3600,
+     "synopsis": "Match Day Live on Arena 2."
+    }
+   ]
+  },
+  {
+   "id": "tv-ch-128",
+   "space": "TV",
+   "categoryId": "tv-live",
+   "type": "CHANNEL",
+   "title": "Pitchside",
+   "altTitle": "PITCH",
+   "year": 2026,
+   "rating": 7.8,
+   "maturity": "TV-14",
+   "genres": [
+    "Sports"
+   ],
+   "synopsis": "Pitchside — 24/7 sports channel.",
+   "poster": "images/logos/tv-ch-128.webp",
+   "backdrop": "images/backdrops/tv-ch-128.webp",
+   "logo": "images/logos/tv-ch-128.webp",
+   "dominantColor": "#1E4F22",
+   "accentColor": "#7CE04E",
+   "live": true,
+   "channelNumber": 128,
+   "channelGroup": "Sports",
+   "sources": [
+    {
+     "url": "https://cph-p2p-msl.akamaized.net/hls/live/2000341/test/master.m3u8",
+     "kind": "HLS",
+     "label": "Live"
+    },
+    {
+     "url": "https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8",
+     "kind": "HLS",
+     "label": "Backup"
+    }
+   ],
+   "subtitles": [],
+   "programs": [
+    {
+     "id": "tv-ch-128-p01",
+     "title": "Motorsport Weekly",
+     "genre": "Sports",
+     "startOffsetSec": 0,
+     "durationSec": 3600,
+     "synopsis": "Motorsport Weekly on Pitchside."
+    },
+    {
+     "id": "tv-ch-128-p02",
+     "title": "Locker Room",
+     "genre": "Sports",
+     "startOffsetSec": 3600,
+     "durationSec": 2700,
+     "synopsis": "Locker Room on Pitchside."
+    },
+    {
+     "id": "tv-ch-128-p03",
+     "title": "Court Side",
+     "genre": "Sports",
+     "startOffsetSec": 6300,
+     "durationSec": 5400,
+     "synopsis": "Court Side on Pitchside."
+    },
+    {
+     "id": "tv-ch-128-p04",
+     "title": "Highlights Reel",
+     "genre": "Sports",
+     "startOffsetSec": 11700,
+     "durationSec": 1800,
+     "synopsis": "Highlights Reel on Pitchside."
+    },
+    {
+     "id": "tv-ch-128-p05",
+     "title": "Court Side",
+     "genre": "Sports",
+     "startOffsetSec": 13500,
+     "durationSec": 3600,
+     "synopsis": "Court Side on Pitchside."
+    },
+    {
+     "id": "tv-ch-128-p06",
+     "title": "Highlights Reel",
+     "genre": "Sports",
+     "startOffsetSec": 17100,
+     "durationSec": 5400,
+     "synopsis": "Highlights Reel on Pitchside."
+    },
+    {
+     "id": "tv-ch-128-p07",
+     "title": "Court Side",
+     "genre": "Sports",
+     "startOffsetSec": 22500,
+     "durationSec": 3600,
+     "synopsis": "Court Side on Pitchside."
+    },
+    {
+     "id": "tv-ch-128-p08",
+     "title": "Court Side",
+     "genre": "Sports",
+     "startOffsetSec": 26100,
+     "durationSec": 2700,
+     "synopsis": "Court Side on Pitchside."
+    },
+    {
+     "id": "tv-ch-128-p09",
+     "title": "Highlights Reel",
+     "genre": "Sports",
+     "startOffsetSec": 28800,
+     "durationSec": 2700,
+     "synopsis": "Highlights Reel on Pitchside."
+    },
+    {
+     "id": "tv-ch-128-p10",
+     "title": "Highlights Reel",
+     "genre": "Sports",
+     "startOffsetSec": 31500,
+     "durationSec": 5400,
+     "synopsis": "Highlights Reel on Pitchside."
+    },
+    {
+     "id": "tv-ch-128-p11",
+     "title": "Locker Room",
+     "genre": "Sports",
+     "startOffsetSec": 36900,
+     "durationSec": 2700,
+     "synopsis": "Locker Room on Pitchside."
+    },
+    {
+     "id": "tv-ch-128-p12",
+     "title": "Motorsport Weekly",
+     "genre": "Sports",
+     "startOffsetSec": 39600,
+     "durationSec": 1800,
+     "synopsis": "Motorsport Weekly on Pitchside."
+    },
+    {
+     "id": "tv-ch-128-p13",
+     "title": "Court Side",
+     "genre": "Sports",
+     "startOffsetSec": 41400,
+     "durationSec": 1800,
+     "synopsis": "Court Side on Pitchside."
+    }
+   ]
+  },
+  {
+   "id": "tv-ch-129",
+   "space": "TV",
+   "categoryId": "tv-live",
+   "type": "CHANNEL",
+   "title": "Fastlane Motors",
+   "altTitle": "FAST",
+   "year": 2026,
+   "rating": 8.7,
+   "maturity": "TV-14",
+   "genres": [
+    "Sports"
+   ],
+   "synopsis": "Fastlane Motors — 24/7 sports channel.",
+   "poster": "images/logos/tv-ch-129.webp",
+   "backdrop": "images/backdrops/tv-ch-129.webp",
+   "logo": "images/logos/tv-ch-129.webp",
+   "dominantColor": "#324E13",
+   "accentColor": "#9EE03F",
+   "live": true,
+   "channelNumber": 129,
+   "channelGroup": "Sports",
+   "sources": [
+    {
+     "url": "https://cph-p2p-msl.akamaized.net/hls/live/2000341/test/master.m3u8",
+     "kind": "HLS",
+     "label": "Live"
+    },
+    {
+     "url": "https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8",
+     "kind": "HLS",
+     "label": "Backup"
+    }
+   ],
+   "subtitles": [],
+   "programs": [
+    {
+     "id": "tv-ch-129-p01",
+     "title": "Locker Room",
+     "genre": "Sports",
+     "startOffsetSec": 0,
+     "durationSec": 3600,
+     "synopsis": "Locker Room on Fastlane Motors."
+    },
+    {
+     "id": "tv-ch-129-p02",
+     "title": "Locker Room",
+     "genre": "Sports",
+     "startOffsetSec": 3600,
+     "durationSec": 3600,
+     "synopsis": "Locker Room on Fastlane Motors."
+    },
+    {
+     "id": "tv-ch-129-p03",
+     "title": "Match Day Live",
+     "genre": "Sports",
+     "startOffsetSec": 7200,
+     "durationSec": 2700,
+     "synopsis": "Match Day Live on Fastlane Motors."
+    },
+    {
+     "id": "tv-ch-129-p04",
+     "title": "Highlights Reel",
+     "genre": "Sports",
+     "startOffsetSec": 9900,
+     "durationSec": 3600,
+     "synopsis": "Highlights Reel on Fastlane Motors."
+    },
+    {
+     "id": "tv-ch-129-p05",
+     "title": "Motorsport Weekly",
+     "genre": "Sports",
+     "startOffsetSec": 13500,
+     "durationSec": 3600,
+     "synopsis": "Motorsport Weekly on Fastlane Motors."
+    },
+    {
+     "id": "tv-ch-129-p06",
+     "title": "Motorsport Weekly",
+     "genre": "Sports",
+     "startOffsetSec": 17100,
+     "durationSec": 3600,
+     "synopsis": "Motorsport Weekly on Fastlane Motors."
+    },
+    {
+     "id": "tv-ch-129-p07",
+     "title": "Highlights Reel",
+     "genre": "Sports",
+     "startOffsetSec": 20700,
+     "durationSec": 1800,
+     "synopsis": "Highlights Reel on Fastlane Motors."
+    },
+    {
+     "id": "tv-ch-129-p08",
+     "title": "Court Side",
+     "genre": "Sports",
+     "startOffsetSec": 22500,
+     "durationSec": 2700,
+     "synopsis": "Court Side on Fastlane Motors."
+    },
+    {
+     "id": "tv-ch-129-p09",
+     "title": "Motorsport Weekly",
+     "genre": "Sports",
+     "startOffsetSec": 25200,
+     "durationSec": 3600,
+     "synopsis": "Motorsport Weekly on Fastlane Motors."
+    },
+    {
+     "id": "tv-ch-129-p10",
+     "title": "Match Day Live",
+     "genre": "Sports",
+     "startOffsetSec": 28800,
+     "durationSec": 3600,
+     "synopsis": "Match Day Live on Fastlane Motors."
+    },
+    {
+     "id": "tv-ch-129-p11",
+     "title": "Match Day Live",
+     "genre": "Sports",
+     "startOffsetSec": 32400,
+     "durationSec": 1800,
+     "synopsis": "Match Day Live on Fastlane Motors."
+    },
+    {
+     "id": "tv-ch-129-p12",
+     "title": "Court Side",
+     "genre": "Sports",
+     "startOffsetSec": 34200,
+     "durationSec": 5400,
+     "synopsis": "Court Side on Fastlane Motors."
+    },
+    {
+     "id": "tv-ch-129-p13",
+     "title": "Highlights Reel",
+     "genre": "Sports",
+     "startOffsetSec": 39600,
+     "durationSec": 5400,
+     "synopsis": "Highlights Reel on Fastlane Motors."
+    }
+   ]
+  },
+  {
+   "id": "tv-ch-130",
+   "space": "TV",
+   "categoryId": "tv-live",
+   "type": "CHANNEL",
+   "title": "Court Vision",
+   "altTitle": "COURT",
+   "year": 2026,
+   "rating": 8.2,
+   "maturity": "TV-PG",
+   "genres": [
+    "Sports"
+   ],
+   "synopsis": "Court Vision — 24/7 sports channel.",
+   "poster": "images/logos/tv-ch-130.webp",
+   "backdrop": "images/backdrops/tv-ch-130.webp",
+   "logo": "images/logos/tv-ch-130.webp",
+   "dominantColor": "#593A1B",
+   "accentColor": "#E0753F",
+   "live": true,
+   "channelNumber": 130,
+   "channelGroup": "Sports",
+   "sources": [
+    {
+     "url": "https://cph-p2p-msl.akamaized.net/hls/live/2000341/test/master.m3u8",
+     "kind": "HLS",
+     "label": "Live"
+    },
+    {
+     "url": "https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8",
+     "kind": "HLS",
+     "label": "Backup"
+    }
+   ],
+   "subtitles": [],
+   "programs": [
+    {
+     "id": "tv-ch-130-p01",
+     "title": "Motorsport Weekly",
+     "genre": "Sports",
+     "startOffsetSec": -900,
+     "durationSec": 3600,
+     "synopsis": "Motorsport Weekly on Court Vision."
+    },
+    {
+     "id": "tv-ch-130-p02",
+     "title": "Court Side",
+     "genre": "Sports",
+     "startOffsetSec": 2700,
+     "durationSec": 1800,
+     "synopsis": "Court Side on Court Vision."
+    },
+    {
+     "id": "tv-ch-130-p03",
+     "title": "Match Day Live",
+     "genre": "Sports",
+     "startOffsetSec": 4500,
+     "durationSec": 2700,
+     "synopsis": "Match Day Live on Court Vision."
+    },
+    {
+     "id": "tv-ch-130-p04",
+     "title": "Locker Room",
+     "genre": "Sports",
+     "startOffsetSec": 7200,
+     "durationSec": 2700,
+     "synopsis": "Locker Room on Court Vision."
+    },
+    {
+     "id": "tv-ch-130-p05",
+     "title": "Court Side",
+     "genre": "Sports",
+     "startOffsetSec": 9900,
+     "durationSec": 5400,
+     "synopsis": "Court Side on Court Vision."
+    },
+    {
+     "id": "tv-ch-130-p06",
+     "title": "Motorsport Weekly",
+     "genre": "Sports",
+     "startOffsetSec": 15300,
+     "durationSec": 3600,
+     "synopsis": "Motorsport Weekly on Court Vision."
+    },
+    {
+     "id": "tv-ch-130-p07",
+     "title": "Match Day Live",
+     "genre": "Sports",
+     "startOffsetSec": 18900,
+     "durationSec": 1800,
+     "synopsis": "Match Day Live on Court Vision."
+    },
+    {
+     "id": "tv-ch-130-p08",
+     "title": "Court Side",
+     "genre": "Sports",
+     "startOffsetSec": 20700,
+     "durationSec": 3600,
+     "synopsis": "Court Side on Court Vision."
+    },
+    {
+     "id": "tv-ch-130-p09",
+     "title": "Locker Room",
+     "genre": "Sports",
+     "startOffsetSec": 24300,
+     "durationSec": 3600,
+     "synopsis": "Locker Room on Court Vision."
+    },
+    {
+     "id": "tv-ch-130-p10",
+     "title": "Match Day Live",
+     "genre": "Sports",
+     "startOffsetSec": 27900,
+     "durationSec": 2700,
+     "synopsis": "Match Day Live on Court Vision."
+    },
+    {
+     "id": "tv-ch-130-p11",
+     "title": "Motorsport Weekly",
+     "genre": "Sports",
+     "startOffsetSec": 30600,
+     "durationSec": 1800,
+     "synopsis": "Motorsport Weekly on Court Vision."
+    },
+    {
+     "id": "tv-ch-130-p12",
+     "title": "Highlights Reel",
+     "genre": "Sports",
+     "startOffsetSec": 32400,
+     "durationSec": 3600,
+     "synopsis": "Highlights Reel on Court Vision."
+    },
+    {
+     "id": "tv-ch-130-p13",
+     "title": "Match Day Live",
+     "genre": "Sports",
+     "startOffsetSec": 36000,
+     "durationSec": 5400,
+     "synopsis": "Match Day Live on Court Vision."
+    },
+    {
+     "id": "tv-ch-130-p14",
+     "title": "Match Day Live",
+     "genre": "Sports",
+     "startOffsetSec": 41400,
+     "durationSec": 5400,
+     "synopsis": "Match Day Live on Court Vision."
+    }
+   ]
+  },
+  {
+   "id": "tv-ev-001",
+   "space": "TV",
+   "categoryId": "tv-sports",
+   "type": "EVENT",
+   "title": "Kelstane Rovers vs Maelport Sharks",
+   "year": 2026,
+   "rating": 7.4,
+   "maturity": "TV-G",
+   "genres": [
+    "Football",
+    "Continental Football League"
+   ],
+   "synopsis": "Continental Football League: Kelstane Rovers take on Maelport Sharks.",
+   "poster": "images/posters/tv-ev-001.webp",
+   "backdrop": "images/backdrops/tv-ev-001.webp",
+   "dominantColor": "#215715",
+   "accentColor": "#D42CE0",
+   "live": true,
+   "league": "Continental Football League",
+   "status": "LIVE",
+   "startOffsetSec": -3600,
+   "homeTeam": {
+    "name": "Kelstane Rovers",
+    "short": "KSR",
+    "color": "#25D820",
+    "score": 1
+   },
+   "awayTeam": {
+    "name": "Maelport Sharks",
+    "short": "MPS",
+    "color": "#9620D8",
+    "score": 0
+   },
+   "durationSec": 7200,
+   "sources": [
+    {
+     "url": "https://cph-p2p-msl.akamaized.net/hls/live/2000341/test/master.m3u8",
+     "kind": "HLS",
+     "label": "Live"
+    }
+   ],
+   "subtitles": []
+  },
+  {
+   "id": "tv-ev-002",
+   "space": "TV",
+   "categoryId": "tv-sports",
+   "type": "EVENT",
+   "title": "Dunmere Wolves vs Halvik Storm",
+   "year": 2026,
+   "rating": 7.9,
+   "maturity": "TV-G",
+   "genres": [
+    "Basketball",
+    "Pro Hoops Circuit"
+   ],
+   "synopsis": "Pro Hoops Circuit: Dunmere Wolves take on Halvik Storm.",
+   "poster": "images/posters/tv-ev-002.webp",
+   "backdrop": "images/backdrops/tv-ev-002.webp",
+   "dominantColor": "#495A15",
+   "accentColor": "#B6E034",
+   "live": true,
+   "league": "Pro Hoops Circuit",
+   "status": "LIVE",
+   "startOffsetSec": -3600,
+   "homeTeam": {
+    "name": "Dunmere Wolves",
+    "short": "DMW",
+    "color": "#92D820",
+    "score": 92
+   },
+   "awayTeam": {
+    "name": "Halvik Storm",
+    "short": "HVS",
+    "color": "#2058D8",
+    "score": 97
+   },
+   "durationSec": 7200,
+   "sources": [
+    {
+     "url": "https://cph-p2p-msl.akamaized.net/hls/live/2000341/test/master.m3u8",
+     "kind": "HLS",
+     "label": "Live"
+    }
+   ],
+   "subtitles": []
+  },
+  {
+   "id": "tv-ev-003",
+   "space": "TV",
+   "categoryId": "tv-sports",
+   "type": "EVENT",
+   "title": "Cindral Blaze vs Halvik Comets",
+   "year": 2026,
+   "rating": 7.8,
+   "maturity": "TV-G",
+   "genres": [
+    "Cricket",
+    "Super Cricket Series"
+   ],
+   "synopsis": "Super Cricket Series: Cindral Blaze take on Halvik Comets.",
+   "poster": "images/posters/tv-ev-003.webp",
+   "backdrop": "images/backdrops/tv-ev-003.webp",
+   "dominantColor": "#124923",
+   "accentColor": "#4EE06A",
+   "live": true,
+   "league": "Super Cricket Series",
+   "status": "LIVE",
+   "startOffsetSec": -1800,
+   "homeTeam": {
+    "name": "Cindral Blaze",
+    "short": "CDB",
+    "color": "#20D850",
+    "score": 162
+   },
+   "awayTeam": {
+    "name": "Halvik Comets",
+    "short": "HVC",
+    "color": "#D87320",
+    "score": 137
+   },
+   "durationSec": 7200,
+   "sources": [
+    {
+     "url": "https://cph-p2p-msl.akamaized.net/hls/live/2000341/test/master.m3u8",
+     "kind": "HLS",
+     "label": "Live"
+    }
+   ],
+   "subtitles": []
+  },
+  {
+   "id": "tv-ev-004",
+   "space": "TV",
+   "categoryId": "tv-sports",
+   "type": "EVENT",
+   "title": "Maelport Mariners vs Brannoch Kings",
+   "year": 2026,
+   "rating": 8.8,
+   "maturity": "TV-G",
+   "genres": [
+    "Rugby",
+    "Pacific Rugby Cup"
+   ],
+   "synopsis": "Pacific Rugby Cup: Maelport Mariners take on Brannoch Kings.",
+   "poster": "images/posters/tv-ev-004.webp",
+   "backdrop": "images/backdrops/tv-ev-004.webp",
+   "dominantColor": "#3B6416",
+   "accentColor": "#84E031",
+   "live": false,
+   "league": "Pacific Rugby Cup",
+   "status": "UPCOMING",
+   "startOffsetSec": 7200,
+   "homeTeam": {
+    "name": "Maelport Mariners",
+    "short": "MPM",
+    "color": "#4ED820",
+    "score": null
+   },
+   "awayTeam": {
+    "name": "Brannoch Kings",
+    "short": "BRK",
+    "color": "#3BD820",
+    "score": null
+   },
+   "durationSec": 7200,
+   "sources": [
+    {
+     "url": "https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8",
+     "kind": "HLS",
+     "label": "Preview"
+    }
+   ],
+   "subtitles": []
+  },
+  {
+   "id": "tv-ev-005",
+   "space": "TV",
+   "categoryId": "tv-sports",
+   "type": "EVENT",
+   "title": "Thornvale Stags vs Varrow Falcons",
+   "year": 2026,
+   "rating": 9.4,
+   "maturity": "TV-G",
+   "genres": [
+    "Football",
+    "Continental Football League"
+   ],
+   "synopsis": "Continental Football League: Thornvale Stags take on Varrow Falcons.",
+   "poster": "images/posters/tv-ev-005.webp",
+   "backdrop": "images/backdrops/tv-ev-005.webp",
+   "dominantColor": "#275828",
+   "accentColor": "#E0862F",
+   "live": false,
+   "league": "Continental Football League",
+   "status": "UPCOMING",
+   "startOffsetSec": 7200,
+   "homeTeam": {
+    "name": "Thornvale Stags",
+    "short": "TVS",
+    "color": "#20D857",
+    "score": null
+   },
+   "awayTeam": {
+    "name": "Varrow Falcons",
+    "short": "VRF",
+    "color": "#D88520",
+    "score": null
+   },
+   "durationSec": 7200,
+   "sources": [
+    {
+     "url": "https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8",
+     "kind": "HLS",
+     "label": "Preview"
+    }
+   ],
+   "subtitles": []
+  },
+  {
+   "id": "tv-ev-006",
+   "space": "TV",
+   "categoryId": "tv-sports",
+   "type": "EVENT",
+   "title": "Esk Hollow Owls vs Cindral Vipers",
+   "year": 2026,
+   "rating": 8.1,
+   "maturity": "TV-G",
+   "genres": [
+    "Basketball",
+    "Pro Hoops Circuit"
+   ],
+   "synopsis": "Pro Hoops Circuit: Esk Hollow Owls take on Cindral Vipers.",
+   "poster": "images/posters/tv-ev-006.webp",
+   "backdrop": "images/backdrops/tv-ev-006.webp",
+   "dominantColor": "#545213",
+   "accentColor": "#E0DB32",
+   "live": false,
+   "league": "Pro Hoops Circuit",
+   "status": "UPCOMING",
+   "startOffsetSec": 14400,
+   "homeTeam": {
+    "name": "Esk Hollow Owls",
+    "short": "EHO",
+    "color": "#20D8B4",
+    "score": null
+   },
+   "awayTeam": {
+    "name": "Cindral Vipers",
+    "short": "CDV",
+    "color": "#BFD820",
+    "score": null
+   },
+   "durationSec": 7200,
+   "sources": [
+    {
+     "url": "https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8",
+     "kind": "HLS",
+     "label": "Preview"
+    }
+   ],
+   "subtitles": []
+  },
+  {
+   "id": "tv-ev-007",
+   "space": "TV",
+   "categoryId": "tv-sports",
+   "type": "EVENT",
+   "title": "Quillon Hawks vs Varrow Titans",
+   "year": 2026,
+   "rating": 7.0,
+   "maturity": "TV-G",
+   "genres": [
+    "Cricket",
+    "Super Cricket Series"
+   ],
+   "synopsis": "Super Cricket Series: Quillon Hawks take on Varrow Titans.",
+   "poster": "images/posters/tv-ev-007.webp",
+   "backdrop": "images/backdrops/tv-ev-007.webp",
+   "dominantColor": "#3D255D",
+   "accentColor": "#8D4EE0",
+   "live": false,
+   "league": "Super Cricket Series",
+   "status": "UPCOMING",
+   "startOffsetSec": 21600,
+   "homeTeam": {
+    "name": "Quillon Hawks",
+    "short": "QLH",
+    "color": "#2D20D8",
+    "score": null
+   },
+   "awayTeam": {
+    "name": "Varrow Titans",
+    "short": "VRT",
+    "color": "#202CD8",
+    "score": null
+   },
+   "durationSec": 7200,
+   "sources": [
+    {
+     "url": "https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8",
+     "kind": "HLS",
+     "label": "Preview"
+    }
+   ],
+   "subtitles": []
+  },
+  {
+   "id": "tv-ev-008",
+   "space": "TV",
+   "categoryId": "tv-sports",
+   "type": "EVENT",
+   "title": "Orlune Royals vs Dunmere Bears",
+   "year": 2026,
+   "rating": 7.4,
+   "maturity": "TV-G",
+   "genres": [
+    "Rugby",
+    "Pacific Rugby Cup"
+   ],
+   "synopsis": "Pacific Rugby Cup: Orlune Royals take on Dunmere Bears.",
+   "poster": "images/posters/tv-ev-008.webp",
+   "backdrop": "images/backdrops/tv-ev-008.webp",
+   "dominantColor": "#491E10",
+   "accentColor": "#E0562C",
+   "live": false,
+   "league": "Pacific Rugby Cup",
+   "status": "FINISHED",
+   "startOffsetSec": -18000,
+   "homeTeam": {
+    "name": "Orlune Royals",
+    "short": "ORR",
+    "color": "#5CD820",
+    "score": 0
+   },
+   "awayTeam": {
+    "name": "Dunmere Bears",
+    "short": "DMB",
+    "color": "#D86620",
+    "score": 4
+   },
+   "durationSec": 7200,
+   "sources": [
+    {
+     "url": "https://media.w3.org/2010/05/sintel/trailer.mp4",
+     "kind": "MP4",
+     "label": "Full Replay"
+    }
+   ],
+   "subtitles": []
+  },
+  {
+   "id": "tv-ev-009",
+   "space": "TV",
+   "categoryId": "tv-sports",
+   "type": "EVENT",
+   "title": "Kelstane Lions vs Ostravel United",
+   "year": 2026,
+   "rating": 7.9,
+   "maturity": "TV-G",
+   "genres": [
+    "Football",
+    "Continental Football League"
+   ],
+   "synopsis": "Continental Football League: Kelstane Lions take on Ostravel United.",
+   "poster": "images/posters/tv-ev-009.webp",
+   "backdrop": "images/backdrops/tv-ev-009.webp",
+   "dominantColor": "#335E33",
+   "accentColor": "#E04AAD",
+   "live": false,
+   "league": "Continental Football League",
+   "status": "FINISHED",
+   "startOffsetSec": -18000,
+   "homeTeam": {
+    "name": "Kelstane Lions",
+    "short": "KSL",
+    "color": "#20D845",
+    "score": 2
+   },
+   "awayTeam": {
+    "name": "Ostravel United",
+    "short": "OSU",
+    "color": "#D820AE",
+    "score": 3
+   },
+   "durationSec": 7200,
+   "sources": [
+    {
+     "url": "https://media.w3.org/2010/05/sintel/trailer.mp4",
+     "kind": "MP4",
+     "label": "Full Replay"
+    }
+   ],
+   "subtitles": []
+  },
+  {
+   "id": "tv-ev-010",
+   "space": "TV",
+   "categoryId": "tv-sports",
+   "type": "EVENT",
+   "title": "Thornvale Rangers vs Orlune Tide",
+   "year": 2026,
+   "rating": 9.1,
+   "maturity": "TV-G",
+   "genres": [
+    "Basketball",
+    "Pro Hoops Circuit"
+   ],
+   "synopsis": "Pro Hoops Circuit: Thornvale Rangers take on Orlune Tide.",
+   "poster": "images/posters/tv-ev-010.webp",
+   "backdrop": "images/backdrops/tv-ev-010.webp",
+   "dominantColor": "#1B5024",
+   "accentColor": "#4BE064",
+   "live": false,
+   "league": "Pro Hoops Circuit",
+   "status": "FINISHED",
+   "startOffsetSec": -28800,
+   "homeTeam": {
+    "name": "Thornvale Rangers",
+    "short": "TVR",
+    "color": "#20D846",
+    "score": 175
+   },
+   "awayTeam": {
+    "name": "Orlune Tide",
+    "short": "ORT",
+    "color": "#20CDD8",
+    "score": 97
+   },
+   "durationSec": 7200,
+   "sources": [
+    {
+     "url": "https://media.w3.org/2010/05/sintel/trailer.mp4",
+     "kind": "MP4",
+     "label": "Full Replay"
+    }
+   ],
+   "subtitles": []
+  }
+ ]
+}

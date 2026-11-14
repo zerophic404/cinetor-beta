@@ -1,0 +1,42 @@
+# OS / editors
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.iml
+*.swp
+
+# Android / Gradle
+.gradle/
+build/
+local.properties
+captures/
+.externalNativeBuild/
+.cxx/
+*.apk
+*.aab
+*.keystore
+*.jks
+
+# Node / SvelteKit
+node_modules/
+.svelte-kit/
+web/build/
+web/.vercel/
+.env
+.env.*
+!.env.example
+npm-debug.log*
+
+# Rust / Tauri
+desktop/src-tauri/target/
+target/
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+
+# Generic outputs
+dist/
+out/
