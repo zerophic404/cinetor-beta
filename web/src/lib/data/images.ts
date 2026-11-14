@@ -57,7 +57,7 @@ export function imgAttrs(path: string, kind: ImageKind, tier: Tier, asset: (p: s
   if (isTmdbPath(path)) {
     const sizes = sizesFor(kind, tier);
     const srcset = sizes.map((s) => `${tmdbUrl(path, s)} ${s.slice(1)}w`).join(', ');
-    return { src: tmdbUrl(path, sizes[Math.min(1, sizes.length - 1)]), srcset, sizes: SIZES_ATTR[kind] };
+    return { sizes: SIZES_ATTR[kind], srcset, src: tmdbUrl(path, sizes[Math.min(1, sizes.length - 1)]) };
   }
   if (isAbsolute(path)) return { src: path };
   return { src: asset(path) };

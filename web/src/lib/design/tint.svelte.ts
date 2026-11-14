@@ -13,8 +13,21 @@ class TintStore {
     return this.source ? blendTint(this.source, t.colors.accent, t.tintStrength) : t.colors.accent;
   });
 
+  private pending: ReturnType<typeof setTimeout> | null = null;
+
   follow(color: string | null | undefined): void {
+    if (this.pending) clearTimeout(this.pending);
+    this.pending = null;
     this.source = color ?? null;
+  }
+
+  /** Debounced follow for hovered / focused cards (rapid pointer sweeps don't thrash the tint). */
+  followSoon(color: string | null | undefined, ms = 150): void {
+    if (this.pending) clearTimeout(this.pending);
+    this.pending = setTimeout(() => {
+      this.pending = null;
+      this.source = color ?? null;
+    }, ms);
   }
 }
 
