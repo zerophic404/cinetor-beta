@@ -5,18 +5,16 @@ Status: [x] done · [~] in progress / partial · [ ] not started
 Plan: docs/plans/2026-11-14-cinetor-master-plan.md · Decisions: docs/handoff/decisions.md · Phase notes: docs/handoff/phase-*.md
 
 ## Resume here
-- RULE (user): every green build → publish APK/exe/deb/AppImage to Releases of PUBLIC repo Ashrix404/cinetor-app (secret RELEASE_TOKEN). See decisions.md. Do this in android.yml now (Phase 2), desktop in Phase 9.
-- Current: Phase 2 (Android 2.0–2.3) + Web 8.3 player done (downloads next).
-- 15:21 relay cron interrupted. wip/phase-2 now at c4b9096: CI wired (emulator smoke+screenshots, public cinetor-app releases, gh-pages deploy, signing). Android CI RED: TmdbCatalogSource refs missing `RemoteSearch` interface. Web CI green on branch.
-- Partial work: branch `wip/phase-2` (commit 7ccf277) — TMDB source (android core/data/tmdb/, MockSourceProvider, Models changes, android.yml TMDB env, build.gradle) + web data utils (color.ts, images.ts, lru.ts, mock-sources.ts, types.ts). Not compiled yet. Next session: merge/rebase that branch into main work, finish tasks, CI green, then merge to main.
-- Last green main: 22615e7 (Ph1 review fixes), Android + Web CI green.
+- RULE (user): every green main build → publish installers to PUBLIC Ashrix404/cinetor-app releases (works: android-build-14). Desktop from Phase 9.
+- Current: Phase 3 Android on branch wip/phase-3 (+ Web 8.3 downloads in parallel). See docs/handoff/phase-2.md.
+- Last green main: 9231ed9 (Phase 2 merged). Site live https://ashrix404.github.io/cinetor-app/
 
 ## Phase checklist
 ### Phase 0 — setup, brand, mock  [x]
 - [x] 0.1 monorepo + CI · [x] 0.2 brand kit (64 assets) · [x] 0.3 tokens + mock catalog (267 items)
 ### Phase 1 — Android foundation  [x]
 - [x] 1.1 data layer · [x] 1.2 design system/3 themes/skeletons · [x] 1.3 perf tier · [x] 1.4 shell/nav/splash · [x] review fixes
-### Phase 2 — Android content  [~]
+### Phase 2 — Android content  [x]
 - [x] 2.0 TMDB source (HybridCatalog: TMDB video spaces, mock fallback/isolated) · [x] 2.1 SpaceScreen (hero carousel, tabs, chips, rows, tint) · [x] 2.2 Details + skeleton (warm hook, Play+Ready dot, Download placeholder) · [x] 2.3 Search (in-mem index, DataStore history/profile, TMDB merge, LRU100) · [x] CI emulator smoke + screenshots
 ### Phase 3 — Player + downloads  [ ]
 - [ ] 3.1 core · [ ] 3.2 preloader/instant play · [ ] 3.3 UI portrait/landscape · [ ] 3.4 gestures · [ ] 3.5 subtitles · [ ] 3.6 floating/PiP/service · [ ] 3.7 download engine + UI
@@ -36,6 +34,7 @@ Plan: docs/plans/2026-11-14-cinetor-master-plan.md · Decisions: docs/handoff/de
 - [ ] release.yml v0.1.0 · [ ] QA matrix · [ ] final report to user
 
 ## Log (newest first, one line each)
+- 2026-11-14 16:55 Phase 2 merged to main 9231ed9; APK android-build-14 public; site deployed.
 - 2026-11-14 16:35 Android 2.1 + 2.2 done on wip/phase-2 (ed1e761..76b6f89), Android CI green incl. emulator smoke: https://github.com/Ashrix404/cinetor/actions/runs/43585743790 (also 43584661105). 62 unit tests (new: 12 space/hero/tint + 7 details/preloader). Screenshots reviewed (home hero/tabs/chips/rows, anime, drama, details+Ready dot, download sheet, series tab swap) OK. Deviations: PlaybackPreloader = interface + SimulatedPlaybackPreloader (timer readiness) until 3.2; My List in-memory (AppContainer) until 5.1; CONTINUE/episode progress = deterministic mock; Play opens Details on hero / toast on Details until player; shared poster transition MID/HIGH only (LOW = fade+scale); smoke bottom-bar taps fixed (were hitting system nav bar).
 - 2026-11-14 16:20 Web 8.3 player part green on wip/phase-2 (5b2b4c1), run https://github.com/Ashrix404/cinetor/actions/runs/43584460543 . 85 vitest pass (28 new: gesture math, SRT→VTT/offset, preload latest-wins/abort/cancel, mini replaced single audio, resume/continueWatching isolation). Browser QA on CI artifact: preload buffers in park (Ready dot), Play moves same element (1 <video>), HLS quality list 184–1080p, double-tap +10/+20, hold 2×→restore, drag seek/volume/brightness, ext SRT load, keys, minimize→mini across routes, snap/expand/swipe-off, new Play replaces mini, Resume label. Deviations: autoplay blocked w/o user gesture → tap-to-play overlay; embedded stream subs no sync offset (native render, hint shown); Document PiP not done (video PiP only); shaka chunk (777 KB) also precached by SW glob; downloads pending.
 - 2026-11-14 15:55 Web 8.2 (Ph2-equivalent) green on wip/phase-2 (64f8689..b41d132), run https://github.com/Ashrix404/cinetor/actions/runs/43581335439 . 57 vitest pass. TMDB live verified on local preview of CI artifact (hero auto-advance, tint, details, episodes, search remote+typo, history). Details = /app/title?id= (query param, prerenderable); /app/watch = stub player (native MP4 only) until 8.3. Search worker + own prefix index (no FlexSearch dep). Continue progress = placeholder until playback history. Rows not truly virtualized (content-visibility only).
