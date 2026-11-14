@@ -151,6 +151,20 @@ describe('session', () => {
     expect(left).toEqual(['A']);
   });
 
+  it('rewarm after mini closes buffers the resolved details target', async () => {
+    const engine = new FakeEngine();
+    const preloader = new Preloader({ engine, startFor: async () => 0, dataSaver: () => false, sessionBusy: () => session.busy });
+    const session: Session = new Session({ engine, preloader, startFor: async () => 0 });
+    await session.play(media('A'));
+    session.minimize();
+    await preloader.preload(media('B'));
+    expect(get(preloader.readiness).B).toBe('resolved');
+    await session.stop();
+    await preloader.rewarm();
+    expect(engine.loadedKey).toBe('B');
+    expect(get(preloader.readiness).B).toBe('ready');
+  });
+
   it('expand same media keeps playback, stop unloads', async () => {
     const { engine, session } = rig();
     await session.play(media('A'));

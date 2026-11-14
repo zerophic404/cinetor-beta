@@ -137,6 +137,12 @@ export function wirePlayer(): void {
   document.addEventListener('visibilitychange', () => document.visibilityState === 'hidden' && flush());
   window.addEventListener('pagehide', flush);
   wireMediaSession();
+  // Mini closed while a details page is open → warm its Play target now.
+  let prevMode = session.snapshot.mode;
+  session.state.subscribe((s) => {
+    if (s.mode === 'hidden' && prevMode !== 'hidden') void preloader.rewarm();
+    prevMode = s.mode;
+  });
 }
 
 function positionState(v: HTMLVideoElement): void {

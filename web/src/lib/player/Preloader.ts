@@ -19,10 +19,13 @@ export class Preloader {
   private latest = new LatestWins();
   private prepared: string | null = null;
   private starts = new Map<string, number>();
+  private last: Media | null = null;
+  private lastState: Readiness | null = null;
 
   constructor(private deps: PreloaderDeps) {}
 
   private set(key: string, r: Readiness | null) {
+    if (this.last?.key === key) this.lastState = r;
     this.ready.update((m) => {
       if (!r) {
         if (!(key in m)) return m;
@@ -42,6 +45,7 @@ export class Preloader {
 
   preload(media: Media): Promise<void> {
     const { engine } = this.deps;
+    this.last = media;
     return this.latest
       .run(media.key, async (signal, isCurrent) => {
         this.set(media.key, 'resolving');
@@ -66,6 +70,12 @@ export class Preloader {
       });
   }
 
+  /** Session ended (mini closed): warm the latest details target that was only resolved while busy. */
+  rewarm(): Promise<void> | undefined {
+    if (this.last && this.lastState === 'resolved' && !this.deps.sessionBusy() && !this.deps.dataSaver()) return this.preload(this.last);
+    return undefined;
+  }
+
   /** Play pressed: true when the shared element already holds this media (instant start). */
   take(key: string): boolean {
     const hit = this.prepared === key && this.deps.engine.loadedKey === key;
@@ -79,6 +89,7 @@ export class Preloader {
     const k = key ?? this.latest.currentKey;
     if (!k) return;
     this.latest.cancel(k);
+    if (this.last?.key === k) this.last = null;
     if (this.prepared === k) this.prepared = null;
     this.set(k, null);
     if (this.deps.engine.loadedKey === k && !this.deps.sessionBusy()) void this.deps.engine.unload();
