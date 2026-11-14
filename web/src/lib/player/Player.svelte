@@ -173,7 +173,7 @@
   /** Live TV: channel up/down. ↑/↓ only zap while the controls are hidden (else volume / focus). */
   function onLiveKey(e: KeyboardEvent): boolean {
     if (!live || !onZap || e.defaultPrevented || e.ctrlKey || e.metaKey || e.altKey) return false;
-    const t = e.target as HTMLElement | null;
+    const t = e.target instanceof Element ? e.target : null;
     if (t?.closest('input, textarea, select, [contenteditable="true"]') || document.querySelector('dialog[open]')) return false;
     const k = e.key;
     let dir: 0 | 1 | -1 = 0;
@@ -324,8 +324,8 @@
   .live-badge {
     position: absolute;
     z-index: 4;
-    top: calc(12px + var(--safe-t, 0px));
-    right: 14px;
+    top: calc(56px + var(--safe-t, 0px));
+    left: 16px;
     display: flex;
     align-items: center;
     gap: 6px;
