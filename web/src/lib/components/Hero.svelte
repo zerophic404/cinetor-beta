@@ -93,6 +93,7 @@
   <section
     bind:this={el}
     class="hero"
+    role="region"
     aria-roledescription="carousel"
     aria-label="Featured"
     onpointerenter={(e) => e.pointerType === 'mouse' && ctrl?.pause('hover')}

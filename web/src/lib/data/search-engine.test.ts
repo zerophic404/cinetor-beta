@@ -101,7 +101,7 @@ describe('SearchEngine', () => {
   });
 
   it('typing fast inside the debounce window makes only one remote call', async () => {
-    const remote = vi.fn(async () => [] as Item[]);
+    const remote = vi.fn(async (_q: string, _s: AbortSignal) => [] as Item[]);
     const e = new SearchEngine({ scope: ['HOME'], remote, debounceMs: 30 });
     void e.search('d', () => {});
     void e.search('du', () => {});

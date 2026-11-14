@@ -97,7 +97,6 @@
           class="chip"
           role="tab"
           aria-selected={t.id === category.id}
-          aria-pressed={t.id === category.id}
           tabindex={t.id === category.id ? 0 : -1}
           onclick={() => selectTab(t.id)}
           onkeydown={(e) => tabKey(e, i)}>{t.label}</button
@@ -143,6 +142,11 @@
   }
   .tabs .chip {
     font-weight: 700;
+  }
+  .tabs .chip[aria-selected='true'] {
+    color: var(--on-accent);
+    background: linear-gradient(135deg, var(--accent), var(--accent-end));
+    box-shadow: 0 6px 18px -8px var(--accent-glow);
   }
   .genres {
     margin-top: 14px;
