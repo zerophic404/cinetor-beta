@@ -67,7 +67,7 @@ const NO_TRACKS: TrackInfo = { qualities: [], auto: true, activeHeight: null, au
 
 let shakaP: Promise<ShakaNS | null> | null = null;
 /** Lazy chunk: shaka is only downloaded the first time something is loaded. */
-function loadShaka(): Promise<ShakaNS | null> {
+export function loadShaka(): Promise<ShakaNS | null> {
   return (shakaP ??= import('shaka-player')
     .then((m) => {
       const mod = m as unknown as { default?: ShakaNS } & ShakaNS;
@@ -207,7 +207,8 @@ class Engine implements EngineLike {
         streaming: { bufferingGoal: opts.buffer ? 30 : 4, rebufferingGoal: 0.5, bufferBehind: 30 },
         abr: { enabled: true }
       });
-      await p.load(src.url, startSec > 0 ? startSec : null, MIME[src.kind]);
+      // offline: URIs (downloaded HLS/DASH) are resolved by shaka's offline scheme — no MIME hint.
+      await p.load(src.url, startSec > 0 ? startSec : null, src.url.startsWith('offline:') ? undefined : MIME[src.kind]);
     } else {
       // No MSE (old iOS): native element (Safari plays HLS natively).
       if (kind === 'shaka' && !(src.kind === 'HLS' && this.canPlay('application/vnd.apple.mpegurl'))) {

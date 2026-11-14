@@ -6,6 +6,8 @@
   import { perf } from '$lib/perf/tier.svelte';
   import type { TierOverride } from '$lib/perf/tier';
   import { repo, setSimulatedLatency } from '$lib/data/repo';
+  import { base } from '$app/paths';
+  import InstallButton from '$lib/pwa/InstallButton.svelte';
 
   const tiers: { v: TierOverride; l: string }[] = [
     { v: 'AUTO', l: 'Auto' },
@@ -26,6 +28,12 @@
       <p>Profile, library and settings arrive in the next phase.</p>
     </div>
   </header>
+
+  <a class="dl-link glass" href="{base}/app/downloads">
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M12 4v11m0 0l-4.5-4.5M12 15l4.5-4.5M5 19.5h14" /></svg>
+    <span><b>Downloads</b><small>Offline movies & episodes · storage</small></span>
+    <span aria-hidden="true">›</span>
+  </a>
 
   <section aria-labelledby="theme-h">
     <h2 id="theme-h" class="section-title">Theme</h2>
@@ -68,6 +76,8 @@
     </label>
   </section>
 
+  <div class="install"><InstallButton label="Install Cinetor app" /></div>
+
   <section class="about glass" aria-label="About">
     <Logo size={40} wordmark />
     <Credits />
@@ -93,6 +103,21 @@
     margin: 2px 0 0;
     color: var(--text-secondary);
     font-size: 0.88rem;
+  }
+  .dl-link {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    margin: 14px 16px 0;
+    padding: 14px 18px;
+    text-decoration: none;
+  }
+  .dl-link span:nth-child(2) {
+    flex: 1;
+    display: grid;
+  }
+  .dl-link small {
+    color: var(--text-secondary);
   }
   .themes {
     display: grid;
@@ -176,6 +201,9 @@
     width: 20px;
     height: 20px;
     accent-color: var(--accent);
+  }
+  .install {
+    margin: 18px 16px 0;
   }
   .about {
     display: grid;

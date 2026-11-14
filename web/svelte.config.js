@@ -18,6 +18,7 @@ const config = {
         '/app/title',
         '/app/watch',
         '/app/me',
+        '/app/downloads',
         '/app/anime',
         '/app/drama',
         '/app/tv',

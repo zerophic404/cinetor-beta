@@ -82,6 +82,8 @@
     if (!(to instanceof Node) || !el?.contains(to)) ctrl?.resume('focus');
   }
   function key(e: KeyboardEvent) {
+    // TV/remote mode: arrows move focus (spatial nav); slide change would destroy the focused link.
+    if (document.documentElement.dataset.tv) return;
     if (e.key === 'ArrowRight') ctrl?.next();
     else if (e.key === 'ArrowLeft') ctrl?.prev();
     else return;

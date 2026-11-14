@@ -10,6 +10,7 @@
   import { mediaFor, nextUp, session } from '$lib/player/controller';
   import { nextEpisode, type Media } from '$lib/player/sources';
   import Player from '$lib/player/Player.svelte';
+  import { downloads } from '$lib/download/manager.svelte';
 
   const id = $derived(page.url.searchParams.get('id') ?? '');
   const epId = $derived(page.url.searchParams.get('ep'));
@@ -31,17 +32,30 @@
     const ep = epId;
     let alive = true;
     status = 'loading';
-    catalog.item(want).then(
-      async (it) => {
+    catalog
+      .item(want)
+      .catch(() => undefined)
+      .then(async (found) => {
         if (!alive) return;
+        let it = found;
+        let stubEp: Episode | undefined;
         if (!it) {
-          status = 'missing';
+          // Offline / metadata unavailable: play a completed download from its stored record.
+          const stub = await downloads.offlineStub(want, ep ?? undefined);
+          if (!alive) return;
+          if (stub) {
+            it = stub.item;
+            stubEp = stub.episode;
+          }
+        }
+        if (!it) {
+          status = navigator.onLine === false ? 'error' : 'missing';
           return;
         }
         const itm: Item = it;
-        let episode: Episode | undefined;
+        let episode: Episode | undefined = stubEp;
         let loaded: Season[] = [];
-        if (it.seasons?.length) {
+        if (!stubEp && it.seasons?.length) {
           const s = (ep && (it.seasons.find((x) => x.episodes.some((e) => e.id === ep)) ?? it.seasons.find((x) => ep.includes(`-s${x.n}e`)))) || it.seasons[0];
           const eps = await episodesOf(it, s.n);
           if (!alive) return;
@@ -58,15 +72,15 @@
         }
         item = it;
         seasons = loaded;
-        const m = mediaFor(it, episode);
+        // Downloaded → play the offline copy (shaka offline URI / OPFS blob URL).
+        const m = await downloads.offlineMedia(mediaFor(it, episode));
+        if (!alive) return;
         media = m;
         status = 'ready';
         const nx = nextEpisode(loaded, episode?.id);
         nextUp.set(nx ? { title: `E${nx.n} · ${nx.title}`, go: () => goto(watchHref(itm.id, nx.id), { replaceState: true }) } : null);
         void session.play(m);
-      },
-      () => alive && (status = 'error')
-    );
+      });
     return () => {
       alive = false;
     };

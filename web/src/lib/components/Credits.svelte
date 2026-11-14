@@ -10,6 +10,12 @@
     <span aria-hidden="true">·</span>
     <a href={TELEGRAM_GROUP_URL} target="_blank" rel="noopener noreferrer">Telegram Group</a>
   </p>
+  <p class="tmdb">
+    <a href="https://www.themoviedb.org/" target="_blank" rel="noopener noreferrer" aria-label="TMDB">
+      <svg width="64" height="12" viewBox="0 0 120 22" aria-hidden="true"><rect width="120" height="22" rx="11" fill="#01b4e4" /><text x="60" y="15.5" text-anchor="middle" font-size="13" font-weight="800" font-family="system-ui, sans-serif" fill="#0d253f">TMDB</text></svg>
+    </a>
+    This product uses the TMDB API but is not endorsed or certified by TMDB.
+  </p>
 </div>
 
 <style>
@@ -37,5 +43,18 @@
     display: flex;
     justify-content: center;
     gap: 10px;
+  }
+  .tmdb {
+    margin-top: 12px;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    font-size: 0.75rem;
+    color: var(--text-tertiary);
+  }
+  .tmdb a {
+    display: inline-flex;
   }
 </style>
