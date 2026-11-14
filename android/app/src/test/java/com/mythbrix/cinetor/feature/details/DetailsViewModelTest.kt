@@ -14,7 +14,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.test.advanceTimeBy
-import kotlinx.coroutines.test.advanceUntilIdle
+import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
@@ -54,6 +54,13 @@ private class RecordingPreloader : PlaybackPreloader {
     }
 }
 
+/** advanceUntilIdle ignores backgroundScope work (coroutines-test ≥1.7) → advance virtual time instead. */
+@OptIn(ExperimentalCoroutinesApi::class)
+private fun TestScope.settle() {
+    advanceTimeBy(5_000)
+    runCurrent()
+}
+
 @OptIn(ExperimentalCoroutinesApi::class)
 class DetailsViewModelTest {
     private val catalogItems = listOf(
@@ -86,7 +93,7 @@ class DetailsViewModelTest {
         // warm starts immediately (in parallel with the item load), not after it
         assertEquals(listOf("a"), pre.warmed)
         assertTrue(h.state.value is DetailsUiState.Loading)
-        advanceUntilIdle()
+        settle()
         assertEquals(listOf("a"), pre.warmed) // not warmed twice
         h.leave()
         assertEquals(listOf("a"), pre.cancelled)
@@ -99,7 +106,7 @@ class DetailsViewModelTest {
         h.open("b")
         runCurrent()
         assertTrue(pre.warmed.isEmpty())
-        advanceUntilIdle()
+        settle()
         assertEquals(listOf("b"), pre.warmed)
     }
 
@@ -107,7 +114,7 @@ class DetailsViewModelTest {
     fun moreLikeThis_sameSpaceOnly() = runTest {
         val h = DetailsStateHolder(FakeCatalog(catalogItems), RecordingPreloader(), backgroundScope)
         h.open("a")
-        advanceUntilIdle()
+        settle()
         val ui = (h.state.value as DetailsUiState.Ready).ui
         assertFalse(ui.moreLoading)
         assertTrue(ui.moreLikeThis.isNotEmpty())
@@ -129,7 +136,7 @@ class DetailsViewModelTest {
         h.open("b")
         assertEquals(listOf("a"), pre.cancelled)
         assertEquals(listOf("a", "b"), pre.warmed)
-        advanceUntilIdle()
+        settle()
         assertEquals("b", (h.state.value as DetailsUiState.Ready).ui.item.id)
         assertEquals("b", h.currentId)
     }
@@ -139,7 +146,7 @@ class DetailsViewModelTest {
         val pre = RecordingPreloader()
         val h = DetailsStateHolder(FakeCatalog(catalogItems), pre, backgroundScope)
         h.open("a")
-        advanceUntilIdle()
+        settle()
         h.pauseWarm()
         assertEquals(listOf("a"), pre.cancelled)
         h.resumeWarm()
