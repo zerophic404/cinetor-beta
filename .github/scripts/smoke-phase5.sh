@@ -7,7 +7,16 @@ hide_kb() {
   sleep 1
 }
 
+# Emulator flake: system "Pixel Launcher isn't responding" dialog covers the app and breaks uiautomator lookups.
+dismiss_anr() {
+  adb shell uiautomator dump /sdcard/ui.xml >/dev/null 2>&1 || return 0
+  if adb shell cat /sdcard/ui.xml | grep -q "t responding"; then
+    echo "ANR dialog → Wait"; tap_text "Wait" || adb shell input keyevent KEYCODE_BACK; sleep 2
+  fi
+}
+
 echo "== phase 5: profiles =="
+dismiss_anr
 tap_desc "Open spaces" && sleep 1 && { tap_text "Video" || adb shell input keyevent KEYCODE_BACK; }; sleep 2
 adb shell input tap $(( W * 9 / 10 )) $BAR_Y; shot 70-me-profiles 3
 if tap_desc "Switch profile"; then
@@ -32,6 +41,7 @@ if tap_desc "Library"; then
 fi
 
 echo "== phase 5: settings =="
+dismiss_anr
 if tap_desc "Settings"; then
   shot 76-settings-top 2
   if tap_desc "Theme Ember"; then
@@ -43,6 +53,7 @@ if tap_desc "Settings"; then
 fi
 
 echo "== phase 5: about =="
+dismiss_anr
 if tap_desc "About"; then
   shot 79-about 4
   adb shell input keyevent KEYCODE_BACK; sleep 1
