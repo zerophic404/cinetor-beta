@@ -6,11 +6,15 @@ Plan: docs/plans/2026-11-14-cinetor-master-plan.md · Decisions: docs/handoff/de
 
 ## Resume here
 - RULE (user): every green main build → publish installers to PUBLIC Ashrix404/cinetor-app releases. Desktop from Phase 9.
-- Phase 3 DONE, merged to main 696e0ee, release android-build-30. Notes: docs/handoff/phase-3.md (+ dl-phase-3.md).
-- NEXT (max 2 agents, separate worktrees):
-  1. Android Phase 4: 4.1 Live TV + Sports + EPG · 4.2 Music · 4.3 Comics reader · 4.4 Adult gate (call `downloads.setAdultSessionUnlocked()` from PIN session). Branch wip/phase-4, worktree ~/apk-projects/cinetor.
-  2. Web 8.3 downloads (shaka offline + OPFS): branch web/phase-3, worktree ~/apk-projects/cinetor-web (another agent; merge when green).
-  3. Then Phases 5→10 per plan. Final: report all download links to user.
+- 2026-11-15 00:40 packed before usage limit (resets 04:40). Done: Ph0–3 (APK android-build-30), Web 8.1–8.5 (PR #1, live).
+- Phase 4 IN PROGRESS on two worktrees (agents may have died mid-task):
+  - wip/phase-4a (worktree ~/apk-projects/cinetor): 4.1 Live TV+EPG+Sports, 4.2 Music.
+  - wip/phase-4b (worktree ~/apk-projects/cinetor-dl): 4.3 Comics reader, 4.4 Adult gate. Status notes docs/handoff/phase-4b.md on that branch.
+- NEXT STEPS:
+  1. `git worktree list`; in each worktree commit+push any dirty work to its branch.
+  2. Check CI per branch (`gh run list -b <branch>`); continue unfinished tasks (see plan 4.1–4.4); CI green.
+  3. Merge wip/phase-4b into wip/phase-4a (or both into main), CI green, merge to main (auto APK release). Write docs/handoff/phase-4.md, mark Ph4 [x], mark Web 8.3–8.5 [x].
+  4. Phase 5 (profiles, settings, about) → 6 (TV) → 7 (perf + signed release) → 9 (Tauri desktop exe/msi/deb/AppImage → public releases) → 10 (release v0.1.0, final report). Web parity for profiles/settings/about/EPG/reader/adult gate alongside.
 
 ## Phase checklist
 ### Phase 0 — setup, brand, mock  [x]
@@ -37,6 +41,7 @@ Plan: docs/plans/2026-11-14-cinetor-master-plan.md · Decisions: docs/handoff/de
 - [ ] release.yml v0.1.0 · [ ] QA matrix · [ ] final report to user
 
 ## Log (newest first, one line each)
+- 2026-11-15 00:40 Ph3 merged (android-build-30), web 8.3–8.5 merged; Ph4 started; packed for limit, auto-resume 04:45.
 - 2026-11-15 00:20 Phase 3 merged to main 696e0ee (dl/phase-3 → wip/phase-3 f2c911a, offline playback 1f347fc: OfflineResolver local file / download cache, Downloads Play → player, OfflineResolverTest 5). CI wip https://github.com/Ashrix404/cinetor/actions/runs/43622939407 , main https://github.com/Ashrix404/cinetor/actions/runs/43624369659 green; APK https://github.com/Ashrix404/cinetor-app/releases/tag/android-build-30 .
 - 2026-11-14 20:10 Ph3 code complete on two branches, packed for limit; auto-resume cron scheduled.
 - 2026-11-14 16:55 Phase 2 merged to main 9231ed9; APK android-build-14 public; site deployed.
