@@ -1,35 +1,23 @@
 package com.mythbrix.cinetor
 
+import android.graphics.Color
 import android.os.Bundle
 import androidx.activity.ComponentActivity
+import androidx.activity.SystemBarStyle
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
-import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.material3.Text
-import androidx.compose.ui.Alignment
-import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.unit.sp
+import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
+        // System splash (Android 12+: AVD ring draw + play pop) → Compose AnimatedSplash.
+        installSplashScreen()
         super.onCreate(savedInstanceState)
-        enableEdgeToEdge()
-        setContent {
-            Box(
-                Modifier.fillMaxSize().background(Color(0xFF000000)),
-                contentAlignment = Alignment.Center
-            ) {
-                Text(
-                    text = "Cinetor",
-                    color = Color(0xFFE50914),
-                    fontSize = 40.sp,
-                    fontWeight = FontWeight.Bold
-                )
-            }
-        }
+        enableEdgeToEdge(
+            statusBarStyle = SystemBarStyle.dark(Color.TRANSPARENT),
+            navigationBarStyle = SystemBarStyle.dark(Color.TRANSPARENT),
+        )
+        val container = (application as CinetorApplication).container
+        setContent { CinetorRoot(container) }
     }
 }

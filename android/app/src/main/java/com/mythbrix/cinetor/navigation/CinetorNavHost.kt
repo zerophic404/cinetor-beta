@@ -1,0 +1,249 @@
+package com.mythbrix.cinetor.navigation
+
+import androidx.activity.compose.BackHandler
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.core.tween
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.asPaddingValues
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBars
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBars
+import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.KeyboardArrowDown
+import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.unit.dp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.navigation.NavBackStackEntry
+import androidx.navigation.NavDestination.Companion.hasRoute
+import androidx.navigation.NavGraph.Companion.findStartDestination
+import androidx.navigation.NavHostController
+import androidx.navigation.compose.NavHost
+import androidx.navigation.compose.composable
+import androidx.navigation.compose.currentBackStackEntryAsState
+import androidx.navigation.compose.rememberNavController
+import androidx.navigation.toRoute
+import com.mythbrix.cinetor.core.data.AppContainer
+import com.mythbrix.cinetor.core.data.Space
+import com.mythbrix.cinetor.design.AppBackground
+import com.mythbrix.cinetor.design.Cinetor
+import com.mythbrix.cinetor.design.CinetorMark
+import com.mythbrix.cinetor.design.GlassLevel
+import com.mythbrix.cinetor.design.glass
+import com.mythbrix.cinetor.feature.about.AboutScreen
+import com.mythbrix.cinetor.feature.details.DetailsScreen
+import com.mythbrix.cinetor.feature.home.SpaceScreen
+import com.mythbrix.cinetor.feature.profile.MeScreen
+import com.mythbrix.cinetor.feature.search.SearchScreen
+import com.mythbrix.cinetor.feature.settings.SettingsScreen
+import dev.chrisbanes.haze.haze
+
+private val TopBarHeight = 56.dp
+
+/** Where the current destination puts us: a video tab, an isolated space, or "unchanged". */
+private sealed interface Placement {
+    data class Video(val tab: TabKey) : Placement
+    data class Isolated(val space: Space, val tab: TabKey) : Placement
+    data object Neutral : Placement
+}
+
+private fun placementOf(entry: NavBackStackEntry?): Placement {
+    if (entry == null) return Placement.Video(TabKey.HOME)
+    val d = entry.destination
+    return when {
+        d.hasRoute<HomeRoute>() -> Placement.Video(TabKey.HOME)
+        d.hasRoute<AnimeRoute>() -> Placement.Video(TabKey.ANIME)
+        d.hasRoute<DramaRoute>() -> Placement.Video(TabKey.DRAMA)
+        d.hasRoute<SearchRoute>() -> Placement.Video(TabKey.SEARCH)
+        d.hasRoute<MeRoute>() -> Placement.Video(TabKey.ME)
+        d.hasRoute<SpaceRoute>() ->
+            Placement.Isolated(Space.valueOf(entry.toRoute<SpaceRoute>().space), TabKey.SPACE_BROWSE)
+        d.hasRoute<SpaceSearchRoute>() ->
+            Placement.Isolated(Space.valueOf(entry.toRoute<SpaceSearchRoute>().space), TabKey.SPACE_SEARCH)
+        else -> Placement.Neutral
+    }
+}
+
+private class ShellMemory(var space: Space? = null, var tab: TabKey? = TabKey.HOME)
+
+/** App shell: glass top bar + adaptive nav (bottom bar / rail / TV rail) + spaces switcher + NavHost. */
+@Composable
+fun CinetorNavHost(container: AppContainer, modifier: Modifier = Modifier) {
+    val nav = rememberNavController()
+    val entry by nav.currentBackStackEntryAsState()
+    val memory = remember { ShellMemory() }
+    val placement = remember(entry) {
+        when (val p = placementOf(entry)) {
+            is Placement.Video -> memory.apply { space = null; tab = p.tab }
+            is Placement.Isolated -> memory.apply { space = p.space; tab = p.tab }
+            Placement.Neutral -> memory
+        }.let { it.space to it.tab }
+    }
+    val activeSpace = placement.first
+    val selectedTab = placement.second
+
+    val config = LocalConfiguration.current
+    val layout = navLayoutFor(config.screenWidthDp, config.screenHeightDp, container.deviceProfile.isTv)
+    val adultEnabled by container.settings.adultEnabled.collectAsStateWithLifecycle(initialValue = false)
+    var switcherOpen by rememberSaveable { mutableStateOf(false) }
+    BackHandler(enabled = switcherOpen) { switcherOpen = false }
+
+    val onTab: (TabKey) -> Unit = { key ->
+        when (key) {
+            TabKey.HOME -> nav.navigateTab(HomeRoute)
+            TabKey.ANIME -> nav.navigateTab(AnimeRoute)
+            TabKey.DRAMA -> nav.navigateTab(DramaRoute)
+            TabKey.SEARCH -> nav.navigateTab(SearchRoute)
+            TabKey.ME -> nav.navigateTab(MeRoute)
+            TabKey.SPACE_BROWSE -> activeSpace?.let { s ->
+                if (!nav.popBackStack(SpaceRoute(s.name), inclusive = false)) nav.enterSpace(s)
+            }
+            TabKey.SPACE_SEARCH -> activeSpace?.let { s ->
+                nav.navigate(SpaceSearchRoute(s.name)) { launchSingleTop = true }
+            }
+            TabKey.SPACES -> switcherOpen = true
+            TabKey.EXIT_SPACE -> nav.navigateTab(HomeRoute)
+        }
+    }
+
+    val statusTop = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
+    val navBottom = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
+    val contentPadding = PaddingValues(
+        top = statusTop + TopBarHeight + 8.dp,
+        bottom = navBottom + if (layout == NavLayout.BOTTOM_BAR) BottomBarHeight + 24.dp else 16.dp,
+    )
+    val haze = Cinetor.haze
+    val tabs = navTabsFor(activeSpace)
+    val openItem: (String) -> Unit = { id -> nav.navigate(DetailsRoute(id)) }
+
+    Box(modifier.fillMaxSize()) {
+        Row(Modifier.fillMaxSize()) {
+            if (layout != NavLayout.BOTTOM_BAR) {
+                AdaptiveNavBar(layout, tabs, selectedTab, activeSpace, onTab)
+            }
+            Box(Modifier.weight(1f).fillMaxHeight()) {
+                AppBackground(Modifier.haze(haze)) {
+                    NavHost(
+                        navController = nav,
+                        startDestination = HomeRoute,
+                        enterTransition = { fadeIn(tween(220)) },
+                        exitTransition = { fadeOut(tween(160)) },
+                    ) {
+                        composable<HomeRoute> { SpaceScreen(Space.HOME, container, contentPadding, openItem) }
+                        composable<AnimeRoute> { SpaceScreen(Space.ANIME, container, contentPadding, openItem) }
+                        composable<DramaRoute> { SpaceScreen(Space.DRAMA, container, contentPadding, openItem) }
+                        composable<SearchRoute> { SearchScreen(null, container, contentPadding, openItem) }
+                        composable<MeRoute> {
+                            MeScreen(
+                                container, contentPadding,
+                                onSettings = { nav.navigate(SettingsRoute) },
+                                onAbout = { nav.navigate(AboutRoute) },
+                            )
+                        }
+                        composable<SpaceRoute> { e ->
+                            SpaceScreen(Space.valueOf(e.toRoute<SpaceRoute>().space), container, contentPadding, openItem)
+                        }
+                        composable<SpaceSearchRoute> { e ->
+                            SearchScreen(Space.valueOf(e.toRoute<SpaceSearchRoute>().space), container, contentPadding, openItem)
+                        }
+                        composable<DetailsRoute> { e ->
+                            DetailsScreen(e.toRoute<DetailsRoute>().id, container, contentPadding)
+                        }
+                        composable<SettingsRoute> { SettingsScreen(contentPadding) }
+                        composable<AboutRoute> { AboutScreen(contentPadding) }
+                    }
+                }
+                GlassTopBar(
+                    title = activeSpace?.displayName ?: "Cinetor",
+                    onLogo = { switcherOpen = true },
+                    modifier = Modifier.align(Alignment.TopCenter),
+                )
+                if (layout == NavLayout.BOTTOM_BAR) {
+                    AdaptiveNavBar(
+                        layout, tabs, selectedTab, activeSpace, onTab,
+                        modifier = Modifier.align(Alignment.BottomCenter),
+                    )
+                }
+            }
+        }
+        SpacesSwitcher(
+            visible = switcherOpen,
+            spaces = switcherSpaces(adultEnabled),
+            activeSpace = activeSpace,
+            onPick = { s ->
+                switcherOpen = false
+                if (s == null) nav.navigateTab(HomeRoute) else nav.enterSpace(s)
+            },
+            onDismiss = { switcherOpen = false },
+        )
+    }
+}
+
+@Composable
+private fun GlassTopBar(title: String, onLogo: () -> Unit, modifier: Modifier = Modifier) {
+    val tokens = Cinetor.tokens
+    Row(
+        modifier
+            .fillMaxWidth()
+            .glass(RoundedCornerShape(bottomStart = 20.dp, bottomEnd = 20.dp), GlassLevel.BAR)
+            .statusBarsPadding()
+            .height(TopBarHeight)
+            .padding(horizontal = 12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
+    ) {
+        Row(
+            Modifier
+                .clip(RoundedCornerShape(12.dp))
+                .clickable(onClick = onLogo)
+                .semantics { contentDescription = "Open spaces" }
+                .padding(4.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            CinetorMark(Modifier.size(36.dp))
+            Icon(Icons.Rounded.KeyboardArrowDown, contentDescription = null, tint = tokens.textSecondary)
+        }
+        Text(title, style = MaterialTheme.typography.titleLarge, color = tokens.textPrimary)
+    }
+}
+
+private fun NavHostController.navigateTab(route: Any) {
+    navigate(route) {
+        popUpTo(graph.findStartDestination().id) { saveState = true }
+        launchSingleTop = true
+        restoreState = true
+    }
+}
+
+private fun NavHostController.enterSpace(space: Space) {
+    navigate(SpaceRoute(space.name)) {
+        popUpTo(graph.findStartDestination().id)
+        launchSingleTop = true
+    }
+}
