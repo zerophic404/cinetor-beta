@@ -6,7 +6,7 @@ Plan: docs/plans/2026-11-14-cinetor-master-plan.md · Decisions: docs/handoff/de
 
 ## Resume here
 - RULE (user): every green main build → publish installers to PUBLIC Ashrix404/cinetor-app releases (works: android-build-14). Desktop from Phase 9.
-- Current: Phase 3 Android on branch wip/phase-3 (+ Web 8.3 downloads in parallel). See docs/handoff/phase-2.md.
+- Current: Phase 3. Player track = branch wip/phase-3 (worktree ~/apk-projects/cinetor): 3.1 done (6ec16f5, CI green), 3.2 done uncompiled-CI (58eb359), next 3.3 UI. Download track = branch dl/phase-3 (worktree ~/apk-projects/cinetor-dl): 3.7 engine WIP uncompiled (92d6ae0). Merge dl/phase-3 into wip/phase-3 when both green. See docs/handoff/phase-2.md.
 - Last green main: 9231ed9 (Phase 2 merged). Site live https://ashrix404.github.io/cinetor-app/
 
 ## Phase checklist
@@ -34,6 +34,7 @@ Plan: docs/plans/2026-11-14-cinetor-master-plan.md · Decisions: docs/handoff/de
 - [ ] release.yml v0.1.0 · [ ] QA matrix · [ ] final report to user
 
 ## Log (newest first, one line each)
+- 2026-11-14 18:45 rate limit 17:29 killed both Ph3 agents; saved 3.2 commit + 3.7 WIP to dl/phase-3. Resumed.
 - 2026-11-14 16:55 Phase 2 merged to main 9231ed9; APK android-build-14 public; site deployed.
 - 2026-11-14 16:35 Android 2.1 + 2.2 done on wip/phase-2 (ed1e761..76b6f89), Android CI green incl. emulator smoke: https://github.com/Ashrix404/cinetor/actions/runs/43585743790 (also 43584661105). 62 unit tests (new: 12 space/hero/tint + 7 details/preloader). Screenshots reviewed (home hero/tabs/chips/rows, anime, drama, details+Ready dot, download sheet, series tab swap) OK. Deviations: PlaybackPreloader = interface + SimulatedPlaybackPreloader (timer readiness) until 3.2; My List in-memory (AppContainer) until 5.1; CONTINUE/episode progress = deterministic mock; Play opens Details on hero / toast on Details until player; shared poster transition MID/HIGH only (LOW = fade+scale); smoke bottom-bar taps fixed (were hitting system nav bar).
 - 2026-11-14 16:20 Web 8.3 player part green on wip/phase-2 (5b2b4c1), run https://github.com/Ashrix404/cinetor/actions/runs/43584460543 . 85 vitest pass (28 new: gesture math, SRT→VTT/offset, preload latest-wins/abort/cancel, mini replaced single audio, resume/continueWatching isolation). Browser QA on CI artifact: preload buffers in park (Ready dot), Play moves same element (1 <video>), HLS quality list 184–1080p, double-tap +10/+20, hold 2×→restore, drag seek/volume/brightness, ext SRT load, keys, minimize→mini across routes, snap/expand/swipe-off, new Play replaces mini, Resume label. Deviations: autoplay blocked w/o user gesture → tap-to-play overlay; embedded stream subs no sync offset (native render, hint shown); Document PiP not done (video PiP only); shaka chunk (777 KB) also precached by SW glob; downloads pending.
