@@ -18,6 +18,11 @@ import com.mythbrix.cinetor.core.prefs.ResumeDataStore
 import com.mythbrix.cinetor.core.prefs.SearchHistoryDataStore
 import com.mythbrix.cinetor.core.prefs.SettingsStore
 import com.mythbrix.cinetor.feature.player.PlayerStateHolder
+import com.mythbrix.cinetor.core.player.DEFAULT_PROFILE
+import com.mythbrix.cinetor.core.prefs.SubtitleStyleDataStore
+import com.mythbrix.cinetor.feature.player.subs.SubtitleController
+import com.mythbrix.cinetor.feature.player.subs.SubtitleStyleStore
+import com.mythbrix.cinetor.feature.player.subs.loadSubtitleText
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -101,6 +106,19 @@ class AppContainer(context: Context) {
             resume = resume,
             resolveFull = { item -> runCatching { catalog.item(item.id) }.getOrDefault(item) },
         )
+    }
+
+    /** Per-profile subtitle style (Task 3.5). */
+    val subtitleStyles: SubtitleStyleStore = SubtitleStyleStore(SubtitleStyleDataStore(appContext))
+
+    /** Side-loaded subs + sync offset + style for the player (app-scoped: survives rotation). */
+    val subtitles: SubtitleController by lazy {
+        SubtitleController(
+            scope = mainScope,
+            store = subtitleStyles,
+            profileId = { DEFAULT_PROFILE },
+            loader = { uri -> loadSubtitleText(appContext, uri) },
+        ).also { it.loadStyle() }
     }
 
     private val _myList = MutableStateFlow<Set<String>>(emptySet())

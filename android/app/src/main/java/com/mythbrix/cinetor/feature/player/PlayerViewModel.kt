@@ -12,6 +12,8 @@ import com.mythbrix.cinetor.core.player.PlayerUiState
 import com.mythbrix.cinetor.core.player.ResumeEntry
 import com.mythbrix.cinetor.core.player.ResumeStore
 import com.mythbrix.cinetor.core.player.SourceResolver
+import com.mythbrix.cinetor.core.player.SubPlan
+import com.mythbrix.cinetor.core.player.TrackOption
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
@@ -25,6 +27,14 @@ import kotlinx.coroutines.launch
 
 /** Player key (`itemId` or `itemId#episodeId`) belongs to [itemId]. */
 fun keyBelongs(key: String, itemId: String): Boolean = key == itemId || key.startsWith("$itemId#")
+
+/** Catalog subtitle file behind the Media3 text track [selected] (label first, then language). */
+fun knownSubFor(selected: TrackOption?, subs: List<SubPlan>): SubPlan? {
+    if (selected == null) return null
+    return subs.firstOrNull { it.label.equals(selected.label, ignoreCase = true) }
+        ?: subs.firstOrNull { selected.label.startsWith(it.label, ignoreCase = true) }
+        ?: selected.language?.let { lang -> subs.firstOrNull { it.language.equals(lang, ignoreCase = true) } }
+}
 
 /** Where the player is drawn (PlayerHost above the NavHost). */
 enum class HostMode { FULL, MINI, HIDDEN }
@@ -56,6 +66,8 @@ data class PlayerScreenState(
     /** Wall-clock ms when the sleep timer fires (minutes options). */
     val sleepAtMs: Long? = null,
     val inPip: Boolean = false,
+    /** Catalog subtitle files of the loaded request (sync converts these to side-loaded). */
+    val subs: List<SubPlan> = emptyList(),
     /** Bumped on every play() of a new title (UI resets transient state). */
     val generation: Int = 0,
 ) {
@@ -160,6 +172,7 @@ class PlayerStateHolder(
                 introEndMs = req?.introEndSec?.let { s -> s * 1000L },
                 aspect = prev.aspect,
                 inPip = prev.inPip,
+                subs = req?.plan?.subtitles.orEmpty(),
                 generation = prev.generation + 1,
             )
         }
@@ -197,6 +210,7 @@ class PlayerStateHolder(
                             introStartMs = req?.introStartSec?.let { s -> s * 1000L },
                             introEndMs = req?.introEndSec?.let { s -> s * 1000L },
                             nextEpisode = SourceResolver.nextEpisode(item, epId),
+                            subs = req?.plan?.subtitles.orEmpty(),
                         )
                     }
                 }

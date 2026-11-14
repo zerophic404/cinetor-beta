@@ -39,7 +39,7 @@ fun CinetorRoot(container: AppContainer) {
                 CinetorNavHost(container)
             }
             // Player lives above the NavHost: playback survives navigation (mini player in 3.6).
-            PlayerHost(container.playback)
+            PlayerHost(container.playback, container.subtitles)
             if (showIntro) AnimatedSplash(onFinished = { showIntro = false })
         }
     }
