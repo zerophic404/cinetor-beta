@@ -159,6 +159,25 @@ class PlaybackPreloaderTest {
     }
 
     @Test
+    fun failedSummaryWarm_retriedWithFullItem() = runTest {
+        val e = Env(this)
+        // Card summary without sources → ERROR; full item (same id) must retry, and so must Play.
+        e.pre.warm(movie("a").copy(sources = emptyList()))
+        runCurrent()
+        assertEquals(Readiness.ERROR, e.pre.readiness.value["a"])
+        e.pre.warm(movie("a"))
+        runCurrent()
+        assertEquals(listOf("a"), e.fake.loads.map { it.first })
+        e.pre.cancel("a")
+        e.pre.warm(movie("a").copy(sources = emptyList()))
+        runCurrent()
+        assertSame(e.fake, e.pre.open(movie("a")))
+        runCurrent()
+        assertEquals(listOf("a", "a"), e.fake.loads.map { it.first })
+        assertTrue(e.fake.lastPlayWhenReady)
+    }
+
+    @Test
     fun dataSaver_onlyResolves_loadsOnTake() = runTest {
         val e = Env(this, dataSaver = true)
         e.pre.warm(movie("a"))

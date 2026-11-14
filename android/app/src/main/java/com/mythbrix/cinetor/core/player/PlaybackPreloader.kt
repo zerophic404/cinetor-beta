@@ -78,6 +78,9 @@ class MediaPlaybackPreloader(
         var job: Job? = null
         var watch: Job? = null
         var tapAt: Long? = null
+
+        /** Resolve finished without a playable source. */
+        val failed: Boolean get() = request == null && job?.isActive != true
     }
 
     /** Latest warm candidate (may be the owned one). */
@@ -124,7 +127,9 @@ class MediaPlaybackPreloader(
             return
         }
         val s = session
-        if (s != null && s !== o && s.matches(item.id, episodeId)) return
+        // Same title already warming/warmed → keep it (unless it failed to resolve, e.g. a card
+        // summary without sources: retry with this, possibly fuller, item).
+        if (s != null && s !== o && s.matches(item.id, episodeId) && !s.failed) return
         start(item, episodeId, taken = false)
     }
 
@@ -145,7 +150,7 @@ class MediaPlaybackPreloader(
         val o = owned
         if (o != null && o.matches(item.id, episodeId)) return player() // re-attach (rotation): no reload
         val s = session
-        if (s != null && s !== o && s.matches(item.id, episodeId)) return take(item.id, episodeId) ?: player()
+        if (s != null && s !== o && s.matches(item.id, episodeId) && !s.failed) return take(item.id, episodeId) ?: player()
         start(item, episodeId, taken = true).tapAt = clock()
         return player()
     }
