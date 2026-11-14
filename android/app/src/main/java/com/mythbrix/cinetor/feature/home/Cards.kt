@@ -185,7 +185,10 @@ fun Top10Card(rank: Int, item: Item, onClick: () -> Unit, onActive: (Color) -> U
 fun ContinueCard(item: Item, onClick: () -> Unit, onActive: (Color) -> Unit, width: Dp = 200.dp) {
     val tokens = Cinetor.tokens
     val height = width * 9f / 16f
-    val progress = remember(item.id) { mockProgress(item.id) }
+    val entries = com.mythbrix.cinetor.core.ui.LocalResumeEntries.current
+    val progress = remember(item.id, entries) {
+        com.mythbrix.cinetor.core.player.progressByItem(entries)[item.id] ?: mockProgress(item.id)
+    }
     Column(Modifier.width(width), verticalArrangement = Arrangement.spacedBy(6.dp)) {
         CardFrame(item, onClick, onActive, Modifier.size(width, height)) {
             AsyncImage(

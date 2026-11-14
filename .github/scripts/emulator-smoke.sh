@@ -44,6 +44,16 @@ tap_desc() {
 adb shell input tap $((W/10)) $BAR_Y; sleep 3
 adb shell input tap $((W/2)) $((H/3)); shot 20-details-loading 1
 shot 21-details 4
+# Play → player portrait (16:9 + info below), then landscape via Fullscreen button, back closes.
+if tap_desc "Play"; then
+  shot 30-player-portrait 3
+  shot 31-player-playing 4
+  if ! tap_desc "Fullscreen"; then adb shell input tap $((W*85/100)) $((H/8)); sleep 1; tap_desc "Fullscreen"; fi
+  shot 32-player-landscape 4
+  adb shell input tap $((H/2)) $((W/2)); shot 33-player-landscape-controls 1
+  adb shell input keyevent KEYCODE_BACK; shot 34-player-closed 3
+  adb logcat -d | grep -E "CinetorPlayback|tap→firstFrame" | tail -5 || true
+fi
 adb shell input swipe $((W/2)) $((H*3/4)) $((W/2)) $((H/4)) 400; shot 22-details-scrolled 2
 adb shell input swipe $((W/2)) $((H/4)) $((W/2)) $((H*3/4)) 400; sleep 1
 tap_desc "Download" && shot 23-download-sheet 2 && adb shell input keyevent KEYCODE_BACK && sleep 1

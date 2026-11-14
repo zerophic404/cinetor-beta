@@ -2,6 +2,7 @@ package com.mythbrix.cinetor.feature.details
 
 import android.content.Intent
 import android.widget.Toast
+import com.mythbrix.cinetor.core.player.ResumeEntry
 import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
@@ -149,6 +150,7 @@ fun DetailsScreen(
     var showDownloads by rememberSaveable { mutableStateOf(false) }
     var season by rememberSaveable(id) { mutableStateOf(0) }
     val context = LocalContext.current
+    val resumeEntries = com.mythbrix.cinetor.core.ui.LocalResumeEntries.current
 
     LazyColumn(
         contentPadding = PaddingValues(bottom = contentPadding.calculateBottomPadding()),
@@ -190,9 +192,9 @@ fun DetailsScreen(
                         item = item,
                         readiness = readiness[item.id],
                         inMyList = item.id in myList,
-                        onPlay = {
-                            Toast.makeText(context, "Player arrives in Phase 3", Toast.LENGTH_SHORT).show()
-                        },
+                        resume = resumeEntries.firstOrNull { it.itemId == item.id },
+                        // Takes the warmed player (instant start); series resume picks the saved episode.
+                        onPlay = { container.playback.play(item) },
                         onDownload = { showDownloads = true },
                         onToggleMyList = { container.toggleMyList(item.id) },
                         onShare = {
@@ -214,9 +216,9 @@ fun DetailsScreen(
                         }
                     }
                     items(seasons[selected].episodes, key = { "ep-${it.id}" }, contentType = { "episode" }) { ep ->
-                        EpisodeRow(ep, showProgress = selected == 0 && ep.n == 1) {
-                            Toast.makeText(context, "Player arrives in Phase 3", Toast.LENGTH_SHORT).show()
-                        }
+                        val epProgress = resumeEntries.firstOrNull { it.itemId == item.id && it.episodeId == ep.id }
+                            ?.takeIf { !it.finished }?.fraction
+                        EpisodeRow(ep, progress = epProgress) { container.playback.play(item, ep.id) }
                     }
                 }
                 item(key = "more", contentType = "more") {
@@ -355,6 +357,7 @@ private fun DetailsActions(
     item: Item,
     readiness: Readiness?,
     inMyList: Boolean,
+    resume: ResumeEntry?,
     onPlay: () -> Unit,
     onDownload: () -> Unit,
     onToggleMyList: () -> Unit,
@@ -363,8 +366,11 @@ private fun DetailsActions(
     val tokens = Cinetor.tokens
     val shape = RoundedCornerShape(CinetorTokens.Shape.md)
     val firstEp = item.seasons.firstOrNull()?.episodes?.firstOrNull()
+    val resumable = resume?.takeIf { !it.finished && it.positionMs >= 3_000 }
     val playLabel = when {
-        item.type == ItemType.SERIES && firstEp != null -> "Resume S1:E${firstEp.n}"
+        resumable != null && resumable.episodeLabel != null -> "Resume ${resumable.episodeLabel}"
+        resumable != null -> "Resume"
+        item.type == ItemType.SERIES && firstEp != null -> "Play S1:E${firstEp.n}"
         else -> "Play"
     }
     Column(Modifier.padding(horizontal = 16.dp, vertical = 16.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
@@ -399,6 +405,15 @@ private fun DetailsActions(
                 Icon(Icons.Rounded.Download, contentDescription = null, tint = tokens.textPrimary)
                 Spacer(Modifier.width(6.dp))
                 Text("Download", color = tokens.textPrimary, style = MaterialTheme.typography.labelLarge)
+            }
+        }
+        if (resumable != null) {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                Box(Modifier.weight(1f).height(3.dp).clip(RoundedCornerShape(2.dp)).background(tokens.textPrimary.copy(alpha = 0.2f))) {
+                    Box(Modifier.fillMaxWidth(resumable.fraction).height(3.dp).background(tokens.accent))
+                }
+                val leftMin = ((resumable.durationMs - resumable.positionMs) / 60_000).coerceAtLeast(1)
+                Text("$leftMin min left", style = MaterialTheme.typography.labelSmall, color = tokens.textSecondary)
             }
         }
         Row(horizontalArrangement = Arrangement.spacedBy(28.dp)) {

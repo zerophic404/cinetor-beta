@@ -17,6 +17,7 @@ import com.mythbrix.cinetor.core.player.ResumeStore
 import com.mythbrix.cinetor.core.prefs.ResumeDataStore
 import com.mythbrix.cinetor.core.prefs.SearchHistoryDataStore
 import com.mythbrix.cinetor.core.prefs.SettingsStore
+import com.mythbrix.cinetor.feature.player.PlayerStateHolder
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -91,6 +92,16 @@ class AppContainer(context: Context) {
         dataSaver = { dataSaver },
         log = { Log.i("CinetorPlayback", it) },
     )
+
+    /** App-scoped player state (PlayerHost above the NavHost): survives rotation + navigation. */
+    val playback: PlayerStateHolder by lazy {
+        PlayerStateHolder(
+            scope = mainScope,
+            preloader = preloader,
+            resume = resume,
+            resolveFull = { item -> runCatching { catalog.item(item.id) }.getOrDefault(item) },
+        )
+    }
 
     private val _myList = MutableStateFlow<Set<String>>(emptySet())
 
