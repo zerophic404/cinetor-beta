@@ -3,6 +3,7 @@
   import { base } from '$app/paths';
   import SpaceView from '$lib/components/SpaceView.svelte';
   import LiveTv from '$lib/tv/LiveTv.svelte';
+  import MusicHome from '$lib/music/MusicHome.svelte';
   import { ADULT_ENABLED } from '$lib/constants';
   import { isVideoSpace, spaceFromSlug } from '$lib/data/types';
 
@@ -20,6 +21,8 @@
   </section>
 {:else if space === 'TV'}
   <LiveTv cat={page.url.searchParams.get('cat')} />
+{:else if space === 'MUSIC'}
+  <MusicHome cat={page.url.searchParams.get('cat')} />
 {:else}
   <SpaceView {space} cat={page.url.searchParams.get('cat')} showCategoryChips={isVideoSpace(space)} />
 {/if}

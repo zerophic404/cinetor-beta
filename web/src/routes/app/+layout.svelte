@@ -14,6 +14,9 @@
   import { engine } from '$lib/player/engine';
   import { wirePlayer } from '$lib/player/controller';
   import { downloads } from '$lib/download/manager.svelte';
+  import { music } from '$lib/music/player.svelte';
+  import MusicBar from '$lib/music/MusicBar.svelte';
+  import NowPlaying from '$lib/music/NowPlaying.svelte';
 
   let { children } = $props();
   let spacesOpen = $state(false);
@@ -22,6 +25,9 @@
   const isolated = $derived(!isVideoSpace(space));
   const tabs = $derived(isolated ? isolatedTabs(space) : VIDEO_TABS);
   const watching = $derived(page.url.pathname.replace(/\/$/, '').endsWith('/app/watch'));
+  /** Full-screen routes without the nav (player, comic reader). */
+  const immersive = $derived(watching || page.url.pathname.replace(/\/$/, '').endsWith('/app/comics/read'));
+  const barShown = $derived(!!music.current && !immersive);
 
   /** Park slot of the ONE persistent <video> (preloads buffer here, hidden). */
   function park(node: HTMLElement) {
@@ -74,15 +80,19 @@
 <div class="ambient" aria-hidden="true"></div>
 <a class="skip" href="#main">Skip to content</a>
 
-{#if !watching}<Nav {tabs} {spaceLabel} onSpaces={() => (spacesOpen = true)} />{/if}
+{#if !immersive}<Nav {tabs} {spaceLabel} onSpaces={() => (spacesOpen = true)} />{/if}
 <SpacesSheet bind:open={spacesOpen} />
 
-<main id="main" class="app" class:watching tabindex="-1">
+<main id="main" class="app" class:watching={immersive} class:with-bar={barShown} tabindex="-1">
   {@render children()}
 </main>
 
 <div class="video-park" aria-hidden="true" use:park></div>
 <MiniPlayer hidden={watching} />
+<!-- The ONE audio element for music: owned here so playback survives navigation. -->
+<audio class="music-audio" use:music.attach preload="metadata"></audio>
+<MusicBar hidden={immersive} />
+<NowPlaying />
 
 <style>
   .app {
@@ -94,6 +104,12 @@
     .app {
       padding: calc(16px + var(--safe-t)) calc(8px + var(--safe-r)) calc(24px + var(--safe-b)) calc(var(--rail-w) + 24px + var(--safe-l));
     }
+  }
+  .app.with-bar {
+    padding-bottom: calc(var(--nav-h) + 100px + var(--safe-b));
+  }
+  .music-audio {
+    display: none;
   }
   .app.watching {
     padding: 0 0 calc(24px + var(--safe-b));
