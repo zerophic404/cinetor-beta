@@ -181,10 +181,20 @@ function fakeServer(data: Uint8Array, opts: { ranges?: boolean; cutAfter?: numbe
   return { f, requests, get served() { return served; } };
 }
 
-const bytes = (n: number) => Uint8Array.from({ length: n }, (_, i) => (i * 31 + 7) & 255);
+function bytes(n: number): Uint8Array {
+  const a = new Uint8Array(n);
+  for (let i = 0; i < n; i++) a[i] = (i * 31 + 7) & 255;
+  return a;
+}
+/** Fast byte equality (deep toEqual on MB-sized typed arrays is very slow). */
+function same(a: Uint8Array, b: Uint8Array): boolean {
+  if (a.length !== b.length) return false;
+  for (let i = 0; i < a.length; i++) if (a[i] !== b[i]) return false;
+  return true;
+}
 const base = (): ProgressiveState => ({ id: 'x', url: 'https://cdn.test/a.mp4', connections: 4, totalBytes: 0, chunks: [], pieceEnds: [] });
 
-describe('progressive downloader', () => {
+describe('progressive downloader', { timeout: 20_000 }, () => {
   it('downloads with N connections and assembles identical bytes', async () => {
     const data = bytes(50_000);
     const srv = fakeServer(data);
@@ -198,7 +208,7 @@ describe('progressive downloader', () => {
     // 50 KB < 1 MiB min chunk → single connection
     expect(s.chunks).toHaveLength(1);
     const out = new Uint8Array(await (await assemble(store, s, 'video/mp4')).arrayBuffer());
-    expect(out).toEqual(data);
+    expect(same(out, data)).toBe(true);
   });
 
   it('chunked_resumesFromPersistedOffsets after a dropped connection', async () => {
@@ -222,7 +232,7 @@ describe('progressive downloader', () => {
     for (const c of partial) expect(second.requests).toContain(`bytes=${c.pos}-${c.end}`);
     expect(second.served).toBe(data.length - doneBefore);
     const out = new Uint8Array(await (await assemble(store, fin, 'video/mp4')).arrayBuffer());
-    expect(out).toEqual(data);
+    expect(same(out, data)).toBe(true);
   });
 
   it('chunked_noAcceptRanges_singleConnection', async () => {
@@ -233,7 +243,7 @@ describe('progressive downloader', () => {
     expect(s.rangeSupported).toBe(false);
     expect(s.chunks).toHaveLength(1);
     expect(srv.requests.filter((r) => r === 'full')).toHaveLength(1);
-    expect(new Uint8Array(await (await assemble(store, s, 'video/mp4')).arrayBuffer())).toEqual(data);
+    expect(same(new Uint8Array(await (await assemble(store, s, 'video/mp4')).arrayBuffer()), data)).toBe(true);
   });
 
   it('pause (abort) keeps committed bytes', async () => {
