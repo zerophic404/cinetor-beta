@@ -2,6 +2,7 @@
   import { page } from '$app/state';
   import { base } from '$app/paths';
   import SpaceView from '$lib/components/SpaceView.svelte';
+  import LiveTv from '$lib/tv/LiveTv.svelte';
   import { ADULT_ENABLED } from '$lib/constants';
   import { isVideoSpace, spaceFromSlug } from '$lib/data/types';
 
@@ -17,6 +18,8 @@
     <p>Enable it in Settings with an 18+ confirmation and a 4-digit PIN.</p>
     <a class="btn btn-primary" href="{base}/app/me">Open settings</a>
   </section>
+{:else if space === 'TV'}
+  <LiveTv cat={page.url.searchParams.get('cat')} />
 {:else}
   <SpaceView {space} cat={page.url.searchParams.get('cat')} showCategoryChips={isVideoSpace(space)} />
 {/if}

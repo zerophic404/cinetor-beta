@@ -13,6 +13,14 @@ export interface NavTab {
 
 export type IconName = 'home' | 'anime' | 'drama' | 'search' | 'me' | 'tv' | 'sports' | 'music' | 'comics' | 'adult' | 'spaces' | 'back' | 'grid';
 
+/** Isolated space owning a path (/app/<slug>[/...]); HOME for everything else. */
+export function spaceOfPath(pathname: string): Space {
+  const rel = pathname.startsWith(base) ? pathname.slice(base.length) : pathname;
+  const m = /^\/app\/(tv|music|comics|adult)(?:\/|$)/.exec(rel);
+  if (!m) return 'HOME';
+  return (Object.keys(SPACE_SLUG) as Space[]).find((s) => SPACE_SLUG[s] === m[1]) ?? 'HOME';
+}
+
 export const spaceHref = (s: Space) => (s === 'HOME' ? `${base}/app` : `${base}/app/${SPACE_SLUG[s]}`);
 
 export const VIDEO_TABS: NavTab[] = [

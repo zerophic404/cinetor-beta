@@ -7,7 +7,7 @@
   import Nav from '$lib/components/Nav.svelte';
   import SpacesSheet from '$lib/components/SpacesSheet.svelte';
   import { spaceFromSlug, isVideoSpace } from '$lib/data/types';
-  import { ISOLATED_SPACE_ENTRIES, VIDEO_TABS, isolatedTabs } from '$lib/nav';
+  import { ISOLATED_SPACE_ENTRIES, VIDEO_TABS, isolatedTabs, spaceOfPath } from '$lib/nav';
   import { bindTintToDocument } from '$lib/design/tint.svelte';
   import { perf } from '$lib/perf/tier.svelte';
   import MiniPlayer from '$lib/player/MiniPlayer.svelte';
@@ -18,7 +18,7 @@
   let { children } = $props();
   let spacesOpen = $state(false);
 
-  const space = $derived(spaceFromSlug(page.params.space ?? '') ?? 'HOME');
+  const space = $derived(spaceFromSlug(page.params.space ?? '') ?? spaceOfPath(page.url.pathname));
   const isolated = $derived(!isVideoSpace(space));
   const tabs = $derived(isolated ? isolatedTabs(space) : VIDEO_TABS);
   const watching = $derived(page.url.pathname.replace(/\/$/, '').endsWith('/app/watch'));

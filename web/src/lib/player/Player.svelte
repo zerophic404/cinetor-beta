@@ -12,7 +12,15 @@
   import Controls from './Controls.svelte';
   import Subtitles from './Subtitles.svelte';
 
-  let { media, onBack }: { media: Media; onBack: () => void } = $props();
+  interface Props {
+    media: Media;
+    onBack: () => void;
+    /** Live TV mode: LIVE badge + channel zapping (PageUp/PageDown, ↑/↓ while controls are hidden, centre swipe). */
+    live?: boolean;
+    liveInfo?: string;
+    onZap?: (dir: 1 | -1) => void;
+  }
+  let { media, onBack, live = false, liveInfo = '', onZap }: Props = $props();
 
   const ui = new PlayerUI();
   const sess = session.state;
@@ -73,7 +81,8 @@
           ui.showHud('volume', v);
         }
       },
-      levelEnd: () => {}
+      levelEnd: () => {},
+      swipeV: live && onZap ? (dir) => zap(dir) : undefined
     });
     const fs = () => (ui.fullscreen = document.fullscreenElement === stage);
     document.addEventListener('fullscreenchange', fs);
@@ -143,7 +152,34 @@
     return true;
   }
 
+  function zap(dir: 1 | -1) {
+    if (!onZap) return;
+    ui.flash(dir > 0 ? 'Channel ▲' : 'Channel ▼', 700);
+    onZap(dir);
+  }
+
+  /** Live TV: channel up/down. ↑/↓ only zap while the controls are hidden (else volume / focus). */
+  function onLiveKey(e: KeyboardEvent): boolean {
+    if (!live || !onZap || e.defaultPrevented || e.ctrlKey || e.metaKey || e.altKey) return false;
+    const t = e.target as HTMLElement | null;
+    if (t?.closest('input, textarea, select, [contenteditable="true"]') || document.querySelector('dialog[open]')) return false;
+    const k = e.key;
+    let dir: 0 | 1 | -1 = 0;
+    if (k === 'PageUp' || k === 'ChannelUp') dir = 1;
+    else if (k === 'PageDown' || k === 'ChannelDown') dir = -1;
+    else if (!ui.visible && !ui.locked && (k === 'ArrowUp' || k === 'ArrowDown')) {
+      const a = document.activeElement;
+      if (a && stage && a !== stage && stage.contains(a)) return false;
+      dir = k === 'ArrowUp' ? 1 : -1;
+    }
+    if (!dir) return false;
+    e.preventDefault();
+    zap(dir);
+    return true;
+  }
+
   function onKey(e: KeyboardEvent) {
+    if (onLiveKey(e)) return;
     if (onTvKey(e)) return;
     const t = e.target as HTMLElement | null;
     if (t && (t.closest('input, textarea, select, [contenteditable="true"]') || (t.getAttribute('role') === 'slider' && e.key.startsWith('Arrow')))) return;
@@ -201,6 +237,11 @@
   tabindex="-1"
 >
   <div class="host" use:host></div>
+  {#if live}
+    <div class="live-badge" class:dim={!ui.visible} aria-label="Live">
+      <span class="dot" aria-hidden="true"></span>LIVE{#if liveInfo}<small>{liveInfo}</small>{/if}
+    </div>
+  {/if}
   <Subtitles {ui} raised={ui.visible} />
 
   {#if ui.ripple}
@@ -268,6 +309,45 @@
 </div>
 
 <style>
+  .live-badge {
+    position: absolute;
+    z-index: 4;
+    top: calc(12px + var(--safe-t, 0px));
+    right: 14px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 10px;
+    border-radius: 8px;
+    background: #e50914;
+    color: #fff;
+    font-weight: 800;
+    font-size: 0.75rem;
+    letter-spacing: 0.06em;
+    pointer-events: none;
+    transition: opacity 0.3s;
+  }
+  .live-badge.dim {
+    opacity: 0.75;
+  }
+  .live-badge small {
+    font-weight: 600;
+    letter-spacing: 0;
+    max-width: 40vw;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .live-badge .dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: #fff;
+    animation: livepulse 1.4s ease-in-out infinite;
+  }
+  @keyframes livepulse {
+    50% { opacity: 0.3; }
+  }
   .stage:focus,
   .stage:focus-visible {
     outline: none;
