@@ -21,5 +21,20 @@ Caveman. Branch web/phase-3 (worktree ~/apk-projects/cinetor-web), from main 7dc
 - Probe of progressive size can take a few seconds (HEAD + 1-byte range GET).
 - Screenshots = real UI captures of mock-art screens (no TMDB posters).
 
-## CI runs
-- see bottom (appended per step).
+## CI runs (all green, workflow_dispatch on web/phase-3)
+- 8.3 downloads: https://github.com/Ashrix404/cinetor/actions/runs/43623921701
+- 8.4 TV mode: https://github.com/Ashrix404/cinetor/actions/runs/43624171819
+- 8.5 PWA + landing: https://github.com/Ashrix404/cinetor/actions/runs/43625864741 · final https://github.com/Ashrix404/cinetor/actions/runs/43626328167
+- QA on artifact: precache = 102 entries, clean URLs, shaka chunk excluded; `/app/` + `/app` + `/offline` 200; TV: arrows/Enter/Back + focus memory restore, player ←/→ ±10 s, ↑ focuses controls.
+
+## Pitfalls learned
+- Custom `workbox.manifestTransforms` REPLACES @vite-pwa/sveltekit's URL mapping → precache URLs become `client/…`/`prerendered/pages/…` (SW broken). Replicate mapping (done in vite.config.ts).
+- `maximumFileSizeToCacheInBytes` below a chunk size = build ERROR in vite-plugin-pwa 1.x (not warning).
+- Workbox serializes `urlPattern` functions → closures lost; inline values via `new Function`.
+- Hero carousel arrow handler destroyed focused link in TV mode → yields when `html[data-tv]`.
+- Spatial + player both listen on window: whoever runs second must honour `e.defaultPrevented`.
+- Offline media needs a distinct key (`…@offline`) or the preloader reuses the warm network buffer.
+
+## Next
+- Merge web/phase-3 → main (PR), watch main web run (deploy), check https://ashrix404.github.io/cinetor-app/app/ = 200.
+- Later web: 8.2 leftovers (EPG/reader/adult gate, profiles/settings), Playwright, Lighthouse CI, Document PiP.
