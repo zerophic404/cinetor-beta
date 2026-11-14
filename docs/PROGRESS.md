@@ -5,6 +5,7 @@ Status: [x] done · [~] in progress / partial · [ ] not started
 Plan: docs/plans/2026-11-14-cinetor-master-plan.md · Decisions: docs/handoff/decisions.md · Phase notes: docs/handoff/phase-*.md
 
 ## Resume here
+- RULE (user): every green build → publish APK/exe/deb/AppImage to Releases of PUBLIC repo Ashrix404/cinetor-app (secret RELEASE_TOKEN). See decisions.md. Do this in android.yml now (Phase 2), desktop in Phase 9.
 - Current: Phase 2 (Android 2.0–2.3) + Web 8.2.
 - Partial work: branch `wip/phase-2` (commit 7ccf277) — TMDB source (android core/data/tmdb/, MockSourceProvider, Models changes, android.yml TMDB env, build.gradle) + web data utils (color.ts, images.ts, lru.ts, mock-sources.ts, types.ts). Not compiled yet. Next session: merge/rebase that branch into main work, finish tasks, CI green, then merge to main.
 - Last green main: 22615e7 (Ph1 review fixes), Android + Web CI green.
