@@ -7,6 +7,9 @@ const scope = `${base}/`;
 const esc = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
 export default defineConfig({
+  // TMDB v4 read token baked in at build (CI secret TMDB_TOKEN → PUBLIC_TMDB_TOKEN). Empty → mock catalog.
+  define: { __TMDB_TOKEN__: JSON.stringify(process.env.PUBLIC_TMDB_TOKEN ?? '') },
+  worker: { format: 'es' },
   plugins: [
     sveltekit(),
     SvelteKitPWA({
