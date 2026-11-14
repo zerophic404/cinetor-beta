@@ -211,7 +211,8 @@ class ResumeDownloadsWorker(context: Context, params: WorkerParameters) : Corout
                 .setRequiresStorageNotLow(true)
                 .build()
             val req = OneTimeWorkRequestBuilder<ResumeDownloadsWorker>().setConstraints(c).build()
-            WorkManager.getInstance(context).enqueueUniqueWork(NAME, ExistingWorkPolicy.REPLACE, req)
+            // APPEND_OR_REPLACE: never cancels a running resume worker (it may be the caller), queues after it instead.
+            WorkManager.getInstance(context).enqueueUniqueWork(NAME, ExistingWorkPolicy.APPEND_OR_REPLACE, req)
         }
     }
 }
