@@ -71,8 +71,9 @@ tap_prefix() {
   set -- $b
   adb shell input tap $(( ($1 + $3) / 2 )) $(( ($2 + $4) / 2 ))
 }
-adb shell input tap $(( W * 9 / 10 )) $BAR_Y; sleep 2
-if tap_desc "Downloads"; then
+adb shell input tap $(( W * 9 / 10 )) $BAR_Y; shot 29-me 3
+# Downloads row ≈ 49% H on Me (fallback when the uiautomator dump misses it)
+if tap_desc "Downloads" || { adb shell input tap $((W/2)) $((H * 49 / 100)); sleep 2; true; }; then
   shot 30-downloads 4
   if tap_prefix "Download "; then
     shot 31-download-details 3
