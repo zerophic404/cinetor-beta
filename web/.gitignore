@@ -1,0 +1,11 @@
+node_modules/
+build/
+.svelte-kit/
+package-lock.json
+# copied from ../shared by scripts/sync-shared.mjs (never commit duplicates)
+static/mock/
+static/brand/
+static/favicon.svg
+static/favicon.ico
+src/lib/design/tokens.css
+src/lib/design/tokens.ts

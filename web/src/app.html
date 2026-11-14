@@ -1,0 +1,100 @@
+<!doctype html>
+<html lang="en" data-theme="noir">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="theme-color" content="#000000" />
+    <meta name="color-scheme" content="dark" />
+    <meta name="description" content="Cinetor — movies, series, anime, drama, live TV, music and comics in one red/black glass app." />
+    <script>
+      // Apply persisted theme + effects tier before first paint (no flash).
+      (function () {
+        try {
+          var d = document.documentElement;
+          var t = localStorage.getItem('cinetor.theme');
+          if (t === 'noir' || t === 'obsidian' || t === 'ember') d.dataset.theme = t;
+          var c = { noir: '#000000', obsidian: '#0E0E10', ember: '#0A0505' }[d.dataset.theme];
+          document.querySelector('meta[name="theme-color"]').setAttribute('content', c || '#000000');
+          var o = localStorage.getItem('cinetor.tier');
+          if (o === 'LOW' || o === 'MID' || o === 'HIGH') {
+            d.dataset.tier = o.toLowerCase();
+            d.dataset.blur = o === 'LOW' ? 'none' : o === 'MID' ? 'bars' : 'all';
+          }
+        } catch (e) {}
+      })();
+    </script>
+    <link rel="icon" href="%sveltekit.assets%/favicon.ico" sizes="any" />
+    <link rel="icon" href="%sveltekit.assets%/favicon.svg" type="image/svg+xml" />
+    <link rel="manifest" href="%sveltekit.assets%/manifest.webmanifest" />
+    <meta property="og:title" content="Cinetor" />
+    <meta property="og:image" content="%sveltekit.assets%/brand/og-image.png" />
+    <!-- iOS -->
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="Cinetor" />
+    <link rel="apple-touch-icon" href="%sveltekit.assets%/brand/apple-touch-icon.png" />
+    <link rel="apple-touch-startup-image" href="%sveltekit.assets%/brand/splash/apple-splash-1290x2796.png" media="(device-width: 430px) and (device-height: 932px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)" />
+    <link rel="apple-touch-startup-image" href="%sveltekit.assets%/brand/splash/apple-splash-1179x2556.png" media="(device-width: 393px) and (device-height: 852px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)" />
+    <link rel="apple-touch-startup-image" href="%sveltekit.assets%/brand/splash/apple-splash-1284x2778.png" media="(device-width: 428px) and (device-height: 926px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)" />
+    <link rel="apple-touch-startup-image" href="%sveltekit.assets%/brand/splash/apple-splash-1170x2532.png" media="(device-width: 390px) and (device-height: 844px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)" />
+    <link rel="apple-touch-startup-image" href="%sveltekit.assets%/brand/splash/apple-splash-1125x2436.png" media="(device-width: 375px) and (device-height: 812px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)" />
+    <link rel="apple-touch-startup-image" href="%sveltekit.assets%/brand/splash/apple-splash-1242x2688.png" media="(device-width: 414px) and (device-height: 896px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)" />
+    <link rel="apple-touch-startup-image" href="%sveltekit.assets%/brand/splash/apple-splash-828x1792.png" media="(device-width: 414px) and (device-height: 896px) and (-webkit-device-pixel-ratio: 2) and (orientation: portrait)" />
+    <link rel="apple-touch-startup-image" href="%sveltekit.assets%/brand/splash/apple-splash-750x1334.png" media="(device-width: 375px) and (device-height: 667px) and (-webkit-device-pixel-ratio: 2) and (orientation: portrait)" />
+    <link rel="apple-touch-startup-image" href="%sveltekit.assets%/brand/splash/apple-splash-640x1136.png" media="(device-width: 320px) and (device-height: 568px) and (-webkit-device-pixel-ratio: 2) and (orientation: portrait)" />
+    <link rel="apple-touch-startup-image" href="%sveltekit.assets%/brand/splash/apple-splash-2048x2732.png" media="(device-width: 1024px) and (device-height: 1366px) and (-webkit-device-pixel-ratio: 2) and (orientation: portrait)" />
+    <link rel="apple-touch-startup-image" href="%sveltekit.assets%/brand/splash/apple-splash-1668x2388.png" media="(device-width: 834px) and (device-height: 1194px) and (-webkit-device-pixel-ratio: 2) and (orientation: portrait)" />
+    <link rel="apple-touch-startup-image" href="%sveltekit.assets%/brand/splash/apple-splash-1640x2360.png" media="(device-width: 820px) and (device-height: 1180px) and (-webkit-device-pixel-ratio: 2) and (orientation: portrait)" />
+    <link rel="apple-touch-startup-image" href="%sveltekit.assets%/brand/splash/apple-splash-1536x2048.png" media="(device-width: 768px) and (device-height: 1024px) and (-webkit-device-pixel-ratio: 2) and (orientation: portrait)" />
+    <style>
+      html, body { background: #000; }
+      #splash { position: fixed; inset: 0; z-index: 9999; display: grid; place-items: center; background: #000;
+        transition: opacity 260ms ease, visibility 260ms; }
+      #splash.out { opacity: 0; visibility: hidden; }
+      #splash svg { width: min(46vw, 240px); height: auto; }
+    </style>
+    %sveltekit.head%
+  </head>
+  <body data-sveltekit-preload-data="hover">
+    <div id="splash" role="img" aria-label="Cinetor">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 640" aria-hidden="true">
+        <defs><linearGradient id="cs-red" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#FF2D3B"/><stop offset="1" stop-color="#B00610"/></linearGradient><filter id="cs-blur" x="-40%" y="-40%" width="180%" height="180%"><feGaussianBlur stdDeviation="18"/></filter></defs>
+        <style>
+          #cs-ring{stroke-dasharray:703.8 703.8;animation:cs-draw 700ms cubic-bezier(.65,0,.35,1) both}
+          #cs-glow{opacity:.35;animation:cs-pulse 1200ms ease-out both}
+          #cs-play{transform-box:fill-box;transform-origin:40% 50%;animation:cs-pop 400ms cubic-bezier(.34,1.56,.64,1) 500ms both}
+          #cs-word{animation:cs-fade 450ms ease-out 700ms both}
+          @keyframes cs-draw{from{stroke-dashoffset:703.8}to{stroke-dashoffset:0}}
+          @keyframes cs-pulse{0%,40%{opacity:0}70%{opacity:.9}100%{opacity:.35}}
+          @keyframes cs-pop{from{transform:scale(0);opacity:0}to{transform:scale(1);opacity:1}}
+          @keyframes cs-fade{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
+          @media (prefers-reduced-motion:reduce){#cs-ring,#cs-glow,#cs-play,#cs-word{animation:none}}
+        </style>
+        <g transform="translate(96 80) scale(0.625)">
+          <path id="cs-glow" d="M 364.5 158.3 A 146 146 0 1 0 364.5 353.7" fill="none" stroke="#E50914" stroke-width="82" filter="url(#cs-blur)"/>
+          <path id="cs-ring" d="M 364.5 158.3 A 146 146 0 1 0 364.5 353.7" fill="none" stroke="url(#cs-red)" stroke-width="62"/>
+          <path id="cs-play" d="M220 196 L220 316 L322 256 Z" fill="#FFFFFF" stroke="#FFFFFF" stroke-width="12" stroke-linejoin="round"/>
+        </g>
+        <text id="cs-word" x="256" y="566" text-anchor="middle" font-family="Montserrat, system-ui, -apple-system, Segoe UI, Roboto, sans-serif" font-weight="800" font-size="46" letter-spacing="11" fill="#FFFFFF">CINETOR</text>
+      </svg>
+    </div>
+    <script>
+      // Splash only for the web app (/app...). Hidden when the app signals ready (min 650 ms
+      // so the draw animation completes), hard cap 1.2 s.
+      (function () {
+        var el = document.getElementById('splash');
+        if (!/\/app(\/|$)/.test(location.pathname)) { el.remove(); window.__cinetorReady = function () {}; return; }
+        var t0 = Date.now(), done = false;
+        function hide() {
+          if (done) return; done = true;
+          el.classList.add('out');
+          setTimeout(function () { el.remove(); }, 300);
+        }
+        window.__cinetorReady = function () { setTimeout(hide, Math.max(0, 650 - (Date.now() - t0))); };
+        setTimeout(hide, 1200);
+      })();
+    </script>
+    <div style="display: contents">%sveltekit.body%</div>
+  </body>
+</html>

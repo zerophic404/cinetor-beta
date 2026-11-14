@@ -45,7 +45,7 @@ jobs:
       - uses: actions/setup-node@v4
         if: hashFiles('web/package.json') != ''
         with:
-          node-version: '20'
+          node-version: '22'
 
       - name: Install
         if: hashFiles('web/package.json') != ''
