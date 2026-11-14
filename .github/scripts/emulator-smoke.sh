@@ -44,21 +44,21 @@ tap_desc() {
 adb shell input tap $((W/10)) $BAR_Y; sleep 3
 adb shell input tap $((W/2)) $((H/3)); shot 20-details-loading 1
 shot 21-details 4
-# Play → player portrait (16:9 + info below), then landscape via Fullscreen button, back closes.
+# Play → player portrait (16:9 + info below) → settings → landscape → back = mini player.
+# Controls auto-hide after 3 s and uiautomator dumps are slower → position taps right after a show-tap.
 if tap_desc "Play"; then
   shot 30-player-portrait 3
   shot 31-player-playing 4
-  # controls auto-hide after 3 s (uiautomator dump is slower) → show them, then tap the gear by position
-  adb shell input tap $((W*85/100)) $((H/8)); sleep 0.6
-  adb shell input tap $((W*93/100)) $((H*64/1000))
+  adb shell input tap $((W*85/100)) $((H/8)); sleep 0.6          # show controls
+  adb shell input tap $((W*93/100)) $((H*64/1000))               # gear
   shot 35-player-settings 2
-  adb shell input keyevent KEYCODE_BACK; sleep 1
-  if ! tap_desc "Fullscreen"; then adb shell input tap $((W*85/100)) $((H/8)); sleep 1; tap_desc "Fullscreen"; fi
+  adb shell input keyevent KEYCODE_BACK; sleep 4                 # close sheet, let controls hide
+  adb shell input tap $((W*85/100)) $((H/8)); sleep 0.6
+  adb shell input tap $((W*93/100)) $((H*27/100))                # rotate → landscape
   shot 32-player-landscape 4
-  adb shell input tap $((H/2)) $((W/2)); shot 33-player-landscape-controls 1
-  # Back → in-app mini player (keeps playing over Details / Home)
-  adb shell input keyevent KEYCODE_BACK; shot 34-mini-player 3
-  adb logcat -d | grep -E "CinetorPlayback|tap→firstFrame" | tail -5 || true
+  adb shell input tap $((H/2)) $((W/4)); shot 33-player-landscape-controls 1
+  adb shell input keyevent KEYCODE_BACK; shot 34-mini-player 3   # back → in-app mini (keeps playing)
+  adb logcat -d | grep -E "tap→firstFrame" | tail -3 || true
 fi
 adb shell input swipe $((W/2)) $((H*3/4)) $((W/2)) $((H/4)) 400; shot 22-details-scrolled 2
 adb shell input swipe $((W/2)) $((H/4)) $((W/2)) $((H*3/4)) 400; sleep 1
@@ -71,8 +71,10 @@ adb shell input swipe $((W/2)) $((H*3/4)) $((W/2)) $((H/3)) 400; shot 26-home-ro
 adb shell input tap $((W/6)) $((H*2/3)); shot 27-card-details 4
 adb shell input keyevent KEYCODE_BACK; sleep 1
 
-# mini player should have survived navigation; close it
+# mini player should have survived navigation; Home → system PiP; back to app; close mini
 shot 40-end-with-mini 1
+adb shell input keyevent KEYCODE_HOME; shot 42-pip 3
+adb shell am start -n "$PKG/.MainActivity" >/dev/null 2>&1; shot 43-back-from-pip 3
 tap_desc "Close mini player" && shot 41-mini-closed 2
 adb logcat -d > "$OUT/logcat.txt" || true
 if grep -q "FATAL EXCEPTION" "$OUT/logcat.txt"; then
