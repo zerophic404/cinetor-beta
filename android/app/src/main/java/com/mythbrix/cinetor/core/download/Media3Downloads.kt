@@ -169,8 +169,8 @@ class Media3Downloads(
                             val f = g.getTrackFormat(i)
                             when (g.type) {
                                 C.TRACK_TYPE_VIDEO -> videos += VideoOption(f.height, f.width, maxOf(f.bitrate, f.averageBitrate, f.peakBitrate).toLong(), f.codecs)
-                                C.TRACK_TYPE_AUDIO -> audios += (f.label ?: f.language ?: "Audio ${audios.size + 1}")
-                                C.TRACK_TYPE_TEXT -> texts += (f.label ?: f.language ?: "Sub ${texts.size + 1}")
+                                C.TRACK_TYPE_AUDIO -> audios += (f.language ?: f.label ?: "und")
+                                C.TRACK_TYPE_TEXT -> texts += (f.language ?: f.label ?: "und")
                             }
                         }
                     }
