@@ -75,7 +75,8 @@ adb shell input tap $(( W * 9 / 10 )) $BAR_Y; shot 29-me 3
 # Downloads row ≈ 49% H on Me (fallback when the uiautomator dump misses it)
 if tap_desc "Downloads" || { adb shell input tap $((W/2)) $((H * 49 / 100)); sleep 2; true; }; then
   shot 30-downloads 4
-  if tap_prefix "Download "; then
+  # dump can fail while progress animates → fallback: first row ≈ 35% H
+  if tap_prefix "Download " || { adb shell input tap $((W/2)) $((H * 35 / 100)); true; }; then
     shot 31-download-details 3
     adb shell input swipe $((W/2)) $((H*4/5)) $((W/2)) $((H/4)) 300; shot 32-download-details-more 2
     adb shell input keyevent KEYCODE_BACK; sleep 1
