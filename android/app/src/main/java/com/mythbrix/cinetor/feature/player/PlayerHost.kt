@@ -1,0 +1,107 @@
+package com.mythbrix.cinetor.feature.player
+
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Modifier
+import androidx.compose.foundation.background
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.mythbrix.cinetor.core.player.PlayerUiState
+import com.mythbrix.cinetor.feature.player.gestures.PlayerGestures
+import com.mythbrix.cinetor.feature.player.subs.SubtitleController
+import com.mythbrix.cinetor.feature.player.subs.SubtitleOverlay
+import com.mythbrix.cinetor.feature.player.subs.SubtitleStyleSheet
+import com.mythbrix.cinetor.feature.player.subs.SubtitleSyncSheet
+import com.mythbrix.cinetor.feature.player.subs.applySubtitleStyle
+import com.mythbrix.cinetor.feature.player.subs.displayNameOf
+import kotlinx.coroutines.flow.MutableStateFlow
+
+private val idleState = MutableStateFlow(PlayerUiState())
+
+/**
+ * Hosts the player ABOVE the NavHost so playback survives navigation and rotation (the player
+ * lives in AppContainer). Draws nothing while HIDDEN.
+ */
+@Composable
+fun PlayerHost(holder: PlayerStateHolder, subtitles: SubtitleController) {
+    val screen by holder.state.collectAsStateWithLifecycle()
+    val player by holder.player.collectAsStateWithLifecycle()
+    val ui by (player?.state ?: idleState).collectAsStateWithLifecycle()
+    val subState by subtitles.state.collectAsStateWithLifecycle()
+
+    // Background / PiP close handling lives in MainActivity (Background play setting + PiP state).
+    // New title → side-loaded subs + offset reset.
+    LaunchedEffect(screen.generation) { subtitles.reset() }
+
+    if (screen.mode == HostMode.HIDDEN || screen.item == null) return
+
+    // System PiP window: video only, no controls.
+    if (screen.inPip) {
+        Box(Modifier.fillMaxSize().background(Color.Black)) {
+            VideoSurface(
+                player?.media3Player(), screen.aspect, Modifier.fillMaxSize(),
+                configure = { v -> applySubtitleStyle(v, subState.style, hidden = subState.sideLoaded != null) },
+            )
+            SubtitleOverlay(subState.sideLoaded, subState.offsetMs, subState.style, { player?.media3Player()?.currentPosition ?: ui.positionMs })
+        }
+        return
+    }
+    if (screen.mode == HostMode.MINI) {
+        MiniPlayer(screen, ui, holder) { m -> VideoSurface(player?.media3Player(), AspectMode.FIT, m) }
+        return
+    }
+
+    val context = LocalContext.current
+    var showStyle by remember { mutableStateOf(false) }
+    var showSync by remember { mutableStateOf(false) }
+    val picker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        if (uri != null) {
+            subtitles.loadExternal(uri.toString(), displayNameOf(context, uri)) { holder.selectText(null) }
+        }
+    }
+    val known = knownSubFor(ui.tracks.text.firstOrNull { it.selected }, screen.subs)
+    val positionNow: () -> Long = { player?.media3Player()?.currentPosition ?: ui.positionMs }
+
+    Box(Modifier.fillMaxSize()) {
+        PlayerScreen(
+            screen = screen,
+            cinetorPlayer = player,
+            ui = ui,
+            holder = holder,
+            // Back / ⌄ → in-app floating mini player (playback continues across navigation).
+            onBack = { holder.minimize() },
+            layers = PlayerLayers(
+                gestures = { m, toggle -> PlayerGestures(holder, screen, ui, m, toggle) },
+                overVideo = { SubtitleOverlay(subState.sideLoaded, subState.offsetMs, subState.style, positionNow) },
+                configureView = { v -> applySubtitleStyle(v, subState.style, hidden = subState.sideLoaded != null) },
+            ),
+            subtitleExtras = SubtitleExtras(
+                onLoadFile = { picker.launch(arrayOf("*/*")) },
+                onStyle = { showStyle = true },
+                onSync = { showSync = true },
+                sideLoadedLabel = subState.sideLoaded?.label,
+                onClearSideLoaded = { subtitles.clearSideLoaded() },
+            ),
+        )
+        if (showStyle) {
+            SubtitleStyleSheet(subState.style, onChange = subtitles::setStyle, onDismiss = { showStyle = false })
+        }
+        if (showSync) {
+            SubtitleSyncSheet(
+                state = subState,
+                onNudge = { d -> subtitles.nudge(d, known?.url, known?.label) { holder.selectText(null) } },
+                onReset = { subtitles.setOffset(0) },
+                onDismiss = { showSync = false },
+            )
+        }
+    }
+}

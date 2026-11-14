@@ -85,6 +85,7 @@ fun SpaceScreen(
                 onSelectTab = vm::selectTab,
                 onSelectGenre = vm::selectGenre,
                 onToggleMyList = { container.toggleMyList(it.id) },
+                onPlay = { container.playback.play(it) },
             )
         }
     }
@@ -111,6 +112,7 @@ private fun SpaceContent(
     onSelectTab: (Int) -> Unit,
     onSelectGenre: (String?) -> Unit,
     onToggleMyList: (Item) -> Unit,
+    onPlay: (Item) -> Unit,
 ) {
     val listState = rememberLazyListState()
     val heroVisible by remember {
@@ -136,8 +138,8 @@ private fun SpaceContent(
                     myList = myList,
                     visible = heroVisible,
                     onOpen = { onOpen(it, null) },
-                    // Player arrives in Phase 3: Play opens Details (which warms playback).
-                    onPlay = { onOpen(it, null) },
+                    // Hero Play: straight into the player (full item resolved first when needed).
+                    onPlay = onPlay,
                     onToggleMyList = onToggleMyList,
                     onColor = feeder::immediate,
                 )

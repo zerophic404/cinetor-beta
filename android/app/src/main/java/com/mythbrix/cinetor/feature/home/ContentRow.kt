@@ -12,6 +12,7 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import com.mythbrix.cinetor.core.player.toCardItem
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Modifier
@@ -37,12 +38,21 @@ fun ContentRow(
     modifier: Modifier = Modifier,
 ) {
     val tokens = Cinetor.tokens
+    val resumeEntries = com.mythbrix.cinetor.core.ui.LocalResumeEntries.current
+    val rowItems = if (row.style == RowStyle.CONTINUE) {
+        // Real Continue Watching (video spaces only) first, catalog's mock entries after.
+        val space = row.items.firstOrNull()?.space
+        val real = space?.let { s -> com.mythbrix.cinetor.core.player.continueEntries(resumeEntries, s).map { it.toCardItem() } }.orEmpty()
+        (real + row.items).distinctBy { it.id }
+    } else {
+        row.items
+    }
     val state = rememberLazyListState()
     LaunchedEffect(state, row) {
         snapshotFlow { state.isScrollInProgress to state.firstVisibleItemIndex }
             .filter { it.first }
             .distinctUntilChanged()
-            .collect { (_, i) -> row.items.getOrNull(i)?.let { onTint(hexColor(it.dominantColor)) } }
+            .collect { (_, i) -> rowItems.getOrNull(i)?.let { onTint(hexColor(it.dominantColor)) } }
     }
     Column(modifier) {
         Text(
@@ -57,7 +67,7 @@ fun ContentRow(
             contentPadding = PaddingValues(horizontal = 16.dp, vertical = 10.dp),
             horizontalArrangement = Arrangement.spacedBy(if (row.style == RowStyle.TOP10) 4.dp else 12.dp),
         ) {
-            itemsIndexed(row.items, key = { _, it -> it.id }, contentType = { _, _ -> row.style }) { index, item ->
+            itemsIndexed(rowItems, key = { _, it -> it.id }, contentType = { _, _ -> row.style }) { index, item ->
                 val key = posterKey(row.id, item.id)
                 val open = { onOpen(item, key) }
                 val openPlain = { onOpen(item, null) }

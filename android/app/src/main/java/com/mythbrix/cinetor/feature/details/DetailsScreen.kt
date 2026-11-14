@@ -1,7 +1,18 @@
 package com.mythbrix.cinetor.feature.details
 
+import com.mythbrix.cinetor.core.download.DownloadInfo
+import com.mythbrix.cinetor.core.download.DownloadStatus
+import com.mythbrix.cinetor.core.download.downloadIdFor
+import com.mythbrix.cinetor.core.download.isDownloadable
+import com.mythbrix.cinetor.core.download.nextUnwatched
+import com.mythbrix.cinetor.feature.downloads.DownloadButton
+import com.mythbrix.cinetor.feature.downloads.DownloadDetailsSheet
+import com.mythbrix.cinetor.feature.downloads.DownloadOptionsSheet
+import com.mythbrix.cinetor.feature.downloads.DownloadTarget
+import com.mythbrix.cinetor.feature.downloads.EpisodeDownloadButton
 import android.content.Intent
 import android.widget.Toast
+import com.mythbrix.cinetor.core.player.ResumeEntry
 import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
@@ -146,9 +157,13 @@ fun DetailsScreen(
     }
     LaunchedEffect(headerItem?.dominantColor) { headerItem?.let { tint.setSource(hexColor(it.dominantColor)) } }
 
-    var showDownloads by rememberSaveable { mutableStateOf(false) }
+    val downloadsById by container.downloads.engine.downloads.collectAsStateWithLifecycle()
+    val dlMap = remember(downloadsById) { downloadsById.associateBy { it.record.id } }
+    var optionsTarget by remember { mutableStateOf<DownloadTarget?>(null) }
+    var dlDetailsId by rememberSaveable { mutableStateOf<String?>(null) }
     var season by rememberSaveable(id) { mutableStateOf(0) }
     val context = LocalContext.current
+    val resumeEntries = com.mythbrix.cinetor.core.ui.LocalResumeEntries.current
 
     LazyColumn(
         contentPadding = PaddingValues(bottom = contentPadding.calculateBottomPadding()),
@@ -190,10 +205,21 @@ fun DetailsScreen(
                         item = item,
                         readiness = readiness[item.id],
                         inMyList = item.id in myList,
-                        onPlay = {
-                            Toast.makeText(context, "Player arrives in Phase 3", Toast.LENGTH_SHORT).show()
+                        resume = resumeEntries.firstOrNull { it.itemId == item.id },
+                        // Takes the warmed player (instant start); series resume picks the saved episode.
+                        onPlay = { container.playback.play(item) },
+                        downloadInfo = dlMap[downloadIdFor(item.id, null)],
+                        canDownload = isDownloadable(item),
+                        onDownload = {
+                            val existing = dlMap[downloadIdFor(item.id, null)]
+                            val sn = item.seasons.getOrNull(season.coerceIn(0, (item.seasons.size - 1).coerceAtLeast(0)))
+                            when {
+                                existing != null -> dlDetailsId = existing.record.id
+                                // Series: top button downloads the selected season.
+                                sn != null -> optionsTarget = DownloadTarget(item, sn.episodes, sn.n, "${item.title} · Season ${sn.n} (${sn.episodes.size} episodes)")
+                                else -> optionsTarget = DownloadTarget(item)
+                            }
                         },
-                        onDownload = { showDownloads = true },
                         onToggleMyList = { container.toggleMyList(item.id) },
                         onShare = {
                             val send = Intent(Intent.ACTION_SEND).apply {
@@ -213,10 +239,42 @@ fun DetailsScreen(
                             SeasonTabs(seasons, selected) { season = it }
                         }
                     }
-                    items(seasons[selected].episodes, key = { "ep-${it.id}" }, contentType = { "episode" }) { ep ->
-                        EpisodeRow(ep, showProgress = selected == 0 && ep.n == 1) {
-                            Toast.makeText(context, "Player arrives in Phase 3", Toast.LENGTH_SHORT).show()
+                    val seasonObj = seasons[selected]
+                    if (isDownloadable(item)) {
+                        item(key = "season-dl-$selected", contentType = "season-dl") {
+                            SeasonDownloadActions(
+                                onSeason = {
+                                    optionsTarget = DownloadTarget(item, seasonObj.episodes, seasonObj.n, "${item.title} · Season ${seasonObj.n} (${seasonObj.episodes.size} episodes)")
+                                },
+                                onNext3 = {
+                                    val done = dlMap.keys
+                                    val next = nextUnwatched(seasonObj.episodes, done, item.id)
+                                    if (next.isEmpty()) {
+                                        Toast.makeText(context, "All episodes already downloaded", Toast.LENGTH_SHORT).show()
+                                    } else {
+                                        optionsTarget = DownloadTarget(item, next, seasonObj.n, "${item.title} · next ${next.size} episodes")
+                                    }
+                                },
+                            )
                         }
+                    }
+                    items(seasonObj.episodes, key = { "ep-${it.id}" }, contentType = { "episode" }) { ep ->
+                        val epProgress = resumeEntries.firstOrNull { it.itemId == item.id && it.episodeId == ep.id }
+                            ?.takeIf { !it.finished }?.fraction
+                        val epInfo = dlMap[downloadIdFor(item.id, ep.id)]
+                        EpisodeRow(
+                            ep,
+                            progress = epProgress,
+                            downloaded = epInfo?.record?.status == DownloadStatus.COMPLETED,
+                            trailing = if (isDownloadable(item)) {
+                                {
+                                    EpisodeDownloadButton(epInfo, onClick = {
+                                        if (epInfo != null) dlDetailsId = epInfo.record.id
+                                        else optionsTarget = DownloadTarget(item, listOf(ep), seasonObj.n)
+                                    })
+                                }
+                            } else null,
+                        ) { container.playback.play(item, ep.id) }
                     }
                 }
                 item(key = "more", contentType = "more") {
@@ -226,7 +284,20 @@ fun DetailsScreen(
         }
     }
 
-    if (showDownloads) DownloadsSheet(onDismiss = { showDownloads = false })
+    optionsTarget?.let { target ->
+        DownloadOptionsSheet(
+            target = target,
+            module = container.downloads,
+            onDismiss = { optionsTarget = null },
+            onStarted = { n -> Toast.makeText(context, if (n > 1) "$n downloads queued" else "Download started", Toast.LENGTH_SHORT).show() },
+        )
+    }
+    dlDetailsId?.let { dlId ->
+        DownloadDetailsSheet(
+            dlId, container.downloads, onDismiss = { dlDetailsId = null }, onOpen = { dlDetailsId = null },
+            onPlay = { r -> dlDetailsId = null; container.playDownload(r) },
+        )
+    }
 }
 
 @Composable
@@ -355,7 +426,10 @@ private fun DetailsActions(
     item: Item,
     readiness: Readiness?,
     inMyList: Boolean,
+    resume: ResumeEntry?,
     onPlay: () -> Unit,
+    downloadInfo: DownloadInfo?,
+    canDownload: Boolean,
     onDownload: () -> Unit,
     onToggleMyList: () -> Unit,
     onShare: () -> Unit,
@@ -363,8 +437,11 @@ private fun DetailsActions(
     val tokens = Cinetor.tokens
     val shape = RoundedCornerShape(CinetorTokens.Shape.md)
     val firstEp = item.seasons.firstOrNull()?.episodes?.firstOrNull()
+    val resumable = resume?.takeIf { !it.finished && it.positionMs >= 3_000 }
     val playLabel = when {
-        item.type == ItemType.SERIES && firstEp != null -> "Resume S1:E${firstEp.n}"
+        resumable != null && resumable.episodeLabel != null -> "Resume ${resumable.episodeLabel}"
+        resumable != null -> "Resume"
+        item.type == ItemType.SERIES && firstEp != null -> "Play S1:E${firstEp.n}"
         else -> "Play"
     }
     Column(Modifier.padding(horizontal = 16.dp, vertical = 16.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
@@ -386,19 +463,15 @@ private fun DetailsActions(
                 Spacer(Modifier.width(10.dp))
                 ReadyDot(readiness)
             }
-            Row(
-                Modifier
-                    .height(50.dp)
-                    .glass(shape, GlassLevel.SURFACE)
-                    .clickable(onClick = onDownload)
-                    .semantics { contentDescription = "Download" }
-                    .padding(horizontal = 16.dp),
-                horizontalArrangement = Arrangement.Center,
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Icon(Icons.Rounded.Download, contentDescription = null, tint = tokens.textPrimary)
-                Spacer(Modifier.width(6.dp))
-                Text("Download", color = tokens.textPrimary, style = MaterialTheme.typography.labelLarge)
+            if (canDownload) DownloadButton(downloadInfo, onClick = onDownload)
+        }
+        if (resumable != null) {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                Box(Modifier.weight(1f).height(3.dp).clip(RoundedCornerShape(2.dp)).background(tokens.textPrimary.copy(alpha = 0.2f))) {
+                    Box(Modifier.fillMaxWidth(resumable.fraction).height(3.dp).background(tokens.accent))
+                }
+                val leftMin = ((resumable.durationMs - resumable.positionMs) / 60_000).coerceAtLeast(1)
+                Text("$leftMin min left", style = MaterialTheme.typography.labelSmall, color = tokens.textSecondary)
             }
         }
         Row(horizontalArrangement = Arrangement.spacedBy(28.dp)) {
@@ -549,28 +622,25 @@ private fun BodySkeleton() {
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
+/** Whole-season and "next 3" download shortcuts above the episode list. */
 @Composable
-private fun DownloadsSheet(onDismiss: () -> Unit) {
+private fun SeasonDownloadActions(onSeason: () -> Unit, onNext3: () -> Unit) {
     val tokens = Cinetor.tokens
-    ModalBottomSheet(
-        onDismissRequest = onDismiss,
-        sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
-        containerColor = tokens.surfaceElevated,
-    ) {
-        Column(
-            Modifier.fillMaxWidth().navigationBarsPadding().padding(24.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-        ) {
-            Icon(Icons.Rounded.Download, contentDescription = null, tint = tokens.accent, modifier = Modifier.size(40.dp))
-            Text("Downloads coming in Phase 3", style = MaterialTheme.typography.titleMedium, color = tokens.textPrimary)
-            Text(
-                "Pick quality, audio and subtitles, then watch offline.",
-                style = MaterialTheme.typography.bodyMedium,
-                color = tokens.textSecondary,
-            )
-            Button(onClick = onDismiss) { Text("OK") }
+    Row(Modifier.padding(horizontal = 16.dp, vertical = 4.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+        listOf("Download season" to onSeason, "Next 3 episodes" to onNext3).forEach { (label, action) ->
+            Row(
+                Modifier
+                    .clip(RoundedCornerShape(CinetorTokens.Shape.pill))
+                    .glass(RoundedCornerShape(CinetorTokens.Shape.pill), GlassLevel.SURFACE)
+                    .clickable(onClick = action)
+                    .semantics { contentDescription = label }
+                    .padding(horizontal = 12.dp, vertical = 8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Icon(Icons.Rounded.Download, contentDescription = null, tint = tokens.textPrimary, modifier = Modifier.size(16.dp))
+                Spacer(Modifier.width(6.dp))
+                Text(label, color = tokens.textPrimary, style = MaterialTheme.typography.labelMedium)
+            }
         }
     }
 }

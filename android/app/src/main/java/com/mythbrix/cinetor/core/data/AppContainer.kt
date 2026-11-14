@@ -5,11 +5,29 @@ import com.mythbrix.cinetor.BuildConfig
 import com.mythbrix.cinetor.core.data.tmdb.OkHttpTmdbHttp
 import com.mythbrix.cinetor.core.data.tmdb.TmdbApi
 import com.mythbrix.cinetor.core.data.tmdb.TmdbCatalogSource
+import com.mythbrix.cinetor.core.download.DownloadRecord
+import com.mythbrix.cinetor.core.download.DownloadsModule
+import com.mythbrix.cinetor.core.download.OfflineResolver
+import com.mythbrix.cinetor.core.player.SourceResolver
+import kotlinx.coroutines.withTimeoutOrNull
 import com.mythbrix.cinetor.core.perf.DeviceProfile
+import android.util.Log
+import com.mythbrix.cinetor.core.perf.PerformanceTier
+import com.mythbrix.cinetor.core.perf.detectTier
+import com.mythbrix.cinetor.core.player.MediaPlaybackPreloader
 import com.mythbrix.cinetor.core.player.PlaybackPreloader
-import com.mythbrix.cinetor.core.player.SimulatedPlaybackPreloader
+import com.mythbrix.cinetor.core.player.PlayerFactory
+import com.mythbrix.cinetor.core.player.ResumeRepository
+import com.mythbrix.cinetor.core.player.ResumeStore
+import com.mythbrix.cinetor.core.prefs.ResumeDataStore
 import com.mythbrix.cinetor.core.prefs.SearchHistoryDataStore
 import com.mythbrix.cinetor.core.prefs.SettingsStore
+import com.mythbrix.cinetor.feature.player.PlayerStateHolder
+import com.mythbrix.cinetor.core.player.DEFAULT_PROFILE
+import com.mythbrix.cinetor.core.prefs.SubtitleStyleDataStore
+import com.mythbrix.cinetor.feature.player.subs.SubtitleController
+import com.mythbrix.cinetor.feature.player.subs.SubtitleStyleStore
+import com.mythbrix.cinetor.feature.player.subs.loadSubtitleText
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -60,8 +78,53 @@ class AppContainer(context: Context) {
     /** Items seen on cards (Details warm-up + shared poster before the full item loads). */
     val peek: ItemPeekCache = ItemPeekCache()
 
-    /** Instant-play warm-up. Simulated readiness until the Media3 preloader (Task 3.2). */
-    val preloader: PlaybackPreloader = SimulatedPlaybackPreloader(appScope)
+    /** Main-thread scope for player work (ExoPlayer is single-threaded on the main looper). */
+    val mainScope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
+
+    /** Auto-detected tier for player buffers/cache (user effects override only affects visuals). */
+    val playerTier: PerformanceTier by lazy { detectTier(deviceProfile) }
+
+    /** Owns the ONE shared ExoPlayer + 200 MB (LOW: 80 MB) SimpleCache. Process-scoped → survives rotation. */
+    val playerFactory: PlayerFactory by lazy { PlayerFactory(appContext, playerTier) { downloads.cacheProvider } }
+
+    /** Resume positions (DataStore JSON keyed profile+item+episode; Room later if added). */
+    val resume: ResumeStore = ResumeRepository(ResumeDataStore(appContext))
+
+    /** Data saver: warm only resolves, never buffers. Settings toggle arrives in 5.2. */
+    @Volatile
+    var dataSaver: Boolean = false
+
+    /** Instant-play warm-up over the shared Media3 player (Task 3.2). */
+    val preloader: PlaybackPreloader = MediaPlaybackPreloader(
+        scope = mainScope,
+        playerProvider = { playerFactory.player() },
+        resume = resume,
+        dataSaver = { dataSaver },
+        log = { Log.i("CinetorPlayback", it) },
+    )
+
+    /** App-scoped player state (PlayerHost above the NavHost): survives rotation + navigation. */
+    val playback: PlayerStateHolder by lazy {
+        PlayerStateHolder(
+            scope = mainScope,
+            preloader = preloader,
+            resume = resume,
+            resolveFull = { item -> runCatching { catalog.item(item.id) }.getOrDefault(item) },
+        )
+    }
+
+    /** Per-profile subtitle style (Task 3.5). */
+    val subtitleStyles: SubtitleStyleStore = SubtitleStyleStore(SubtitleStyleDataStore(appContext))
+
+    /** Side-loaded subs + sync offset + style for the player (app-scoped: survives rotation). */
+    val subtitles: SubtitleController by lazy {
+        SubtitleController(
+            scope = mainScope,
+            store = subtitleStyles,
+            profileId = { DEFAULT_PROFILE },
+            loader = { uri -> loadSubtitleText(appContext, uri) },
+        ).also { it.loadStyle() }
+    }
 
     private val _myList = MutableStateFlow<Set<String>>(emptySet())
 
@@ -72,8 +135,27 @@ class AppContainer(context: Context) {
 
     val deviceProfile: DeviceProfile by lazy { DeviceProfile.fromContext(appContext) }
 
+    /** Download engine + offline cache (Task 3.7). Created at startup so queued downloads resume. */
+    val downloads: DownloadsModule by lazy {
+        DownloadsModule(appContext, appScope, httpClient, detectTier(deviceProfile) == PerformanceTier.LOW, settings.adultEnabled)
+    }
+
+    /**
+     * Play a completed download (Downloads screen). Uses the catalog item when it answers fast (next episode,
+     * metadata), else a stub rebuilt from the record so airplane mode still works. The player itself picks the
+     * local file / download cache; resume position is the same store as streaming.
+     */
+    fun playDownload(record: DownloadRecord) {
+        mainScope.launch {
+            val full = withTimeoutOrNull(1_500) { runCatching { catalog.item(record.itemId) }.getOrNull() }
+                ?.takeIf { SourceResolver.request(it, record.episodeId)?.episodeId == record.episodeId }
+            playback.play(full ?: OfflineResolver.playableItem(record), record.episodeId)
+        }
+    }
+
     /** Kick off catalog parsing while the splash plays. */
     fun warmUp() {
         appScope.launch { runCatching { catalogSource.preload() } }
+        appScope.launch(Dispatchers.Main) { runCatching { downloads } }
     }
 }

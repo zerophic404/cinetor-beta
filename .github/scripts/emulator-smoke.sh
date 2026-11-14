@@ -44,9 +44,33 @@ tap_desc() {
 adb shell input tap $((W/10)) $BAR_Y; sleep 3
 adb shell input tap $((W/2)) $((H/3)); shot 20-details-loading 1
 shot 21-details 4
+# Play → player portrait (16:9 + info below) → settings → landscape → back = mini player.
+# Controls auto-hide after 3 s and uiautomator dumps are slower → position taps right after a show-tap.
+if tap_desc "Play"; then
+  shot 30-player-portrait 3
+  shot 31-player-playing 4
+  adb shell input tap $((W*85/100)) $((H/8)); sleep 0.6          # show controls
+  adb shell input tap $((W*93/100)) $((H*64/1000))               # gear
+  shot 35-player-settings 2
+  adb shell input keyevent KEYCODE_BACK; sleep 4                 # close sheet, let controls hide
+  adb shell input tap $((W*85/100)) $((H/8)); sleep 0.6
+  adb shell input tap $((W*93/100)) $((H*27/100))                # rotate → landscape
+  shot 32-player-landscape 4
+  adb shell input tap $((H/2)) $((W/4)); shot 33-player-landscape-controls 1
+  adb shell input keyevent KEYCODE_BACK; shot 34-mini-player 3   # back → in-app mini (keeps playing)
+  adb logcat -d | grep -E "tap→firstFrame" | tail -3 || true
+fi
 adb shell input swipe $((W/2)) $((H*3/4)) $((W/2)) $((H/4)) 400; shot 22-details-scrolled 2
 adb shell input swipe $((W/2)) $((H/4)) $((W/2)) $((H*3/4)) 400; sleep 1
-tap_desc "Download" && shot 23-download-sheet 2 && adb shell input keyevent KEYCODE_BACK && sleep 1
+if tap_desc "Download"; then
+  shot 23-download-sheet 6
+  # real download through the engine (options sheet → Start); fallback: close sheet
+  if tap_desc "Start download" || { adb shell input swipe $((W/2)) $((H*4/5)) $((W/2)) $((H/3)) 300; sleep 1; tap_desc "Start download"; }; then
+    shot 23b-download-started 3
+  else
+    adb shell input keyevent KEYCODE_BACK; sleep 1
+  fi
+fi
 adb shell input keyevent KEYCODE_BACK; shot 24-back-home 2
 # category tab swap (Series) → hero swaps
 tap_desc "Tab Series" && shot 25-home-series 4
@@ -54,7 +78,34 @@ tap_desc "Tab Series" && shot 25-home-series 4
 adb shell input swipe $((W/2)) $((H*3/4)) $((W/2)) $((H/3)) 400; shot 26-home-rows 2
 adb shell input tap $((W/6)) $((H*2/3)); shot 27-card-details 4
 adb shell input keyevent KEYCODE_BACK; sleep 1
+# Me → Downloads → first download → details sheet
+tap_prefix() {
+  adb shell uiautomator dump /sdcard/ui.xml >/dev/null 2>&1 || return 1
+  local b
+  b=$(adb shell cat /sdcard/ui.xml | tr '>' '\n' | grep -m1 "content-desc=\"$1" | grep -oE 'bounds="\[[0-9]+,[0-9]+\]\[[0-9]+,[0-9]+\]"' | grep -oE '[0-9]+' | tr '\n' ' ')
+  [ -z "$b" ] && { echo "no node prefix '$1'"; return 1; }
+  set -- $b
+  adb shell input tap $(( ($1 + $3) / 2 )) $(( ($2 + $4) / 2 ))
+}
+adb shell input tap $(( W * 9 / 10 )) $BAR_Y; shot 29-me 3
+# Downloads row ≈ 49% H on Me (fallback when the uiautomator dump misses it)
+if tap_desc "Downloads" || { adb shell input tap $((W/2)) $((H * 49 / 100)); sleep 2; true; }; then
+  shot 30-downloads 4
+  # dump can fail while progress animates → fallback: first row ≈ 35% H
+  if tap_prefix "Download " || { adb shell input tap $((W/2)) $((H * 35 / 100)); true; }; then
+    shot 31-download-details 3
+    adb shell input swipe $((W/2)) $((H*4/5)) $((W/2)) $((H/4)) 300; shot 32-download-details-more 2
+    adb shell input keyevent KEYCODE_BACK; sleep 1
+  fi
+  tap_desc "Tab Completed" && shot 33-downloads-completed 2
+  adb shell input keyevent KEYCODE_BACK; sleep 1
+fi
 
+# mini player should have survived navigation; Home → system PiP; back to app; close mini
+shot 40-end-with-mini 1
+adb shell input keyevent KEYCODE_HOME; shot 42-pip 3
+adb shell am start -n "$PKG/.MainActivity" >/dev/null 2>&1; shot 43-back-from-pip 3
+tap_desc "Close mini player" && shot 41-mini-closed 2
 adb logcat -d > "$OUT/logcat.txt" || true
 if grep -q "FATAL EXCEPTION" "$OUT/logcat.txt"; then
   echo "::error::App crashed"; grep -A30 "FATAL EXCEPTION" "$OUT/logcat.txt" | head -60; exit 1

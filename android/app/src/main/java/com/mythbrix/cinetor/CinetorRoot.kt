@@ -17,6 +17,11 @@ import com.mythbrix.cinetor.design.AppTheme
 import com.mythbrix.cinetor.design.CinetorTheme
 import com.mythbrix.cinetor.feature.splash.AnimatedSplash
 import com.mythbrix.cinetor.navigation.CinetorNavHost
+import com.mythbrix.cinetor.feature.player.PlayerHost
+import com.mythbrix.cinetor.core.player.DEFAULT_PROFILE
+import com.mythbrix.cinetor.core.player.ResumeEntry
+import com.mythbrix.cinetor.core.ui.LocalResumeEntries
+import androidx.compose.runtime.CompositionLocalProvider
 
 /** Theme + tier from DataStore (applied live, no restart) → shell with the intro on top. */
 @Composable
@@ -28,7 +33,13 @@ fun CinetorRoot(container: AppContainer) {
         var showIntro by rememberSaveable { mutableStateOf(true) }
         Box(Modifier.fillMaxSize()) {
             // Shell composes underneath so catalog loading/skeletons start during the intro.
-            CinetorNavHost(container)
+            val resumeEntries by container.resume.observe(DEFAULT_PROFILE)
+                .collectAsStateWithLifecycle(initialValue = emptyList<ResumeEntry>())
+            CompositionLocalProvider(LocalResumeEntries provides resumeEntries) {
+                CinetorNavHost(container)
+            }
+            // Player lives above the NavHost: playback survives navigation (mini player in 3.6).
+            PlayerHost(container.playback, container.subtitles)
             if (showIntro) AnimatedSplash(onFinished = { showIntro = false })
         }
     }

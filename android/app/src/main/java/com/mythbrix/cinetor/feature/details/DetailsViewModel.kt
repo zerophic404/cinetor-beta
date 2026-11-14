@@ -7,6 +7,7 @@ import com.mythbrix.cinetor.core.data.CatalogRepository
 import com.mythbrix.cinetor.core.data.Item
 import com.mythbrix.cinetor.core.player.PlaybackPreloader
 import com.mythbrix.cinetor.core.player.Readiness
+import com.mythbrix.cinetor.core.player.SourceResolver
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
@@ -86,7 +87,9 @@ class DetailsStateHolder(
                 _state.value = DetailsUiState.Error(id, e.message ?: "Title not found")
                 return@launch
             }
-            if (warmedId != id) warm(item)
+            // Re-warm with the full item when the card summary wasn't playable (no sources yet).
+            val summaryUnplayable = summary != null && SourceResolver.request(summary, null) == null
+            if (warmedId != id || (summaryUnplayable && SourceResolver.request(item, null) != null)) warm(item)
             _state.value = DetailsUiState.Ready(DetailsUi(item))
             val more = moreLikeThis(item, candidates(item))
             _state.value = DetailsUiState.Ready(DetailsUi(item, more, moreLoading = false))
