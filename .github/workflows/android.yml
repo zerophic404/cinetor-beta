@@ -8,6 +8,7 @@ on:
       - 'android/**'
       - 'shared/**'
       - '.github/workflows/android.yml'
+      - '.github/scripts/emulator-smoke.sh'
   workflow_dispatch:
 
 permissions:
@@ -24,6 +25,11 @@ jobs:
     defaults:
       run:
         working-directory: android
+    env:
+      TMDB_TOKEN: ${{ secrets.TMDB_TOKEN }}
+      CINETOR_KEYSTORE_PASS: ${{ secrets.CINETOR_KEYSTORE_PASS }}
+      CINETOR_KEY_PASS: ${{ secrets.CINETOR_KEY_PASS }}
+      CINETOR_KEY_ALIAS: ${{ secrets.CINETOR_KEY_ALIAS }}
     steps:
       - uses: actions/checkout@v4
 
@@ -36,16 +42,35 @@ jobs:
         with:
           gradle-version: '8.9'
 
+      - name: Decode signing keystore
+        env:
+          KS_B64: ${{ secrets.CINETOR_KEYSTORE_B64 }}
+        run: |
+          if [ -n "$KS_B64" ]; then
+            echo "$KS_B64" | base64 -d > "$RUNNER_TEMP/cinetor.p12"
+            echo "CINETOR_KEYSTORE_PATH=$RUNNER_TEMP/cinetor.p12" >> "$GITHUB_ENV"
+          else
+            echo "no keystore secret; default debug signing"
+          fi
+
       - name: Build debug APK
         run: gradle --no-daemon --stacktrace assembleDebug
 
       - name: Unit tests
         run: gradle --no-daemon --stacktrace testDebugUnitTest
 
+      - name: Upload test reports
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-reports
+          path: android/app/build/reports/tests
+          retention-days: 7
+
       - name: Rename APK
         run: |
           mkdir -p out
-          cp app/build/outputs/apk/debug/*.apk "out/cinetor-build${{ github.run_number }}-debug.apk"
+          cp app/build/outputs/apk/debug/*.apk "out/cinetor-build${{ github.run_number }}-universal.apk"
           ls -la out
           # Mock catalog must be bundled from shared/mock (generated assets, not in git)
           unzip -l out/*.apk | grep -q 'assets/mock/home.json'
@@ -58,10 +83,64 @@ jobs:
           path: android/out/*.apk
           retention-days: 30
 
-      - name: Publish release
+  emulator-smoke:
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: apk
+          path: apk
+
+      - name: Enable KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+
+      - name: Smoke test on emulator (API 30, low RAM)
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 30
+          arch: x86_64
+          target: google_apis
+          profile: pixel_3a
+          ram-size: 2048M
+          disable-animations: true
+          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
+          script: bash .github/scripts/emulator-smoke.sh apk shots
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: emulator-screenshots
+          path: shots
+          retention-days: 14
+
+  release:
+    needs: [build, emulator-smoke]
+    if: github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: apk
+          path: apk
+
+      - name: Publish release (public cinetor-app)
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: build-${{ github.run_number }}
-          name: Build ${{ github.run_number }}
-          files: android/out/*.apk
+          repository: Ashrix404/cinetor-app
+          token: ${{ secrets.RELEASE_TOKEN }}
+          tag_name: android-build-${{ github.run_number }}
+          target_commitish: main
+          name: Android build ${{ github.run_number }}
+          body: |
+            Cinetor Android build ${{ github.run_number }} (phone + TV, universal APK).
+            Commit: ${{ github.sha }}
+            ${{ github.event.head_commit.message }}
+          files: apk/*.apk
           make_latest: true

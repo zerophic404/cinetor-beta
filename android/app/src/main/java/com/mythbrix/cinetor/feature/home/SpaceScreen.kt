@@ -14,48 +14,52 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material3.Button
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import com.mythbrix.cinetor.core.data.AppContainer
+import com.mythbrix.cinetor.core.data.Item
 import com.mythbrix.cinetor.core.data.Space
-import com.mythbrix.cinetor.core.ui.PosterCard
 import com.mythbrix.cinetor.design.Cinetor
 import com.mythbrix.cinetor.design.CinetorTokens
 import com.mythbrix.cinetor.design.ShimmerHost
 import com.mythbrix.cinetor.design.SkeletonHero
 import com.mythbrix.cinetor.design.SkeletonPosterRow
-import com.mythbrix.cinetor.design.hexColor
 
-/** Shared space screen (placeholder for Task 2.1): categories + first-row posters from assets. */
+private const val HERO_KEY = "hero"
+
+/**
+ * Shared screen for every space: category tabs + auto-sliding hero + genre chips + styled rows.
+ * [onOpenItem] gets the item and the shared-element key of the poster that was tapped (or null).
+ */
 @Composable
 fun SpaceScreen(
     space: Space,
     container: AppContainer,
     contentPadding: PaddingValues,
-    onOpenItem: (String) -> Unit,
+    onOpenItem: (Item, String?) -> Unit,
 ) {
     val vm: SpaceViewModel = viewModel(
         key = "space-${space.name}",
         factory = viewModelFactory { initializer { SpaceViewModel(space, container.catalog) } },
     )
     val state by vm.state.collectAsStateWithLifecycle()
-    val tint = Cinetor.tint
-    LaunchedEffect(state) {
-        (state as? SpaceUiState.Ready)?.heroColor?.let { tint.setSource(hexColor(it)) }
-    }
+    val myList by container.myList.collectAsStateWithLifecycle()
+    val feeder = rememberTintFeeder()
     val fadeMs = Cinetor.tier.scaled(CinetorTokens.Motion.longMs)
     AnimatedContent(
         targetState = state,
@@ -72,68 +76,93 @@ fun SpaceScreen(
                     Button(onClick = vm::load) { Text("Retry") }
                 }
             }
-            is SpaceUiState.Ready -> SpaceContent(space, s, contentPadding, onOpenItem)
+            is SpaceUiState.Ready -> SpaceContent(
+                ui = s.ui,
+                myList = myList,
+                contentPadding = contentPadding,
+                feeder = feeder,
+                onOpen = onOpenItem,
+                onSelectTab = vm::selectTab,
+                onSelectGenre = vm::selectGenre,
+                onToggleMyList = { container.toggleMyList(it.id) },
+            )
         }
     }
 }
 
+/** First load: SkeletonHero + 3 SkeletonPosterRow under one shimmer clock. */
 @Composable
 private fun SpaceSkeleton(contentPadding: PaddingValues) {
     ShimmerHost {
         LazyColumn(contentPadding = contentPadding, userScrollEnabled = false) {
             item { SkeletonHero() }
-            items(3) {
-                SkeletonPosterRow(Modifier.padding(vertical = 12.dp))
-            }
+            items(3) { SkeletonPosterRow(Modifier.padding(vertical = 12.dp)) }
         }
     }
 }
 
 @Composable
 private fun SpaceContent(
-    space: Space,
-    state: SpaceUiState.Ready,
+    ui: SpaceUi,
+    myList: Set<String>,
     contentPadding: PaddingValues,
-    onOpenItem: (String) -> Unit,
+    feeder: TintFeeder,
+    onOpen: (Item, String?) -> Unit,
+    onSelectTab: (Int) -> Unit,
+    onSelectGenre: (String?) -> Unit,
+    onToggleMyList: (Item) -> Unit,
 ) {
-    val tokens = Cinetor.tokens
+    val listState = rememberLazyListState()
+    val heroVisible by remember {
+        derivedStateOf { listState.layoutInfo.visibleItemsInfo.any { it.key == HERO_KEY } }
+    }
+    val heroKey = remember(ui.heroes) { ui.heroes.joinToString(",") { it.id } }
+    val onTint: (Color) -> Unit = remember(feeder) { { c -> feeder.offer(c) } }
     LazyColumn(
+        state = listState,
         contentPadding = contentPadding,
-        verticalArrangement = Arrangement.spacedBy(20.dp),
+        verticalArrangement = Arrangement.spacedBy(16.dp),
         modifier = Modifier.fillMaxSize(),
     ) {
-        item(key = "header", contentType = "header") {
-            Column(Modifier.padding(horizontal = 16.dp)) {
-                Text(space.displayName, style = MaterialTheme.typography.headlineMedium, color = tokens.textPrimary)
-                Text(
-                    "${state.sections.size} categories",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = tokens.textSecondary,
+        if (ui.showTabs) {
+            item(key = "tabs", contentType = "tabs") {
+                CategoryTabs(ui.tabs, ui.selectedTab, onSelectTab)
+            }
+        }
+        item(key = HERO_KEY, contentType = HERO_KEY) {
+            key(heroKey) {
+                HeroCarousel(
+                    heroes = ui.heroes,
+                    myList = myList,
+                    visible = heroVisible,
+                    onOpen = { onOpen(it, null) },
+                    // Player arrives in Phase 3: Play opens Details (which warms playback).
+                    onPlay = { onOpen(it, null) },
+                    onToggleMyList = onToggleMyList,
+                    onColor = feeder::immediate,
                 )
             }
         }
-        items(state.sections, key = { it.categoryId }, contentType = { "section" }) { section ->
-            Column {
-                Text(
-                    section.title,
-                    style = MaterialTheme.typography.titleLarge,
-                    color = tokens.textPrimary,
-                    modifier = Modifier.padding(horizontal = 16.dp),
-                )
-                Text(
-                    section.rowTitle,
-                    style = MaterialTheme.typography.labelMedium,
-                    color = tokens.textSecondary,
-                    modifier = Modifier.padding(horizontal = 16.dp),
-                )
-                Spacer(Modifier.height(10.dp))
-                LazyRow(
-                    contentPadding = PaddingValues(horizontal = 16.dp, vertical = 6.dp),
-                    horizontalArrangement = Arrangement.spacedBy(12.dp),
-                ) {
-                    items(section.items, key = { it.id }, contentType = { "poster" }) { item ->
-                        PosterCard(item, onClick = { onOpenItem(item.id) })
-                    }
+        if (ui.genres.isNotEmpty()) {
+            item(key = "genres", contentType = "genres") {
+                GenreChips(ui.genres, ui.selectedGenre, onSelectGenre)
+            }
+        }
+        if (ui.tabLoading) {
+            items(3, key = { "row-skeleton-$it" }, contentType = { "skeleton" }) {
+                SkeletonPosterRow()
+            }
+        } else {
+            items(ui.rows, key = { it.id }, contentType = { it.style }) { row ->
+                ContentRow(row, onOpen, onTint)
+            }
+            if (ui.rows.isEmpty()) {
+                item(key = "empty", contentType = "empty") {
+                    Text(
+                        "Nothing in ${ui.selectedGenre ?: "this category"} yet",
+                        color = Cinetor.tokens.textSecondary,
+                        modifier = Modifier.padding(24.dp),
+                    )
                 }
             }
         }

@@ -17,10 +17,33 @@ android {
         targetSdk = 35
         versionCode = 1
         versionName = "1.0"
+
+        // TMDB v4 read token from CI secret (never committed). Empty → mock catalog only.
+        val tmdbToken = (System.getenv("TMDB_TOKEN") ?: "").trim().replace("\"", "")
+        buildConfigField("String", "TMDB_TOKEN", "\"$tmdbToken\"")
+    }
+
+    // Release keystore (PKCS12) from CI secrets; same key for debug so builds update in place.
+    val ksPath = (System.getenv("CINETOR_KEYSTORE_PATH") ?: "").trim()
+    val hasKeystore = ksPath.isNotEmpty() && file(ksPath).exists()
+    signingConfigs {
+        if (hasKeystore) {
+            create("cinetor") {
+                storeFile = file(ksPath)
+                storePassword = System.getenv("CINETOR_KEYSTORE_PASS")
+                keyAlias = System.getenv("CINETOR_KEY_ALIAS") ?: "cinetor"
+                keyPassword = System.getenv("CINETOR_KEY_PASS")
+                storeType = "pkcs12"
+            }
+        }
     }
 
     buildTypes {
+        debug {
+            if (hasKeystore) signingConfig = signingConfigs.getByName("cinetor")
+        }
         release {
+            if (hasKeystore) signingConfig = signingConfigs.getByName("cinetor")
             isMinifyEnabled = false
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
         }
@@ -34,6 +57,7 @@ android {
     }
     buildFeatures {
         compose = true
+        buildConfig = true
     }
     testOptions {
         unitTests.isReturnDefaultValues = true
@@ -98,6 +122,8 @@ dependencies {
     implementation("io.coil-kt.coil3:coil-compose:3.0.4")
     implementation("io.coil-kt.coil3:coil-network-okhttp:3.0.4")
     implementation("dev.chrisbanes.haze:haze:1.1.1")
+    implementation("com.squareup.okhttp3:okhttp:4.12.0")
+    implementation("androidx.palette:palette-ktx:1.0.0")
     debugImplementation("androidx.compose.ui:ui-tooling")
 
     testImplementation("junit:junit:4.13.2")

@@ -49,8 +49,8 @@ export function isolatedTabs(space: Space): NavTab[] {
       { id: 'tv-sports', label: 'Sports', href: `${root}?cat=tv-sports`, icon: 'sports' }
     ],
     MUSIC: [
-      { id: 'mu-discover', label: 'Discover', href: `${root}?cat=mu-discover`, icon: 'music' },
-      { id: 'mu-moods', label: 'Moods', href: `${root}?cat=mu-moods`, icon: 'grid' }
+      { id: 'mu-albums', label: 'Albums', href: `${root}?cat=mu-albums`, icon: 'music' },
+      { id: 'mu-tracks', label: 'Tracks', href: `${root}?cat=mu-tracks`, icon: 'grid' }
     ],
     COMICS: [
       { id: 'co-manga', label: 'Manga', href: `${root}?cat=co-manga`, icon: 'comics' },

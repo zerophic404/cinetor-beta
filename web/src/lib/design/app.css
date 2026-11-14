@@ -180,3 +180,13 @@ button {
     transition-duration: 1ms !important;
   }
 }
+
+/* Card → details shared-element morph (View Transitions API). */
+::view-transition-group(cinetor-poster) {
+  animation-duration: 320ms;
+  animation-timing-function: cubic-bezier(0.2, 0, 0, 1);
+}
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation-duration: 200ms;
+}

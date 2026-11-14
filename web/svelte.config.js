@@ -15,6 +15,8 @@ const config = {
         '*',
         '/app',
         '/app/search',
+        '/app/title',
+        '/app/watch',
         '/app/me',
         '/app/anime',
         '/app/drama',

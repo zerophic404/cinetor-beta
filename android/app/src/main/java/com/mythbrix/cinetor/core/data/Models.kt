@@ -225,8 +225,11 @@ fun parseHexColor(hex: String): Long {
     }
 }
 
-/** Mock image path → Coil-loadable asset URI. */
+/** Image path → Coil-loadable URI: mock paths map to bundled assets, absolute URLs (TMDB) pass through. */
 object AssetUris {
     const val MOCK_ROOT = "file:///android_asset/mock/"
-    fun of(relativePath: String): String = MOCK_ROOT + relativePath
+    fun of(relativePath: String): String =
+        if (isRemote(relativePath)) relativePath else MOCK_ROOT + relativePath
+
+    fun isRemote(path: String): Boolean = path.startsWith("https://") || path.startsWith("http://")
 }

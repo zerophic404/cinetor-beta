@@ -60,6 +60,8 @@ export interface Season {
   n: number;
   title?: string;
   episodes: Episode[];
+  /** Remote (TMDB) seasons load episodes lazily; this is the known count before they arrive. */
+  episodeCount?: number;
 }
 
 export interface Chapter {

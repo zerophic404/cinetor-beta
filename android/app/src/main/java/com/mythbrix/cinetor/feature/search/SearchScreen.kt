@@ -9,31 +9,39 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.Close
+import androidx.compose.material.icons.rounded.History
 import androidx.compose.material.icons.rounded.Search
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TextField
 import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.saveable.rememberSaveable
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.lifecycle.viewmodel.initializer
+import androidx.lifecycle.viewmodel.viewModelFactory
 import coil3.compose.AsyncImage
 import com.mythbrix.cinetor.core.data.AppContainer
 import com.mythbrix.cinetor.core.data.AssetUris
@@ -41,15 +49,12 @@ import com.mythbrix.cinetor.core.data.Item
 import com.mythbrix.cinetor.core.data.Space
 import com.mythbrix.cinetor.design.Cinetor
 import com.mythbrix.cinetor.design.GlassLevel
-import com.mythbrix.cinetor.design.ShimmerHost
-import com.mythbrix.cinetor.design.SkeletonChapterList
 import com.mythbrix.cinetor.design.glass
 import com.mythbrix.cinetor.design.hexColor
-import kotlinx.coroutines.delay
 
 /**
- * Placeholder search (Task 2.3 adds history, FTS, TMDB). [space] = null → global search over
- * video spaces only; otherwise in-space search of that isolated space.
+ * Search. [space] = null → global search over video spaces only (local index + TMDB merge);
+ * otherwise in-space search of that space (own index + own history bucket).
  */
 @Composable
 fun SearchScreen(
@@ -58,30 +63,36 @@ fun SearchScreen(
     contentPadding: PaddingValues,
     onOpenItem: (String) -> Unit,
 ) {
+    val vm: SearchViewModel = viewModel(
+        key = "search-${space?.name ?: "global"}",
+        factory = viewModelFactory {
+            initializer { SearchViewModel(container.searchEngine, container.searchHistory, space) }
+        },
+    )
     val tokens = Cinetor.tokens
-    var query by rememberSaveable(space) { mutableStateOf("") }
-    var results by remember(space) { mutableStateOf<List<Item>>(emptyList()) }
-    var searching by remember { mutableStateOf(false) }
-    LaunchedEffect(query, space) {
-        if (query.isBlank()) {
-            results = emptyList()
-            searching = false
-            return@LaunchedEffect
-        }
-        searching = true
-        delay(250)
-        results = if (space == null) container.search.search(query) else container.search.searchInSpace(space, query)
-        searching = false
-    }
+    val query by vm.query.collectAsStateWithLifecycle()
+    val results by vm.results.collectAsStateWithLifecycle()
+    val recent by vm.recent.collectAsStateWithLifecycle()
+    val suggestions by vm.suggestions.collectAsStateWithLifecycle()
+
     Column(Modifier.fillMaxSize().padding(top = contentPadding.calculateTopPadding())) {
         TextField(
             value = query,
-            onValueChange = { query = it },
+            onValueChange = vm::onQueryChange,
             singleLine = true,
             leadingIcon = { Icon(Icons.Rounded.Search, contentDescription = null) },
+            trailingIcon = {
+                if (query.isNotEmpty()) {
+                    IconButton(onClick = { vm.onQueryChange("") }) {
+                        Icon(Icons.Rounded.Close, contentDescription = "Clear")
+                    }
+                }
+            },
             placeholder = {
                 Text(if (space == null) "Search movies, series, anime, drama" else "Search ${space.displayName}")
             },
+            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
+            keyboardActions = KeyboardActions(onSearch = { vm.submit() }),
             colors = TextFieldDefaults.colors(
                 focusedContainerColor = Color.Transparent,
                 unfocusedContainerColor = Color.Transparent,
@@ -94,20 +105,88 @@ fun SearchScreen(
                 .padding(horizontal = 16.dp)
                 .glass(RoundedCornerShape(18.dp), GlassLevel.SURFACE),
         )
+        Box(Modifier.fillMaxWidth().height(2.dp).padding(horizontal = 24.dp)) {
+            if (results.remoteLoading && query.isNotBlank()) {
+                LinearProgressIndicator(color = tokens.accent, modifier = Modifier.fillMaxWidth())
+            }
+        }
+        val bottom = contentPadding.calculateBottomPadding()
         when {
-            searching && results.isEmpty() -> ShimmerHost { SkeletonChapterList(Modifier.padding(top = 16.dp), count = 6) }
-            query.isNotBlank() && results.isEmpty() -> Text(
+            query.isBlank() -> RecentList(
+                recent = recent,
+                bottom = bottom,
+                onPick = { vm.onQueryChange(it) },
+                onRemove = vm::removeRecent,
+                onClear = vm::clearRecent,
+            )
+            results.items.isEmpty() && !results.remoteLoading && results.query == query.trim() -> Text(
                 "No results",
                 color = tokens.textSecondary,
                 modifier = Modifier.padding(24.dp),
             )
             else -> LazyColumn(
-                contentPadding = PaddingValues(16.dp, 16.dp, 16.dp, contentPadding.calculateBottomPadding()),
+                contentPadding = PaddingValues(16.dp, 8.dp, 16.dp, bottom),
                 verticalArrangement = Arrangement.spacedBy(10.dp),
             ) {
-                items(results, key = { it.id }, contentType = { "result" }) { item ->
-                    ResultRow(item) { onOpenItem(item.id) }
+                items(suggestions, key = { "s-$it" }, contentType = { "suggestion" }) { s ->
+                    HistoryRow(s, onClick = { vm.onQueryChange(s) }, onRemove = null)
                 }
+                items(results.items, key = { it.id }, contentType = { "result" }) { item ->
+                    ResultRow(item) {
+                        vm.submit()
+                        onOpenItem(item.id)
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun RecentList(
+    recent: List<String>,
+    bottom: androidx.compose.ui.unit.Dp,
+    onPick: (String) -> Unit,
+    onRemove: (String) -> Unit,
+    onClear: () -> Unit,
+) {
+    val tokens = Cinetor.tokens
+    if (recent.isEmpty()) return
+    LazyColumn(contentPadding = PaddingValues(16.dp, 8.dp, 16.dp, bottom)) {
+        item(key = "header", contentType = "header") {
+            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    "Recent searches",
+                    style = MaterialTheme.typography.titleMedium,
+                    color = tokens.textPrimary,
+                    modifier = Modifier.weight(1f),
+                )
+                TextButton(onClick = onClear) { Text("Clear all", color = tokens.accent) }
+            }
+        }
+        items(recent, key = { "r-$it" }, contentType = { "recent" }) { q ->
+            HistoryRow(q, onClick = { onPick(q) }, onRemove = { onRemove(q) })
+        }
+    }
+}
+
+@Composable
+private fun HistoryRow(text: String, onClick: () -> Unit, onRemove: (() -> Unit)?) {
+    val tokens = Cinetor.tokens
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(10.dp))
+            .clickable(onClick = onClick)
+            .padding(horizontal = 4.dp, vertical = 6.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        Icon(Icons.Rounded.History, contentDescription = null, tint = tokens.textSecondary)
+        Text(text, color = tokens.textPrimary, maxLines = 1, modifier = Modifier.weight(1f))
+        if (onRemove != null) {
+            IconButton(onClick = onRemove) {
+                Icon(Icons.Rounded.Close, contentDescription = "Remove", tint = tokens.textSecondary)
             }
         }
     }
