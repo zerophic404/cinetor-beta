@@ -53,6 +53,9 @@ interface ResumeStore {
     /** Most recent entry of [itemId] (any episode) — series resume picks the episode from it. */
     suspend fun latest(profileId: String, itemId: String): ResumeEntry?
     suspend fun save(entry: ResumeEntry)
+
+    /** Drops every entry of [profileId] (profile deleted / history cleared). */
+    suspend fun clearProfile(profileId: String) {}
 }
 
 /**
@@ -102,6 +105,16 @@ class ResumeRepository(
             val next = (listOf(entry) + state.value.filterNot {
                 it.profileId == entry.profileId && it.itemId == entry.itemId && it.episodeId == entry.episodeId
             }).take(max)
+            state.value = next
+            json.encodeToString(serializer, next)
+        }
+        storage.save(blob)
+    }
+
+    override suspend fun clearProfile(profileId: String) {
+        ensureLoaded()
+        val blob = mutex.withLock {
+            val next = state.value.filterNot { it.profileId == profileId }
             state.value = next
             json.encodeToString(serializer, next)
         }

@@ -7,7 +7,7 @@ import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 
 /** Why the hero carousel is not advancing. Any active reason pauses it. */
-enum class HeroPause { DRAG, TOUCH, OFFSCREEN, LIFECYCLE, SINGLE_PAGE }
+enum class HeroPause { DRAG, TOUCH, OFFSCREEN, LIFECYCLE, SINGLE_PAGE, SETTING }
 
 /**
  * Auto-advance clock for the hero carousel (pure, virtual-time testable).

@@ -20,6 +20,8 @@ import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowRight
 import androidx.compose.material.icons.rounded.Download
 import androidx.compose.material.icons.rounded.Info
 import androidx.compose.material.icons.rounded.Palette
+import androidx.compose.material.icons.rounded.People
+import androidx.compose.material.icons.rounded.VideoLibrary
 import androidx.compose.material.icons.rounded.Settings
 import androidx.compose.material.icons.rounded.Speed
 import androidx.compose.material3.Icon
@@ -50,7 +52,7 @@ import kotlinx.coroutines.launch
 
 private fun <E : Enum<E>> E.next(values: Array<E>): E = values[(ordinal + 1) % values.size]
 
-/** Me (placeholder for Task 5.1): profile header + debug theme/effects toggles + links. */
+/** Me: active profile header (tap → picker), switch profile, library, downloads, settings, about. */
 @Composable
 fun MeScreen(
     container: AppContainer,
@@ -58,10 +60,11 @@ fun MeScreen(
     onSettings: () -> Unit,
     onAbout: () -> Unit,
     onDownloads: () -> Unit = {},
+    onProfiles: () -> Unit = {},
+    onLibrary: () -> Unit = {},
 ) {
     val tokens = Cinetor.tokens
     val scope = rememberCoroutineScope()
-    val theme = Cinetor.theme
     val effects by container.settings.effects.collectAsStateWithLifecycle(EffectsQuality.AUTO)
     val profile = container.deviceProfile
     val autoTier = detectTier(profile)
@@ -73,28 +76,40 @@ fun MeScreen(
             .padding(horizontal = 16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
-            Box(
-                Modifier.size(64.dp).clip(CircleShape).background(tokens.accent),
-                contentAlignment = Alignment.Center,
-            ) {
-                Text("M", style = MaterialTheme.typography.headlineMedium, color = tokens.onAccent)
-            }
-            Column {
-                Text("Main profile", style = MaterialTheme.typography.titleLarge, color = tokens.textPrimary)
-                Text("Profiles arrive in Phase 5", style = MaterialTheme.typography.bodySmall, color = tokens.textSecondary)
-            }
-        }
-        MeRow(Icons.Rounded.Palette, "Theme", CinetorTokens.of(theme).name) {
-            scope.launch { container.settings.setTheme(theme.next(AppTheme.entries.toTypedArray())) }
-        }
-        MeRow(
-            Icons.Rounded.Speed,
-            "Effects quality",
-            "${effects.name.lowercase().replaceFirstChar { it.uppercase() }} · now ${Cinetor.tier.name} (auto ${autoTier.name})",
+        val active by container.profiles.active.collectAsStateWithLifecycle()
+        val all by container.profiles.profiles.collectAsStateWithLifecycle()
+        val watchlist by container.profiles.watchlist.collectAsStateWithLifecycle()
+        Row(
+            Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp)).clickable(onClick = onProfiles)
+                .semantics { contentDescription = "Current profile" },
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(14.dp),
         ) {
-            scope.launch { container.settings.setEffects(effects.next(EffectsQuality.entries.toTypedArray())) }
+            ProfileAvatar(active, 64.dp)
+            Column {
+                Text(active.name, style = MaterialTheme.typography.titleLarge, color = tokens.textPrimary)
+                Text(
+                    if (active.kids) "Kids profile" else "${all.size} of ${ProfileManager.MAX_PROFILES} profiles",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = tokens.textSecondary,
+                )
+            }
         }
+        MeRow(Icons.Rounded.People, "Switch profile", "Add, edit or switch profiles", onProfiles)
+        MeRow(Icons.Rounded.VideoLibrary, "Library", "My List ${watchlist.size} · history", onLibrary)
+        val dl by container.downloads.visible.collectAsStateWithLifecycle()
+        val activeDl = dl.count { it.record.isActive }
+        val doneDl = dl.count { it.record.status == DownloadStatus.COMPLETED }
+        MeRow(Icons.Rounded.Download, "Downloads", if (activeDl > 0) "$activeDl active · $doneDl downloaded" else "$doneDl downloaded", onDownloads)
+        MeRow(Icons.Rounded.Settings, "Settings", "App & profile", onSettings)
+        MeRow(Icons.Rounded.Info, "About", "Cinetor", onAbout)
+        // Theme / effects live in Settings → Appearance (Task 5.2); tier shown here for perf debugging.
+        Text(
+            "Effects ${effects.name.lowercase()} · now ${Cinetor.tier.name} (auto ${autoTier.name})",
+            style = MaterialTheme.typography.bodySmall,
+            color = tokens.textTertiary,
+            modifier = Modifier.padding(horizontal = 4.dp),
+        )
         Text(
             "Device: ${"%.1f".format(profile.totalRamBytes / 1_073_741_824.0)} GB RAM · API ${profile.sdkInt} · " +
                 "${profile.cpuCores} cores${if (profile.isTv) " · TV" else ""}",
@@ -102,12 +117,6 @@ fun MeScreen(
             color = tokens.textTertiary,
             modifier = Modifier.padding(horizontal = 4.dp),
         )
-        val dl by container.downloads.visible.collectAsStateWithLifecycle()
-        val activeDl = dl.count { it.record.isActive }
-        val doneDl = dl.count { it.record.status == DownloadStatus.COMPLETED }
-        MeRow(Icons.Rounded.Download, "Downloads", if (activeDl > 0) "$activeDl active · $doneDl downloaded" else "$doneDl downloaded", onDownloads)
-        MeRow(Icons.Rounded.Settings, "Settings", "App & profile", onSettings)
-        MeRow(Icons.Rounded.Info, "About", "Cinetor", onAbout)
     }
 }
 

@@ -44,6 +44,8 @@ class PlayerFactory(
     private val tier: PerformanceTier,
     /** Download cache hook → offline playback of completed downloads. */
     private val offline: () -> com.mythbrix.cinetor.core.download.DownloadCacheProvider? = { null },
+    /** Settings → Data & storage → cache size (MB), read once when the cache opens; null = tier default. */
+    private val cacheMb: () -> Int? = { null },
 ) {
     private val appContext = context.applicationContext
 
@@ -53,7 +55,7 @@ class PlayerFactory(
 
     val cache: SimpleCache by lazy {
         val dir = File(appContext.cacheDir, "media3-cache")
-        SimpleCache(dir, LeastRecentlyUsedCacheEvictor(cacheBytesFor(tier)), StandaloneDatabaseProvider(appContext))
+        SimpleCache(dir, LeastRecentlyUsedCacheEvictor(cacheMb()?.let { it.toLong() shl 20 } ?: cacheBytesFor(tier)), StandaloneDatabaseProvider(appContext))
     }
 
     private var exo: ExoPlayer? = null

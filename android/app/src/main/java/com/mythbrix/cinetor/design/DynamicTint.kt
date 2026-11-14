@@ -44,6 +44,9 @@ class DynamicTintState {
     var source: Color? by mutableStateOf(null)
         private set
 
+    /** Settings → Appearance → Dynamic color; off = plain theme accent glow. */
+    var enabled: Boolean by mutableStateOf(true)
+
     fun setSource(color: Color) {
         source = color
     }
@@ -62,7 +65,7 @@ fun AppBackground(modifier: Modifier = Modifier, content: @Composable BoxScope.(
     val tokens = Cinetor.tokens
     val tier = Cinetor.tier
     val tint = Cinetor.tint
-    val target = blendTint(tint.source ?: tokens.accent, tokens.accent, tokens.tintStrength)
+    val target = blendTint(tint.source?.takeIf { tint.enabled } ?: tokens.accent, tokens.accent, tokens.tintStrength)
     val animated by animateColorAsState(
         targetValue = target,
         animationSpec = tween(tier.scaled(CinetorTokens.Motion.tintAnimMs), easing = CinetorTokens.Motion.standard),

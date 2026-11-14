@@ -43,7 +43,13 @@ private val idleTv = MutableStateFlow<TvData?>(null)
  * lives in AppContainer). Draws nothing while HIDDEN.
  */
 @Composable
-fun PlayerHost(holder: PlayerStateHolder, subtitles: SubtitleController, tvData: StateFlow<TvData?>? = null) {
+fun PlayerHost(
+    holder: PlayerStateHolder,
+    subtitles: SubtitleController,
+    tvData: StateFlow<TvData?>? = null,
+    gesturePrefs: com.mythbrix.cinetor.feature.player.gestures.GesturePrefs = com.mythbrix.cinetor.feature.player.gestures.GesturePrefs(),
+    autoSkipIntro: Boolean = false,
+) {
     val screen by holder.state.collectAsStateWithLifecycle()
     val player by holder.player.collectAsStateWithLifecycle()
     val ui by (player?.state ?: idleState).collectAsStateWithLifecycle()
@@ -72,6 +78,9 @@ fun PlayerHost(holder: PlayerStateHolder, subtitles: SubtitleController, tvData:
     }
 
     val context = LocalContext.current
+    // Settings → Playback → Skip intro automatically.
+    val inIntro = autoSkipIntro && !screen.live && screen.showSkipIntro(ui.positionMs)
+    LaunchedEffect(inIntro) { if (inIntro) holder.skipIntro() }
     var showStyle by remember { mutableStateOf(false) }
     var showSync by remember { mutableStateOf(false) }
     var showChannels by remember { mutableStateOf(false) }
@@ -95,7 +104,7 @@ fun PlayerHost(holder: PlayerStateHolder, subtitles: SubtitleController, tvData:
             onBack = { holder.minimize() },
             layers = PlayerLayers(
                 gestures = { m, toggle ->
-                    if (screen.live) LiveGestures(holder, m, toggle) else PlayerGestures(holder, screen, ui, m, toggle)
+                    if (screen.live) LiveGestures(holder, m, toggle) else PlayerGestures(holder, screen, ui, m, toggle, gesturePrefs)
                 },
                 overVideo = { SubtitleOverlay(subState.sideLoaded, subState.offsetMs, subState.style, positionNow) },
                 configureView = { v -> applySubtitleStyle(v, subState.style, hidden = subState.sideLoaded != null) },

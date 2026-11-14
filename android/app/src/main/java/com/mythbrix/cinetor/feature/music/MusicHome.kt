@@ -107,7 +107,7 @@ fun MusicHome(container: AppContainer, contentPadding: PaddingValues, onOpenAlbu
                 visible = true,
                 onOpen = { onOpenAlbum(it.id) },
                 onPlay = { music.playItem(it) },
-                onToggleMyList = { container.toggleMyList(it.id) },
+                onToggleMyList = { container.toggleMyList(it) },
                 onColor = feeder::immediate,
             )
         }

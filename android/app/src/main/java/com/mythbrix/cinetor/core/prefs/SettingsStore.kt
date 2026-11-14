@@ -11,12 +11,13 @@ import com.mythbrix.cinetor.core.perf.EffectsQuality
 import com.mythbrix.cinetor.design.AppTheme
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 
 private val Context.settingsDataStore: DataStore<Preferences> by preferencesDataStore(name = "settings")
 
 /** App-wide preferences persisted in DataStore. */
-class SettingsStore(context: Context) {
+class SettingsStore(context: Context) : SettingsSource {
     private val store = context.applicationContext.settingsDataStore
 
     val theme: Flow<AppTheme> = store.data
@@ -41,6 +42,36 @@ class SettingsStore(context: Context) {
     val autoPip: Flow<Boolean> = store.data
         .map { p -> p[AUTO_PIP] ?: true }
         .distinctUntilChanged()
+
+    /** Full settings model (Task 5.2): JSON blob + legacy keys overlaid (they stay the source of truth for them). */
+    override val all: Flow<AppSettings> = store.data
+        .map { p -> current(p) }
+        .distinctUntilChanged()
+
+    override suspend fun update(transform: (AppSettings) -> AppSettings) {
+        store.edit { p ->
+            val next = transform(current(p)).normalized()
+            p[BLOB] = SettingsCodec.encode(next)
+            p[THEME] = next.theme.name
+            p[EFFECTS] = next.effects.name
+            p[BACKGROUND_PLAY] = next.backgroundPlay
+            p[AUTO_PIP] = next.autoPip
+        }
+    }
+
+    private fun current(p: Preferences): AppSettings = SettingsCodec.decode(p[BLOB]).copy(
+        theme = enumOrDefault(p[THEME], AppTheme.NOIR),
+        effects = enumOrDefault(p[EFFECTS], EffectsQuality.AUTO),
+        backgroundPlay = p[BACKGROUND_PLAY] ?: false,
+        autoPip = p[AUTO_PIP] ?: true,
+    )
+
+    /** Last used profile (Task 5.1). */
+    suspend fun activeProfile(): String? = store.data.first()[ACTIVE_PROFILE]
+
+    suspend fun setActiveProfile(id: String) {
+        store.edit { it[ACTIVE_PROFILE] = id }
+    }
 
     suspend fun setAdultEnabled(on: Boolean) {
         store.edit { it[ADULT] = on }
@@ -68,6 +99,8 @@ class SettingsStore(context: Context) {
         val ADULT = booleanPreferencesKey("adult_enabled")
         val BACKGROUND_PLAY = booleanPreferencesKey("background_play")
         val AUTO_PIP = booleanPreferencesKey("auto_pip")
+        val BLOB = stringPreferencesKey("app_settings_v1")
+        val ACTIVE_PROFILE = stringPreferencesKey("active_profile")
 
         inline fun <reified E : Enum<E>> enumOrDefault(name: String?, default: E): E =
             name?.let { n -> enumValues<E>().firstOrNull { it.name == n } } ?: default

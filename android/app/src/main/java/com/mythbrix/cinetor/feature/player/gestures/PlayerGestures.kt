@@ -64,7 +64,7 @@ fun PlayerGestures(
     ui: PlayerUiState,
     modifier: Modifier,
     onToggleControls: () -> Unit,
-    seekStepMs: Long = 10_000,
+    prefs: GesturePrefs = GesturePrefs(),
 ) {
     val context = LocalContext.current
     val activity = remember(context) { context.findActivity() }
@@ -75,7 +75,7 @@ fun PlayerGestures(
     val screenRef = rememberUpdatedState(screen)
     val uiRef = rememberUpdatedState(ui)
     val toggleRef = rememberUpdatedState(onToggleControls)
-    val stepRef = rememberUpdatedState(seekStepMs)
+    val prefsRef = rememberUpdatedState(prefs)
     val controller = remember(holder) {
         GestureController(
             target = object : GestureTarget {
@@ -94,8 +94,10 @@ fun PlayerGestures(
                 override fun setVolume(value: Float) = volume.set(value)
                 override fun setFill(fill: Boolean) = holder.setAspect(if (fill) AspectMode.FILL else AspectMode.FIT)
             },
-            stepMs = { stepRef.value },
+            stepMs = { prefsRef.value.stepSec * 1_000L },
             windowMs = 1_000,
+            holdSpeed = { prefsRef.value.holdSpeed },
+            enabled = { prefsRef.value.enabled },
         )
     }
     val g by controller.ui.collectAsStateWithLifecycle()

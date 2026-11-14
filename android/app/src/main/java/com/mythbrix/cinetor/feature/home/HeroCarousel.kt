@@ -110,6 +110,9 @@ fun HeroCarousel(
         onDispose { auto.stop() }
     }
     LaunchedEffect(auto, count) { auto.setPaused(HeroPause.SINGLE_PAGE, count <= 1) }
+    val uiPrefs = Cinetor.prefs
+    val autoplay = uiPrefs.bannerAutoplay && !uiPrefs.reduceMotion
+    LaunchedEffect(auto, autoplay) { auto.setPaused(HeroPause.SETTING, !autoplay) }
     val dragged by pager.interactionSource.collectIsDraggedAsState()
     LaunchedEffect(auto, dragged) { auto.setPaused(HeroPause.DRAG, dragged) }
     LaunchedEffect(auto, visible) { auto.setPaused(HeroPause.OFFSCREEN, !visible) }

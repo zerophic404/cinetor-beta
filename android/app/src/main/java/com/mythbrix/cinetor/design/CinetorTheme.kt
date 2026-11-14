@@ -16,6 +16,15 @@ val LocalCinetorTokens = staticCompositionLocalOf<CinetorThemeTokens> { CinetorT
 val LocalPerformanceTier = staticCompositionLocalOf { PerformanceTier.MID }
 val LocalDynamicTint = staticCompositionLocalOf { DynamicTintState() }
 
+/** UI-level settings read deep in the tree (Settings → Appearance / TV). */
+data class UiPrefs(
+    val reduceMotion: Boolean = false,
+    val bannerAutoplay: Boolean = true,
+    val focusSounds: Boolean = true,
+)
+
+val LocalUiPrefs = staticCompositionLocalOf { UiPrefs() }
+
 /** Shared blur source: background content uses `Modifier.haze(state)`, overlay glass blurs it. */
 val LocalHazeState = staticCompositionLocalOf { HazeState() }
 
@@ -31,6 +40,8 @@ object Cinetor {
         @Composable @ReadOnlyComposable get() = LocalDynamicTint.current
     val haze: HazeState
         @Composable @ReadOnlyComposable get() = LocalHazeState.current
+    val prefs: UiPrefs
+        @Composable @ReadOnlyComposable get() = LocalUiPrefs.current
 }
 
 fun CinetorThemeTokens.toColorScheme(): ColorScheme = darkColorScheme(
@@ -62,10 +73,13 @@ fun CinetorThemeTokens.toColorScheme(): ColorScheme = darkColorScheme(
 fun CinetorTheme(
     theme: AppTheme = CinetorTokens.Default,
     tier: PerformanceTier = PerformanceTier.MID,
+    dynamicColor: Boolean = true,
+    prefs: UiPrefs = UiPrefs(),
     content: @Composable () -> Unit,
 ) {
     val tokens = CinetorTokens.of(theme)
     val tint = remember { DynamicTintState() }
+    tint.enabled = dynamicColor
     val haze = remember { HazeState() }
     val scheme = remember(tokens) { tokens.toColorScheme() }
     CompositionLocalProvider(
@@ -74,6 +88,7 @@ fun CinetorTheme(
         LocalPerformanceTier provides tier,
         LocalDynamicTint provides tint,
         LocalHazeState provides haze,
+        LocalUiPrefs provides prefs,
     ) {
         MaterialTheme(colorScheme = scheme, typography = CinetorTypography, content = content)
     }

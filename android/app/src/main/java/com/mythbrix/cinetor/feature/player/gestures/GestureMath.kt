@@ -61,6 +61,9 @@ object GestureMath {
     }
 }
 
+/** Gesture settings (Settings → Playback): double-tap step, hold speed, gestures on/off. */
+data class GesturePrefs(val stepSec: Int = 10, val holdSpeed: Float = 2f, val enabled: Boolean = true)
+
 data class DoubleTapUi(val side: TapSide, val totalSec: Int, val stamp: Long)
 data class LevelUi(val kind: LevelKind, val value: Float)
 data class SeekPreviewUi(val targetMs: Long, val deltaMs: Long)
@@ -101,6 +104,10 @@ class GestureController(
     private val clock: () -> Long = System::currentTimeMillis,
     private val stepMs: () -> Long = { 10_000 },
     private val windowMs: Long = 700,
+    /** Settings → Playback → hold speed (default 2×). */
+    private val holdSpeed: () -> Float = { 2f },
+    /** Settings → Playback → gestures; off = only single tap (toggle controls) works. */
+    private val enabled: () -> Boolean = { true },
 ) {
     private val _ui = MutableStateFlow(GestureUi())
     val ui: StateFlow<GestureUi> = _ui.asStateFlow()
@@ -117,6 +124,10 @@ class GestureController(
     /** Double tap on [x] of a [width]-px wide surface. */
     fun onDoubleTap(x: Float, width: Float) {
         if (target.locked) return
+        if (!enabled()) {
+            target.toggleControls()
+            return
+        }
         val side = GestureMath.sideOf(x, width)
         if (side == TapSide.CENTER) {
             target.togglePlay()
@@ -128,7 +139,7 @@ class GestureController(
     /** Single tap: continues a double-tap streak on the same side, else toggles the controls. */
     fun onTap(x: Float, width: Float) {
         val streak = _ui.value.doubleTap
-        if (!target.locked && streak != null && clock() - streak.stamp <= windowMs) {
+        if (!target.locked && enabled() && streak != null && clock() - streak.stamp <= windowMs) {
             val side = GestureMath.sideOf(x, width)
             if (side == streak.side) {
                 step(side)
@@ -154,9 +165,9 @@ class GestureController(
     }
 
     fun onHoldStart() {
-        if (target.locked || speedBeforeHold != null || dragAxis != DragAxis.NONE) return
+        if (target.locked || !enabled() || speedBeforeHold != null || dragAxis != DragAxis.NONE) return
         speedBeforeHold = target.speed
-        target.setSpeed(2f)
+        target.setSpeed(holdSpeed())
         _ui.update { it.copy(holding = true) }
     }
 
@@ -177,7 +188,7 @@ class GestureController(
 
     /** Total drag since start; returns true when the gesture is consumed (axis locked). */
     fun onDrag(totalDx: Float, totalDy: Float, slop: Float): Boolean {
-        if (target.locked || speedBeforeHold != null) return false
+        if (target.locked || !enabled() || speedBeforeHold != null) return false
         if (dragAxis == DragAxis.NONE) {
             dragAxis = GestureMath.axisOf(totalDx, totalDy, slop)
             when (dragAxis) {
@@ -213,7 +224,7 @@ class GestureController(
     }
 
     fun onPinchEnd(zoom: Float) {
-        if (target.locked) return
+        if (target.locked || !enabled()) return
         GestureMath.pinchToFill(zoom)?.let { target.setFill(it) }
     }
 }

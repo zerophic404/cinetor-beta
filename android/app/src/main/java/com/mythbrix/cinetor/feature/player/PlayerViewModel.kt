@@ -109,6 +109,8 @@ class PlayerStateHolder(
     /** Called before a video title takes the one player (music yields → never two audios). */
     private val beforePlay: () -> Unit = {},
     private val channelEntryMs: Long = 1_500,
+    /** Settings → Playback → Autoplay next episode. */
+    private val autoplayNext: () -> Boolean = { true },
 ) {
     private val _state = MutableStateFlow(PlayerScreenState())
     val state: StateFlow<PlayerScreenState> = _state.asStateFlow()
@@ -260,7 +262,7 @@ class PlayerStateHolder(
             return
         }
         val next = s.nextEpisode ?: return
-        if (autoplayCancelledFor == key) return
+        if (autoplayCancelledFor == key || !autoplayNext()) return
         countdownJob?.cancel()
         countdownJob = scope.launch {
             for (left in countdownSec downTo 1) {

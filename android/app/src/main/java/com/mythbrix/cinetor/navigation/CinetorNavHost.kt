@@ -76,7 +76,10 @@ import com.mythbrix.cinetor.feature.comics.ComicsHome
 import com.mythbrix.cinetor.feature.details.DetailsScreen
 import com.mythbrix.cinetor.feature.downloads.DownloadsScreen
 import com.mythbrix.cinetor.feature.home.SpaceScreen
+import com.mythbrix.cinetor.feature.profile.EditProfile
+import com.mythbrix.cinetor.feature.profile.LibraryScreen
 import com.mythbrix.cinetor.feature.profile.MeScreen
+import com.mythbrix.cinetor.feature.profile.ProfilePicker
 import com.mythbrix.cinetor.feature.search.SearchScreen
 import com.mythbrix.cinetor.feature.settings.SettingsScreen
 import dev.chrisbanes.haze.haze
@@ -134,7 +137,8 @@ fun CinetorNavHost(container: AppContainer, modifier: Modifier = Modifier) {
 
     val config = LocalConfiguration.current
     val layout = navLayoutFor(config.screenWidthDp, config.screenHeightDp, container.deviceProfile.isTv)
-    val adultEnabled by container.settings.adultEnabled.collectAsStateWithLifecycle(initialValue = false)
+    // Gate state (not the raw flag): a Kids profile hides the Adult space.
+    val adultEnabled by container.adult.enabled.collectAsStateWithLifecycle()
     var switcherOpen by rememberSaveable { mutableStateOf(false) }
     BackHandler(enabled = switcherOpen) { switcherOpen = false }
 
@@ -202,7 +206,23 @@ fun CinetorNavHost(container: AppContainer, modifier: Modifier = Modifier) {
                                         onSettings = { nav.navigate(SettingsRoute) },
                                         onAbout = { nav.navigate(AboutRoute) },
                                         onDownloads = { nav.navigate(DownloadsRoute) },
+                                        onProfiles = { nav.navigate(ProfilesRoute) },
+                                        onLibrary = { nav.navigate(LibraryRoute) },
                                     )
+                                }
+                                screen<ProfilesRoute> {
+                                    ProfilePicker(
+                                        container.profiles, contentPadding,
+                                        onEdit = { nav.navigate(EditProfileRoute(it)) },
+                                        onAdd = { nav.navigate(EditProfileRoute()) },
+                                        onDone = { nav.popBackStack() },
+                                    )
+                                }
+                                screen<EditProfileRoute> { e ->
+                                    EditProfile(container.profiles, e.toRoute<EditProfileRoute>().id, contentPadding) { nav.popBackStack() }
+                                }
+                                screen<LibraryRoute> {
+                                    LibraryScreen(container.profiles, contentPadding, openItem, onClearHistory = { container.clearHistory() })
                                 }
                                 screen<SpaceRoute> { e ->
                                     when (val sp = Space.valueOf(e.toRoute<SpaceRoute>().space)) {
@@ -251,7 +271,13 @@ fun CinetorNavHost(container: AppContainer, modifier: Modifier = Modifier) {
                                         }
                                     }
                                 }
-                                screen<SettingsRoute> { SettingsScreen(contentPadding, container.settings, container.adult) }
+                                screen<SettingsRoute> {
+                                    SettingsScreen(
+                                        container, contentPadding,
+                                        onProfiles = { nav.navigate(ProfilesRoute) },
+                                        onAbout = { nav.navigate(AboutRoute) },
+                                    )
+                                }
                                 screen<AboutRoute> { AboutScreen(contentPadding) }
                                 screen<DownloadsRoute> {
                                     DownloadsScreen(container.downloads, contentPadding, openItem, onPlay = { container.playDownload(it) })

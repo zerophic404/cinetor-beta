@@ -26,3 +26,8 @@ import kotlinx.serialization.Serializable
 @Serializable data class AlbumRoute(val id: String)
 /** Comic details (Task 4.3); the reader itself is an overlay above the NavHost. */
 @Serializable data class ComicDetailsRoute(val id: String)
+
+/** Profiles (Task 5.1): picker, add/edit ([id] "" = new), library of the active profile. */
+@Serializable data object ProfilesRoute
+@Serializable data class EditProfileRoute(val id: String = "")
+@Serializable data object LibraryRoute
