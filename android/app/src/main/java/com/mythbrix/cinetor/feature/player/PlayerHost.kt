@@ -9,6 +9,7 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.mythbrix.cinetor.core.player.PlayerUiState
+import com.mythbrix.cinetor.feature.player.gestures.PlayerGestures
 import kotlinx.coroutines.flow.MutableStateFlow
 
 private val idleState = MutableStateFlow(PlayerUiState())
@@ -44,5 +45,8 @@ fun PlayerHost(holder: PlayerStateHolder) {
         ui = ui,
         holder = holder,
         onBack = { holder.close() },
+        layers = PlayerLayers(
+            gestures = { m, toggle -> PlayerGestures(holder, screen, ui, m, toggle) },
+        ),
     )
 }
