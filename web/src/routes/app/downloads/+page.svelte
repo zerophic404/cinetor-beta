@@ -221,6 +221,12 @@
     margin-right: 6px;
     background: rgb(255 255 255 / 0.1);
   }
+  .dot.mine {
+    background: var(--accent);
+  }
+  .dot.other {
+    background: rgb(255 255 255 / 0.35);
+  }
   .persist {
     display: flex;
     flex-wrap: wrap;

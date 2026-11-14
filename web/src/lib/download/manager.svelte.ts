@@ -224,14 +224,15 @@ class Downloads {
     this.queue.prioritize(id);
   }
 
-  /** Media with its source swapped to the offline copy when downloaded (shaka offline URI / OPFS blob URL). */
+  /** Media with its source swapped to the offline copy when downloaded (shaka offline URI / OPFS blob URL).
+   *  Distinct key so a warm network buffer for the same title is never reused instead of the local file. */
   async offlineMedia(m: Media): Promise<Media> {
     await this.init();
     const r = this.work.get(m.key);
     if (!r || r.status !== 'completed') return m;
     try {
       if (r.kind === 'adaptive' && r.offlineUri) {
-        return { ...m, source: { url: r.offlineUri, kind: r.container === 'DASH' ? 'DASH' : 'HLS', label: 'Downloaded' }, playable: true };
+        return { ...m, key: `${m.key}@offline`, source: { url: r.offlineUri, kind: r.container === 'DASH' ? 'DASH' : 'HLS', label: 'Downloaded' }, playable: true };
       }
       if (r.kind === 'progressive') {
         let url = this.blobUrls.get(r.id);
@@ -240,7 +241,7 @@ class Downloads {
           url = URL.createObjectURL(blob);
           this.blobUrls.set(r.id, url);
         }
-        return { ...m, source: { url, kind: (m.source?.kind ?? 'MP4') as Source['kind'], label: 'Downloaded' }, playable: true };
+        return { ...m, key: `${m.key}@offline`, source: { url, kind: (m.source?.kind ?? 'MP4') as Source['kind'], label: 'Downloaded' }, playable: true };
       }
     } catch (e) {
       this.patch(r.id, { lastError: `Offline copy unreadable: ${(e as Error).message}` });

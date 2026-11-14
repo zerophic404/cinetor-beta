@@ -7,6 +7,7 @@
   import type { TierOverride } from '$lib/perf/tier';
   import { repo, setSimulatedLatency } from '$lib/data/repo';
   import { base } from '$app/paths';
+  import InstallButton from '$lib/pwa/InstallButton.svelte';
 
   const tiers: { v: TierOverride; l: string }[] = [
     { v: 'AUTO', l: 'Auto' },
@@ -74,6 +75,8 @@
       <span>Simulated network latency (300–1200 ms) for skeleton preview</span>
     </label>
   </section>
+
+  <div class="install"><InstallButton label="Install Cinetor app" /></div>
 
   <section class="about glass" aria-label="About">
     <Logo size={40} wordmark />
@@ -198,6 +201,9 @@
     width: 20px;
     height: 20px;
     accent-color: var(--accent);
+  }
+  .install {
+    margin: 18px 16px 0;
   }
   .about {
     display: grid;

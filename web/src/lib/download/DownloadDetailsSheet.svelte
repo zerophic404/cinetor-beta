@@ -103,10 +103,10 @@
     {/if}
 
     <dl class="info">
-      <dt>Quality</dt><dd>{r.tracks.quality}{r.tracks.height ? ` · ${r.tracks.height}p` : ''}</dd>
+      <dt>Quality</dt><dd>{r.tracks.quality}{r.tracks.height && !r.tracks.quality.includes(String(r.tracks.height)) ? ` · ${r.tracks.height}p` : ''}</dd>
       {#if r.tracks.codecs || r.tracks.bandwidth}<dt>Codec / bitrate</dt><dd>{r.tracks.codecs || '—'}{r.tracks.bandwidth ? ` · ${(r.tracks.bandwidth / 1e6).toFixed(2)} Mbps` : ''}</dd>{/if}
       <dt>Container</dt><dd>{r.container} · {r.mime}</dd>
-      <dt>Audio</dt><dd>{r.tracks.audio ?? 'Default'}</dd>
+      <dt>Audio</dt><dd>{!r.tracks.audio || r.tracks.audio === 'und' ? 'Default' : r.tracks.audio}</dd>
       <dt>Subtitles</dt><dd>{r.tracks.texts.length ? r.tracks.texts.join(', ') : 'None'}</dd>
       <dt>Size</dt><dd>{total ? formatBytes(total) : '?'} {r.estimatedBytes ? `(estimated ${formatBytes(r.estimatedBytes)})` : ''}</dd>
       <dt>Stored in</dt><dd class="mono">{storageLabel}</dd>

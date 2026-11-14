@@ -14,6 +14,7 @@
   import { activeProfileId } from '$lib/data/library.svelte';
   import { mediaFor, preloader, resume } from '$lib/player/controller';
   import DownloadButton from '$lib/download/DownloadButton.svelte';
+  import { downloads } from '$lib/download/manager.svelte';
 
   const readiness = preloader.readiness;
 
@@ -121,7 +122,9 @@
       if (!alive) return;
       const ep = (last && eps?.find((e) => e.id === last)) || eps?.[0];
       target = ep;
-      const m = mediaFor(it, ep);
+      // Downloaded → warm the offline copy instead of the network stream.
+      const m = await downloads.offlineMedia(mediaFor(it, ep));
+      if (!alive) return;
       key = m.key;
       playKey = m.key;
       resumePos = await resume.startFor(activeProfileId(), it.id, ep?.id);

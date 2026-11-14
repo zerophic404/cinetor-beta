@@ -36,9 +36,18 @@ export default defineConfig({
           { src: `${base}/brand/maskable-512.png`, sizes: '512x512', type: 'image/png', purpose: 'maskable' }
         ],
         shortcuts: [
-          { name: 'Search', url: `${base}/app/search` },
-          { name: 'Live TV', url: `${base}/app/tv` },
-          { name: 'Music', url: `${base}/app/music` }
+          { name: 'Search', short_name: 'Search', description: 'Search movies, series, anime and drama', url: `${base}/app/search`, icons: [{ src: `${base}/brand/icon-192.png`, sizes: '192x192', type: 'image/png' }] },
+          { name: 'Live TV', short_name: 'Live TV', description: 'Live channels, sports and the guide', url: `${base}/app/tv`, icons: [{ src: `${base}/brand/icon-192.png`, sizes: '192x192', type: 'image/png' }] },
+          { name: 'Music', short_name: 'Music', description: 'Albums, moods and tracks', url: `${base}/app/music`, icons: [{ src: `${base}/brand/icon-192.png`, sizes: '192x192', type: 'image/png' }] },
+          { name: 'Downloads', short_name: 'Downloads', description: 'Offline movies and episodes', url: `${base}/app/downloads`, icons: [{ src: `${base}/brand/icon-192.png`, sizes: '192x192', type: 'image/png' }] }
+        ],
+        screenshots: [
+          { src: `${base}/screens/phone-music.jpg`, sizes: '780x1688', type: 'image/jpeg', form_factor: 'narrow', label: 'Music space' },
+          { src: `${base}/screens/phone-livetv.jpg`, sizes: '780x1688', type: 'image/jpeg', form_factor: 'narrow', label: 'Live TV & Sports' },
+          { src: `${base}/screens/phone-comics.jpg`, sizes: '780x1688', type: 'image/jpeg', form_factor: 'narrow', label: 'Comics' },
+          { src: `${base}/screens/phone-downloads.jpg`, sizes: '780x1688', type: 'image/jpeg', form_factor: 'narrow', label: 'Offline downloads' },
+          { src: `${base}/screens/wide-details.jpg`, sizes: '1920x1080', type: 'image/jpeg', form_factor: 'wide', label: 'Title details' },
+          { src: `${base}/screens/wide-music.jpg`, sizes: '1920x1080', type: 'image/jpeg', form_factor: 'wide', label: 'Music on desktop' }
         ]
       },
       kit: { trailingSlash: 'never' },
@@ -50,10 +59,25 @@ export default defineConfig({
           'client/brand/{favicon.svg,icon-192.png,icon-512.png,maskable-512.png}',
           'prerendered/**/*.html'
         ],
+        // The lazy shaka-player chunk (~780 KB) is NOT precached (runtime-cached on first use below).
+        maximumFileSizeToCacheInBytes: 400 * 1024,
         navigateFallback: `${base}/app`,
         navigateFallbackAllowlist: [new RegExp(`^${esc(base)}/app(/|$)`)],
         cleanupOutdatedCaches: true,
         runtimeCaching: [
+          {
+            // Non-app navigations (landing etc.) offline → offline page. /app/* uses the SPA shell above.
+            // Built with new Function so the base path is inlined (workbox serializes the function source; closures are lost).
+            urlPattern: new Function('o', `return o.request.mode === 'navigate' && !o.url.pathname.startsWith(${JSON.stringify(`${base}/app`)})`) as (o: { request: Request; url: URL }) => boolean,
+            handler: 'NetworkOnly',
+            options: { precacheFallback: { fallbackURL: `${base}/offline` } }
+          },
+          {
+            // Hashed immutable chunks not in the precache (shaka player) → cache on first use.
+            urlPattern: /\/_app\/immutable\/.+\.js$/,
+            handler: 'CacheFirst',
+            options: { cacheName: 'cinetor-chunks', expiration: { maxEntries: 20, maxAgeSeconds: 30 * 24 * 3600 }, cacheableResponse: { statuses: [200] } }
+          },
           {
             // NEVER cache media (video segments / manifests / progressive files / audio).
             urlPattern: /\.(?:m3u8|mpd|mp4|m4s|m4a|ts|webm|mkv|mp3)(?:[?#].*)?$/i,
