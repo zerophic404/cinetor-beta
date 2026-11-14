@@ -22,6 +22,7 @@ import com.mythbrix.cinetor.core.player.DEFAULT_PROFILE
 import com.mythbrix.cinetor.core.player.ResumeEntry
 import com.mythbrix.cinetor.core.ui.LocalResumeEntries
 import androidx.compose.runtime.CompositionLocalProvider
+import com.mythbrix.cinetor.feature.music.MusicHost
 
 /** Theme + tier from DataStore (applied live, no restart) → shell with the intro on top. */
 @Composable
@@ -39,7 +40,9 @@ fun CinetorRoot(container: AppContainer) {
                 CinetorNavHost(container)
             }
             // Player lives above the NavHost: playback survives navigation (mini player in 3.6).
-            PlayerHost(container.playback, container.subtitles)
+            // Music: glass mini bar above the nav / Now Playing (Task 4.2); audio continues across navigation.
+            MusicHost(container)
+            PlayerHost(container.playback, container.subtitles, container.tv.data)
             if (showIntro) AnimatedSplash(onFinished = { showIntro = false })
         }
     }

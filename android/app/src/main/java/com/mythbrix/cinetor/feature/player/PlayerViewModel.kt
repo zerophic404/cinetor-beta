@@ -70,6 +70,12 @@ data class PlayerScreenState(
     val subs: List<SubPlan> = emptyList(),
     /** Bumped on every play() of a new title (UI resets transient state). */
     val generation: Int = 0,
+    /** Live mode (channel / live event): LIVE badge, go-to-live, zapping; no resume. */
+    val live: Boolean = false,
+    /** Zapping lineup (channels in guide order) when [live]. */
+    val channels: List<Item> = emptyList(),
+    /** Digits typed on a TV remote (OSD) before jumping to that channel number. */
+    val channelInput: String? = null,
 ) {
     val active: Boolean get() = mode != HostMode.HIDDEN && item != null
     val episodes: List<Episode> get() = item?.let { SourceResolver.episodes(it) }.orEmpty()
@@ -96,6 +102,13 @@ class PlayerStateHolder(
     private val resolveFull: suspend (Item) -> Item = { it },
     private val saveIntervalMs: Long = 5_000,
     private val countdownSec: Int = 10,
+    /** Zapping lineup for a live item played without an explicit one (Details / search). */
+    private val lineupFor: (Item) -> List<Item> = { emptyList() },
+    /** Audio items (tracks/albums) go to the music player instead; true = handled. */
+    private val audioHandler: (Item) -> Boolean = { false },
+    /** Called before a video title takes the one player (music yields → never two audios). */
+    private val beforePlay: () -> Unit = {},
+    private val channelEntryMs: Long = 1_500,
 ) {
     private val _state = MutableStateFlow(PlayerScreenState())
     val state: StateFlow<PlayerScreenState> = _state.asStateFlow()
@@ -115,17 +128,21 @@ class PlayerStateHolder(
     private var sleepJob: Job? = null
     private var resolveJob: Job? = null
     private var autoplayCancelledFor: String? = null
+    private var lineupOverride: List<Item>? = null
+    private var digitJob: Job? = null
 
     val playback: PlayerUiState get() = _player.value?.state?.value ?: PlayerUiState()
 
     /** Play [item] (optionally [episodeId]) full screen. Same title already active → just expand. */
     fun play(item: Item, episodeId: String? = null) {
+        if (audioHandler(item)) return
         val s = _state.value
         if (s.active && s.item?.id == item.id && (episodeId == null || episodeId == s.episodeId)) {
             _state.update { it.copy(mode = HostMode.FULL) }
             return
         }
         resolveJob?.cancel()
+        beforePlay()
         if (needsFull(item)) {
             _state.update { it.copy(mode = HostMode.FULL, item = item, title = item.title, subtitle = null) }
             resolveJob = scope.launch {
@@ -161,6 +178,9 @@ class PlayerStateHolder(
         opens++
         _player.value = p
         val req = SourceResolver.request(item, episodeId)
+        val live = isLiveItem(item)
+        val lineup = if (live) (lineupOverride ?: lineupFor(item)).ifEmpty { listOf(item) } else emptyList()
+        lineupOverride = null
         _state.update {
             PlayerScreenState(
                 mode = HostMode.FULL,
@@ -174,6 +194,8 @@ class PlayerStateHolder(
                 inPip = prev.inPip,
                 subs = req?.plan?.subtitles.orEmpty(),
                 generation = prev.generation + 1,
+                live = live,
+                channels = lineup,
             )
         }
         watch(p, item)
@@ -256,6 +278,51 @@ class PlayerStateHolder(
         autoplayCancelledFor = _player.value?.state?.value?.key
         _state.update { it.copy(nextCountdown = null) }
     }
+
+    /** Live channel / event with its zapping [lineup] (guide order). */
+    fun playChannel(item: Item, lineup: List<Item>) {
+        lineupOverride = lineup
+        play(item)
+        lineupOverride = null
+    }
+
+    /** Channel up (+1) / down (−1): same player instance, next stream replaces the current one. */
+    fun zap(delta: Int) {
+        val s = _state.value
+        if (!s.live) return
+        val target = zapTarget(s.channels, s.item?.id, delta) ?: return
+        switchChannel(target, s.channels)
+    }
+
+    /** Jump to channel [number] (number keys / OSD). False when no such channel. */
+    fun zapToNumber(number: Int): Boolean {
+        val s = _state.value
+        val target = s.channels.firstOrNull { it.channelNumber == number } ?: return false
+        if (target.id != s.item?.id) switchChannel(target, s.channels)
+        return true
+    }
+
+    /** TV remote digit: accumulates for [channelEntryMs], then jumps. */
+    fun channelDigit(digit: Int) {
+        if (!_state.value.live) return
+        val buffer = appendChannelDigit(_state.value.channelInput, digit)
+        _state.update { it.copy(channelInput = buffer) }
+        digitJob?.cancel()
+        digitJob = scope.launch {
+            delay(channelEntryMs)
+            _state.update { it.copy(channelInput = null) }
+            buffer.toIntOrNull()?.let { zapToNumber(it) }
+        }
+    }
+
+    private fun switchChannel(target: Item, lineup: List<Item>) {
+        lineupOverride = lineup
+        start(target, null)
+        lineupOverride = null
+    }
+
+    /** Live: jump back to the live edge. */
+    fun goLive() = _player.value?.goLive()
 
     fun playEpisode(episodeId: String) {
         val item = _state.value.item ?: return
@@ -359,6 +426,7 @@ class PlayerStateHolder(
     /** Persist the current position (no-op without a duration or before 1 s). */
     fun saveNow() {
         val store = resume ?: return
+        if (_state.value.live) return // live TV never feeds resume / continue watching
         val item = _state.value.item ?: return
         val st = _player.value?.state?.value ?: return
         val key = st.key ?: return

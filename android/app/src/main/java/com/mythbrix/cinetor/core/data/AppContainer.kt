@@ -23,6 +23,10 @@ import com.mythbrix.cinetor.core.prefs.ResumeDataStore
 import com.mythbrix.cinetor.core.prefs.SearchHistoryDataStore
 import com.mythbrix.cinetor.core.prefs.SettingsStore
 import com.mythbrix.cinetor.feature.player.PlayerStateHolder
+import com.mythbrix.cinetor.feature.music.MusicController
+import com.mythbrix.cinetor.feature.music.MusicRepository
+import com.mythbrix.cinetor.feature.tv.TvPrefs
+import com.mythbrix.cinetor.feature.tv.TvRepository
 import com.mythbrix.cinetor.core.player.DEFAULT_PROFILE
 import com.mythbrix.cinetor.core.prefs.SubtitleStyleDataStore
 import com.mythbrix.cinetor.feature.player.subs.SubtitleController
@@ -110,7 +114,36 @@ class AppContainer(context: Context) {
             preloader = preloader,
             resume = resume,
             resolveFull = { item -> runCatching { catalog.item(item.id) }.getOrDefault(item) },
+            lineupFor = { item -> tv.lineupFor(item) },
+            audioHandler = { item -> music.handles(item) },
+            beforePlay = { music.yieldToVideo() },
         )
+    }
+
+    /** Live TV & Sports catalog cache (isolated) + favourites / reminders (Task 4.1). */
+    val tv: TvRepository by lazy { TvRepository(catalog) { catalogSource.file(Space.TV).epgAnchor } }
+    val tvPrefs: TvPrefs by lazy { TvPrefs(appContext) }
+
+    /** Music library + app-scoped music player over the ONE shared player (Task 4.2). */
+    val musicLibrary: MusicRepository by lazy { MusicRepository(catalog) }
+    val music: MusicController by lazy {
+        MusicController(
+            scope = mainScope,
+            preloader = preloader,
+            takeOver = { if (playback.state.value.item != null) playback.close() },
+            contextFor = { track -> musicLibrary.contextFor(track) },
+            tracksOf = { album -> musicLibrary.tracksOf(album) },
+            resolve = { id -> runCatching { catalog.item(id) }.getOrNull() },
+        )
+    }
+
+    /** In-space search result tap for TV: play the channel / live event with its lineup. */
+    fun playTvById(id: String) {
+        mainScope.launch {
+            val item = runCatching { catalog.item(id) }.getOrNull() ?: return@launch
+            runCatching { tv.load() }
+            playback.playChannel(item, tv.lineupFor(item))
+        }
     }
 
     /** Per-profile subtitle style (Task 3.5). */

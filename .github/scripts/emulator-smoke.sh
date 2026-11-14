@@ -106,6 +106,57 @@ shot 40-end-with-mini 1
 adb shell input keyevent KEYCODE_HOME; shot 42-pip 3
 adb shell am start -n "$PKG/.MainActivity" >/dev/null 2>&1; shot 43-back-from-pip 3
 tap_desc "Close mini player" && shot 41-mini-closed 2
+
+# --- Phase 4A: Live TV grid, EPG, Sports, live player zap, Music album → now playing → queue ---
+# last match = topmost overlay (switcher is drawn above the space content)
+tap_text() {
+  adb shell uiautomator dump /sdcard/ui.xml >/dev/null 2>&1 || return 1
+  local b
+  b=$(adb shell cat /sdcard/ui.xml | tr '>' '\n' | grep "text=\"$1\"" | tail -1 | grep -oE 'bounds="\[[0-9]+,[0-9]+\]\[[0-9]+,[0-9]+\]"' | grep -oE '[0-9]+' | tr '\n' ' ')
+  [ -z "$b" ] && { echo "no text '$1'"; return 1; }
+  set -- $b
+  adb shell input tap $(( ($1 + $3) / 2 )) $(( ($2 + $4) / 2 ))
+}
+if tap_desc "Open spaces"; then
+  sleep 2
+  if tap_text "Live TV & Sports"; then
+    shot 50-tv-live 6
+    adb shell input swipe $((W/2)) $((H*3/4)) $((W/2)) $((H/4)) 400; shot 51-tv-grid 2
+    adb shell input swipe $((W/2)) $((H/4)) $((W/2)) $((H*3/4)) 400; sleep 1
+    tap_desc "Tab Guide" && shot 52-tv-epg 5
+    tap_desc "Tab Sports" && { shot 53-tv-sports 4; tap_desc "Tab Upcoming" && shot 54-tv-sports-upcoming 2; }
+    tap_desc "Tab Live" && sleep 2
+    if tap_desc "Watch live"; then
+      shot 55-live-player 7
+      adb shell input keyevent KEYCODE_CHANNEL_UP; shot 56-live-zapped 5
+      adb shell input tap $((W*85/100)) $((H/8)); sleep 0.6
+      tap_desc "Channel list" && shot 57-live-channel-list 2
+      adb shell input keyevent KEYCODE_BACK; sleep 1
+      adb shell input keyevent KEYCODE_BACK; sleep 2                 # → mini
+      tap_desc "Close mini player"; sleep 1
+    fi
+  fi
+fi
+if tap_desc "Open spaces"; then
+  sleep 2
+  if tap_text "Music"; then
+    shot 60-music-home 6
+    adb shell input swipe $((W/2)) $((H*3/4)) $((W/2)) $((H/3)) 400; sleep 2
+    if tap_prefix "Album "; then
+      shot 61-music-album 4
+      tap_desc "Play album" && shot 62-music-mini-bar 5
+      if tap_desc "Open now playing"; then
+        shot 63-music-now-playing 4
+        tap_desc "Queue" && { shot 64-music-queue 3; adb shell input keyevent KEYCODE_BACK; sleep 1; }
+        adb shell input keyevent KEYCODE_BACK; sleep 2                # collapse to mini bar
+      fi
+      # navigate away: music keeps playing, mini bar stays above the nav
+      tap_desc "Open spaces" && { sleep 2; tap_text "Video" && shot 65-music-mini-on-home 4; }
+      adb logcat -d | grep -cE "CinetorPlayer.*error" || true
+    fi
+  fi
+fi
+
 adb logcat -d > "$OUT/logcat.txt" || true
 if grep -q "FATAL EXCEPTION" "$OUT/logcat.txt"; then
   echo "::error::App crashed"; grep -A30 "FATAL EXCEPTION" "$OUT/logcat.txt" | head -60; exit 1

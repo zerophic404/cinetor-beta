@@ -75,6 +75,12 @@ import com.mythbrix.cinetor.feature.profile.MeScreen
 import com.mythbrix.cinetor.feature.search.SearchScreen
 import com.mythbrix.cinetor.feature.settings.SettingsScreen
 import dev.chrisbanes.haze.haze
+import com.mythbrix.cinetor.feature.music.AlbumScreen
+import com.mythbrix.cinetor.feature.music.MusicHome
+import com.mythbrix.cinetor.feature.music.MusicMiniBarHeight
+import com.mythbrix.cinetor.feature.tv.LiveTvScreen
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.map
 
 private val TopBarHeight = 56.dp
 
@@ -147,9 +153,12 @@ fun CinetorNavHost(container: AppContainer, modifier: Modifier = Modifier) {
 
     val statusTop = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
     val navBottom = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
+    val musicActive by remember(container) { container.music.state.map { it.active }.distinctUntilChanged() }
+        .collectAsStateWithLifecycle(initialValue = false)
     val contentPadding = PaddingValues(
         top = statusTop + TopBarHeight + 8.dp,
-        bottom = navBottom + if (layout == NavLayout.BOTTOM_BAR) BottomBarHeight + 24.dp else 16.dp,
+        bottom = navBottom + (if (layout == NavLayout.BOTTOM_BAR) BottomBarHeight + 24.dp else 16.dp) +
+            (if (musicActive) MusicMiniBarHeight else 0.dp),
     )
     val haze = Cinetor.haze
     val tabs = navTabsFor(activeSpace)
@@ -187,11 +196,22 @@ fun CinetorNavHost(container: AppContainer, modifier: Modifier = Modifier) {
                                     )
                                 }
                                 screen<SpaceRoute> { e ->
-                                    SpaceScreen(Space.valueOf(e.toRoute<SpaceRoute>().space), container, contentPadding, openCard)
+                                    when (val sp = Space.valueOf(e.toRoute<SpaceRoute>().space)) {
+                                        Space.TV -> LiveTvScreen(container, contentPadding)
+                                        Space.MUSIC -> MusicHome(container, contentPadding, onOpenAlbum = { nav.navigate(AlbumRoute(it)) })
+                                        else -> SpaceScreen(sp, container, contentPadding, openCard)
+                                    }
                                 }
                                 screen<SpaceSearchRoute> { e ->
-                                    SearchScreen(Space.valueOf(e.toRoute<SpaceSearchRoute>().space), container, contentPadding, openItem)
+                                    val sp = Space.valueOf(e.toRoute<SpaceSearchRoute>().space)
+                                    val open: (String) -> Unit = when (sp) {
+                                        Space.TV -> { id -> container.playTvById(id) }
+                                        Space.MUSIC -> { id -> if (id.startsWith("mu-al")) nav.navigate(AlbumRoute(id)) else container.music.playById(id) }
+                                        else -> openItem
+                                    }
+                                    SearchScreen(sp, container, contentPadding, open)
                                 }
+                                screen<AlbumRoute> { e -> AlbumScreen(e.toRoute<AlbumRoute>().id, container, contentPadding) }
                                 composable<DetailsRoute>(
                                     enterTransition = {
                                         fadeIn(tween(260)) + scaleIn(tween(320, easing = CinetorTokens.Motion.emphasized), initialScale = 0.94f)

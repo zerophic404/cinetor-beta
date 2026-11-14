@@ -38,6 +38,8 @@ import androidx.compose.material.icons.rounded.Replay10
 import androidx.compose.material.icons.rounded.ScreenRotation
 import androidx.compose.material.icons.rounded.Settings
 import androidx.compose.material.icons.rounded.SkipNext
+import androidx.compose.material.icons.rounded.SkipPrevious
+import com.mythbrix.cinetor.feature.tv.LiveEdgeBadge
 import androidx.compose.material.icons.rounded.VideoLibrary
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
@@ -127,7 +129,7 @@ fun PlayerControls(
                 ) {
                     Box(Modifier.fillMaxSize().then(safe).padding(horizontal = if (fullscreen) 20.dp else 8.dp, vertical = 8.dp)) {
                         TopBar(screen, onBack, onSettings, holder, onInteract, extraTopActions)
-                        CenterButtons(ui, holder, onInteract, big = fullscreen)
+                        CenterButtons(screen, ui, holder, onInteract, big = fullscreen)
                         BottomBar(screen, ui, fullscreen, holder, onInteract, onRotate, onEpisodes)
                     }
                 }
@@ -167,13 +169,20 @@ private fun BoxScope.TopBar(
 }
 
 @Composable
-private fun BoxScope.CenterButtons(ui: PlayerUiState, holder: PlayerStateHolder, onInteract: () -> Unit, big: Boolean) {
+private fun BoxScope.CenterButtons(screen: PlayerScreenState, ui: PlayerUiState, holder: PlayerStateHolder, onInteract: () -> Unit, big: Boolean) {
+    // Live: channel −/+ around play/pause (zapping); VOD: ±10 s.
+    val zap = screen.live && screen.channels.size > 1
+    val seekable = !screen.live || hasDvrWindow(ui)
     Row(
         Modifier.align(Alignment.Center),
         horizontalArrangement = Arrangement.spacedBy(if (big) 48.dp else 28.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        PlayerIconButton(Icons.Rounded.Replay10, "Back 10 seconds", { holder.seekBy(-10_000); onInteract() }, size = if (big) 52.dp else 44.dp)
+        if (zap) {
+            PlayerIconButton(Icons.Rounded.SkipPrevious, "Previous channel", { holder.zap(-1); onInteract() }, size = if (big) 52.dp else 44.dp)
+        } else if (seekable) {
+            PlayerIconButton(Icons.Rounded.Replay10, "Back 10 seconds", { holder.seekBy(-10_000); onInteract() }, size = if (big) 52.dp else 44.dp)
+        }
         Box(contentAlignment = Alignment.Center) {
             val icon = when {
                 ui.ended -> Icons.Rounded.Replay
@@ -192,7 +201,11 @@ private fun BoxScope.CenterButtons(ui: PlayerUiState, holder: PlayerStateHolder,
                 )
             }
         }
-        PlayerIconButton(Icons.Rounded.Forward10, "Forward 10 seconds", { holder.seekBy(10_000); onInteract() }, size = if (big) 52.dp else 44.dp)
+        if (zap) {
+            PlayerIconButton(Icons.Rounded.SkipNext, "Next channel", { holder.zap(1); onInteract() }, size = if (big) 52.dp else 44.dp)
+        } else if (seekable) {
+            PlayerIconButton(Icons.Rounded.Forward10, "Forward 10 seconds", { holder.seekBy(10_000); onInteract() }, size = if (big) 52.dp else 44.dp)
+        }
     }
 }
 
@@ -212,19 +225,29 @@ private fun BoxScope.BottomBar(
             val e = screen.introEndMs
             if (s != null && e != null && e > s) add(s..e)
         }
-        SeekBar(
-            positionMs = ui.positionMs,
-            bufferedMs = ui.bufferedMs,
-            durationMs = ui.durationMs,
-            marks = marks,
-            onSeek = { holder.seekTo(it); onInteract() },
-            onScrubbing = { onInteract() },
-        )
-        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-            Text(
-                "${formatTime(ui.positionMs)} / ${formatTime(ui.durationMs)}",
-                color = Color.White, style = MaterialTheme.typography.labelMedium,
+        // Live: DVR window seek bar only when seekable; no download, no episodes.
+        if (!screen.live || hasDvrWindow(ui)) {
+            SeekBar(
+                positionMs = ui.positionMs,
+                bufferedMs = ui.bufferedMs,
+                durationMs = ui.durationMs,
+                marks = marks,
+                onSeek = { holder.seekTo(it); onInteract() },
+                onScrubbing = { onInteract() },
             )
+        }
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            if (screen.live) {
+                LiveEdgeBadge(ui) { holder.goLive(); onInteract() }
+                if (!atLiveEdge(ui)) {
+                    Text("−${formatTime(ui.durationMs - ui.positionMs)}", color = Color.White.copy(alpha = 0.8f), style = MaterialTheme.typography.labelMedium)
+                }
+            } else {
+                Text(
+                    "${formatTime(ui.positionMs)} / ${formatTime(ui.durationMs)}",
+                    color = Color.White, style = MaterialTheme.typography.labelMedium,
+                )
+            }
             Spacer(Modifier.weight(1f))
             if (screen.episodes.isNotEmpty()) {
                 PlayerIconButton(Icons.Rounded.VideoLibrary, "Episodes", { onEpisodes(); onInteract() }, size = 36.dp, iconSize = 18.dp)

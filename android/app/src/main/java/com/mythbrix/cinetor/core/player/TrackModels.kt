@@ -76,6 +76,12 @@ data class PlayerUiState(
     val error: String? = null,
     val videoWidth: Int = 0,
     val videoHeight: Int = 0,
+    /** Live stream (Media3 `isCurrentMediaItemLive`). */
+    val isLive: Boolean = false,
+    /** Seekable (VOD, or live with a DVR window). */
+    val seekable: Boolean = true,
+    /** Distance behind the live edge; −1 = unknown / not live. */
+    val liveOffsetMs: Long = -1,
 ) {
     val buffering: Boolean get() = phase == PlaybackPhase.BUFFERING
     val ended: Boolean get() = phase == PlaybackPhase.ENDED

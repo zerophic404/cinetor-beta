@@ -24,15 +24,26 @@ import com.mythbrix.cinetor.feature.player.subs.SubtitleSyncSheet
 import com.mythbrix.cinetor.feature.player.subs.applySubtitleStyle
 import com.mythbrix.cinetor.feature.player.subs.displayNameOf
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import androidx.activity.compose.BackHandler
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.rounded.List
+import androidx.compose.ui.unit.dp
+import com.mythbrix.cinetor.feature.tv.LiveGestures
+import com.mythbrix.cinetor.feature.tv.LiveOsd
+import com.mythbrix.cinetor.feature.tv.QuickChannelList
+import com.mythbrix.cinetor.feature.tv.TvData
+import com.mythbrix.cinetor.feature.tv.rememberGuideNow
 
 private val idleState = MutableStateFlow(PlayerUiState())
+private val idleTv = MutableStateFlow<TvData?>(null)
 
 /**
  * Hosts the player ABOVE the NavHost so playback survives navigation and rotation (the player
  * lives in AppContainer). Draws nothing while HIDDEN.
  */
 @Composable
-fun PlayerHost(holder: PlayerStateHolder, subtitles: SubtitleController) {
+fun PlayerHost(holder: PlayerStateHolder, subtitles: SubtitleController, tvData: StateFlow<TvData?>? = null) {
     val screen by holder.state.collectAsStateWithLifecycle()
     val player by holder.player.collectAsStateWithLifecycle()
     val ui by (player?.state ?: idleState).collectAsStateWithLifecycle()
@@ -63,6 +74,9 @@ fun PlayerHost(holder: PlayerStateHolder, subtitles: SubtitleController) {
     val context = LocalContext.current
     var showStyle by remember { mutableStateOf(false) }
     var showSync by remember { mutableStateOf(false) }
+    var showChannels by remember { mutableStateOf(false) }
+    val tv by (tvData ?: idleTv).collectAsStateWithLifecycle()
+    val guideNow = rememberGuideNow(tv?.anchorSec)
     val picker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         if (uri != null) {
             subtitles.loadExternal(uri.toString(), displayNameOf(context, uri)) { holder.selectText(null) }
@@ -80,7 +94,9 @@ fun PlayerHost(holder: PlayerStateHolder, subtitles: SubtitleController) {
             // Back / ⌄ → in-app floating mini player (playback continues across navigation).
             onBack = { holder.minimize() },
             layers = PlayerLayers(
-                gestures = { m, toggle -> PlayerGestures(holder, screen, ui, m, toggle) },
+                gestures = { m, toggle ->
+                    if (screen.live) LiveGestures(holder, m, toggle) else PlayerGestures(holder, screen, ui, m, toggle)
+                },
                 overVideo = { SubtitleOverlay(subState.sideLoaded, subState.offsetMs, subState.style, positionNow) },
                 configureView = { v -> applySubtitleStyle(v, subState.style, hidden = subState.sideLoaded != null) },
             ),
@@ -91,7 +107,24 @@ fun PlayerHost(holder: PlayerStateHolder, subtitles: SubtitleController) {
                 sideLoadedLabel = subState.sideLoaded?.label,
                 onClearSideLoaded = { subtitles.clearSideLoaded() },
             ),
+            extraTopActions = {
+                if (screen.live && screen.channels.size > 1) {
+                    PlayerIconButton(Icons.AutoMirrored.Rounded.List, "Channel list", { showChannels = true }, size = 40.dp, iconSize = 20.dp)
+                }
+            },
         )
+        if (screen.live) {
+            LiveOsd(screen, tv, guideNow)
+            QuickChannelList(
+                visible = showChannels,
+                screen = screen,
+                data = tv,
+                nowSec = guideNow,
+                onPick = { ch -> showChannels = false; holder.playChannel(ch, screen.channels) },
+                onDismiss = { showChannels = false },
+            )
+            BackHandler(enabled = showChannels) { showChannels = false }
+        }
         if (showStyle) {
             SubtitleStyleSheet(subState.style, onChange = subtitles::setStyle, onDismiss = { showStyle = false })
         }
