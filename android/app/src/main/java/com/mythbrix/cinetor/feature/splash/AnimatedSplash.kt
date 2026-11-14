@@ -56,8 +56,9 @@ fun AnimatedSplash(onFinished: () -> Unit, modifier: Modifier = Modifier) {
     val exit = remember { Animatable(1f) }
     val finished by rememberUpdatedState(onFinished)
     LaunchedEffect(Unit) {
-        progress.animateTo(1f, tween(if (low) 300 else 600, easing = LinearEasing))
-        exit.animateTo(0f, tween(if (low) 120 else 220, easing = CinetorTokens.Motion.standard))
+        // Total budget incl. exit fade: 600 ms (LOW: 300 ms).
+        progress.animateTo(1f, tween(if (low) 200 else 440, easing = LinearEasing))
+        exit.animateTo(0f, tween(if (low) 100 else 160, easing = CinetorTokens.Motion.standard))
         finished()
     }
     Box(

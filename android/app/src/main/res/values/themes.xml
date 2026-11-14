@@ -12,7 +12,7 @@
     <style name="Theme.Cinetor.Starting" parent="Theme.SplashScreen">
         <item name="windowSplashScreenBackground">#000000</item>
         <item name="windowSplashScreenAnimatedIcon">@drawable/avd_splash</item>
-        <item name="windowSplashScreenAnimationDuration">1000</item>
+        <item name="windowSplashScreenAnimationDuration">900</item>
         <item name="postSplashScreenTheme">@style/Theme.Cinetor</item>
     </style>
 </resources>

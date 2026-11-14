@@ -58,6 +58,30 @@ describe('CatalogRepository', () => {
     expect(sleep).toHaveBeenCalledWith(750);
   });
 
+  it('persists to IndexedDB-like cache and serves later sessions from it without latency', async () => {
+    const store = new Map<string, unknown>();
+    const persist = {
+      get: async (k: string) => store.get(k),
+      set: async (k: string, v: unknown) => {
+        store.set(k, v);
+      }
+    };
+    const first = new CatalogRepository({ baseUrl: '', fetcher: fileFetcher(), latency: NO_LATENCY, persist });
+    await first.categories('HOME');
+    expect(store.has('/mock/home.json')).toBe(true);
+
+    const sleep = vi.fn(() => Promise.resolve());
+    const second = new CatalogRepository({
+      baseUrl: '',
+      fetcher: fileFetcher(),
+      latency: { enabled: true, minMs: 300, maxMs: 1200 },
+      sleep,
+      persist
+    });
+    expect((await second.categories('HOME')).length).toBeGreaterThan(0);
+    expect(sleep).not.toHaveBeenCalled();
+  });
+
   it('failed loads are not cached', async () => {
     let fail = true;
     const ok = fileFetcher();

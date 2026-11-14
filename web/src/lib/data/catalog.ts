@@ -1,3 +1,4 @@
+import { idbCache, type PersistentCache } from './idb';
 import { SPACES, SPACE_FILE, type CatalogFile, type Category, type Item, type Row, type Space } from './types';
 
 export interface LatencyConfig {
@@ -17,6 +18,11 @@ export interface CatalogOptions {
   /** Injected for tests. */
   random?: () => number;
   sleep?: (ms: number) => Promise<void>;
+  /**
+   * Second-level cache (IndexedDB in browsers). `undefined` → auto (IndexedDB when available),
+   * `null` → memory only.
+   */
+  persist?: PersistentCache | null;
 }
 
 interface Loaded {
@@ -43,8 +49,8 @@ export function spaceForId(id: string): Space | undefined {
 
 /**
  * Web equivalent of the Android CatalogRepository: fetches `${base}/mock/<space>.json`,
- * caches each file in memory (in-flight requests are shared), optional simulated latency
- * on cache misses so skeletons are visible.
+ * caches each file in memory (in-flight requests are shared) + IndexedDB (stale-while-revalidate),
+ * optional simulated latency on network misses so skeletons are visible.
  */
 export class CatalogRepository {
   private cache = new Map<Space, Promise<Loaded>>();
@@ -56,7 +62,8 @@ export class CatalogRepository {
       fetcher: opts.fetcher ?? ((u) => fetch(u)),
       latency: opts.latency ?? DEFAULT_LATENCY,
       random: opts.random ?? Math.random,
-      sleep: opts.sleep ?? ((ms) => new Promise((r) => setTimeout(r, ms)))
+      sleep: opts.sleep ?? ((ms) => new Promise((r) => setTimeout(r, ms))),
+      persist: opts.persist === undefined ? idbCache() : opts.persist
     };
   }
 
@@ -84,14 +91,31 @@ export class CatalogRepository {
     return this.opts.sleep(ms);
   }
 
+  private async fetchFile(url: string, space: Space, withLatency: boolean): Promise<CatalogFile> {
+    const [res] = await Promise.all([this.opts.fetcher(url), withLatency ? this.delay() : undefined]);
+    if (!res.ok) throw new Error(`Catalog ${space}: HTTP ${res.status}`);
+    return (await res.json()) as CatalogFile;
+  }
+
   load(space: Space): Promise<Loaded> {
     let p = this.cache.get(space);
     if (!p) {
       p = (async () => {
         const url = `${this.opts.baseUrl}/mock/${SPACE_FILE[space]}.json`;
-        const [res] = await Promise.all([this.opts.fetcher(url), this.delay()]);
-        if (!res.ok) throw new Error(`Catalog ${space}: HTTP ${res.status}`);
-        const file = (await res.json()) as CatalogFile;
+        const persist = this.opts.persist;
+        const cached = persist ? ((await persist.get(url)) as CatalogFile | undefined) : undefined;
+        let file: CatalogFile;
+        if (cached && cached.space === space && Array.isArray(cached.items) && Array.isArray(cached.categories)) {
+          // IndexedDB hit: instant. Revalidate in the background for the next session.
+          file = cached;
+          this.fetchFile(url, space, false).then(
+            (fresh) => persist!.set(url, fresh),
+            () => undefined
+          );
+        } else {
+          file = await this.fetchFile(url, space, true);
+          if (persist) void persist.set(url, file);
+        }
         const byId = new Map(file.items.map((i) => [i.id, i] as const));
         const rowById = new Map<string, Row>();
         for (const c of file.categories) for (const r of c.rows) rowById.set(r.id, r);
