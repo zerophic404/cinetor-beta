@@ -2,6 +2,33 @@
 # Phase 5 smoke (sourced by emulator-smoke.sh; uses its shot/tap_desc/tap_text/W/H/BAR_Y).
 # Me → profiles (create a 2nd Kids profile) → Library → Settings (Ember theme, back to Noir) → About. Shots 70-79.
 
+# Fresh uiautomator dump (old file removed → never a stale tree), retried; prints the error when it fails.
+dump_ui() {
+  local i out
+  for i in 1 2 3; do
+    adb shell rm -f /sdcard/ui.xml >/dev/null 2>&1
+    out=$(adb shell uiautomator dump /sdcard/ui.xml 2>&1)
+    if adb shell ls /sdcard/ui.xml >/dev/null 2>&1; then return 0; fi
+    echo "dump failed ($i): $out"; sleep 2
+  done
+  return 1
+}
+bounds_of() { # $1 = attr (content-desc|text), $2 = value
+  adb shell cat /sdcard/ui.xml | tr '>' '\n' | grep -m1 "$1=\"$2\"" | grep -oE 'bounds="\[[0-9]+,[0-9]+\]\[[0-9]+,[0-9]+\]"' | grep -oE '[0-9]+' | tr '\n' ' '
+}
+tap_desc() {
+  dump_ui || return 1
+  local b; b=$(bounds_of content-desc "$1")
+  [ -z "$b" ] && { echo "no node '$1'"; return 1; }
+  set -- $b; adb shell input tap $(( ($1 + $3) / 2 )) $(( ($2 + $4) / 2 ))
+}
+tap_text() {
+  dump_ui || return 1
+  local b; b=$(bounds_of text "$1")
+  [ -z "$b" ] && { echo "no text '$1'"; return 1; }
+  set -- $b; adb shell input tap $(( ($1 + $3) / 2 )) $(( ($2 + $4) / 2 ))
+}
+
 hide_kb() {
   adb shell dumpsys input_method 2>/dev/null | grep -q "mInputShown=true" && adb shell input keyevent KEYCODE_BACK
   sleep 1
@@ -9,7 +36,7 @@ hide_kb() {
 
 # Emulator flake: system "Pixel Launcher isn't responding" dialog covers the app and breaks uiautomator lookups.
 dismiss_anr() {
-  adb shell uiautomator dump /sdcard/ui.xml >/dev/null 2>&1 || return 0
+  dump_ui || return 0
   if adb shell cat /sdcard/ui.xml | grep -q "t responding"; then
     echo "ANR dialog → Wait"; tap_text "Wait" || adb shell input keyevent KEYCODE_BACK; sleep 2
   fi
@@ -17,7 +44,11 @@ dismiss_anr() {
 
 echo "== phase 5: profiles =="
 dismiss_anr
-tap_desc "Open spaces" && sleep 1 && { tap_text "Video" || adb shell input keyevent KEYCODE_BACK; }; sleep 2
+# Back to the video shell from wherever 4b ended (an isolated space has no Me tab).
+# 4b may leave the Spaces switcher open or sit in Comics: "Video" (switcher row / exit tab) leads home in both.
+if tap_text "Video"; then sleep 2
+elif tap_desc "Open spaces"; then sleep 1; tap_text "Video" || adb shell input keyevent KEYCODE_BACK; sleep 2; fi
+dump_ui && adb shell cat /sdcard/ui.xml | tr '>' '\n' | grep -oE 'content-desc="[^"]+"' | head -25
 adb shell input tap $(( W * 9 / 10 )) $BAR_Y; shot 70-me-profiles 3
 if tap_desc "Switch profile"; then
   shot 71-profile-picker 2
