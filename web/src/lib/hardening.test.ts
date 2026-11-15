@@ -10,6 +10,8 @@ import { memoryKV } from './data/kv';
 import { ownershipNotice, verifyOwnership } from './legal/notice';
 import { GATEWAY_DEFAULT } from './data/gateway';
 import { MD_API } from './comics/mangadex';
+import { isLocalMediaUrl } from './player/sources';
+import { clampMiniWidth, miniFrac, miniHeight, MINI_MAX_FRAC, MINI_MIN_FRAC } from './player/mini-math';
 
 const SRC = fileURLToPath(new URL('../', import.meta.url));
 
@@ -83,6 +85,109 @@ describe('no endpoint leakage in the UI', () => {
     expect(log.entries.length).toBe(0);
     // report() returns generic copy regardless of the detail it logged.
     expect(report('play', new Error('https://secret.host/x.mp4'), GENERIC.playback)).toBe(GENERIC.playback);
+  });
+});
+
+describe('no stream URL in share / clipboard / global scope (§2)', () => {
+  const code = files.filter((f) => /\.(ts|svelte)$/.test(f) && !/\.test\.ts$/.test(f));
+
+  it('only local (blob/file/asset) media counts as safe to hand out', () => {
+    expect(isLocalMediaUrl('blob:https://app/9f')).toBe(true);
+    expect(isLocalMediaUrl('file:///home/u/a.mkv')).toBe(true);
+    expect(isLocalMediaUrl('asset://localhost/a.mp4')).toBe(true);
+    expect(isLocalMediaUrl('http://asset.localhost/a.mp4')).toBe(true);
+    expect(isLocalMediaUrl('http://127.0.0.1:8765/a.mp4')).toBe(true);
+    // Anything remote is NOT safe — it would expose the gateway or stream host.
+    expect(isLocalMediaUrl('https://antiblock-gateway.vercel.app/api/x/play?url=y')).toBe(false);
+    expect(isLocalMediaUrl('https://pbcdn.aoneroom.com/v.mp4')).toBe(false);
+    expect(isLocalMediaUrl('')).toBe(false);
+    expect(isLocalMediaUrl(undefined)).toBe(false);
+    expect(isLocalMediaUrl(null)).toBe(false);
+  });
+
+  it('no clipboard write or share call is fed a media/stream URL', () => {
+    const offenders: string[] = [];
+    for (const f of code) {
+      const src = readFileSync(f, 'utf8');
+      // writeText(...) / share({...}) arguments must not mention a source url.
+      for (const m of src.matchAll(/(?:writeText|navigator\.share)\s*\(([^)]*)\)/g)) {
+        if (/(?:source|media|stream|variant|manifest)\s*(?:\??\.)\s*url|\.src\b/i.test(m[1])) offenders.push(`${f.slice(SRC.length)}: ${m[0]}`);
+      }
+    }
+    expect(offenders).toEqual([]);
+  });
+
+  it('no <a href> is bound straight to a media source url', () => {
+    const offenders: string[] = [];
+    for (const f of svelte) {
+      const t = template(readFileSync(f, 'utf8'));
+      for (const m of t.matchAll(/href=\{([^}]*)\}/g)) {
+        if (/(?:source|media|stream|variant)\s*(?:\??\.)\s*url/i.test(m[1])) offenders.push(`${f.slice(SRC.length)}: ${m[0]}`);
+      }
+    }
+    expect(offenders).toEqual([]);
+  });
+
+  it('nothing publishes a stream URL, engine or gateway onto window/globalThis', () => {
+    const offenders: string[] = [];
+    for (const f of code) {
+      const src = readFileSync(f, 'utf8');
+      for (const m of src.matchAll(/(?:window|globalThis)\s*(?:\.|\[\s*['"])\s*(\w+)\s*(?:['"]\s*\])?\s*=[^=]/g)) {
+        const prop = m[1];
+        if (/url|gateway|stream|source|cinetor|engine|token|base/i.test(prop)) offenders.push(`${f.slice(SRC.length)}: ${m[0].trim()}`);
+      }
+    }
+    expect(offenders).toEqual([]);
+  });
+
+  it('the on-disk resume sidecar stores a URL hash, never the URL (§2)', () => {
+    // Desktop downloads put their resume state next to the file in the user's Downloads folder,
+    // so that sidecar must be fingerprint-only. (Web records stay in app-private IDB/localStorage.)
+    const rust = readFileSync(`${SRC}../../desktop/src-tauri/src/dl.rs`, 'utf8');
+    const sidecar = rust.slice(rust.indexOf('struct Sidecar'), rust.indexOf('struct ChunkState'));
+    expect(sidecar).toContain('url_hash');
+    expect(/^\s*url:\s*String/m.test(sidecar)).toBe(false);
+    expect(rust).toContain('url_fingerprint(&req.url)');
+  });
+});
+
+describe('production build hygiene (§1 + §2)', () => {
+  const vite = readFileSync(`${SRC}../vite.config.ts`, 'utf8');
+
+  it('drops console/debugger and emits no source maps in the production build', () => {
+    expect(vite).toMatch(/sourcemap:\s*false/);
+    expect(vite).toMatch(/drop:\s*\[\s*'console'\s*,\s*'debugger'\s*\]/);
+    expect(vite).toMatch(/minify:\s*'esbuild'/);
+  });
+
+  it('never enables source maps anywhere in the web config', () => {
+    expect(vite).not.toMatch(/sourcemap:\s*(?:true|'inline'|"inline")/);
+  });
+});
+
+describe('mini player persistence (§3)', () => {
+  it('persists a width fraction and clamps it to 25–80 % with 16:9', () => {
+    // Round trip through the stored fraction, as MiniPlayer does.
+    const vw = 1000;
+    const stored = miniFrac(420, vw);
+    expect(stored).toBeCloseTo(0.42);
+    expect(clampMiniWidth(vw * stored, vw)).toBe(420);
+    expect(miniHeight(420)).toBe(236);
+    // Junk / out-of-range stored values are brought back inside the clamp.
+    expect(clampMiniWidth(vw * 5, vw)).toBe(800);
+    expect(clampMiniWidth(vw * 0.01, vw)).toBe(250);
+    expect(miniFrac(5000, vw)).toBe(MINI_MAX_FRAC);
+    expect(miniFrac(1, vw)).toBe(MINI_MIN_FRAC);
+  });
+
+  it('keeps a 16:9 ratio at every clamped width', () => {
+    for (const vw of [360, 800, 1440, 2560]) {
+      for (const want of [0, 100, vw / 2, vw * 10]) {
+        const w = clampMiniWidth(want, vw);
+        expect(miniHeight(w)).toBe(Math.round((w * 9) / 16));
+        expect(w).toBeLessThanOrEqual(Math.max(vw * MINI_MAX_FRAC, 160) + 1);
+      }
+    }
   });
 });
 

@@ -424,15 +424,31 @@ impl Meter {
 
 // --------------------------------------------------------------- progressive ----
 
-#[derive(Serialize, Deserialize)]
+/// Resume state written next to the file in the user's download folder. §2 forbids a plaintext
+/// source URL in a user-readable sidecar, so only a salted *hash* of the URL is stored — enough to
+/// tell "same source" from "different source" on resume, useless for recovering the endpoint.
+#[derive(Serialize, Deserialize, Debug, PartialEq)]
 #[serde(rename_all = "camelCase")]
 struct Sidecar {
-    url: String,
+    #[serde(rename = "u", default)]
+    url_hash: String,
     #[serde(default)]
     key: Option<String>,
     total: u64,
     range_supported: bool,
     chunks: Vec<(u64, u64, u64)>,
+}
+
+/// Stable, non-reversible fingerprint of a source URL (FNV-1a over a fixed salt + the URL).
+/// Deliberately not the URL: the sidecar sits in the user's Downloads folder.
+pub fn url_fingerprint(url: &str) -> String {
+    const SALT: &[u8] = b"cinetor/dl/v1";
+    let mut h: u64 = 0xcbf2_9ce4_8422_2325;
+    for b in SALT.iter().chain(url.as_bytes()) {
+        h ^= *b as u64;
+        h = h.wrapping_mul(0x100_0000_01b3);
+    }
+    format!("{h:016x}")
 }
 
 struct ChunkState {
@@ -479,13 +495,13 @@ async fn save_sidecar(path: &Path, sc: &Sidecar) {
 fn sidecar_matches(s: &Sidecar, req: &StartReq) -> bool {
     match (&s.key, &req.resume_key) {
         (Some(a), Some(b)) => a == b,
-        _ => s.url == req.url,
+        _ => !s.url_hash.is_empty() && s.url_hash == url_fingerprint(&req.url),
     }
 }
 
 fn snapshot(req: &StartReq, total: u64, ranges: bool, chunks: &[Arc<ChunkState>]) -> Sidecar {
     Sidecar {
-        url: req.url.clone(),
+        url_hash: url_fingerprint(&req.url),
         key: req.resume_key.clone(),
         total,
         range_supported: ranges,
@@ -993,10 +1009,49 @@ mod tests {
             fallback_url: Some("https://gw/play".into()),
             resume_key: Some("x|720".into()),
         };
-        let sc = Sidecar { url: "https://cdn/a.mp4?t=1".into(), key: Some("x|720".into()), total: 10, range_supported: true, chunks: vec![] };
+        let sc = Sidecar { url_hash: url_fingerprint("https://cdn/a.mp4?t=1"), key: Some("x|720".into()), total: 10, range_supported: true, chunks: vec![] };
         assert!(sidecar_matches(&sc, &req));
-        let old = Sidecar { url: "https://cdn/a.mp4?t=1".into(), key: None, total: 10, range_supported: true, chunks: vec![] };
+        let old = Sidecar { url_hash: url_fingerprint("https://cdn/a.mp4?t=1"), key: None, total: 10, range_supported: true, chunks: vec![] };
         assert!(!sidecar_matches(&old, &req));
+    }
+
+    #[test]
+    fn sidecar_never_stores_the_source_url_in_plaintext() {
+        let req = StartReq {
+            id: "x".into(),
+            url: "https://pbcdn.aoneroom.com/secret/a.mp4?token=abc".into(),
+            kind: "progressive".into(),
+            connections: None,
+            file_name: "a.mp4".into(),
+            bandwidth: None,
+            height: None,
+            headers: None,
+            fallback_url: None,
+            resume_key: None,
+        };
+        let sc = snapshot(&req, 100, true, &[]);
+        let json = serde_json::to_string(&sc).unwrap();
+        // The file lives in the user's Downloads folder: no URL, host, path or token may appear.
+        assert!(!json.contains("pbcdn"));
+        assert!(!json.contains("aoneroom"));
+        assert!(!json.contains("http"));
+        assert!(!json.contains("token=abc"));
+        assert!(!json.contains("secret"));
+        // …but it still resumes the same source, and rejects a different one.
+        assert!(sidecar_matches(&sc, &req));
+        let mut other = req;
+        other.url = "https://pbcdn.aoneroom.com/secret/b.mp4?token=abc".into();
+        assert!(!sidecar_matches(&sc, &other));
+    }
+
+    #[test]
+    fn url_fingerprint_is_stable_and_not_reversible() {
+        let a = url_fingerprint("https://h/a.mp4");
+        assert_eq!(a, url_fingerprint("https://h/a.mp4"));
+        assert_ne!(a, url_fingerprint("https://h/b.mp4"));
+        assert_eq!(a.len(), 16);
+        assert!(a.chars().all(|c| c.is_ascii_hexdigit()));
+        assert!(!a.contains("h/a"));
     }
 
     #[test]
