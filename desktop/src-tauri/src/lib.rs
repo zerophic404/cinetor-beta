@@ -19,6 +19,7 @@ pub fn run() {
             }
         }))
         .plugin(tauri_plugin_window_state::Builder::default().build())
+        .plugin(tauri_plugin_dialog::init())
         .manage(dl::DlState::new())
         .manage(mini::MiniState::default())
         .invoke_handler(tauri::generate_handler![
@@ -29,6 +30,8 @@ pub fn run() {
             dl::dl_remove,
             dl::dl_read_playlist,
             dl::dl_dir,
+            dl::dl_set_dir,
+            dl::dl_pick_dir,
             md::md_get,
             vibrancy_kind
         ])

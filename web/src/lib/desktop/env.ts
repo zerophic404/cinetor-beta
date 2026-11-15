@@ -34,6 +34,43 @@ export function nativeFileName(r: { title: string; subtitle?: string; container:
 
 export const MEDIA_TOKEN = '__CINETOR_MEDIA__';
 
+// ------------------------------------------------------------ download location (§4) ----
+
+/** Does this browser have the File System Access save picker ("Save a copy…")? */
+export function saveCopySupported(g: unknown = typeof globalThis !== 'undefined' ? globalThis : undefined): boolean {
+  return !!g && typeof (g as { showSaveFilePicker?: unknown }).showSaveFilePicker === 'function';
+}
+
+export interface LocationInfo {
+  /** Short label for the confirm sheet: the folder on desktop, private storage on the web. */
+  label: string;
+  /** Plain explanation shown under it — states clearly where copies cannot be chosen. */
+  note: string;
+  /** Can the user change where files land? */
+  changeable: boolean;
+}
+
+/**
+ * What to tell the user about where a download will be stored. Pure so the copy is unit-tested and
+ * can never contain a gateway or stream host (§2) — only a local folder or a storage name.
+ */
+export function locationInfo(o: { tauri: boolean; dir?: string | null; saveCopy?: boolean }): LocationInfo {
+  if (o.tauri) {
+    return {
+      label: o.dir?.trim() || 'Downloads/Cinetor',
+      note: 'Files are saved to this folder. Change it any time in Downloads settings.',
+      changeable: true
+    };
+  }
+  return {
+    label: 'Private app storage',
+    note: o.saveCopy
+      ? 'Downloads stay in private app storage so they work offline. Use “Save a copy…” when finished to also put a file in a folder you choose.'
+      : 'Downloads stay in private app storage so they work offline. This browser cannot save a copy to a folder you choose — open Cinetor in a Chromium-based browser (or the desktop app) if you need that.',
+    changeable: false
+  };
+}
+
 /** Native HLS downloads ship a byte-range playlist with a placeholder URI → point it at the local file URL. */
 export function localPlaylist(text: string, mediaUrl: string): string {
   return text.split(MEDIA_TOKEN).join(mediaUrl);

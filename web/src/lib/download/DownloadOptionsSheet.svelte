@@ -3,9 +3,10 @@
   import type { Media } from '$lib/player/sources';
   import { probeAdaptive, type AdaptiveProbe } from './adaptive';
   import { downloadKindOf, downloads } from './manager.svelte';
-  import { dedupeOptions, estimateSize, formatBytes, formatDuration, MAX_CONNECTIONS } from './math';
+  import { dedupeOptions, estimateSize, formatBytes, formatDuration, MAX_CONNECTIONS, qualityList } from './math';
   import { toasts } from '$lib/ui/toast.svelte';
   import { GENERIC, report } from '$lib/errors';
+  import { isTauriEnv, locationInfo, saveCopySupported } from '$lib/desktop/env';
   import { goto } from '$app/navigation';
   import { base } from '$app/paths';
   import { probe } from './progressive';
@@ -19,8 +20,8 @@
   /** Gateway titles: placeholder → proxy MP4 variants (resolved when the sheet opens). */
   let resolved = $state.raw<Media | null>(null);
   let vi = $state(0);
-  // De-duplicated quality list: one entry per resolution + format + size (§4).
-  const variants = $derived(dedupeOptions(resolved?.variants ?? []));
+  // De-duplicated, quality-ordered list: one entry per resolution + format + size (§4).
+  const variants = $derived(qualityList(resolved?.variants ?? []));
   const cur = $derived<Media | null>(resolved ? (variants.length ? { ...resolved, source: variants[vi] ?? resolved.source } : resolved) : null);
   const kind = $derived(downloadKindOf(cur?.source ?? media.source));
   let loading = $state(true);
@@ -34,6 +35,24 @@
   let connections = $state(4);
   let busy = $state(false);
   const ios = typeof navigator !== 'undefined' && isIOS(navigator.userAgent, navigator.maxTouchPoints);
+  // Where the file will land — shown in the confirm sheet before starting (§4).
+  const tauri = typeof window !== 'undefined' && isTauriEnv();
+  let dir = $state<string | null>(null);
+  let picking = $state(false);
+  const loc = $derived(locationInfo({ tauri, dir, saveCopy: saveCopySupported() }));
+
+  async function changeDir() {
+    picking = true;
+    try {
+      const { pickDownloadsDir } = await import('$lib/desktop/native-dl');
+      const picked = await pickDownloadsDir();
+      if (picked) dir = picked;
+    } catch {
+      toasts.show("That folder can't be used");
+    } finally {
+      picking = false;
+    }
+  }
 
   $effect(() => {
     if (!open) return;
@@ -44,12 +63,18 @@
     resolved = null;
     connections = downloads.defaultConnections;
     void downloads.refreshQuota();
+    if (tauri && dir === null) {
+      void import('$lib/desktop/native-dl')
+        .then((m) => m.downloadsDir())
+        .then((d) => (dir = d))
+        .catch(() => {});
+    }
     (async () => {
       try {
         const m = isLazySource(m0.source) ? await resolveMedia(m0) : m0;
         if (!alive) return;
         if (m.noSource || !m.source) throw new Error('No source available');
-        const vs = m.variants ?? [];
+        const vs = qualityList(m.variants ?? []);
         vi = Math.max(0, vs.findIndex((x) => x.url === m.source?.url));
         resolved = m;
       } catch (e) {
@@ -209,6 +234,14 @@
     </div>
     {#if tooBig}<p class="err">Not enough browser storage for this download.</p>{/if}
     {#if ios}<p class="ios">iOS: web storage is limited and may be cleared by the system. Add Cinetor to the Home Screen to keep downloads longer.</p>{/if}
+    <div class="loc">
+      <div class="locrow">
+        <span class="lk">Save to</span>
+        <span class="lv" title={loc.label}>{loc.label}</span>
+        {#if loc.changeable}<button class="chip" disabled={picking} onclick={changeDir}>{picking ? 'Choosing…' : 'Change…'}</button>{/if}
+      </div>
+      <p class="note">{loc.note}</p>
+    </div>
     <button class="btn btn-primary go" onclick={start} disabled={busy || tooBig || (kind === 'adaptive' && !info)}>
       {busy ? 'Starting…' : 'Start download'}
     </button>
@@ -307,6 +340,31 @@
     margin: 4px 0 0;
     font-size: 0.75rem;
     color: var(--text-secondary);
+  }
+  .loc {
+    margin: 12px 0 4px;
+    padding: 10px 12px;
+    border-radius: 14px;
+    background: var(--glass-fill);
+    box-shadow: inset 0 0 0 1px var(--glass-stroke);
+  }
+  .locrow {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 0.85rem;
+  }
+  .lk {
+    flex: none;
+    color: var(--text-secondary);
+  }
+  .lv {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-weight: 700;
   }
   .sum {
     display: flex;

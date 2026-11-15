@@ -139,19 +139,89 @@ export function formatDuration(sec: number | null | undefined): string {
 /** Exponential backoff for retries: 2 s, 4 s, 8 s … capped. */
 export const backoffMs = (attempt: number, baseMs = 2000, capMs = 60_000): number => Math.min(capMs, baseMs * 2 ** Math.max(0, attempt));
 
+// ------------------------------------------------------------------ option de-duplication ----
+// docs/requirements-hardening.md §4: group by quality; an identical resolution + format + size must
+// appear ONCE, and the kept entry is the primary / fastest source for that option.
+
+/** Shape shared by progressive variants and adaptive quality levels. */
+export interface QualityLike {
+  height?: number;
+  label?: string;
+  kind?: string;
+  container?: string;
+  bytes?: number;
+  estimatedBytes?: number;
+  bandwidth?: number;
+  /** Set by the catalog on the title's own / default source. */
+  primary?: boolean;
+}
+
+/** Size bucket in MB: two sources differing by <1 MB are the same option to a user. */
+const sizeOf = (o: QualityLike): number => o.bytes ?? o.estimatedBytes ?? 0;
+
 /**
- * De-duplicate download/quality options: identical resolution + format + size appear ONCE, and the
- * first occurrence wins (lists are ordered best/primary first). docs/requirements-hardening.md §4.
+ * Identity of a download option as the *user* sees it: resolution (or label), container/format and
+ * size. Deliberately excludes bandwidth and URL — the same file offered by two sources is one option.
  */
-export function dedupeOptions<T extends { height?: number; label?: string; kind?: string; container?: string; bytes?: number; estimatedBytes?: number; bandwidth?: number }>(list: readonly T[]): T[] {
-  const seen = new Set<string>();
+export function optionKey(o: QualityLike): string {
+  const size = sizeOf(o);
+  const res = o.height ? `${o.height}p` : (o.label ?? '').trim().toLowerCase();
+  const fmt = (o.kind ?? o.container ?? '').toUpperCase();
+  return `${res}|${fmt}|${size ? Math.round(size / 1_000_000) : ''}`;
+}
+
+/** Higher = preferred when two entries are the same option (primary first, then fastest). */
+const rank = (o: QualityLike): number => (o.primary ? 1 : 0) * 1e15 + (o.bandwidth ?? 0);
+
+/**
+ * De-duplicate quality/download options. Identical resolution + format + size collapse into one
+ * entry — the primary (else fastest) source — keeping the position of the first occurrence so the
+ * list stays ordered best-first.
+ */
+export function dedupeOptions<T extends QualityLike>(list: readonly T[]): T[] {
+  const at = new Map<string, number>();
   const out: T[] = [];
   for (const o of list) {
-    const size = o.bytes ?? o.estimatedBytes ?? 0;
-    const key = [o.height ?? o.label ?? '', (o.kind ?? o.container ?? '').toUpperCase(), size ? Math.round(size / 1_000_000) : '', o.bandwidth ? Math.round(o.bandwidth / 100_000) : ''].join('|');
-    if (seen.has(key)) continue;
-    seen.add(key);
-    out.push(o);
+    const key = optionKey(o);
+    const i = at.get(key);
+    if (i === undefined) {
+      at.set(key, out.length);
+      out.push(o);
+    } else if (rank(o) > rank(out[i])) {
+      out[i] = o; // same option, better source → keep the better one in place
+    }
   }
   return out;
+}
+
+export interface QualityGroup<T> {
+  /** Resolution height when known (0 = unknown / audio-only / labelled option). */
+  height: number;
+  /** Human label for the group, e.g. "1080p" or the option's own label. */
+  label: string;
+  options: T[];
+}
+
+/**
+ * Group de-duplicated options by quality, best first. Within a group the formats stay in their
+ * original (primary-first) order, so the UI can show "1080p · MP4 / MKV" under one heading.
+ */
+export function groupByQuality<T extends QualityLike>(list: readonly T[]): QualityGroup<T>[] {
+  const groups = new Map<string, QualityGroup<T>>();
+  for (const o of dedupeOptions(list)) {
+    const height = o.height && Number.isFinite(o.height) ? o.height : 0;
+    const label = height ? `${height}p` : (o.label ?? 'Original').trim() || 'Original';
+    const g = groups.get(label);
+    if (g) g.options.push(o);
+    else groups.set(label, { height, label, options: [o] });
+  }
+  return [...groups.values()].sort((a, b) => b.height - a.height || a.label.localeCompare(b.label));
+}
+
+/**
+ * The exact list the download UI shows: de-duplicated and ordered best quality first. Selection
+ * indexes into *this* list, so it must be the only place the order is decided.
+ */
+export function qualityList<T extends QualityLike>(list: readonly T[]): T[] {
+  return groupByQuality(list).flatMap((g) => g.options);
 }

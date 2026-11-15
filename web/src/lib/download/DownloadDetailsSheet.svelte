@@ -5,6 +5,9 @@
   import { watchHref } from '$lib/ui/handoff';
   import { downloads } from './manager.svelte';
   import { GENERIC, userMessage } from '$lib/errors';
+  import { toasts } from '$lib/ui/toast.svelte';
+  import { isTauriEnv, nativeFileName, saveCopySupported } from '$lib/desktop/env';
+  import DeleteDownloadDialog from './DeleteDownloadDialog.svelte';
   import { chunkBytes, chunkDone, chunkSize, formatBytes, formatDuration, formatSpeed, percent } from './math';
 
   let { open = $bindable(false), id }: { open?: boolean; id: string } = $props();
@@ -35,6 +38,11 @@
           : `OPFS · /cinetor-downloads/${encodeURIComponent(r.id).replace(/%/g, '_')}.*.part`
   );
   let retryIn = $state(0);
+  let confirmDelete = $state(false);
+  let saving = $state(false);
+  /** Browser download that can be copied out to a real folder (desktop already writes a real file). */
+  const canSaveCopy = $derived(!!r && r.status === 'completed' && r.kind === 'progressive' && r.backend !== 'native' && !isTauriEnv() && saveCopySupported());
+  const noPickerNote = $derived(!!r && r.status === 'completed' && r.kind === 'progressive' && r.backend !== 'native' && !isTauriEnv() && !saveCopySupported());
   $effect(() => {
     const at = s?.autoRetryAt;
     retryIn = at ? Math.max(0, Math.ceil((at - Date.now()) / 1000)) : 0;
@@ -46,8 +54,17 @@
     goto(watchHref(r.itemId, r.episodeId));
   }
   async function del() {
-    open = false;
-    await downloads.remove(id);
+    confirmDelete = true;
+  }
+  async function saveCopy() {
+    if (!r) return;
+    saving = true;
+    const name = nativeFileName(r);
+    const res = await downloads.saveCopy(id, name);
+    saving = false;
+    if (res === 'saved') toasts.show('Saved a copy to the folder you chose');
+    else if (res === 'unsupported') toasts.show('This browser cannot choose a save location');
+    else if (res === 'unavailable') toasts.show(GENERIC.download);
   }
 </script>
 
@@ -126,12 +143,24 @@
       {#if r.status === 'paused'}<button class="btn btn-primary" onclick={() => downloads.resume(id)}>Resume</button>{/if}
       {#if r.status === 'failed' || r.status === 'canceled'}<button class="btn btn-primary" onclick={() => downloads.retry(id)}>Retry</button>{/if}
       {#if r.status !== 'completed' && r.status !== 'canceled'}<button class="btn btn-ghost" onclick={() => downloads.cancel(id)}>Cancel</button>{/if}
-      <button class="btn btn-ghost danger" onclick={del}>Delete</button>
+      {#if canSaveCopy}<button class="btn btn-ghost" disabled={saving} onclick={saveCopy}>{saving ? 'Saving…' : 'Save a copy…'}</button>{/if}
+      <button class="btn btn-ghost danger" onclick={del}>Delete…</button>
     </div>
+    {#if noPickerNote}
+      <p class="muted copy-note">This browser cannot save a copy to a folder you choose. The download still plays offline from private app storage.</p>
+    {/if}
   {/if}
 </Sheet>
 
+{#if confirmDelete}
+  <DeleteDownloadDialog bind:open={confirmDelete} {id} ondeleted={() => (open = false)} />
+{/if}
+
 <style>
+  .copy-note {
+    margin: 10px 0 0;
+    font-size: 0.78rem;
+  }
   .top {
     display: flex;
     gap: 14px;

@@ -203,9 +203,13 @@ pub async fn dl_remove(app: AppHandle, state: State<'_, DlState>, id: String, fi
     ];
     if let Some(p) = path {
         let p = PathBuf::from(p);
-        if p.starts_with(&dir) {
+        if removable_path(&dir, &p, &file_name) {
             if let Some(s) = p.file_stem() {
-                files.push(dir.join(format!("{}.m3u8", s.to_string_lossy())));
+                let m3u8 = format!("{}.m3u8", s.to_string_lossy());
+                files.push(dir.join(&m3u8));
+                if let Some(parent) = p.parent() {
+                    files.push(parent.join(&m3u8));
+                }
             }
             files.push(p);
         }
@@ -236,10 +240,7 @@ pub fn dl_dir(app: AppHandle) -> Result<String, String> {
 /// Remember a user-chosen download folder (Settings → Downloads). Created if missing.
 #[tauri::command]
 pub fn dl_set_dir(app: AppHandle, path: String) -> Result<String, String> {
-    let p = PathBuf::from(path.trim());
-    if !p.is_absolute() {
-        return Err("Choose a folder".into());
-    }
+    let p = check_dir_choice(&path)?;
     std::fs::create_dir_all(&p).map_err(|_| "That folder can't be used".to_string())?;
     save_dir_pref(&app, &p);
     Ok(p.to_string_lossy().into_owned())
@@ -282,10 +283,40 @@ fn dir_pref_path(app: &AppHandle) -> Option<PathBuf> {
     Some(dir.join("download-dir.txt"))
 }
 
+/// Validate a folder the user typed or picked. Pure (no filesystem) so it is unit-testable.
+pub fn check_dir_choice(path: &str) -> Result<PathBuf, String> {
+    let t = path.trim();
+    let p = PathBuf::from(t);
+    if t.is_empty() || !p.is_absolute() {
+        return Err("Choose a folder".into());
+    }
+    Ok(p)
+}
+
+/// Parse a remembered-folder preference file. Pure; `None` = ignore and fall back to the default.
+pub fn parse_dir_pref(txt: &str) -> Option<PathBuf> {
+    check_dir_choice(txt).ok()
+}
+
+/// May this recorded path be deleted when the user asks to delete the file?
+/// True inside the current download folder, or anywhere if the file name is the one Cinetor wrote
+/// (so "Delete file" still works after the user changed the download folder).
+pub fn removable_path(dir: &Path, path: &Path, file_name: &str) -> bool {
+    if path.starts_with(dir) {
+        return true;
+    }
+    let want = sanitize(file_name);
+    let stem = stem_of(&want);
+    match path.file_name().map(|n| n.to_string_lossy().into_owned()) {
+        Some(n) => n == want || stem_of(&n) == stem,
+        None => false,
+    }
+}
+
 fn load_dir_pref(app: &AppHandle) -> Option<PathBuf> {
     let txt = std::fs::read_to_string(dir_pref_path(app)?).ok()?;
-    let p = PathBuf::from(txt.trim());
-    if p.is_absolute() && p.is_dir() {
+    let p = parse_dir_pref(&txt)?;
+    if p.is_dir() {
         Some(p)
     } else {
         None
@@ -972,5 +1003,41 @@ mod tests {
     fn sanitize_names() {
         assert_eq!(sanitize("a/b:c?.mp4"), "a_b_c_.mp4");
         assert_eq!(sanitize("  "), "download");
+    }
+
+    #[test]
+    fn dir_choice_requires_absolute_path() {
+        assert_eq!(check_dir_choice("  /home/u/Videos  ").unwrap(), PathBuf::from("/home/u/Videos"));
+        assert!(check_dir_choice("").is_err());
+        assert!(check_dir_choice("   ").is_err());
+        assert!(check_dir_choice("relative/dir").is_err());
+        // The error text is generic: no path is echoed back to the user (§2).
+        let e = check_dir_choice("relative/dir").unwrap_err();
+        assert_eq!(e, "Choose a folder");
+        assert!(!e.contains("relative"));
+    }
+
+    #[test]
+    fn dir_pref_round_trips_and_rejects_junk() {
+        assert_eq!(parse_dir_pref("/srv/media\n").unwrap(), PathBuf::from("/srv/media"));
+        assert!(parse_dir_pref("").is_none());
+        assert!(parse_dir_pref("\n\n").is_none());
+        assert!(parse_dir_pref("not/absolute").is_none());
+    }
+
+    #[test]
+    fn removable_path_allows_own_files_after_folder_change() {
+        let dir = Path::new("/home/u/Downloads/Cinetor");
+        // Inside the current folder: always deletable.
+        assert!(removable_path(dir, Path::new("/home/u/Downloads/Cinetor/a.mp4"), "a.mp4"));
+        // Old folder, but it is the file Cinetor wrote → still deletable.
+        assert!(removable_path(dir, Path::new("/mnt/old/a.mp4"), "a.mp4"));
+        // Same stem, different container (HLS concat → .ts/.mp4).
+        assert!(removable_path(dir, Path::new("/mnt/old/a.ts"), "a.mp4"));
+        // Someone else's file outside the folder: never touched.
+        assert!(!removable_path(dir, Path::new("/etc/passwd"), "a.mp4"));
+        assert!(!removable_path(dir, Path::new("/home/u/taxes.pdf"), "a.mp4"));
+        // Names are sanitized before comparing, so traversal attempts do not match.
+        assert!(!removable_path(dir, Path::new("/home/u/b.mp4"), "a.mp4"));
     }
 }

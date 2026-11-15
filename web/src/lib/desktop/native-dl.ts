@@ -77,3 +77,13 @@ export function readPlaylist(path: string): Promise<string> {
 export function downloadsDir(): Promise<string> {
   return invoke<string>('dl_dir');
 }
+
+/** Native folder picker; resolves to the chosen folder, or null when the user cancelled. */
+export function pickDownloadsDir(): Promise<string | null> {
+  return invoke<string | null>('dl_pick_dir');
+}
+
+/** Remember a download folder chosen elsewhere (returns the folder actually used). */
+export function setDownloadsDir(path: string): Promise<string> {
+  return invoke<string>('dl_set_dir', { path });
+}
