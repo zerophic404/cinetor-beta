@@ -4,16 +4,19 @@
 import { spaceForId, type CatalogRepository } from './catalog';
 import { isGatewayAdultId, isGatewayId, isGwSpace, type GatewayCatalogSource, type PageResult } from './gateway';
 import { findPlaceholder } from './gateway-play';
+import { isMangadexId, type ComicsSource } from '../comics/mangadex';
 import { attachEpisodeSources, attachMockSources } from './mock-sources';
 import { isTmdbId, parseTmdbId, type TmdbCatalogSource, type VideoSpace } from './tmdb';
-import { isVideoSpace, type CatalogFile, type Episode, type Item, type RowMore, type Space } from './types';
+import { isVideoSpace, type CatalogFile, type Chapter, type Episode, type Item, type RowMore, type Space } from './types';
 
-export type Origin = 'gateway' | 'tmdb' | 'mock';
+export type Origin = 'gateway' | 'tmdb' | 'mock' | 'mangadex';
 
 export interface CatalogDeps {
   mock: CatalogRepository;
   tmdb?: TmdbCatalogSource | null;
   gateway?: GatewayCatalogSource | null;
+  /** COMICS: MangaDex metadata/chapters (mock stays the offline fallback). */
+  comics?: ComicsSource | null;
   /** navigator.onLine in browsers. */
   online?: () => boolean;
   /** 18+ gate state for the active profile (enabled + PIN-unlocked this session). */
@@ -56,6 +59,7 @@ export function moreLikeThis(item: Item, pool: Iterable<Item>, limit = 18): Item
 export class Catalog {
   readonly mock: CatalogRepository;
   readonly tmdb: TmdbCatalogSource | null;
+  readonly comics: ComicsSource | null;
   private readonly gw: GatewayCatalogSource | null;
   private online: () => boolean;
   private adultUnlocked: () => boolean;
@@ -65,6 +69,7 @@ export class Catalog {
     this.mock = deps.mock;
     this.tmdb = deps.tmdb && deps.tmdb.enabled ? deps.tmdb : null;
     this.gw = deps.gateway ?? null;
+    this.comics = deps.comics ?? null;
     this.online = deps.online ?? (() => typeof navigator === 'undefined' || navigator.onLine !== false);
     this.adultUnlocked = deps.adultUnlocked ?? (() => false);
   }
@@ -108,6 +113,16 @@ export class Catalog {
       this.origins.set(space, 'gateway');
       return f;
     }
+    // COMICS: live MangaDex catalogue, mock library as the offline fallback.
+    if (space === 'COMICS' && this.comics && this.online()) {
+      try {
+        const f = await this.comics.file();
+        this.origins.set(space, 'mangadex');
+        return f;
+      } catch {
+        /* fall through to the bundled library */
+      }
+    }
     if (this.useTmdb(space)) {
       try {
         const f = await this.tmdb!.file(space as VideoSpace);
@@ -138,11 +153,24 @@ export class Catalog {
 
   /** Synchronous best-effort lookup (for instant details header before full load). */
   peek(id: string): Item | undefined {
+    if (isMangadexId(id)) return this.comics?.cached(id);
     if (isGatewayId(id)) return isGatewayAdultId(id) && !this.adultUnlocked() ? undefined : this.gw?.cached(id);
     return isTmdbId(id) ? this.tmdb?.cached(id) : undefined;
   }
 
+  /** Comics reader: pages of one chapter ([] = "chapter unavailable"). Mock chapters already carry theirs. */
+  async comicPages(item: Pick<Item, 'id'>, chapter: Chapter): Promise<string[]> {
+    if (chapter.pages.length) return chapter.pages;
+    if (!isMangadexId(item.id) || !this.comics) return [];
+    return this.comics.chapterPages(chapter.id).catch(() => []);
+  }
+
   async item(id: string, space?: Space): Promise<Item | undefined> {
+    if (isMangadexId(id)) {
+      if (!this.comics) return undefined;
+      const full = await this.comics.item(id).catch(() => undefined);
+      return full ?? this.comics.cached(id);
+    }
     if (isGatewayId(id)) {
       // 18+ metadata is never fetched while locked.
       if (!this.gateway || (isGatewayAdultId(id) && !this.adultUnlocked())) return undefined;

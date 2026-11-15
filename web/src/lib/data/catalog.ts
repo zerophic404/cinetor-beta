@@ -79,9 +79,9 @@ export class CatalogRepository {
     return this.opts.latency;
   }
 
-  /** Absolute URL for a mock-relative asset path ('images/...', 'subs/...'). */
+  /** Absolute URL for a mock-relative asset path ('images/...', 'subs/...'); remote URLs pass through. */
   asset(path: string): string {
-    return `${this.opts.baseUrl}/mock/${path}`;
+    return /^(https?:)?\/\/|^data:|^blob:/i.test(path) ? path : `${this.opts.baseUrl}/mock/${path}`;
   }
 
   isLoaded(space: Space): boolean {

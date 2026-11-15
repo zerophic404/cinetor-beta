@@ -84,6 +84,8 @@ export interface Chapter {
   n: number;
   title: string;
   pages: string[];
+  /** Remote chapters (MangaDex) know the page count before the pages are resolved. */
+  pageCount?: number;
 }
 
 export interface Program {

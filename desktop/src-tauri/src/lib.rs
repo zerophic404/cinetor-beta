@@ -1,6 +1,7 @@
 // Cinetor desktop shell: frameless window (glass title bar drawn by the web app), Windows Mica/Acrylic,
 // single instance, remembered window size, mini-player mode and the native download engine.
 mod dl;
+mod md;
 mod mini;
 
 use tauri::Manager;
@@ -26,6 +27,7 @@ pub fn run() {
             dl::dl_remove,
             dl::dl_read_playlist,
             dl::dl_dir,
+            md::md_get,
             vibrancy_kind
         ])
         .setup(|app| {

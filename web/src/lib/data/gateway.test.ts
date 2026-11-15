@@ -36,6 +36,7 @@ import {
   type GwStream
 } from './gateway-play';
 import { gwImgUrl, imgAttrs } from './images';
+import { ComicsSource } from '../comics/mangadex';
 import { Catalog } from './source';
 import { fileFetcher } from './test-utils';
 import { buildMedia } from '../player/sources';
@@ -333,7 +334,7 @@ describe('catalog chain (gateway-only video spaces, isolated spaces untouched)',
     expect(broken.originOf('ANIME')).toBeUndefined();
   });
 
-  it('TV / Music / Comics never call the gateway', async () => {
+  it('TV / Music never call the gateway; Comics use MangaDex with the mock library as fallback', async () => {
     const calls: string[] = [];
     const c = new Catalog({ mock: mock(), gateway: source(homeRoutes, calls), online: () => true, adultUnlocked: () => true });
     for (const s of ['TV', 'MUSIC', 'COMICS'] as const) {
@@ -342,6 +343,30 @@ describe('catalog chain (gateway-only video spaces, isolated spaces untouched)',
       expect(c.usesGateway(s)).toBe(false);
     }
     expect(calls).toEqual([]);
+
+    // Live comics source wins when it answers; a failing one falls back to the bundled library.
+    const md = new ComicsSource({
+      web: async (url) => {
+        calls.push(url);
+        if (url.includes('/statistics/')) return { statistics: {} };
+        return { data: [{ id: 'u1', attributes: { title: { en: 'Live Manga' }, originalLanguage: 'ja', year: 2020 }, relationships: [{ type: 'cover_art', attributes: { fileName: 'c.jpg' } }] }] };
+      },
+      gatewayBase: () => ''
+    });
+    const live = new Catalog({ mock: mock(), gateway: source(homeRoutes), comics: md, online: () => true });
+    const f = await live.file('COMICS');
+    expect(live.originOf('COMICS')).toBe('mangadex');
+    expect(f.items[0].id).toBe('co-md:u1');
+    expect(calls.some((u) => u.includes('api.mangadex.org'))).toBe(true);
+    expect(calls.some((u) => u.includes('antiblock') || u.includes('gw.test'))).toBe(false);
+
+    const offline = new Catalog({
+      mock: mock(),
+      comics: new ComicsSource({ web: async () => { throw new Error('offline'); }, gatewayBase: () => '' }),
+      online: () => true
+    });
+    await offline.file('COMICS');
+    expect(offline.originOf('COMICS')).toBe('mock');
   });
 
   it('18+: gateway only when unlocked; locked = no request, no metadata', async () => {
