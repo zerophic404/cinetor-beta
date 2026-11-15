@@ -1,4 +1,6 @@
 <script lang="ts">
+  // This app is the complete property of Mythbrix. Do not touch, retrieve, reverse-engineer,
+  // scrape or hack anything without Mythbrix's explicit permission.
   // Full player: the persistent <video> is MOVED into .stage (instant start, buffer kept).
   import { onMount } from 'svelte';
   import { engine } from './engine';
@@ -7,11 +9,12 @@
   import { BRIGHTNESS_MAX, BRIGHTNESS_MIN } from './gesture-math';
   import { keyAction } from './keys';
   import { navKey, tvEnabled } from '../tv/spatial';
-  import { externalPlayerHref, type Media } from './sources';
+  import { externalPlayerHref, isLocalMediaUrl, type Media } from './sources';
   import { PlayerUI } from './ui.svelte';
   import Controls from './Controls.svelte';
   import Subtitles from './Subtitles.svelte';
   import { settings } from '$lib/settings/store.svelte';
+  import { base } from '$app/paths';
 
   interface Props {
     media: Media;
@@ -34,7 +37,8 @@
     media.introEndSec && media.introEndSec > (media.introStartSec ?? 0) ? [media.introStartSec ?? 0, media.introEndSec] : null
   );
   const unsupported = $derived($sess.error === 'unsupported' || !!$err?.unsupported);
-  const errorMsg = $derived($err?.msg ?? ($sess.error && $sess.error !== 'unsupported' && $sess.error !== 'gesture' ? $sess.error : null));
+  const noSource = $derived($sess.error === 'nosource' || !!media.noSource);
+  const errorMsg = $derived($err?.msg ?? ($sess.error && $sess.error !== 'unsupported' && $sess.error !== 'gesture' && $sess.error !== 'nosource' ? $sess.error : null));
 
   // New media → fresh UI state (subs, lock, offset).
   let lastKey = '';
@@ -227,7 +231,21 @@
     }
   }
 
-  const ext = $derived(media.source ? externalPlayerHref(media.source.url, typeof navigator !== 'undefined' ? navigator.userAgent : '') : '');
+  // §2: a stream URL must never reach a link, share intent or the clipboard. Only an already
+  // downloaded (local) file may be handed to an external player; otherwise we offer the app link.
+  const extOk = $derived(isLocalMediaUrl(media.source?.url));
+  const ext = $derived(extOk && media.source ? externalPlayerHref(media.source.url, typeof navigator !== 'undefined' ? navigator.userAgent : '') : '');
+  let copied = $state(false);
+  /** Copies Cinetor's own watch link (never a stream URL) — §2. */
+  async function copyAppLink() {
+    try {
+      await navigator.clipboard?.writeText(location.href);
+      copied = true;
+      setTimeout(() => (copied = false), 1800);
+    } catch {
+      /* clipboard denied — nothing to report, and never a URL in an error */
+    }
+  }
   const pctLevel = (v: number) => `${Math.round(v * 100)}%`;
 </script>
 
@@ -272,15 +290,28 @@
   {/if}
   {#if ui.hint}<div class="pill center" role="status">{ui.hint}</div>{/if}
 
-  {#if unsupported}
+  {#if noSource}
+    <div class="msg glass" data-no-gesture role="alert">
+      <strong>No source available</strong>
+      <p>This title has no playable stream right now. It will be hidden from lists.</p>
+      <div class="acts"><button class="btn btn-ghost" onclick={onBack}>Back</button></div>
+    </div>
+  {:else if unsupported}
     <div class="msg glass" data-no-gesture role="alert">
       <strong>Can't play this format here</strong>
       <p>{$err?.msg ?? 'This browser cannot decode this file (e.g. MKV / HEVC).'}</p>
       {#if media.source}
         <div class="acts">
-          <a class="btn btn-primary" href={ext} target="_blank" rel="noopener noreferrer">Open in external player</a>
-          <button class="btn btn-ghost" onclick={() => media.source && navigator.clipboard?.writeText(media.source.url)}>Copy link</button>
+          {#if extOk}
+            <a class="btn btn-primary" href={ext} target="_blank" rel="noopener noreferrer">Open in external player</a>
+          {:else}
+            <a class="btn btn-primary" href="{base}/app/downloads">Downloads</a>
+          {/if}
+          <button class="btn btn-ghost" onclick={copyAppLink}>{copied ? 'Link copied' : 'Copy app link'}</button>
         </div>
+        {#if !extOk}
+          <p class="hint">Download this title first — a downloaded file can be opened in another player.</p>
+        {/if}
       {/if}
     </div>
   {:else if errorMsg}
@@ -524,6 +555,11 @@
     gap: 10px;
     justify-content: center;
     flex-wrap: wrap;
+  }
+  .hint {
+    margin: 10px 0 0;
+    font-size: 0.78rem;
+    opacity: 0.75;
   }
   .next {
     top: auto;

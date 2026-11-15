@@ -1,0 +1,416 @@
+{
+ "code": 0,
+ "data": {
+  "subject": {
+   "subjectId": "6391474290696802080",
+   "subjectType": 1,
+   "title": "Inception",
+   "description": "A thief who steals corporate secrets through the use of dream-sharing technology is given the inverse task of planting an idea into the mind of a CEO, but his tragic past may doom the project and his team to disaster.",
+   "releaseDate": "2010-07-16",
+   "duration": 8880,
+   "genre": "Action,Adventure,Sci-Fi",
+   "cover": {
+    "url": "https://pbcdnw.aoneroom.com/image/2026/01/27/ca253305a555591c771c8122e2cfd051.jpg",
+    "width": 700,
+    "height": 1037,
+    "size": 149091,
+    "format": "jpg",
+    "thumbnail": "",
+    "blurHash": "eE7er0bxDhaJV@yEf,ofj@V@DNoJ%ho#WVMyofkDWXtRobfkV[V@t8",
+    "gif": null,
+    "avgHueLight": "#2e4856",
+    "avgHueDark": "#324a56",
+    "id": "0"
+   },
+   "countryName": "United States",
+   "imdbRatingValue": "8.8",
+   "subtitles": "English,Filipino,Français,Indonesian,Kiswahili,Malay,Português,Русский,اَلْعَرَبِيَّةُ,اُردُو,هَرْشٜن هَوْس,हिन्दी,বাংলা,ਪੰਜਾਬੀ,中文",
+   "ops": "",
+   "hasResource": true,
+   "trailer": {
+    "videoAddress": {
+     "videoId": "6936711559008207376",
+     "definition": "",
+     "url": "https://macdn.aoneroom.com/media/vone/2025/06/14/311ec6fd9f018d78ee89a590f15541b1-sd.mp4",
+     "duration": 104,
+     "width": 848,
+     "height": 476,
+     "size": 4941038,
+     "fps": 0,
+     "bitrate": 0,
+     "type": 0
+    },
+    "cover": {
+     "url": "https://pbcdnw.aoneroom.com/media/vone/2025/06/14/311ec6fd9f018d78ee89a590f15541b1.jpg",
+     "width": 854,
+     "height": 480,
+     "size": 3256,
+     "format": "jpg",
+     "thumbnail": "",
+     "blurHash": "e025[UoffQoffQt7j[fQfQfQWBfQfQayfQt7fQfQj[fQfQj[fQfQfQ",
+     "gif": null,
+     "avgHueLight": "#121111",
+     "avgHueDark": "#121212",
+     "id": "0"
+    }
+   },
+   "detailPath": "inception-e1BOR6f19C7",
+   "staffList": [],
+   "appointmentCnt": 0,
+   "appointmentDate": "",
+   "corner": "",
+   "imdbRatingCount": 2779532,
+   "stills": {
+    "url": "https://pbcdnw.aoneroom.com/image/2023/03/22/6cf9e51e092242876d96863e1fb839f8.jpg",
+    "width": 1905,
+    "height": 1071,
+    "size": 165875,
+    "format": "jpg",
+    "thumbnail": "",
+    "blurHash": "eBC~VQ?HE3o#tk~Vxuof?G?G?G%LW=NHWBIVRkt7IoV@D*M|t6RjRj",
+    "gif": null,
+    "avgHueLight": "#654a38",
+    "avgHueDark": "#654d3c",
+    "id": "0"
+   },
+   "postTitle": "Inception's Ending Explained in 4 Minutes",
+   "season": 0,
+   "dubs": [
+    {
+     "subjectId": "6391474290696802080",
+     "lanName": "Original Audio",
+     "lanCode": "en",
+     "original": true,
+     "type": 0,
+     "detailPath": "inception-e1BOR6f19C7"
+    },
+    {
+     "subjectId": "3053885418996466528",
+     "lanName": "Arabic sub",
+     "lanCode": "ar",
+     "original": false,
+     "type": 1,
+     "detailPath": "inception-uJ9nDmjPAD3"
+    },
+    {
+     "subjectId": "810634553030231128",
+     "lanName": "French dub",
+     "lanCode": "fr",
+     "original": false,
+     "type": 0,
+     "detailPath": "inception-wEArvTjISX"
+    }
+   ],
+   "accessStrategy": null,
+   "webHighRisk": false,
+   "isPornographic": false
+  },
+  "stars": [
+   {
+    "staffId": "7674926235897973928",
+    "staffType": 2,
+    "name": "Christopher Nolan",
+    "character": "Director",
+    "avatarUrl": "https://pbcdnw.aoneroom.com/image/2023/11/20/75470511da6841fcc06445636e99283c.jpg",
+    "detailPath": "christopher-nolan-CfS9fl6fX89"
+   },
+   {
+    "staffId": "4812628369768599328",
+    "staffType": 1,
+    "name": "Leonardo DiCaprio",
+    "character": "Cobb",
+    "avatarUrl": "https://pbcdnw.aoneroom.com/image/2022/09/02/e7916198945e22e16380068fdf323388.jpg",
+    "detailPath": "leonardo-dicaprio-IoJ6Eh7TvJ5"
+   },
+   {
+    "staffId": "7482559261359623968",
+    "staffType": 1,
+    "name": "Joseph Gordon-Levitt",
+    "character": "Arthur",
+    "avatarUrl": "https://pbcdnw.aoneroom.com/image/2022/09/02/5e5d6cb8b93d06d43d90ea82c8685694.jpg",
+    "detailPath": "joseph-gordon-levitt-Gp6GySrcKU8"
+   }
+  ],
+  "resource": {
+   "seasons": [
+    {
+     "se": 0,
+     "maxEp": 0,
+     "allEp": "",
+     "resolutions": [
+      {
+       "resolution": 360,
+       "epNum": 1
+      },
+      {
+       "resolution": 480,
+       "epNum": 1
+      },
+      {
+       "resolution": 1080,
+       "epNum": 1
+      }
+     ]
+    }
+   ],
+   "source": "fzmovies.cms",
+   "uploadBy": "Preciosa Osa👑"
+  },
+  "metadata": {
+   "title": "Inception",
+   "description": "A thief who steals corporate secrets through the use of dream-sharing technology is given the inverse task of planting an idea into the mind of a CEO, but his tragic past may doom the project and his team to disaster.",
+   "keyWords": "dream,ambiguous ending,subconscious,mindbender,surprise ending,architecture,psycho thriller,psychological manipulation,falling from height,strong female lead,oscars_2011,imdb_top_movies,oscars",
+   "image": "https://pbcdnw.aoneroom.com/image/2026/01/27/ca253305a555591c771c8122e2cfd051.jpg"
+  },
+  "isForbid": false,
+  "watchTimeLimit": 15,
+  "postList": {
+   "pager": {
+    "hasMore": true,
+    "nextPage": "1758214123191",
+    "page": "",
+    "perPage": 0,
+    "totalCount": 0
+   },
+   "items": [
+    {
+     "postId": "1536163177501806072",
+     "userId": "6287274435947152384",
+     "title": "",
+     "content": "this app is not functioning well anyone with similar issue ?",
+     "groupId": "0",
+     "subjectId": "6391474290696802080",
+     "isSubjectRate": false,
+     "subjectRate": 0,
+     "status": 1,
+     "link": null,
+     "mediaType": "NONE",
+     "createdAt": "1793817997649",
+     "updatedAt": "0",
+     "user": {
+      "userId": "6287274435947152384",
+      "username": "",
+      "nickname": "Mfeeev",
+      "avatar": "https://pacdn.aoneroom.com/app/avatar/default_avatar_01.webp"
+     },
+     "group": null,
+     "subject": {
+      "subjectId": "6391474290696802080",
+      "title": "Inception",
+      "rate": 0,
+      "imdbRate": "8.8",
+      "subjectType": 1,
+      "releaseDate": "2010-07-16",
+      "duration": "8880",
+      "durationSeconds": 8880,
+      "genre": "Action,Adventure,Sci-Fi",
+      "cover": {
+       "url": "https://pbcdnw.aoneroom.com/image/2026/01/27/ca253305a555591c771c8122e2cfd051.jpg",
+       "width": 700,
+       "height": 1037,
+       "size": 149091,
+       "format": "jpg",
+       "thumbnail": "",
+       "blurHash": "eE7er0bxDhaJV@yEf,ofj@V@DNoJ%ho#WVMyofkDWXtRobfkV[V@t8",
+       "gif": null,
+       "avgHueLight": "#2e4856",
+       "avgHueDark": "#324a56",
+       "id": "0"
+      },
+      "description": "A thief who steals corporate secrets through the use of dream-sharing technology is given the inverse task of planting an idea into the mind of a CEO, but his tragic past may doom the project and his team to disaster.",
+      "countryName": "United States",
+      "hasResource": true,
+      "dl": null,
+      "detailPath": "inception-e1BOR6f19C7",
+      "detailUrl": "",
+      "sniffUrl": "https://www.fzmovies.net/movie-Inception--hmp4.htm",
+      "sourceUrl": ""
+     },
+     "stat": {
+      "viewCount": 0,
+      "likeCount": 1,
+      "commentCount": 0,
+      "shareCount": 0,
+      "mediaViewCount": 0
+     },
+     "media": null,
+     "cover": {
+      "url": "https://pbcdnw.aoneroom.com/image/2026/01/27/ca253305a555591c771c8122e2cfd051.jpg",
+      "width": 700,
+      "height": 1037,
+      "size": 149091,
+      "format": "jpg",
+      "thumbnail": "",
+      "blurHash": "",
+      "gif": null,
+      "avgHueLight": "",
+      "avgHueDark": "",
+      "id": "0"
+     },
+     "commentList": [],
+     "poiName": ""
+    },
+    {
+     "postId": "6347001211627496184",
+     "userId": "7496266254882690056",
+     "title": "",
+     "content": "I sell opay+ and probank for fake transfers with alerts dm 08128341385\nNOTE:I don't sell to under 21",
+     "groupId": "0",
+     "subjectId": "6391474290696802080",
+     "isSubjectRate": false,
+     "subjectRate": 0,
+     "status": 1,
+     "link": null,
+     "mediaType": "NONE",
+     "createdAt": "1793615856772",
+     "updatedAt": "0",
+     "user": {
+      "userId": "7496266254882690056",
+      "username": "",
+      "nickname": "Star Lord",
+      "avatar": "https://pbcdn.aoneroom.com/image/2026/09/22/09bfac4bfd7296d3a9c58b1024d1b16e.png"
+     },
+     "group": null,
+     "subject": {
+      "subjectId": "6391474290696802080",
+      "title": "Inception",
+      "rate": 0,
+      "imdbRate": "8.8",
+      "subjectType": 1,
+      "releaseDate": "2010-07-16",
+      "duration": "8880",
+      "durationSeconds": 8880,
+      "genre": "Action,Adventure,Sci-Fi",
+      "cover": {
+       "url": "https://pbcdnw.aoneroom.com/image/2026/01/27/ca253305a555591c771c8122e2cfd051.jpg",
+       "width": 700,
+       "height": 1037,
+       "size": 149091,
+       "format": "jpg",
+       "thumbnail": "",
+       "blurHash": "eE7er0bxDhaJV@yEf,ofj@V@DNoJ%ho#WVMyofkDWXtRobfkV[V@t8",
+       "gif": null,
+       "avgHueLight": "#2e4856",
+       "avgHueDark": "#324a56",
+       "id": "0"
+      },
+      "description": "A thief who steals corporate secrets through the use of dream-sharing technology is given the inverse task of planting an idea into the mind of a CEO, but his tragic past may doom the project and his team to disaster.",
+      "countryName": "United States",
+      "hasResource": true,
+      "dl": null,
+      "detailPath": "inception-e1BOR6f19C7",
+      "detailUrl": "",
+      "sniffUrl": "https://www.fzmovies.net/movie-Inception--hmp4.htm",
+      "sourceUrl": ""
+     },
+     "stat": {
+      "viewCount": 0,
+      "likeCount": 0,
+      "commentCount": 0,
+      "shareCount": 0,
+      "mediaViewCount": 0
+     },
+     "media": null,
+     "cover": {
+      "url": "https://pbcdnw.aoneroom.com/image/2026/01/27/ca253305a555591c771c8122e2cfd051.jpg",
+      "width": 700,
+      "height": 1037,
+      "size": 149091,
+      "format": "jpg",
+      "thumbnail": "",
+      "blurHash": "",
+      "gif": null,
+      "avgHueLight": "",
+      "avgHueDark": "",
+      "id": "0"
+     },
+     "commentList": [],
+     "poiName": ""
+    },
+    {
+     "postId": "9189819552085985592",
+     "userId": "7496266254882690056",
+     "title": "",
+     "content": "i sell opay+ and probank app for fake transfers with alerts dm 08128341385\nNOTE: I don't sell to under 21",
+     "groupId": "0",
+     "subjectId": "6391474290696802080",
+     "isSubjectRate": false,
+     "subjectRate": 0,
+     "status": 1,
+     "link": null,
+     "mediaType": "NONE",
+     "createdAt": "1791973004799",
+     "updatedAt": "0",
+     "user": {
+      "userId": "7496266254882690056",
+      "username": "",
+      "nickname": "Star Lord",
+      "avatar": "https://pbcdn.aoneroom.com/image/2026/09/22/09bfac4bfd7296d3a9c58b1024d1b16e.png"
+     },
+     "group": null,
+     "subject": {
+      "subjectId": "6391474290696802080",
+      "title": "Inception",
+      "rate": 0,
+      "imdbRate": "8.8",
+      "subjectType": 1,
+      "releaseDate": "2010-07-16",
+      "duration": "8880",
+      "durationSeconds": 8880,
+      "genre": "Action,Adventure,Sci-Fi",
+      "cover": {
+       "url": "https://pbcdnw.aoneroom.com/image/2026/01/27/ca253305a555591c771c8122e2cfd051.jpg",
+       "width": 700,
+       "height": 1037,
+       "size": 149091,
+       "format": "jpg",
+       "thumbnail": "",
+       "blurHash": "eE7er0bxDhaJV@yEf,ofj@V@DNoJ%ho#WVMyofkDWXtRobfkV[V@t8",
+       "gif": null,
+       "avgHueLight": "#2e4856",
+       "avgHueDark": "#324a56",
+       "id": "0"
+      },
+      "description": "A thief who steals corporate secrets through the use of dream-sharing technology is given the inverse task of planting an idea into the mind of a CEO, but his tragic past may doom the project and his team to disaster.",
+      "countryName": "United States",
+      "hasResource": true,
+      "dl": null,
+      "detailPath": "inception-e1BOR6f19C7",
+      "detailUrl": "",
+      "sniffUrl": "https://www.fzmovies.net/movie-Inception--hmp4.htm",
+      "sourceUrl": ""
+     },
+     "stat": {
+      "viewCount": 6,
+      "likeCount": 0,
+      "commentCount": 1,
+      "shareCount": 2,
+      "mediaViewCount": 0
+     },
+     "media": null,
+     "cover": {
+      "url": "https://pbcdnw.aoneroom.com/image/2026/01/27/ca253305a555591c771c8122e2cfd051.jpg",
+      "width": 700,
+      "height": 1037,
+      "size": 149091,
+      "format": "jpg",
+      "thumbnail": "",
+      "blurHash": "",
+      "gif": null,
+      "avgHueLight": "",
+      "avgHueDark": "",
+      "id": "0"
+     },
+     "commentList": [],
+     "poiName": ""
+    }
+   ]
+  },
+  "accessStrategy": {
+   "ruleType": 0,
+   "requiredVipLevel": 0,
+   "freeEpisodeCount": 0,
+   "previewSeconds": 300
+  }
+ }
+}

@@ -1,0 +1,53 @@
+{
+ "page": 1,
+ "per_page": 36,
+ "has_more": true,
+ "total": 1000,
+ "items": [
+  {
+   "name": "Neem Phuler Modhu",
+   "poster_url": "https://pbcdn.aoneroom.com/image/2024/05/20/neemphuler.jpg",
+   "slug": "neem-phuler-modhu-bengali-zee-bangla",
+   "subject_id": "8829102938102938101",
+   "badge": "Zee Bangla",
+   "rating": "8.4",
+   "year": "2023",
+   "genre": "Drama,Family",
+   "type": "tv",
+   "country": "India",
+   "description": "Parna and Srijan navigate family life, traditions, and unexpected challenges in this heartwarming Zee Bangla drama.",
+   "release_date": "2023-11-14",
+   "has_resource": true
+  },
+  {
+   "name": "Jagaddhatri",
+   "poster_url": "https://pbcdn.aoneroom.com/image/2024/05/20/jagaddhatri.jpg",
+   "slug": "jagaddhatri-bengali-zee-bangla",
+   "subject_id": "8829102938102938102",
+   "badge": "Zee Bangla",
+   "rating": "8.7",
+   "year": "2022",
+   "genre": "Action,Crime,Drama",
+   "type": "tv",
+   "country": "India",
+   "description": "Jagaddhatri leads a dual life: a soft-spoken deaf girl at home and an uncompromising undercover officer on mission.",
+   "release_date": "2022-08-29",
+   "has_resource": true
+  },
+  {
+   "name": "Mithai",
+   "poster_url": "https://pbcdn.aoneroom.com/image/2024/05/20/mithai.jpg",
+   "slug": "mithai-bengali-zee-bangla",
+   "subject_id": "8829102938102938103",
+   "badge": "Zee Bangla",
+   "rating": "8.9",
+   "year": "2021",
+   "genre": "Comedy,Drama,Romance",
+   "type": "tv",
+   "country": "India",
+   "description": "Mithai, a spirited sweet-maker, enters the aristocratic Modak family and transforms their lives with love and laughter.",
+   "release_date": "2021-01-04",
+   "has_resource": true
+  }
+ ]
+}

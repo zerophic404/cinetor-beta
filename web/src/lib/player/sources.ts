@@ -52,6 +52,10 @@ export interface Media {
   introStartSec?: number;
   introEndSec?: number;
   durationSec?: number;
+  /** Gateway quality variants (MP4 via proxy, highest first) — quality menu reloads with another one. */
+  variants?: Source[];
+  /** Resolution ran and found nothing playable → "No source available". */
+  noSource?: boolean;
 }
 
 export function buildMedia(item: Item, episode: Episode | undefined, canPlay: (mime: string) => boolean, asset: (p: string) => string): Media {
@@ -82,7 +86,17 @@ export function nextEpisode(seasons: Season[] | undefined, episodeId: string | u
   return i >= 0 ? flat[i + 1] : undefined;
 }
 
-/** Android intent / generic link to hand an unsupported file to an external player. */
+/** Android intent / generic link to hand an unsupported *local* file to an external player. */
+/**
+ * Only *local* media may be handed to an external app or the clipboard: a remote URL in a link,
+ * share intent or "copy link" would expose the gateway / stream host to the user and anything
+ * reading the DOM (docs/requirements-hardening.md §2). Blob, file and Tauri asset URLs carry no host.
+ */
+export function isLocalMediaUrl(url: string | undefined | null): boolean {
+  if (!url) return false;
+  return /^(?:blob:|file:|asset:|https?:\/\/(?:asset\.localhost|localhost|127\.0\.0\.1)(?::\d+)?\/)/i.test(url);
+}
+
 export function externalPlayerHref(url: string, ua: string): string {
   if (/Android/i.test(ua)) {
     const m = url.match(/^(https?):\/\/(.*)$/);

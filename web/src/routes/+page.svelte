@@ -7,7 +7,7 @@
   const RELEASES = 'https://github.com/Ashrix404/cinetor-app/releases/latest';
 
   const features = [
-    { i: '🎬', t: 'Movies, Series, Anime, Drama', d: 'One searchable home with TMDB metadata, hero carousels, genres and Top 10s.' },
+    { i: '🎬', t: 'Movies, Series, Anime, Drama', d: 'Real streaming: thousands of playable titles with real posters, quality choice, subtitles and downloads — plus hero carousels, genres and Top 10s.' },
     { i: '⚡', t: 'Instant play', d: 'The player pre-buffers while you read the details — playback starts the moment you tap Play.' },
     { i: '📺', t: 'Live TV & Sports', d: 'Channels with a full programme guide and a live match centre, in their own space.' },
     { i: '🎧', t: 'Music & Comics', d: 'Albums, moods, manga, manhwa and manhua — isolated spaces with their own search.' },

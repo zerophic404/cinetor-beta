@@ -8,6 +8,9 @@
   import ProfileEditor from '$lib/profile/ProfileEditor.svelte';
   import { MAX_PROFILES, initials, type Profile } from '$lib/profile/profiles';
   import { profiles } from '$lib/profile/store.svelte';
+  import Icon from '$lib/components/Icon.svelte';
+  import { adult } from '$lib/adult/store.svelte';
+  import { meSpaces } from '$lib/nav';
 
   let editing = $state<Profile | null>(null);
   let editorOpen = $state(false);
@@ -75,6 +78,22 @@
           </button>
         </li>
       {/if}
+    </ul>
+  </section>
+
+  <section aria-labelledby="spaces-h">
+    <h2 id="spaces-h" class="section-title">Spaces</h2>
+    <p class="hint">Separate worlds with their own tabs and search — never mixed into Home or global search.</p>
+    <ul class="spaces">
+      {#each meSpaces(adult.enabled) as e (e.space)}
+        <li>
+          <a class="space glass" href={e.href} data-space={e.space}>
+            <span class="ic"><Icon name={e.icon} /></span>
+            <span class="txt"><b>{e.label}</b><small>{e.blurb}</small></span>
+            {#if e.space === 'ADULT'}<span class="pin" aria-label="PIN protected">🔒</span>{/if}
+          </a>
+        </li>
+      {/each}
     </ul>
   </section>
 
@@ -204,6 +223,55 @@
     background: var(--glass-fill);
     cursor: pointer;
     font-size: 0.75rem;
+  }
+  .hint {
+    margin: -4px 16px 10px;
+    color: var(--text-secondary);
+    font-size: 0.82rem;
+  }
+  .spaces {
+    list-style: none;
+    margin: 0;
+    padding: 0 16px;
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: 10px;
+  }
+  .space {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 14px 16px;
+    min-height: 64px;
+    text-decoration: none;
+    border-radius: 20px;
+    transition: transform calc(var(--dur-short, 120ms) * var(--dur-scale, 1)) var(--ease-standard, ease);
+  }
+  .space:hover,
+  .space:focus-visible {
+    transform: translateY(-1px);
+  }
+  .space:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+  }
+  .space .ic {
+    display: grid;
+    place-items: center;
+    width: 40px;
+    height: 40px;
+    flex: none;
+    border-radius: 14px;
+    background: linear-gradient(135deg, color-mix(in srgb, var(--accent) 70%, transparent), color-mix(in srgb, var(--accent-end) 55%, transparent));
+  }
+  .space .txt {
+    flex: 1;
+    display: grid;
+    min-width: 0;
+  }
+  .space small {
+    color: var(--text-secondary);
+    font-size: 0.78rem;
   }
   .links {
     display: grid;

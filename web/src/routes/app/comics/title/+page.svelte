@@ -1,7 +1,8 @@
 <script lang="ts">
   import { page } from '$app/state';
   import { base } from '$app/paths';
-  import { repo, img } from '$lib/data/repo';
+  import { img } from '$lib/data/repo';
+  import { catalog } from '$lib/data/app-catalog';
   import type { Item } from '$lib/data/types';
   import { SkeletonBox, SkeletonChapterList } from '$lib/design/skeleton';
   import { myList, activeProfileId } from '$lib/data/library.svelte';
@@ -19,7 +20,7 @@
     let alive = true;
     status = 'loading';
     chaptersReady = false;
-    repo.item(want, 'COMICS').then(
+    catalog.item(want, 'COMICS').then(
       (it) => {
         if (!alive) return;
         if (!it || it.space !== 'COMICS') {
@@ -88,7 +89,7 @@
         <li>
           <a href={readHref(ch.id)} class:done={f >= 1}>
             <span class="n">{ch.n}</span>
-            <span class="t"><b>{ch.title}</b><small>{ch.pages.length} pages{f > 0 ? ` · ${f >= 1 ? 'Read' : `${Math.round(f * 100)}%`}` : ''}</small></span>
+            <span class="t"><b>{ch.title}</b><small>{ch.pageCount ?? ch.pages.length} pages{f > 0 ? ` · ${f >= 1 ? 'Read' : `${Math.round(f * 100)}%`}` : ''}</small></span>
             {#if f > 0}<span class="bar" aria-hidden="true"><i style:width="{f * 100}%"></i></span>{/if}
             {#if last?.chapterId === ch.id}<span class="cur">Last read</span>{/if}
           </a>

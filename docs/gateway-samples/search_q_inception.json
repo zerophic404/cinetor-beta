@@ -1,0 +1,93 @@
+{
+ "query": "inception",
+ "page": 1,
+ "per_page": 28,
+ "count": 18,
+ "total": 63,
+ "total_pages": 3,
+ "has_more": true,
+ "next_page": 2,
+ "items": [
+  {
+   "name": "Inception",
+   "poster_url": "https://pbcdnw.aoneroom.com/image/2026/01/27/ca253305a555591c771c8122e2cfd051.jpg",
+   "slug": "inception-e1BOR6f19C7",
+   "subject_id": "6391474290696802080",
+   "badge": null,
+   "rating": "8.8",
+   "year": "2010",
+   "genre": "Action,Adventure,Sci-Fi",
+   "type": "movie",
+   "country": "United States",
+   "description": null,
+   "release_date": "2010-07-16",
+   "has_resource": true,
+   "base_title": "Inception",
+   "language": null,
+   "audio": null,
+   "dub": false,
+   "dubs": [],
+   "sub": true,
+   "subtitles": [
+    "English",
+    "Filipino",
+    "Français"
+   ],
+   "duration": 8880
+  },
+  {
+   "name": "Catch Me If You Can",
+   "poster_url": "https://pbcdnw.aoneroom.com/image/2026/01/27/c3cdfeecdec5ee8a9e179c26ac84af96.jpg",
+   "slug": "catch-me-if-you-can-qj3Ug1BqCC7",
+   "subject_id": "6397895438603013920",
+   "badge": null,
+   "rating": "8.1",
+   "year": "2002",
+   "genre": "Biography,Crime,Drama",
+   "type": "movie",
+   "country": "United States",
+   "description": null,
+   "release_date": "2002-12-25",
+   "has_resource": true,
+   "base_title": "Catch Me If You Can",
+   "language": null,
+   "audio": null,
+   "dub": false,
+   "dubs": [],
+   "sub": true,
+   "subtitles": [
+    "English",
+    "Filipino",
+    "Français"
+   ],
+   "duration": 8460
+  },
+  {
+   "name": "The Wolf of Wall Street",
+   "poster_url": "https://pbcdnw.aoneroom.com/image/2026/01/27/b2ba835c6f1a300a20b93c0252f6c07e.jpg",
+   "slug": "the-wolf-of-wall-street-wUOWzCvw0w5",
+   "subject_id": "4629798086641074648",
+   "badge": null,
+   "rating": "8.2",
+   "year": "2013",
+   "genre": "Biography,Comedy,Crime",
+   "type": "movie",
+   "country": "United States",
+   "description": null,
+   "release_date": "2013-12-25",
+   "has_resource": true,
+   "base_title": "The Wolf of Wall Street",
+   "language": null,
+   "audio": null,
+   "dub": false,
+   "dubs": [],
+   "sub": true,
+   "subtitles": [
+    "English",
+    "Filipino",
+    "Français"
+   ],
+   "duration": 10800
+  }
+ ]
+}

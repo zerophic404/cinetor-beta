@@ -1,11 +1,16 @@
 <script lang="ts">
+  // This app is the complete property of Mythbrix. Do not touch, retrieve, reverse-engineer,
+  // scrape or hack anything without Mythbrix's explicit permission.
   import { onMount } from 'svelte';
   import { base } from '$app/paths';
   import DownloadDetailsSheet from '$lib/download/DownloadDetailsSheet.svelte';
+  import DeleteDownloadDialog from '$lib/download/DeleteDownloadDialog.svelte';
   import { downloads } from '$lib/download/manager.svelte';
   import { formatBytes, formatDuration, formatSpeed, percent } from '$lib/download/math';
   import { isIOS } from '$lib/download/store';
   import { tabOf, type Tab } from '$lib/download/types';
+  import { isTauriEnv, locationInfo, saveCopySupported } from '$lib/desktop/env';
+  import { toasts } from '$lib/ui/toast.svelte';
   import { imgFor } from '$lib/ui/img';
 
   const TABS: { k: Tab; l: string }[] = [
@@ -16,13 +21,47 @@
   let tab = $state<Tab>('active');
   let openId = $state<string | null>(null);
   let detailsOpen = $state(false);
+  let delId = $state<string | null>(null);
+  let delOpen = $state(false);
   let ios = $state(false);
   let persistMsg = $state('');
+  let tauri = $state(false);
+  let dir = $state<string | null>(null);
+  let picking = $state(false);
+  const loc = $derived(locationInfo({ tauri, dir, saveCopy: saveCopySupported() }));
 
   onMount(() => {
     ios = isIOS(navigator.userAgent, navigator.maxTouchPoints);
+    tauri = isTauriEnv();
     void downloads.init().then(() => downloads.refreshQuota());
+    if (tauri) void loadDir();
   });
+
+  async function loadDir() {
+    try {
+      const { downloadsDir } = await import('$lib/desktop/native-dl');
+      dir = await downloadsDir();
+    } catch {
+      dir = null; // generic: never surface a path-resolution error to the user (§2)
+    }
+  }
+
+  /** Native Tauri folder picker; the chosen folder becomes the remembered default (§4). */
+  async function changeDir() {
+    picking = true;
+    try {
+      const { pickDownloadsDir } = await import('$lib/desktop/native-dl');
+      const picked = await pickDownloadsDir();
+      if (picked) {
+        dir = picked;
+        toasts.show('New downloads will be saved to the folder you chose');
+      }
+    } catch {
+      toasts.show("That folder can't be used");
+    } finally {
+      picking = false;
+    }
+  }
 
   const all = $derived(downloads.list);
   const counts = $derived({
@@ -42,12 +81,19 @@
     openId = id;
     detailsOpen = true;
   }
+  function askDelete(id: string) {
+    delId = id;
+    delOpen = true;
+  }
   async function persist() {
     const ok = await downloads.persistStorage();
     persistMsg = ok ? 'Storage is now persistent.' : 'The browser declined — install the app (Add to Home Screen) and try again.';
   }
   async function clearTab() {
-    for (const r of shown) await downloads.remove(r.id);
+    // Bulk clear only drops list entries — files the user chose to keep (desktop) stay on disk.
+    const ids = shown.map((r) => r.id);
+    for (const id of ids) await downloads.remove(id, { deleteFile: false });
+    toasts.show(`Cleared ${ids.length} ${ids.length === 1 ? 'entry' : 'entries'}`);
   }
 </script>
 
@@ -98,6 +144,16 @@
         </select>
       </label>
     </div>
+    <div class="loc">
+      <div class="locrow">
+        <span class="lk">Save to</span>
+        <span class="lv" title={loc.label}>{loc.label}</span>
+        {#if loc.changeable}
+          <button class="chip" disabled={picking} onclick={changeDir}>{picking ? 'Choosing…' : 'Change…'}</button>
+        {/if}
+      </div>
+      <p class="lnote">{loc.note}</p>
+    </div>
   </section>
 
   <div class="h-scroll tabs" role="tablist" aria-label="Download status">
@@ -142,6 +198,7 @@
             {#if r.status === 'running' || r.status === 'queued'}<button class="qb" onclick={() => downloads.pause(r.id)} aria-label="Pause">❚❚</button>{/if}
             {#if r.status === 'paused'}<button class="qb" onclick={() => downloads.resume(r.id)} aria-label="Resume">▶</button>{/if}
             {#if r.status === 'failed' || r.status === 'canceled'}<button class="qb" onclick={() => downloads.retry(r.id)} aria-label="Retry">↻</button>{/if}
+            <button class="qb del" onclick={() => askDelete(r.id)} aria-label="Delete {r.title}">🗑</button>
           </span>
         </li>
       {/each}
@@ -150,6 +207,7 @@
 </div>
 
 {#if openId && detailsOpen}<DownloadDetailsSheet bind:open={detailsOpen} id={openId} />{/if}
+{#if delId && delOpen}<DeleteDownloadDialog bind:open={delOpen} id={delId} />{/if}
 
 <style>
   .dl-page {
@@ -263,6 +321,34 @@
     color: var(--text-primary);
     box-shadow: inset 0 0 0 1px var(--glass-stroke);
   }
+  .loc {
+    margin-top: 12px;
+    padding-top: 12px;
+    border-top: 1px solid var(--glass-stroke);
+  }
+  .locrow {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 0.85rem;
+  }
+  .lk {
+    color: var(--text-secondary);
+    flex: none;
+  }
+  .lv {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-weight: 700;
+  }
+  .lnote {
+    margin: 6px 0 0;
+    font-size: 0.76rem;
+    color: var(--text-secondary);
+  }
   .tabs {
     margin-top: 14px;
   }
@@ -298,7 +384,7 @@
     display: flex;
     gap: 12px;
     align-items: center;
-    padding: 10px 56px 10px 10px;
+    padding: 10px 100px 10px 10px;
     border: 0;
     text-align: left;
     cursor: pointer;
@@ -357,6 +443,8 @@
     right: 10px;
     top: 50%;
     transform: translateY(-50%);
+    display: flex;
+    gap: 6px;
   }
   .qb {
     width: 40px;
@@ -367,5 +455,8 @@
     box-shadow: inset 0 0 0 1px var(--glass-stroke);
     cursor: pointer;
     font-size: 0.8rem;
+  }
+  .qb.del {
+    color: #ff8a8a;
   }
 </style>

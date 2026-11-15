@@ -1,15 +1,20 @@
 <script lang="ts">
+  // This app is the complete property of Mythbrix. Do not touch, retrieve, reverse-engineer, scrape
+  // or hack anything without Mythbrix's explicit permission.
   import '$lib/design/app.css';
   import { onMount } from 'svelte';
   import { dev } from '$app/environment';
   import { install } from '$lib/pwa/install.svelte';
   import { isTauriEnv } from '$lib/desktop/env';
   import { desktop } from '$lib/desktop/desktop.svelte';
+  import { verifyOwnership } from '$lib/legal/notice';
   import TitleBar from '$lib/desktop/TitleBar.svelte';
 
   let { children } = $props();
 
   onMount(() => {
+    // No-op integrity check (keeps the ownership constant in the bundle; never shown in the UI).
+    if (!verifyOwnership()) document.documentElement.dataset.integrity = '0';
     // Desktop app (Tauri): frameless window + native shell; no service worker / install prompt.
     if (isTauriEnv()) {
       void desktop.init();

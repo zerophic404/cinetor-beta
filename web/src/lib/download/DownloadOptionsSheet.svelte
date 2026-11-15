@@ -3,14 +3,27 @@
   import type { Media } from '$lib/player/sources';
   import { probeAdaptive, type AdaptiveProbe } from './adaptive';
   import { downloadKindOf, downloads } from './manager.svelte';
-  import { estimateSize, formatBytes, formatDuration, MAX_CONNECTIONS } from './math';
+  import { dedupeOptions, estimateSize, formatBytes, formatDuration, MAX_CONNECTIONS, qualityList } from './math';
+  import { toasts } from '$lib/ui/toast.svelte';
+  import { GENERIC, report } from '$lib/errors';
+  import { isTauriEnv, locationInfo, saveCopySupported } from '$lib/desktop/env';
+  import { goto } from '$app/navigation';
+  import { base } from '$app/paths';
   import { probe } from './progressive';
   import { isIOS } from './store';
   import type { TrackChoice } from './types';
+  import { isLazySource } from '$lib/data/gateway-play';
+  import { resolveMedia } from '$lib/player/controller';
 
   let { open = $bindable(false), media, onstarted }: { open?: boolean; media: Media; onstarted?: () => void } = $props();
 
-  const kind = $derived(downloadKindOf(media.source));
+  /** Gateway titles: placeholder → proxy MP4 variants (resolved when the sheet opens). */
+  let resolved = $state.raw<Media | null>(null);
+  let vi = $state(0);
+  // De-duplicated, quality-ordered list: one entry per resolution + format + size (§4).
+  const variants = $derived(qualityList(resolved?.variants ?? []));
+  const cur = $derived<Media | null>(resolved ? (variants.length ? { ...resolved, source: variants[vi] ?? resolved.source } : resolved) : null);
+  const kind = $derived(downloadKindOf(cur?.source ?? media.source));
   let loading = $state(true);
   let err = $state('');
   let info = $state.raw<AdaptiveProbe | null>(null);
@@ -22,18 +35,69 @@
   let connections = $state(4);
   let busy = $state(false);
   const ios = typeof navigator !== 'undefined' && isIOS(navigator.userAgent, navigator.maxTouchPoints);
+  // Where the file will land — shown in the confirm sheet before starting (§4).
+  const tauri = typeof window !== 'undefined' && isTauriEnv();
+  let dir = $state<string | null>(null);
+  let picking = $state(false);
+  const loc = $derived(locationInfo({ tauri, dir, saveCopy: saveCopySupported() }));
+
+  async function changeDir() {
+    picking = true;
+    try {
+      const { pickDownloadsDir } = await import('$lib/desktop/native-dl');
+      const picked = await pickDownloadsDir();
+      if (picked) dir = picked;
+    } catch {
+      toasts.show("That folder can't be used");
+    } finally {
+      picking = false;
+    }
+  }
 
   $effect(() => {
     if (!open) return;
-    const m = media;
+    const m0 = media;
+    let alive = true;
+    loading = true;
+    err = '';
+    resolved = null;
+    connections = downloads.defaultConnections;
+    void downloads.refreshQuota();
+    if (tauri && dir === null) {
+      void import('$lib/desktop/native-dl')
+        .then((m) => m.downloadsDir())
+        .then((d) => (dir = d))
+        .catch(() => {});
+    }
+    (async () => {
+      try {
+        const m = isLazySource(m0.source) ? await resolveMedia(m0) : m0;
+        if (!alive) return;
+        if (m.noSource || !m.source) throw new Error('No source available');
+        const vs = qualityList(m.variants ?? []);
+        vi = Math.max(0, vs.findIndex((x) => x.url === m.source?.url));
+        resolved = m;
+      } catch (e) {
+        if (alive) {
+          err = (e as Error).message || 'No source available';
+          loading = false;
+        }
+      }
+    })();
+    return () => {
+      alive = false;
+    };
+  });
+
+  $effect(() => {
+    const m = cur;
+    if (!open || !m?.source) return;
     let alive = true;
     loading = true;
     err = '';
     info = null;
     fileSize = 0;
     ranges = null;
-    connections = downloads.defaultConnections;
-    void downloads.refreshQuota();
     (async () => {
       try {
         const src = m.source!;
@@ -41,8 +105,9 @@
           const p = await probeAdaptive(src.url, src.kind === 'DASH' ? 'application/dash+xml' : 'application/x-mpegurl', m.durationSec ?? 0);
           if (!alive) return;
           if (p.live) throw new Error('Live streams cannot be downloaded');
-          info = p;
-          const i720 = p.qualities.findIndex((q) => q.height && q.height <= 720);
+          const quals = dedupeOptions(p.qualities);
+          info = { ...p, qualities: quals };
+          const i720 = quals.findIndex((q) => q.height && q.height <= 720);
           qi = i720 >= 0 ? i720 : 0;
           audio = p.audios[0]?.language;
           texts = p.texts.map((t) => t.language);
@@ -70,16 +135,22 @@
   async function start() {
     busy = true;
     try {
+      const m = cur;
+      if (!m?.source) throw new Error('No source available');
       const q = info?.qualities[qi];
       const choice: TrackChoice =
         kind === 'adaptive' && q
           ? { quality: q.label, height: q.height, bandwidth: q.bandwidth, codecs: q.codecs, audio, texts: [...texts] }
-          : { quality: `Original (${media.source?.kind ?? 'file'})`, texts: [] };
-      await downloads.start({ media, choice, estimatedBytes: estimate, connections, durationSec: info?.durationSec || media.durationSec });
+          : m.source.height
+            ? { quality: m.source.label ?? `${m.source.height}p`, height: m.source.height, texts: [] }
+            : { quality: `Original (${m.source.kind ?? 'file'})`, texts: [] };
+      await downloads.start({ media: m, choice, estimatedBytes: estimate, connections, durationSec: info?.durationSec || m.durationSec, lazyUrl: isLazySource(media.source) ? media.source?.url : undefined });
       open = false;
+      // "Downloading started" popup with a shortcut to the Downloads screen (§4).
+      toasts.show('Downloading started', { label: 'Show downloads', run: () => void goto(`${base}/app/downloads`) });
       onstarted?.();
     } catch (e) {
-      err = (e as Error).message;
+      err = report('dl.start', e, GENERIC.download);
     } finally {
       busy = false;
     }
@@ -95,7 +166,7 @@
 
   {#if loading}
     <div class="loading" aria-busy="true"><span class="spin"></span> Reading {kind === 'adaptive' ? 'stream tracks' : 'file size'}…</div>
-  {:else if err && !info && !fileSize && kind === 'adaptive'}
+  {:else if err && (!resolved || (!info && !fileSize && kind === 'adaptive'))}
     <p class="err" role="alert">{err}</p>
   {:else}
     {#if kind === 'adaptive' && info}
@@ -128,10 +199,22 @@
       {/if}
       <p class="note">Duration {formatDuration(info.durationSec)} · stored in the browser's offline database (IndexedDB).</p>
     {:else}
+      {#if variants.length > 1}
+        <fieldset>
+          <legend>Quality</legend>
+          {#each variants as v, i (v.url)}
+            <label class="opt">
+              <input type="radio" name="dlv" checked={vi === i} onchange={() => (vi = i)} />
+              <span class="lbl">{v.label ?? `${v.height}p`}</span>
+              <span class="sub">MP4</span>
+            </label>
+          {/each}
+        </fieldset>
+      {/if}
       <fieldset>
         <legend>File</legend>
         <div class="opt static">
-          <span class="lbl">Original · {media.source?.kind}</span>
+          <span class="lbl">{cur?.source?.label && cur.source.height ? `${cur.source.label} · MP4` : `Original · ${cur?.source?.kind ?? media.source?.kind}`}</span>
           <span class="size">{fileSize ? formatBytes(fileSize) : `≈ ${formatBytes(estimate)} (size unknown)`}</span>
         </div>
       </fieldset>
@@ -151,6 +234,14 @@
     </div>
     {#if tooBig}<p class="err">Not enough browser storage for this download.</p>{/if}
     {#if ios}<p class="ios">iOS: web storage is limited and may be cleared by the system. Add Cinetor to the Home Screen to keep downloads longer.</p>{/if}
+    <div class="loc">
+      <div class="locrow">
+        <span class="lk">Save to</span>
+        <span class="lv" title={loc.label}>{loc.label}</span>
+        {#if loc.changeable}<button class="chip" disabled={picking} onclick={changeDir}>{picking ? 'Choosing…' : 'Change…'}</button>{/if}
+      </div>
+      <p class="note">{loc.note}</p>
+    </div>
     <button class="btn btn-primary go" onclick={start} disabled={busy || tooBig || (kind === 'adaptive' && !info)}>
       {busy ? 'Starting…' : 'Start download'}
     </button>
@@ -249,6 +340,31 @@
     margin: 4px 0 0;
     font-size: 0.75rem;
     color: var(--text-secondary);
+  }
+  .loc {
+    margin: 12px 0 4px;
+    padding: 10px 12px;
+    border-radius: 14px;
+    background: var(--glass-fill);
+    box-shadow: inset 0 0 0 1px var(--glass-stroke);
+  }
+  .locrow {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 0.85rem;
+  }
+  .lk {
+    flex: none;
+    color: var(--text-secondary);
+  }
+  .lv {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-weight: 700;
   }
   .sum {
     display: flex;

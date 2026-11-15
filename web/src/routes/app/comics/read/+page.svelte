@@ -3,7 +3,8 @@
   import { page } from '$app/state';
   import { base } from '$app/paths';
   import { goto } from '$app/navigation';
-  import { repo, img } from '$lib/data/repo';
+  import { img } from '$lib/data/repo';
+  import { catalog } from '$lib/data/app-catalog';
   import type { Chapter, Item } from '$lib/data/types';
   import { activeProfileId } from '$lib/data/library.svelte';
   import { localKV } from '$lib/data/kv';
@@ -27,15 +28,39 @@
 
   const chapters = $derived<Chapter[]>(item?.pages ?? []);
   const chapter = $derived<Chapter | undefined>(chapters[chIdx]);
-  const total = $derived(chapter?.pages.length ?? 0);
+  /** Remote (MangaDex) chapters resolve their pages on open: chapterId → urls ([] = unavailable). */
+  let loaded = $state<Record<string, string[]>>({});
+  const pagesFor = (c: Chapter | undefined): string[] => (c ? (c.pages.length ? c.pages : (loaded[c.id] ?? [])) : []);
+  const curPages = $derived(pagesFor(chapter));
+  const total = $derived(curPages.length);
+  const chBusy = $derived(!!chapter && !chapter.pages.length && loaded[chapter.id] === undefined);
+  const chGone = $derived(!!chapter && !chapter.pages.length && loaded[chapter.id]?.length === 0);
   const mode = $derived<ReadMode>(item ? effectiveMode(item, override) : 'ltr');
+
+  /** Resolve one chapter's pages (never throws; empty = "chapter unavailable"). */
+  async function ensure(ci: number): Promise<void> {
+    const it = item;
+    const c = chapters[ci];
+    if (!it || !c || c.pages.length || loaded[c.id] !== undefined) return;
+    const urls = await catalog.comicPages(it, c).catch(() => [] as string[]);
+    loaded = { ...loaded, [c.id]: urls };
+  }
+
+  $effect(() => {
+    void ensure(chIdx);
+    // Warm the next chapter so swiping past the end is instant.
+    if (chapters[chIdx + 1] && pageIdx >= total - 2) void ensure(chIdx + 1);
+  });
+  $effect(() => {
+    for (const ci of stacked) void ensure(ci);
+  });
 
   $effect(() => {
     const want = id;
     const ch = chParam;
     let alive = true;
     status = 'loading';
-    repo.item(want, 'COMICS').then(
+    catalog.item(want, 'COMICS').then(
       (it) => {
         if (!alive) return;
         if (!it || !it.pages?.length) {
@@ -57,38 +82,43 @@
 
   function openChapter(i: number, p = 0) {
     chIdx = i;
-    pageIdx = Math.max(0, Math.min(p, (chapters[i]?.pages.length ?? 1) - 1));
+    pageIdx = Math.max(0, p);
     stacked = [i];
     atEnd = false;
     if (mode === 'vertical') void tick().then(() => scrollToPage(i, pageIdx, false));
   }
 
+  // Clamp the page once a lazily-resolved chapter knows its length.
+  $effect(() => {
+    if (total > 0 && pageIdx > total - 1) pageIdx = total - 1;
+  });
+
   // Save progress for the visible page of the current chapter.
   $effect(() => {
-    if (!item || !chapter || status !== 'ready') return;
+    if (!item || !chapter || status !== 'ready' || total === 0) return;
     progress.save(item.id, chapter.id, pageIdx, total);
   });
 
   // Preload the next pages (3, LOW tier 1), incl. the first pages of the next chapter at the end.
   $effect(() => {
-    if (!chapter) return;
+    if (!chapter || !total) return;
     const tier = perf.flags.tier;
-    for (const i of preloadRange(pageIdx, total, tier)) new Image().src = img(chapter.pages[i]);
-    const nextCh = chapters[chIdx + 1];
-    if (nextCh && pageIdx >= total - 2) new Image().src = img(nextCh.pages[0]);
+    for (const i of preloadRange(pageIdx, total, tier)) new Image().src = img(curPages[i]);
+    const nextPages = pagesFor(chapters[chIdx + 1]);
+    if (nextPages.length && pageIdx >= total - 2) new Image().src = img(nextPages[0]);
   });
 
   function go(step: -1 | 1) {
     if (!chapter) return;
     const n = pageIdx + step;
-    if (n >= total) {
-      // Next chapter auto-loads.
+    if (total === 0 || n >= total) {
+      // Next chapter auto-loads (an unavailable one is skipped by the user via these buttons too).
       if (chIdx + 1 < chapters.length) openChapter(chIdx + 1, 0);
       else atEnd = true;
       return;
     }
     if (n < 0) {
-      if (chIdx > 0) openChapter(chIdx - 1, (chapters[chIdx - 1]?.pages.length ?? 1) - 1);
+      if (chIdx > 0) openChapter(chIdx - 1, Math.max(0, pagesFor(chapters[chIdx - 1]).length - 1));
       return;
     }
     atEnd = false;
@@ -217,19 +247,34 @@
       <button class="vtap" onclick={() => (chrome = !chrome)} aria-label="Toggle reader controls">
         {#each stacked as ci (ci)}
           {@const c = chapters[ci]}
-          {#each c.pages as p, pi (p + pi)}
+          {@const pgs = pagesFor(c)}
+          {#each pgs as p, pi (p + pi)}
             <img data-ch={ci} data-p={pi} use:observePage src={img(p)} alt="Chapter {c.n} page {pi + 1}" loading={pi < 2 ? 'eager' : 'lazy'} decoding="async" width="800" height="1200" />
           {/each}
+          {#if !pgs.length}
+            <span class="sep">{loaded[c.id] === undefined ? `Loading chapter ${c.n}…` : `Chapter ${c.n} unavailable — try another.`}</span>
+          {/if}
           <span class="sep">End of chapter {c.n}{chapters[ci + 1] ? ` — next: ${chapters[ci + 1].title}` : ''}</span>
         {/each}
       </button>
       <div class="sentinel" use:sentinel aria-hidden="true"></div>
       {#if atEnd}<p class="end">You're all caught up.</p>{/if}
     </div>
+  {:else if chBusy}
+    <div class="center"><span class="spin" aria-label="Loading chapter"></span></div>
+  {:else if chGone}
+    <div class="center">
+      <p>Chapter unavailable, try another.</p>
+      <div class="gone-acts">
+        <button class="btn btn-ghost" disabled={chIdx === 0} onclick={() => openChapter(chIdx - 1)}>Previous chapter</button>
+        <button class="btn btn-primary" disabled={chIdx >= chapters.length - 1} onclick={() => openChapter(chIdx + 1)}>Next chapter</button>
+      </div>
+      <button class="btn btn-ghost" onclick={back}>Back to chapters</button>
+    </div>
   {:else}
     <button class="paged" onpointerdown={down} onpointerup={up} onclick={tap} aria-label="Page {pageIdx + 1} of {total}. Tap sides to turn pages, centre for controls">
       {#key `${chIdx}-${pageIdx}`}
-        <img src={img(chapter.pages[pageIdx])} alt="Chapter {chapter.n} page {pageIdx + 1}" decoding="async" width="800" height="1200" />
+        <img src={img(curPages[pageIdx])} alt="Chapter {chapter.n} page {pageIdx + 1}" decoding="async" width="800" height="1200" />
       {/key}
     </button>
     {#if atEnd}
@@ -257,7 +302,7 @@
       <input
         type="range"
         min="1"
-        max={total}
+        max={Math.max(1, total)}
         value={pageIdx + 1}
         dir={mode === 'rtl' ? 'rtl' : 'ltr'}
         oninput={(e) => slide(Number(e.currentTarget.value))}
@@ -295,6 +340,12 @@
   }
   @keyframes spin {
     to { transform: rotate(360deg); }
+  }
+  .gone-acts {
+    display: flex;
+    gap: 10px;
+    justify-content: center;
+    flex-wrap: wrap;
   }
   .paged {
     position: absolute;

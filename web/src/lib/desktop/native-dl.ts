@@ -5,6 +5,12 @@ import type { NativeProgress } from './env';
 export interface NativeStart {
   id: string;
   url: string;
+  /** Request headers for `url` (CDN Cookie/Referer/Origin). */
+  headers?: Record<string, string>;
+  /** Used when `url` fails the probe (gateway proxy). */
+  fallbackUrl?: string;
+  /** Stable key for resuming across re-signed URLs. */
+  resumeKey?: string;
   kind: 'progressive' | 'hls';
   connections: number;
   fileName: string;
@@ -70,4 +76,14 @@ export function readPlaylist(path: string): Promise<string> {
 
 export function downloadsDir(): Promise<string> {
   return invoke<string>('dl_dir');
+}
+
+/** Native folder picker; resolves to the chosen folder, or null when the user cancelled. */
+export function pickDownloadsDir(): Promise<string | null> {
+  return invoke<string | null>('dl_pick_dir');
+}
+
+/** Remember a download folder chosen elsewhere (returns the folder actually used). */
+export function setDownloadsDir(path: string): Promise<string> {
+  return invoke<string>('dl_set_dir', { path });
 }

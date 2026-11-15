@@ -5,12 +5,12 @@
   import { base } from '$app/paths';
   import { installSpatialNav, restoreFocus } from '$lib/tv/spatial';
   import Nav from '$lib/components/Nav.svelte';
-  import SpacesSheet from '$lib/components/SpacesSheet.svelte';
   import { spaceFromSlug, isVideoSpace } from '$lib/data/types';
   import { ISOLATED_SPACE_ENTRIES, VIDEO_TABS, isolatedTabs, spaceOfPath } from '$lib/nav';
   import { bindTintToDocument } from '$lib/design/tint.svelte';
   import { perf } from '$lib/perf/tier.svelte';
   import MiniPlayer from '$lib/player/MiniPlayer.svelte';
+  import Toast from '$lib/components/Toast.svelte';
   import { engine } from '$lib/player/engine';
   import { wirePlayer } from '$lib/player/controller';
   import { downloads } from '$lib/download/manager.svelte';
@@ -18,12 +18,14 @@
   import MusicBar from '$lib/music/MusicBar.svelte';
   import NowPlaying from '$lib/music/NowPlaying.svelte';
   import { adult } from '$lib/adult/store.svelte';
+  import { setAdultGate } from '$lib/data/app-catalog';
   import { settings } from '$lib/settings/store.svelte';
   import { desktop } from '$lib/desktop/desktop.svelte';
   import DesktopMini from '$lib/desktop/DesktopMini.svelte';
 
   let { children } = $props();
-  let spacesOpen = $state(false);
+  // Catalog asks the 18+ gate before any gateway adult request (set before children render).
+  setAdultGate(() => adult.enabled && adult.unlocked);
 
   const space = $derived(spaceFromSlug(page.params.space ?? '') ?? spaceOfPath(page.url.pathname));
   const isolated = $derived(!isVideoSpace(space));
@@ -65,7 +67,7 @@
         const p = location.pathname.replace(/\/$/, '');
         if (p === `${base}/app`) return;
         if (history.length > 1) history.back();
-        else goto(`${base}/app`);
+        else goto(spaceOfPath(location.pathname) !== 'HOME' ? `${base}/app/me` : `${base}/app`);
       }
     });
     requestAnimationFrame(() => window.__cinetorReady?.());
@@ -87,8 +89,7 @@
 <div class="ambient" aria-hidden="true"></div>
 <a class="skip" href="#main">Skip to content</a>
 
-{#if !immersive}<Nav {tabs} {spaceLabel} onSpaces={() => (spacesOpen = true)} />{/if}
-<SpacesSheet bind:open={spacesOpen} />
+{#if !immersive}<Nav {tabs} {spaceLabel} />{/if}
 
 <main id="main" class="app" class:watching={immersive} class:with-bar={barShown} tabindex="-1">
   {@render children()}
@@ -96,6 +97,7 @@
 
 <div class="video-park" aria-hidden="true" use:park></div>
 <MiniPlayer hidden={watching || desktop.mini} />
+<Toast />
 <DesktopMini />
 <!-- The ONE audio element for music: owned here so playback survives navigation. -->
 <audio class="music-audio" use:music.attach preload="metadata"></audio>

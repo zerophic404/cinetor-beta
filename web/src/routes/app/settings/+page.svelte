@@ -14,6 +14,8 @@
   import { settings } from '$lib/settings/store.svelte';
   import { DOUBLE_TAP_OPTIONS, HOLD_SPEED_OPTIONS, SUB_LANGS } from '$lib/settings/settings';
   import { DEFAULT_SUB_STYLE, type SubStyle } from '$lib/player/subs';
+  import { gatewayBase, normalizeBase, setGatewayBase } from '$lib/data/gateway';
+  import { debugLog } from '$lib/errors';
 
   const tiers: { v: TierOverride; l: string }[] = [
     { v: 'AUTO', l: 'Auto' },
@@ -23,6 +25,28 @@
   ];
   let latencyOn = $state(repo.latency.enabled);
   let notice = $state('');
+
+  // ---- Developer: gateway base URL (value hidden by default, never logged) ----
+  let gw = $state(gatewayBase());
+  let gwShow = $state(false);
+  let gwMsg = $state('');
+  let devLog = $state(debugLog.enabled);
+  let logOpen = $state(false);
+  function toggleDevLog(on: boolean) {
+    debugLog.setEnabled(on);
+    devLog = debugLog.enabled;
+    if (!on) logOpen = false;
+  }
+  function saveGateway(v: string | null) {
+    if (v !== null && normalizeBase(v) === null) {
+      gwMsg = 'Enter an http(s) URL (empty = off)';
+      return;
+    }
+    setGatewayBase(v);
+    gw = gatewayBase();
+    gwMsg = 'Saved — reloading…';
+    setTimeout(() => location.reload(), 400);
+  }
 
   function pickTheme(name: ThemeName) {
     theme.set(name);
@@ -186,6 +210,40 @@
     </div>
   </section>
 
+  <section id="developer" aria-labelledby="dev-h" class="card glass">
+    <h2 id="dev-h">Developer</h2>
+    <label class="field">
+      <span>Streaming gateway (catalog + sources for Home, Anime, Drama, 18+)</span>
+      <input type={gwShow ? 'url' : 'password'} inputmode="url" spellcheck="false" autocomplete="off" bind:value={gw} placeholder="Leave empty to turn the gateway off" />
+    </label>
+    <div class="acts">
+      <button class="btn btn-ghost" onclick={() => (gwShow = !gwShow)} aria-pressed={gwShow}>{gwShow ? 'Hide' : 'Show'}</button>
+      <button class="btn btn-ghost" onclick={() => saveGateway(gw)}>Save</button>
+      <button class="btn btn-ghost" onclick={() => saveGateway(null)}>Reset to default</button>
+    </div>
+    {#if gwMsg}<p class="note" role="status">{gwMsg}</p>{/if}
+    <label class="toggle">
+      <input type="checkbox" checked={devLog} onchange={(e) => toggleDevLog(e.currentTarget.checked)} />
+      <span>Keep a local debug log</span>
+    </label>
+    <p class="note">Off by default. Technical detail stays on this device and is never sent anywhere.</p>
+    {#if devLog}
+      <div class="acts">
+        <button class="btn btn-ghost" onclick={() => (logOpen = !logOpen)} aria-expanded={logOpen}>{logOpen ? 'Hide log' : `Show log (${debugLog.entries.length})`}</button>
+        <button class="btn btn-ghost" onclick={() => debugLog.clear()}>Clear log</button>
+      </div>
+      {#if logOpen}
+        <ul class="log">
+          {#each debugLog.entries.slice(-40) as e (e.t + e.tag + e.text)}
+            <li><b>{e.tag}</b> {new Date(e.t).toLocaleTimeString()} — {e.text}</li>
+          {:else}
+            <li class="note">Nothing logged yet.</li>
+          {/each}
+        </ul>
+      {/if}
+    {/if}
+  </section>
+
   <section id="content" aria-labelledby="ct-h" class="card glass">
     <h2 id="ct-h">Content</h2>
     <label class="toggle" class:off={!adult.canEnable}>
@@ -336,6 +394,20 @@
     margin: 0;
     font-size: 0.78rem;
     color: var(--text-secondary);
+  }
+  .log {
+    list-style: none;
+    margin: 8px 0 0;
+    padding: 8px 10px;
+    max-height: 220px;
+    overflow: auto;
+    display: grid;
+    gap: 4px;
+    border-radius: 12px;
+    background: rgb(0 0 0 / 0.35);
+    font-size: 0.72rem;
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    overflow-wrap: anywhere;
   }
   .toggle {
     display: flex;

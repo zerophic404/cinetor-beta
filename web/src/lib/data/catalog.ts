@@ -23,6 +23,8 @@ export interface CatalogOptions {
    * `null` → memory only.
    */
   persist?: PersistentCache | null;
+  /** Spaces that have a mock file (the app ships only TV / Music / Comics). Default: all. */
+  spaces?: readonly Space[];
 }
 
 interface Loaded {
@@ -54,7 +56,8 @@ export function spaceForId(id: string): Space | undefined {
  */
 export class CatalogRepository {
   private cache = new Map<Space, Promise<Loaded>>();
-  private opts: Required<Omit<CatalogOptions, 'latency'>> & { latency: LatencyConfig };
+  private opts: Required<Omit<CatalogOptions, 'latency' | 'spaces'>> & { latency: LatencyConfig };
+  private spaces: readonly Space[];
 
   constructor(opts: CatalogOptions) {
     this.opts = {
@@ -65,6 +68,7 @@ export class CatalogRepository {
       sleep: opts.sleep ?? ((ms) => new Promise((r) => setTimeout(r, ms))),
       persist: opts.persist === undefined ? idbCache() : opts.persist
     };
+    this.spaces = opts.spaces ?? SPACES;
   }
 
   setLatency(latency: LatencyConfig): void {
@@ -75,9 +79,9 @@ export class CatalogRepository {
     return this.opts.latency;
   }
 
-  /** Absolute URL for a mock-relative asset path ('images/...', 'subs/...'). */
+  /** Absolute URL for a mock-relative asset path ('images/...', 'subs/...'); remote URLs pass through. */
   asset(path: string): string {
-    return `${this.opts.baseUrl}/mock/${path}`;
+    return /^(https?:)?\/\/|^data:|^blob:/i.test(path) ? path : `${this.opts.baseUrl}/mock/${path}`;
   }
 
   isLoaded(space: Space): boolean {
@@ -98,6 +102,7 @@ export class CatalogRepository {
   }
 
   load(space: Space): Promise<Loaded> {
+    if (!this.spaces.includes(space)) return Promise.reject(new Error(`No mock catalog for ${space}`));
     let p = this.cache.get(space);
     if (!p) {
       p = (async () => {
@@ -173,23 +178,24 @@ export class CatalogRepository {
   }
 
   private async ownerOfRow(rowId: string): Promise<Space | undefined> {
-    for (const s of SPACES) if (this.cache.has(s) && (await this.load(s)).rowById.has(rowId)) return s;
+    for (const s of this.spaces) if (this.cache.has(s) && (await this.load(s)).rowById.has(rowId)) return s;
     return undefined;
   }
 
   private async find<T>(id: string, space: Space | undefined, pick: (l: Loaded) => T | undefined) {
     // 1. already-loaded files, 2. space hint / id prefix, 3. everything.
-    for (const s of SPACES) {
+    for (const s of this.spaces) {
       if (!this.cache.has(s)) continue;
       const v = pick(await this.load(s));
       if (v) return v;
     }
     const hint = space ?? spaceForId(id);
+    if (hint && !this.spaces.includes(hint)) return undefined;
     if (hint) {
       const v = pick(await this.load(hint));
       if (v) return v;
     }
-    for (const s of SPACES) {
+    for (const s of this.spaces) {
       const v = pick(await this.load(s));
       if (v) return v;
     }

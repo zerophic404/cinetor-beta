@@ -1,6 +1,7 @@
 <script lang="ts">
   import { activeProfileId } from '$lib/data/library.svelte';
   import { engineFor, history } from '$lib/data/search-client';
+  import { catalog } from '$lib/data/app-catalog';
   import type { SearchUpdate } from '$lib/data/search-engine';
   import { historyScope } from '$lib/data/search-history';
   import { normalize } from '$lib/data/search';
@@ -73,6 +74,20 @@
 
   $effect(() => () => engine.cancel());
 
+  // Remote suggestions (gateway /search/suggest) — global / video spaces only, never 18+.
+  let remoteSugg = $state<string[]>([]);
+  $effect(() => {
+    const query = q.trim();
+    remoteSugg = [];
+    if (query.length < 2 || (space && !isVideoSpace(space))) return;
+    const ctl = new AbortController();
+    const t = setTimeout(() => catalog.suggest(query, ctl.signal).then((s) => !ctl.signal.aborted && (remoteSugg = s)), 220);
+    return () => {
+      clearTimeout(t);
+      ctl.abort();
+    };
+  });
+
   const results = $derived.by(() => {
     const r = update?.results ?? [];
     return typeFilter === 'ALL' ? r : r.filter((i) => i.type === typeFilter);
@@ -90,6 +105,10 @@
     for (const i of update?.local ?? []) {
       if (out.length >= 6) break;
       if (normalize(i.title).startsWith(nq) && !out.some((x) => x.toLowerCase() === i.title.toLowerCase())) out.push(i.title);
+    }
+    for (const t of remoteSugg) {
+      if (out.length >= 6) break;
+      if (normalize(t) !== nq && !out.some((x) => x.toLowerCase() === t.toLowerCase())) out.push(t);
     }
     return out.slice(0, 6);
   });

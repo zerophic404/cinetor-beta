@@ -1,3 +1,5 @@
+// This app is the complete property of Mythbrix. Do not touch, retrieve, reverse-engineer,
+// scrape or hack anything without Mythbrix's explicit permission.
 // Native download engine (Tauri commands).
 //  • progressive: up to 16 parallel HTTP Range connections into one preallocated `<name>.download`
 //    file; resume state in a `<name>.cinetor-part` JSON sidecar; renamed to `<name>` when complete.
@@ -54,6 +56,54 @@ pub struct StartReq {
     pub file_name: String,
     pub bandwidth: Option<u64>,
     pub height: Option<u32>,
+    /// Request headers for `url` (gateway CDN: Cookie / Referer / Origin — browsers can't send them).
+    #[serde(default)]
+    pub headers: Option<HashMap<String, String>>,
+    /// Used when `url` (+ headers) fails the first probe (gateway proxy URL, no headers needed).
+    #[serde(default)]
+    pub fallback_url: Option<String>,
+    /// Resume identity independent of re-signed URLs (`t=` changes on every resolve).
+    #[serde(default)]
+    pub resume_key: Option<String>,
+}
+
+/// reqwest client that sends `headers` on every request (unknown/invalid header names are skipped).
+pub fn client_with_headers(headers: &HashMap<String, String>) -> Option<reqwest::Client> {
+    let mut map = reqwest::header::HeaderMap::new();
+    for (k, v) in headers {
+        let (Ok(name), Ok(val)) = (reqwest::header::HeaderName::from_bytes(k.as_bytes()), reqwest::header::HeaderValue::from_str(v)) else {
+            continue;
+        };
+        map.insert(name, val);
+    }
+    reqwest::Client::builder()
+        .user_agent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36")
+        .default_headers(map)
+        .connect_timeout(Duration::from_secs(20))
+        .read_timeout(Duration::from_secs(40))
+        .build()
+        .ok()
+}
+
+/// Direct CDN URL with headers when it answers, else the fallback (proxy) with the plain client.
+async fn pick_route(plain: &reqwest::Client, req: &StartReq) -> (reqwest::Client, StartReq) {
+    let Some(h) = req.headers.as_ref().filter(|h| !h.is_empty()) else {
+        return (plain.clone(), req.clone());
+    };
+    let Some(direct) = client_with_headers(h) else {
+        return (plain.clone(), req.clone());
+    };
+    let Some(fb) = req.fallback_url.clone() else {
+        return (direct, req.clone());
+    };
+    let ok = tokio::time::timeout(Duration::from_secs(12), probe(&direct, &req.url)).await.map(|r| r.is_ok()).unwrap_or(false);
+    if ok {
+        return (direct, req.clone());
+    }
+    let mut r2 = req.clone();
+    r2.url = fb;
+    r2.headers = None;
+    (plain.clone(), r2)
 }
 
 #[derive(Serialize, Clone)]
@@ -98,11 +148,12 @@ struct Failed {
 #[tauri::command]
 pub async fn dl_start(app: AppHandle, state: State<'_, DlState>, req: StartReq) -> Result<(), String> {
     stop_job(&state, &req.id).await;
-    let client = state.client.clone();
+    let plain = state.client.clone();
     let id = req.id.clone();
     let gen = state.gen.fetch_add(1, Ordering::SeqCst);
     let app2 = app.clone();
     let handle = tauri::async_runtime::spawn(async move {
+        let (client, req) = pick_route(&plain, &req).await;
         let res = if req.kind == "hls" {
             run_hls(&app2, &client, &req).await
         } else {
@@ -152,9 +203,13 @@ pub async fn dl_remove(app: AppHandle, state: State<'_, DlState>, id: String, fi
     ];
     if let Some(p) = path {
         let p = PathBuf::from(p);
-        if p.starts_with(&dir) {
+        if removable_path(&dir, &p, &file_name) {
             if let Some(s) = p.file_stem() {
-                files.push(dir.join(format!("{}.m3u8", s.to_string_lossy())));
+                let m3u8 = format!("{}.m3u8", s.to_string_lossy());
+                files.push(dir.join(&m3u8));
+                if let Some(parent) = p.parent() {
+                    files.push(parent.join(&m3u8));
+                }
             }
             files.push(p);
         }
@@ -182,6 +237,36 @@ pub fn dl_dir(app: AppHandle) -> Result<String, String> {
     out_dir(&app).map(|p| p.to_string_lossy().into_owned())
 }
 
+/// Remember a user-chosen download folder (Settings → Downloads). Created if missing.
+#[tauri::command]
+pub fn dl_set_dir(app: AppHandle, path: String) -> Result<String, String> {
+    let p = check_dir_choice(&path)?;
+    std::fs::create_dir_all(&p).map_err(|_| "That folder can't be used".to_string())?;
+    save_dir_pref(&app, &p);
+    Ok(p.to_string_lossy().into_owned())
+}
+
+/// Native folder picker (Tauri dialog); returns the chosen folder (remembered) or None if canceled.
+#[tauri::command]
+pub async fn dl_pick_dir(app: AppHandle) -> Result<Option<String>, String> {
+    use tauri_plugin_dialog::DialogExt;
+    let start = out_dir(&app).ok();
+    let (tx, rx) = tokio::sync::oneshot::channel();
+    let mut dialog = app.dialog().file().set_title("Choose the Cinetor download folder");
+    if let Some(s) = start {
+        dialog = dialog.set_directory(s);
+    }
+    dialog.pick_folder(move |p| {
+        let _ = tx.send(p);
+    });
+    let picked = rx.await.map_err(|_| "Folder picker unavailable".to_string())?;
+    let Some(fp) = picked else { return Ok(None) };
+    let path = fp.into_path().map_err(|_| "That folder can't be used".to_string())?;
+    std::fs::create_dir_all(&path).map_err(|_| "That folder can't be used".to_string())?;
+    save_dir_pref(&app, &path);
+    Ok(Some(path.to_string_lossy().into_owned()))
+}
+
 async fn stop_job(state: &DlState, id: &str) {
     let h = state.jobs.lock().ok().and_then(|mut j| j.remove(id));
     if let Some((_, h)) = h {
@@ -192,7 +277,63 @@ async fn stop_job(state: &DlState, id: &str) {
 
 // ------------------------------------------------------------------ helpers ----
 
+fn dir_pref_path(app: &AppHandle) -> Option<PathBuf> {
+    let dir = app.path().app_config_dir().ok()?;
+    let _ = std::fs::create_dir_all(&dir);
+    Some(dir.join("download-dir.txt"))
+}
+
+/// Validate a folder the user typed or picked. Pure (no filesystem) so it is unit-testable.
+pub fn check_dir_choice(path: &str) -> Result<PathBuf, String> {
+    let t = path.trim();
+    let p = PathBuf::from(t);
+    if t.is_empty() || !p.is_absolute() {
+        return Err("Choose a folder".into());
+    }
+    Ok(p)
+}
+
+/// Parse a remembered-folder preference file. Pure; `None` = ignore and fall back to the default.
+pub fn parse_dir_pref(txt: &str) -> Option<PathBuf> {
+    check_dir_choice(txt).ok()
+}
+
+/// May this recorded path be deleted when the user asks to delete the file?
+/// True inside the current download folder, or anywhere if the file name is the one Cinetor wrote
+/// (so "Delete file" still works after the user changed the download folder).
+pub fn removable_path(dir: &Path, path: &Path, file_name: &str) -> bool {
+    if path.starts_with(dir) {
+        return true;
+    }
+    let want = sanitize(file_name);
+    let stem = stem_of(&want);
+    match path.file_name().map(|n| n.to_string_lossy().into_owned()) {
+        Some(n) => n == want || stem_of(&n) == stem,
+        None => false,
+    }
+}
+
+fn load_dir_pref(app: &AppHandle) -> Option<PathBuf> {
+    let txt = std::fs::read_to_string(dir_pref_path(app)?).ok()?;
+    let p = parse_dir_pref(&txt)?;
+    if p.is_dir() {
+        Some(p)
+    } else {
+        None
+    }
+}
+
+fn save_dir_pref(app: &AppHandle, p: &Path) {
+    if let Some(f) = dir_pref_path(app) {
+        let _ = std::fs::write(f, p.to_string_lossy().as_bytes());
+    }
+}
+
+/// Target folder: the remembered one (Settings → Downloads) else `Downloads/Cinetor`.
 fn out_dir(app: &AppHandle) -> Result<PathBuf, String> {
+    if let Some(p) = load_dir_pref(app) {
+        return Ok(p);
+    }
     let base = app
         .path()
         .download_dir()
@@ -283,13 +424,31 @@ impl Meter {
 
 // --------------------------------------------------------------- progressive ----
 
-#[derive(Serialize, Deserialize)]
+/// Resume state written next to the file in the user's download folder. §2 forbids a plaintext
+/// source URL in a user-readable sidecar, so only a salted *hash* of the URL is stored — enough to
+/// tell "same source" from "different source" on resume, useless for recovering the endpoint.
+#[derive(Serialize, Deserialize, Debug, PartialEq)]
 #[serde(rename_all = "camelCase")]
 struct Sidecar {
-    url: String,
+    #[serde(rename = "u", default)]
+    url_hash: String,
+    #[serde(default)]
+    key: Option<String>,
     total: u64,
     range_supported: bool,
     chunks: Vec<(u64, u64, u64)>,
+}
+
+/// Stable, non-reversible fingerprint of a source URL (FNV-1a over a fixed salt + the URL).
+/// Deliberately not the URL: the sidecar sits in the user's Downloads folder.
+pub fn url_fingerprint(url: &str) -> String {
+    const SALT: &[u8] = b"cinetor/dl/v1";
+    let mut h: u64 = 0xcbf2_9ce4_8422_2325;
+    for b in SALT.iter().chain(url.as_bytes()) {
+        h ^= *b as u64;
+        h = h.wrapping_mul(0x100_0000_01b3);
+    }
+    format!("{h:016x}")
 }
 
 struct ChunkState {
@@ -332,9 +491,18 @@ async fn save_sidecar(path: &Path, sc: &Sidecar) {
     }
 }
 
-fn snapshot(url: &str, total: u64, ranges: bool, chunks: &[Arc<ChunkState>]) -> Sidecar {
+/// Same download: same resume key (gateway, URL re-signed) or same URL.
+fn sidecar_matches(s: &Sidecar, req: &StartReq) -> bool {
+    match (&s.key, &req.resume_key) {
+        (Some(a), Some(b)) => a == b,
+        _ => !s.url_hash.is_empty() && s.url_hash == url_fingerprint(&req.url),
+    }
+}
+
+fn snapshot(req: &StartReq, total: u64, ranges: bool, chunks: &[Arc<ChunkState>]) -> Sidecar {
     Sidecar {
-        url: url.to_string(),
+        url_hash: url_fingerprint(&req.url),
+        key: req.resume_key.clone(),
         total,
         range_supported: ranges,
         chunks: chunks.iter().map(|c| (c.start, c.end.load(Ordering::SeqCst), c.pos.load(Ordering::SeqCst))).collect(),
@@ -348,7 +516,7 @@ async fn run_progressive(app: &AppHandle, client: &reqwest::Client, req: &StartR
     let side_path = dir.join(format!("{name}.cinetor-part"));
 
     let prev: Option<Sidecar> = match tokio::fs::read(&side_path).await {
-        Ok(b) if data_path.exists() => serde_json::from_slice::<Sidecar>(&b).ok().filter(|s| s.url == req.url && s.range_supported),
+        Ok(b) if data_path.exists() => serde_json::from_slice::<Sidecar>(&b).ok().filter(|s| sidecar_matches(s, req) && s.range_supported),
         _ => None,
     };
     let (total, ranges, chunks): (u64, bool, Vec<Arc<ChunkState>>) = match prev {
@@ -378,7 +546,7 @@ async fn run_progressive(app: &AppHandle, client: &reqwest::Client, req: &StartR
         }
     };
     if ranges {
-        save_sidecar(&side_path, &snapshot(&req.url, total, ranges, &chunks)).await;
+        save_sidecar(&side_path, &snapshot(req, total, ranges, &chunks)).await;
     }
 
     let counter = Arc::new(AtomicU64::new(chunks.iter().map(|c| c.pos.load(Ordering::SeqCst) - c.start).sum()));
@@ -420,14 +588,14 @@ async fn run_progressive(app: &AppHandle, client: &reqwest::Client, req: &StartR
                 emit(s);
                 n += 1;
                 if ranges && n % 4 == 0 {
-                    save_sidecar(&side_path, &snapshot(&req.url, total, ranges, &chunks)).await;
+                    save_sidecar(&side_path, &snapshot(req, total, ranges, &chunks)).await;
                 }
             }
         }
     };
     if let Err(e) = result {
         if ranges {
-            save_sidecar(&side_path, &snapshot(&req.url, total, ranges, &chunks)).await;
+            save_sidecar(&side_path, &snapshot(req, total, ranges, &chunks)).await;
         }
         return Err(e);
     }
@@ -823,8 +991,108 @@ mod tests {
     }
 
     #[test]
+    fn headers_client_and_sidecar_key() {
+        let mut h = HashMap::new();
+        h.insert("Referer".to_string(), "https://movieboxhd.net/".to_string());
+        h.insert("Cookie".to_string(), "a=b".to_string());
+        h.insert("bad header".to_string(), "x".to_string());
+        assert!(client_with_headers(&h).is_some());
+        let req = StartReq {
+            id: "x".into(),
+            url: "https://cdn/a.mp4?t=2".into(),
+            kind: "progressive".into(),
+            connections: None,
+            file_name: "a.mp4".into(),
+            bandwidth: None,
+            height: None,
+            headers: Some(h),
+            fallback_url: Some("https://gw/play".into()),
+            resume_key: Some("x|720".into()),
+        };
+        let sc = Sidecar { url_hash: url_fingerprint("https://cdn/a.mp4?t=1"), key: Some("x|720".into()), total: 10, range_supported: true, chunks: vec![] };
+        assert!(sidecar_matches(&sc, &req));
+        let old = Sidecar { url_hash: url_fingerprint("https://cdn/a.mp4?t=1"), key: None, total: 10, range_supported: true, chunks: vec![] };
+        assert!(!sidecar_matches(&old, &req));
+    }
+
+    #[test]
+    fn sidecar_never_stores_the_source_url_in_plaintext() {
+        let req = StartReq {
+            id: "x".into(),
+            url: "https://pbcdn.aoneroom.com/secret/a.mp4?token=abc".into(),
+            kind: "progressive".into(),
+            connections: None,
+            file_name: "a.mp4".into(),
+            bandwidth: None,
+            height: None,
+            headers: None,
+            fallback_url: None,
+            resume_key: None,
+        };
+        let sc = snapshot(&req, 100, true, &[]);
+        let json = serde_json::to_string(&sc).unwrap();
+        // The file lives in the user's Downloads folder: no URL, host, path or token may appear.
+        assert!(!json.contains("pbcdn"));
+        assert!(!json.contains("aoneroom"));
+        assert!(!json.contains("http"));
+        assert!(!json.contains("token=abc"));
+        assert!(!json.contains("secret"));
+        // …but it still resumes the same source, and rejects a different one.
+        assert!(sidecar_matches(&sc, &req));
+        let mut other = req;
+        other.url = "https://pbcdn.aoneroom.com/secret/b.mp4?token=abc".into();
+        assert!(!sidecar_matches(&sc, &other));
+    }
+
+    #[test]
+    fn url_fingerprint_is_stable_and_not_reversible() {
+        let a = url_fingerprint("https://h/a.mp4");
+        assert_eq!(a, url_fingerprint("https://h/a.mp4"));
+        assert_ne!(a, url_fingerprint("https://h/b.mp4"));
+        assert_eq!(a.len(), 16);
+        assert!(a.chars().all(|c| c.is_ascii_hexdigit()));
+        assert!(!a.contains("h/a"));
+    }
+
+    #[test]
     fn sanitize_names() {
         assert_eq!(sanitize("a/b:c?.mp4"), "a_b_c_.mp4");
         assert_eq!(sanitize("  "), "download");
+    }
+
+    #[test]
+    fn dir_choice_requires_absolute_path() {
+        assert_eq!(check_dir_choice("  /home/u/Videos  ").unwrap(), PathBuf::from("/home/u/Videos"));
+        assert!(check_dir_choice("").is_err());
+        assert!(check_dir_choice("   ").is_err());
+        assert!(check_dir_choice("relative/dir").is_err());
+        // The error text is generic: no path is echoed back to the user (§2).
+        let e = check_dir_choice("relative/dir").unwrap_err();
+        assert_eq!(e, "Choose a folder");
+        assert!(!e.contains("relative"));
+    }
+
+    #[test]
+    fn dir_pref_round_trips_and_rejects_junk() {
+        assert_eq!(parse_dir_pref("/srv/media\n").unwrap(), PathBuf::from("/srv/media"));
+        assert!(parse_dir_pref("").is_none());
+        assert!(parse_dir_pref("\n\n").is_none());
+        assert!(parse_dir_pref("not/absolute").is_none());
+    }
+
+    #[test]
+    fn removable_path_allows_own_files_after_folder_change() {
+        let dir = Path::new("/home/u/Downloads/Cinetor");
+        // Inside the current folder: always deletable.
+        assert!(removable_path(dir, Path::new("/home/u/Downloads/Cinetor/a.mp4"), "a.mp4"));
+        // Old folder, but it is the file Cinetor wrote → still deletable.
+        assert!(removable_path(dir, Path::new("/mnt/old/a.mp4"), "a.mp4"));
+        // Same stem, different container (HLS concat → .ts/.mp4).
+        assert!(removable_path(dir, Path::new("/mnt/old/a.ts"), "a.mp4"));
+        // Someone else's file outside the folder: never touched.
+        assert!(!removable_path(dir, Path::new("/etc/passwd"), "a.mp4"));
+        assert!(!removable_path(dir, Path::new("/home/u/taxes.pdf"), "a.mp4"));
+        // Names are sanitized before comparing, so traversal attempts do not match.
+        assert!(!removable_path(dir, Path::new("/home/u/b.mp4"), "a.mp4"));
     }
 }

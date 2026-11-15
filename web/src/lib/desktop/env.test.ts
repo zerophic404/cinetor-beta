@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { applyNativeProgress, chooseBackend, isTauriEnv, localPlaylist, MEDIA_TOKEN, nativeFileName } from './env';
+import { applyNativeProgress, chooseBackend, isTauriEnv, localPlaylist, locationInfo, MEDIA_TOKEN, nativeFileName, saveCopySupported } from './env';
 
 describe('desktop env', () => {
   it('detects Tauri by its injected internals', () => {
@@ -42,5 +42,55 @@ describe('desktop env', () => {
     expect(d2).toBe(100);
     expect(r.segmentsTotal).toBe(12);
     expect(r.fraction).toBeCloseTo(0.25);
+  });
+});
+
+describe('download location copy (§4) and leak-safety (§2)', () => {
+  it('detects the File System Access save picker', () => {
+    expect(saveCopySupported({ showSaveFilePicker: () => {} })).toBe(true);
+    expect(saveCopySupported({})).toBe(false);
+    expect(saveCopySupported({ showSaveFilePicker: 'nope' })).toBe(false);
+    expect(saveCopySupported(undefined)).toBe(false);
+  });
+
+  it('desktop shows the chosen folder and says it is changeable', () => {
+    const i = locationInfo({ tauri: true, dir: '/home/u/Movies' });
+    expect(i.label).toBe('/home/u/Movies');
+    expect(i.changeable).toBe(true);
+    expect(i.note.toLowerCase()).toContain('change');
+  });
+
+  it('desktop falls back to the default Downloads/Cinetor folder', () => {
+    expect(locationInfo({ tauri: true }).label).toBe('Downloads/Cinetor');
+    expect(locationInfo({ tauri: true, dir: '   ' }).label).toBe('Downloads/Cinetor');
+    expect(locationInfo({ tauri: true, dir: null }).label).toBe('Downloads/Cinetor');
+  });
+
+  it('web says it keeps files privately and offers Save a copy where supported', () => {
+    const ok = locationInfo({ tauri: false, saveCopy: true });
+    expect(ok.changeable).toBe(false);
+    expect(ok.label).toBe('Private app storage');
+    expect(ok.note).toContain('Save a copy');
+  });
+
+  it('web states plainly when a save location cannot be chosen', () => {
+    const no = locationInfo({ tauri: false, saveCopy: false });
+    expect(no.note).toContain('cannot save a copy');
+    expect(no.note).not.toContain('Save a copy…');
+  });
+
+  it('never leaks a URL, host or path of a stream source in location copy', () => {
+    const urlish = /https?:\/\/|\/\/|\.(?:com|net|org|io|dev|xyz|vercel\.app)\b/i;
+    for (const i of [
+      locationInfo({ tauri: true, dir: '/home/u/Movies' }),
+      locationInfo({ tauri: true }),
+      locationInfo({ tauri: false, saveCopy: true }),
+      locationInfo({ tauri: false, saveCopy: false })
+    ]) {
+      expect(i.note).not.toMatch(urlish);
+      expect(i.note.toLowerCase()).not.toContain('gateway');
+      expect(i.note.toLowerCase()).not.toContain('proxy');
+      expect(i.note.toLowerCase()).not.toContain('cdn');
+    }
   });
 });

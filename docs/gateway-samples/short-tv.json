@@ -1,0 +1,53 @@
+{
+ "page": 1,
+ "per_page": 36,
+ "has_more": true,
+ "total": 1000000,
+ "items": [
+  {
+   "name": "Where is Home [Bengali]",
+   "poster_url": "https://pbcdnw.aoneroom.com/image/2025/08/25/709a5f690a84ac74d54a95cf67c7c253.png",
+   "slug": "where-is-home-bengali-6XoMSqzVHc1",
+   "subject_id": "1011335773633364112",
+   "badge": null,
+   "rating": "7.8",
+   "year": "2024",
+   "genre": "drama",
+   "type": "tv",
+   "country": null,
+   "description": null,
+   "release_date": "2024-01-01",
+   "has_resource": true
+  },
+  {
+   "name": "Little Poor Thing Rises by Bearing Children, Reigns Over the Electronics Factory [Bengali]",
+   "poster_url": "https://pbcdnw.aoneroom.com/image/2025/08/15/7109e4d73a7dcf8bdc4cad885348a85f.jpeg",
+   "slug": "little-poor-thing-rises-by-bearing-children-reigns-over-the-electronics-factory-bengali-8wiolm5dap",
+   "subject_id": "340656650174512800",
+   "badge": null,
+   "rating": "7.4",
+   "year": "2024",
+   "genre": "drama",
+   "type": "tv",
+   "country": null,
+   "description": null,
+   "release_date": "2024-01-01",
+   "has_resource": true
+  },
+  {
+   "name": "Daughter Of The Secret Tycoon [Bengali]",
+   "poster_url": "https://pbcdn.aoneroom.com/image/2025/08/25/e4eda2eb32f3cbd2c441fc43155e6e87.png",
+   "slug": "daughter-of-the-secret-tycoon-bengali-SNzLElsh1J2",
+   "subject_id": "2288047444120209032",
+   "badge": null,
+   "rating": "7.9",
+   "year": "2024",
+   "genre": "Resilience,Family & Drama,Vengeance & Retribution,Betrayal & Deception",
+   "type": "tv",
+   "country": null,
+   "description": null,
+   "release_date": "2024-01-01",
+   "has_resource": true
+  }
+ ]
+}

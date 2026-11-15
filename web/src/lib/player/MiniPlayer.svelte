@@ -1,12 +1,15 @@
 <script lang="ts">
+  // This app is the complete property of Mythbrix. Do not touch, retrieve, reverse-engineer,
+  // scrape or hack anything without Mythbrix's explicit permission.
   // In-app floating mini player: draggable, snaps to corners, tap expands, swipe off stops.
   // Lives in the /app layout → survives route changes. Shares the single <video>.
   import { goto } from '$app/navigation';
   import { engine } from './engine';
   import { clock, session, togglePiP, pipSupported } from './controller';
-  import { cornerPos, isSwipeOff, snapCorner, type Corner } from './mini-math';
+  import { cornerPos, isSwipeOff, snapCorner, clampMiniWidth, miniFrac, miniHeight, resizeWidth, MINI_DEFAULT_FRAC, MINI_WIDTH_KEY, type Corner } from './mini-math';
   import { watchHref } from '$lib/ui/handoff';
   import { desktop } from '$lib/desktop/desktop.svelte';
+  import { localKV } from '$lib/data/kv';
 
   let { hidden = false }: { hidden?: boolean } = $props();
   const sess = session.state;
@@ -17,8 +20,17 @@
   let drag = $state<{ x: number; y: number } | null>(null);
   let leaving = $state(false);
 
-  const w = $derived(Math.round(Math.min(340, Math.max(180, vw * 0.42))));
-  const h = $derived(Math.round((w * 9) / 16));
+  // Persisted size (fraction of the viewport width, clamped 25–80 % — aspect stays 16:9).
+  const kv = localKV();
+  const storedFrac = (() => {
+    const v = Number(kv.get(MINI_WIDTH_KEY));
+    return Number.isFinite(v) && v > 0 ? v : MINI_DEFAULT_FRAC;
+  })();
+  let widthFrac = $state(storedFrac);
+  let resizing = $state(false);
+
+  const w = $derived(clampMiniWidth(vw * widthFrac, vw));
+  const h = $derived(miniHeight(w));
   const insets = $derived({ top: 16, right: 12, left: vw >= 900 ? 100 : 12, bottom: vw >= 900 ? 16 : 84 });
   const rest = $derived(cornerPos(corner, w, h, vw, vh, insets));
   const pos = $derived(drag ?? rest);
@@ -81,6 +93,35 @@
     if (v.paused) v.play().catch(() => {});
     else v.pause();
   }
+
+  // ---- corner resize handle (pointer events; 16:9 kept, size persisted) ----
+  let rs = { px: 0, w: 0, on: false };
+  function resizeDown(e: PointerEvent) {
+    e.stopPropagation();
+    (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+    rs = { px: e.clientX, w, on: true };
+    resizing = true;
+  }
+  function resizeMove(e: PointerEvent) {
+    if (!rs.on) return;
+    e.stopPropagation();
+    widthFrac = miniFrac(resizeWidth(rs.w, e.clientX - rs.px, corner, vw), vw);
+  }
+  function resizeUp(e: PointerEvent) {
+    if (!rs.on) return;
+    e.stopPropagation();
+    rs.on = false;
+    resizing = false;
+    kv.set(MINI_WIDTH_KEY, String(widthFrac));
+  }
+  /** Keyboard resize for TV / a11y: ±5 % steps. */
+  function resizeKey(e: KeyboardEvent) {
+    const step = e.key === 'ArrowRight' || e.key === 'ArrowUp' ? 0.05 : e.key === 'ArrowLeft' || e.key === 'ArrowDown' ? -0.05 : 0;
+    if (!step) return;
+    e.preventDefault();
+    widthFrac = miniFrac(vw * (widthFrac + step), vw);
+    kv.set(MINI_WIDTH_KEY, String(widthFrac));
+  }
 </script>
 
 <svelte:window
@@ -94,6 +135,7 @@
   <div
     class="mini glass"
     class:dragging={!!drag && !leaving}
+    class:resizing
     style:width="{w}px"
     style:height="{h}px"
     style:transform="translate({pos.x}px, {pos.y}px)"
@@ -131,6 +173,19 @@
         <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" /></svg>
       </button>
     </div>
+    <button
+      class="grip"
+      class:left={corner.endsWith('r')}
+      onpointerdown={resizeDown}
+      onpointermove={resizeMove}
+      onpointerup={resizeUp}
+      onpointercancel={resizeUp}
+      onkeydown={resizeKey}
+      aria-label="Resize mini player ({Math.round(widthFrac * 100)}% of screen width)"
+      title="Drag to resize"
+    >
+      <svg viewBox="0 0 12 12" width="12" height="12" aria-hidden="true"><path fill="currentColor" d="M11 1v10H1v-2h8V1z" opacity=".9" /></svg>
+    </button>
   </div>
 {/if}
 
@@ -151,6 +206,37 @@
   .mini.dragging {
     transition: none;
     cursor: grabbing;
+  }
+  .mini.resizing {
+    transition: none;
+  }
+  .grip {
+    position: absolute;
+    bottom: 0;
+    right: 0;
+    width: 26px;
+    height: 26px;
+    display: grid;
+    place-items: center;
+    padding: 0;
+    border: 0;
+    background: rgb(0 0 0 / 0.45);
+    color: #fff;
+    border-top-left-radius: 10px;
+    cursor: nwse-resize;
+    touch-action: none;
+    opacity: 0.75;
+  }
+  .grip.left {
+    right: auto;
+    left: 0;
+    border-top-left-radius: 0;
+    border-top-right-radius: 10px;
+    cursor: nesw-resize;
+  }
+  .grip:hover,
+  .grip:focus-visible {
+    opacity: 1;
   }
   .host {
     position: absolute;

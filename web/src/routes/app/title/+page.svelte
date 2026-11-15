@@ -12,9 +12,8 @@
   import { handedOff, SHARED_NAME, watchHref } from '$lib/ui/handoff';
   import { spaceHref } from '$lib/nav';
   import { activeProfileId } from '$lib/data/library.svelte';
-  import { mediaFor, preloader, resume } from '$lib/player/controller';
+  import { mediaFor, prepareMedia, preloader, resume } from '$lib/player/controller';
   import DownloadButton from '$lib/download/DownloadButton.svelte';
-  import { downloads } from '$lib/download/manager.svelte';
   import { spaceForId } from '$lib/data/catalog';
   import { adult } from '$lib/adult/store.svelte';
   import AdultLock from '$lib/adult/AdultLock.svelte';
@@ -50,6 +49,7 @@
       status = 'missing';
       return;
     }
+    catalog.hintSlug(want, page.url.searchParams.get('slug'));
     catalog.item(want).then(
       (it) => {
         if (!alive) return;
@@ -129,7 +129,7 @@
       const ep = (last && eps?.find((e) => e.id === last)) || eps?.[0];
       target = ep;
       // Downloaded → warm the offline copy instead of the network stream.
-      const m = await downloads.offlineMedia(mediaFor(it, ep));
+      const m = await prepareMedia(it, ep);
       if (!alive) return;
       key = m.key;
       playKey = m.key;
