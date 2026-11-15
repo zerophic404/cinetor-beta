@@ -221,19 +221,50 @@ object GatewayLayout {
         else -> emptyList()
     }
 
-    /** Home Movies tab: `/home` sections (minus Banner = hero) with the paged `/movies` list as row 3. */
-    fun homeMovies(sections: List<GwSection>): CatSpec {
+    const val BANNER = "Banner"
+
+    /**
+     * Home "For You" tab: EVERY curated `/home` section, in gateway order, as its own row.
+     * `Banner` is excluded — it is the hero carousel. Section titles keep their emoji verbatim.
+     */
+    fun homeFeatured(sections: List<GwSection>): CatSpec {
         val s = Space.HOME
-        val rows = sections.filter { !it.section.equals("Banner", true) && it.items.isNotEmpty() }.mapIndexed { i, sec ->
+        val rows = sections.filter { !it.section.equals(BANNER, true) && it.items.isNotEmpty() }.mapIndexed { i, sec ->
             val style = when {
                 sec.section.contains("Coming Soon", true) -> RowStyle.LANDSCAPE
-                i == 1 -> RowStyle.TOP10
+                i == 0 -> RowStyle.TOP10
                 else -> RowStyle.POSTER
             }
             row(s, HOME_SECTION, sec.section, style, "section" to sec.section)
-        }.toMutableList()
-        rows.add(minOf(2, rows.size), row(s, "movies", "New Movies", RowStyle.LANDSCAPE))
-        return CatSpec("gw:home-movies", "Movies", rows)
+        }
+        return CatSpec("gw:home-featured", "For You", rows)
+    }
+
+    /** Home Movies tab: the paged `/movies` list, latest first, then per genre. */
+    fun homeMovies(): CatSpec {
+        val s = Space.HOME
+        return CatSpec(
+            "gw:home-movies", "Movies",
+            listOf(row(s, "movies", "New Movies", RowStyle.LANDSCAPE)) +
+                genres(Space.HOME).map { g -> row(s, "movies", "$g Movies", RowStyle.POSTER, "genre" to g) },
+        )
+    }
+
+    /** `/short-tv` micro-dramas (+ the two curated short sections when present). */
+    fun shortTv(sections: List<GwSection>): CatSpec {
+        val s = Space.HOME
+        val curated = sections.filter { sec ->
+            sec.items.isNotEmpty() && (sec.section.contains("Short Drama", true) || sec.section.contains("Short TV", true))
+        }.map { sec -> row(s, HOME_SECTION, sec.section, RowStyle.LANDSCAPE, "section" to sec.section) }
+        return CatSpec("gw:short-tv", "Short TV", listOf(row(s, "short-tv", "Latest Short TV", RowStyle.POSTER)) + curated)
+    }
+
+    /** `/zee-bangla` Bengali serials (+ the curated Zee Bangla section when present). */
+    fun zeeBangla(sections: List<GwSection>): CatSpec {
+        val s = Space.HOME
+        val curated = sections.filter { it.items.isNotEmpty() && it.section.contains("Zee Bangla", true) }
+            .map { sec -> row(s, HOME_SECTION, sec.section, RowStyle.LANDSCAPE, "section" to sec.section) }
+        return CatSpec("gw:zee-bangla", "Zee Bangla", listOf(row(s, "zee-bangla", "Zee Bangla Serials", RowStyle.POSTER)) + curated)
     }
 
     fun homeSeries(): CatSpec {
@@ -340,8 +371,14 @@ class GatewayCatalogSource(
         return when (space) {
             Space.HOME -> {
                 val home = api.home()
-                val banner = home.sections.firstOrNull { it.section.equals("Banner", true) }?.items.orEmpty()
-                listOf(GatewayLayout.homeMovies(home.sections), GatewayLayout.homeSeries()) to map(banner, Space.HOME, "gw:home-movies")
+                val banner = home.sections.firstOrNull { it.section.equals(GatewayLayout.BANNER, true) }?.items.orEmpty()
+                listOf(
+                    GatewayLayout.homeFeatured(home.sections),
+                    GatewayLayout.homeMovies(),
+                    GatewayLayout.homeSeries(),
+                    GatewayLayout.shortTv(home.sections),
+                    GatewayLayout.zeeBangla(home.sections),
+                ) to map(banner, Space.HOME, "gw:home-featured")
             }
             Space.ANIME -> GatewayLayout.anime() to emptyList()
             Space.DRAMA -> GatewayLayout.drama() to emptyList()
@@ -387,10 +424,11 @@ class GatewayCatalogSource(
             if (page > 1) return RowPage(emptyList(), page, false)
             val name = spec.params["section"].orEmpty()
             val sec = api.home().sections.firstOrNull { it.section == name } ?: throw NotFoundException(rowId)
-            return RowPage(map(sec.items, spec.space, "gw:home-movies"), 1, false)
+            return RowPage(map(sec.items, spec.space, "gw:home-featured"), 1, false)
         }
         val p = api.list(spec.path, spec.params, page)
-        return RowPage(map(p.items, spec.space, rowId), p.page, p.hasMore && p.items.isNotEmpty())
+        // Trust the requested page number (some gateway lists echo `page:1` for every page).
+        return RowPage(map(p.items, spec.space, rowId), page, p.hasMore && p.items.isNotEmpty())
     }
 
     override suspend fun byGenre(space: Space, genre: String): List<Item> {

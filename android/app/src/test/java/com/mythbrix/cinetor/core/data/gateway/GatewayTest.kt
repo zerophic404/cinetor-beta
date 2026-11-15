@@ -72,8 +72,17 @@ object GatewayFixtures {
     const val ADULT_LIST = """{"page":1,"per_page":48,"has_more":true,"items":[
       {"name":"Labas pasok","slug":"labas-pasok-6HqGYcQkbc4","subject_id":"3522117640984618440","rating":"6.9","year":"2026","genre":"Adult,Erotic\t","type":"movie","has_resource":true}]}"""
 
+    /** Live-captured `/home` trimmed to 2 items per section but with ALL 26 curated sections. */
+    fun fullHomeRoutes(): Map<String, String> = routes() + mapOf(
+        "home" to sample("home_full.json"),
+        "short-tv" to sample("short-tv.json"),
+        "zee-bangla" to sample("zee-bangla.json"),
+    )
+
     fun routes(): Map<String, String> = mapOf(
         "home" to sample("home.json"),
+        "short-tv" to sample("short-tv.json"),
+        "zee-bangla" to sample("zee-bangla.json"),
         "movies" to sample("movies.json"),
         "tv-series" to sample("tv-series.json"),
         "animation" to sample("animation.json"),
@@ -100,19 +109,23 @@ class GatewayTest {
     fun home_bannerIsHero_sectionsAreRows_moviesRowPaged() = runTest {
         val (http, _, gw) = env()
         val cats = gw.categories(Space.HOME)
-        assertEquals(listOf("gw:home-movies", "gw:home-series"), cats.map { it.id })
-        val movies = cats.first()
-        assertEquals(3, movies.heroIds.size) // Banner section (sample trimmed to 3) → hero carousel
-        assertTrue("heroes ${movies.heroIds}", movies.heroIds.all { it.startsWith("gw:") })
-        assertFalse("rows ${movies.rows.map { it.title }}", movies.rows.any { it.title == "Banner" })
-        assertEquals("New Movies", movies.rows[2].title)
-        assertEquals(RowStyle.TOP10, movies.rows[1].style)
-        val popular = gw.row(movies.rows.first().id)
+        assertEquals(
+            listOf("gw:home-featured", "gw:home-movies", "gw:home-series", "gw:short-tv", "gw:zee-bangla"),
+            cats.map { it.id },
+        )
+        val featured = cats.first()
+        assertEquals(3, featured.heroIds.size) // Banner section (sample trimmed to 3) → hero carousel
+        assertTrue("heroes ${featured.heroIds}", featured.heroIds.all { it.startsWith("gw:") })
+        assertFalse("rows ${featured.rows.map { it.title }}", featured.rows.any { it.title == "Banner" })
+        assertEquals(RowStyle.TOP10, featured.rows[0].style)
+        val popular = gw.row(featured.rows.first().id)
         assertEquals(3, popular.size)
         assertEquals(1, http.urls.count { it.endsWith("/home") }) // cached for the section row
-        val newMovies = gw.rowPage(movies.rows[2].id, 1)
+        val movies = cats[1]
+        assertEquals("New Movies", movies.rows.first().title)
+        val newMovies = gw.rowPage(movies.rows.first().id, 1)
         assertTrue("page1 $newMovies urls=${http.urls}", newMovies.hasMore)
-        val p2 = gw.rowPage(movies.rows[2].id, 2)
+        val p2 = gw.rowPage(movies.rows.first().id, 2)
         assertTrue(http.urls.last(), http.urls.last().contains("movies?page=2"))
         assertEquals(2, p2.page)
         val first = newMovies.items.first()
@@ -120,6 +133,36 @@ class GatewayTest {
         assertEquals(ItemType.MOVIE, first.type)
         assertNotNull(first.slug)
         assertEquals(first.poster, first.backdrop)
+    }
+
+    /** User rule: EVERY curated `/home` section becomes a row, in gateway order, Banner excluded. */
+    @Test
+    fun home_rendersAll26CuratedSectionsInOrder_plusShortTvAndZeeBangla() = runTest {
+        val http = FakeGatewayHttp(GatewayFixtures.fullHomeRoutes())
+        val api = GatewayApi(http, GatewayCache(clock = { 0L }))
+        val gw = GatewayCatalogSource(api)
+        val cats = gw.categories(Space.HOME)
+        val sections = GatewayApi.json.decodeFromString(GwHome.serializer(), GatewayFixtures.sample("home_full.json")).sections
+        assertEquals(26, sections.size)
+        val expected = sections.map { it.section }.filter { !it.equals("Banner", true) }
+        val featured = cats.first { it.id == "gw:home-featured" }
+        assertEquals(expected, featured.rows.map { it.title })
+        assertEquals(25, featured.rows.size)
+        assertEquals(2, featured.heroIds.size)
+
+        // Coming Soon's first fixture item is has_resource=false → never listed.
+        val comingSoon = featured.rows.first { it.title.contains("Coming Soon") }
+        assertEquals(1, gw.rowPage(comingSoon.id, 1).items.size)
+
+        val short = cats.first { it.id == "gw:short-tv" }
+        assertEquals(3, gw.rowPage(short.rows.first().id, 1).items.size)
+        assertTrue(http.urls.last(), http.urls.last().contains("short-tv?page=1"))
+        val zee = cats.first { it.id == "gw:zee-bangla" }
+        assertTrue(gw.rowPage(zee.rows.first().id, 1).items.isNotEmpty())
+        assertTrue(http.urls.last(), http.urls.last().contains("zee-bangla?page=1"))
+        // Curated short / Zee sections also appear inside their own tabs.
+        assertTrue(short.rows.any { it.title.contains("Short Drama") || it.title.contains("Short TV") })
+        assertTrue(zee.rows.any { it.title.contains("Zee Bangla") })
     }
 
     @Test
