@@ -183,6 +183,10 @@ data class ReaderState(
     val endOfComic: Boolean = false,
     /** Bumped whenever the chapter changes (UI scrolls/re-keys the pager). */
     val chapterGeneration: Int = 0,
+    /** Remote pages (MangaDex via gateway) are being resolved for the current chapter. */
+    val loadingPages: Boolean = false,
+    /** Set when a chapter has no pages anywhere — reader stays usable, user picks another chapter. */
+    val unavailable: String? = null,
 ) {
     val chapters: List<Chapter> get() = comic.pages
     val chapter: Chapter get() = chapters[chapterIndex]
@@ -200,6 +204,10 @@ class ReaderStateHolder(
     startChapterId: String?,
     private val store: ComicsStore,
     private val tier: PerformanceTier = PerformanceTier.MID,
+    /** Scope for lazy page resolution (null = pages are already in the model, e.g. mock comics). */
+    private val scope: CoroutineScope? = null,
+    /** Resolves a chapter's page URLs on demand; throws when the chapter has none. */
+    private val resolvePages: (suspend (Chapter) -> List<String>)? = null,
 ) {
     private val _state: MutableStateFlow<ReaderState>
     val state: StateFlow<ReaderState>
@@ -216,16 +224,52 @@ class ReaderStateHolder(
             ReaderState(comic, idx, page, store.modeOverride(comic.id) ?: def, def),
         )
         state = _state.asStateFlow()
-        save()
+        if (comic.pages[idx].pages.isEmpty()) ensurePages(idx) else save()
     }
 
     val current: ReaderState get() = _state.value
+
+    /**
+     * Fills a chapter's pages when the catalog only knows its id (MangaDex). Never throws: a chapter
+     * with no pages anywhere sets [ReaderState.unavailable] and leaves the rest of the reader working.
+     */
+    private fun ensurePages(index: Int) {
+        val s = current
+        val chapter = s.chapters.getOrNull(index) ?: return
+        if (chapter.pages.isNotEmpty()) return
+        val resolve = resolvePages
+        val sc = scope
+        if (resolve == null || sc == null) {
+            _state.update { it.copy(unavailable = CHAPTER_UNAVAILABLE, loadingPages = false) }
+            return
+        }
+        _state.update { it.copy(loadingPages = true, unavailable = null) }
+        sc.launch {
+            val urls = runCatching { resolve(chapter) }.getOrDefault(emptyList())
+            _state.update { st ->
+                if (urls.isEmpty()) {
+                    st.copy(loadingPages = false, unavailable = CHAPTER_UNAVAILABLE)
+                } else {
+                    val chapters = st.comic.pages.map { c -> if (c.id == chapter.id) c.copy(pages = urls) else c }
+                    st.copy(
+                        comic = st.comic.copy(pages = chapters),
+                        loadingPages = false,
+                        unavailable = null,
+                        page = st.page.coerceIn(0, (urls.size - 1).coerceAtLeast(0)),
+                        chapterGeneration = st.chapterGeneration + 1,
+                    )
+                }
+            }
+            if (urls.isNotEmpty()) save()
+        }
+    }
 
     /** Paths to decode ahead (next 3 pages, LOW: 1), crossing into the next chapter. */
     fun preload(): List<String> = current.let { preloadPages(it.chapters, it.chapterIndex, it.page, preloadCount(tier)) }
 
     fun onPageChanged(page: Int) {
         val s = current
+        if (s.pageCount == 0) return
         val p = page.coerceIn(0, s.pageCount - 1)
         if (p == s.page) return
         _state.value = s.copy(page = p, endOfComic = false)
@@ -234,6 +278,7 @@ class ReaderStateHolder(
 
     fun nextPage() {
         val s = current
+        if (s.pageCount == 0) return
         if (s.page < s.pageCount - 1) onPageChanged(s.page + 1) else onEndReached()
     }
 
@@ -249,6 +294,7 @@ class ReaderStateHolder(
     /** Scrolled/paged past the last page: auto-load the next chapter (or flag the end of the comic). */
     fun onEndReached() {
         val s = current
+        if (s.pageCount == 0) return
         // The chapter counts as read when its end is reached.
         if (s.page != s.pageCount - 1) {
             _state.value = s.copy(page = s.pageCount - 1)
@@ -269,16 +315,22 @@ class ReaderStateHolder(
         val s = current
         val i = index.coerceIn(0, s.chapters.size - 1)
         val saved = store.progress(s.comic.id, s.chapters[i].id)
+        val pages = s.chapters[i].pages
         val page = when {
-            last -> s.chapters[i].pages.size - 1
+            pages.isEmpty() -> 0
+            last -> pages.size - 1
             saved != null && !saved.read -> saved.page
             else -> 0
         }
         _state.value = s.copy(
-            chapterIndex = i, page = page, endOfComic = false, chapterGeneration = s.chapterGeneration + 1,
+            chapterIndex = i, page = page, endOfComic = false, unavailable = null,
+            chapterGeneration = s.chapterGeneration + 1,
         )
-        save()
+        if (pages.isEmpty()) ensurePages(i) else save()
     }
+
+    /** User retried an unavailable chapter. */
+    fun retryChapter() = ensurePages(current.chapterIndex)
 
     fun setMode(mode: ReaderMode) {
         val s = current
