@@ -1,0 +1,35 @@
+# Cinetor baseline profile (hand-written, Task 7.1): startup → home → details → player.
+# Compiled AOT by ProfileInstaller on first run (and by Play / adb install-time dexopt).
+HSPLcom/mythbrix/cinetor/CinetorApplication;->**(**)**
+HSPLcom/mythbrix/cinetor/MainActivity;->**(**)**
+HSPLcom/mythbrix/cinetor/CinetorRootKt**;->**(**)**
+Lcom/mythbrix/cinetor/core/data/**;
+HSPLcom/mythbrix/cinetor/core/data/AppContainer;->**(**)**
+HSPLcom/mythbrix/cinetor/core/data/MockCatalogSource**;->**(**)**
+HSPLcom/mythbrix/cinetor/core/data/HybridCatalog**;->**(**)**
+HSPLcom/mythbrix/cinetor/core/data/Item;->**(**)**
+HSPLcom/mythbrix/cinetor/core/data/Item$$serializer;->**(**)**
+HSPLcom/mythbrix/cinetor/core/perf/**;->**(**)**
+HSPLcom/mythbrix/cinetor/core/prefs/**;->**(**)**
+HSPLcom/mythbrix/cinetor/core/ui/**;->**(**)**
+HSPLcom/mythbrix/cinetor/design/**;->**(**)**
+HSPLcom/mythbrix/cinetor/navigation/**;->**(**)**
+HSPLcom/mythbrix/cinetor/feature/splash/**;->**(**)**
+HSPLcom/mythbrix/cinetor/feature/home/**;->**(**)**
+HSPLcom/mythbrix/cinetor/feature/details/**;->**(**)**
+HSPLcom/mythbrix/cinetor/feature/player/**;->**(**)**
+HSPLcom/mythbrix/cinetor/core/player/**;->**(**)**
+HSPLcom/mythbrix/cinetor/tvui/**;->**(**)**
+HSPLcom/mythbrix/cinetor/feature/profile/ProfileManager**;->**(**)**
+# Libraries on the startup path
+HSPLandroidx/compose/runtime/**;->**(**)**
+HSPLandroidx/compose/ui/**;->**(**)**
+HSPLandroidx/compose/foundation/**;->**(**)**
+HSPLandroidx/compose/animation/**;->**(**)**
+HSPLandroidx/compose/material3/**;->**(**)**
+HSPLandroidx/navigation/**;->**(**)**
+HSPLcoil3/**;->**(**)**
+HSPLkotlinx/serialization/json/**;->**(**)**
+HSPLkotlinx/coroutines/**;->**(**)**
+HSPLandroidx/media3/exoplayer/ExoPlayerImpl;->**(**)**
+HSPLandroidx/media3/exoplayer/ExoPlayer$Builder;->**(**)**

@@ -16,8 +16,10 @@ android {
         applicationId = "com.mythbrix.cinetor"
         minSdk = 24
         targetSdk = 35
-        versionCode = 1
-        versionName = "1.0"
+        // CI run number → monotonically increasing versionCode (updates install over older builds).
+        val run = System.getenv("GITHUB_RUN_NUMBER")?.trim()?.toIntOrNull() ?: 1
+        versionCode = run
+        versionName = (System.getenv("CINETOR_VERSION") ?: "").trim().removePrefix("v").ifEmpty { "0.1.$run" }
 
         // TMDB v4 read token from CI secret (never committed). Empty → mock catalog only.
         val tmdbToken = (System.getenv("TMDB_TOKEN") ?: "").trim().replace("\"", "")
@@ -48,8 +50,20 @@ android {
         }
         release {
             if (hasKeystore) signingConfig = signingConfigs.getByName("cinetor")
-            isMinifyEnabled = false
+            // R8 full mode (gradle.properties) + resource shrinking (Task 7.1).
+            isMinifyEnabled = true
+            isShrinkResources = true
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
+        }
+    }
+
+    // Per-ABI APKs + one universal APK (phone + TV boxes). Native code = Compose graphics-path only.
+    splits {
+        abi {
+            isEnable = true
+            reset()
+            include("arm64-v8a", "armeabi-v7a", "x86_64")
+            isUniversalApk = true
         }
     }
     compileOptions {
@@ -66,6 +80,14 @@ android {
     testOptions {
         unitTests.isReturnDefaultValues = true
     }
+}
+
+// Compose: strong skipping is on by default (Kotlin 2.0.20+); immutable catalog models declared stable.
+// Compiler stability reports/metrics → build/compose-reports (uploaded by CI for review).
+composeCompiler {
+    stabilityConfigurationFile = rootProject.layout.projectDirectory.file("compose-stability.conf")
+    reportsDestination = layout.buildDirectory.dir("compose-reports")
+    metricsDestination = layout.buildDirectory.dir("compose-reports")
 }
 
 /**
@@ -144,6 +166,8 @@ dependencies {
     implementation("androidx.room:room-ktx:2.6.1")
     ksp("androidx.room:room-compiler:2.6.1")
     implementation("androidx.work:work-runtime-ktx:2.9.1")
+    // Baseline profile (src/main/baseline-prof.txt) installed on first launch / by Play (Task 7.1).
+    implementation("androidx.profileinstaller:profileinstaller:1.4.1")
     debugImplementation("androidx.compose.ui:ui-tooling")
 
     testImplementation("junit:junit:4.13.2")
