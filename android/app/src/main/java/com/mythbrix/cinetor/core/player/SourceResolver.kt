@@ -16,6 +16,7 @@ import com.mythbrix.cinetor.core.data.Item
 import com.mythbrix.cinetor.core.data.ItemType
 import com.mythbrix.cinetor.core.data.Source
 import com.mythbrix.cinetor.core.data.SourceKind
+import com.mythbrix.cinetor.core.data.Space
 import com.mythbrix.cinetor.core.data.Sub
 import com.mythbrix.cinetor.core.data.SubFormat
 import com.mythbrix.cinetor.core.download.DownloadCacheProvider
@@ -135,7 +136,7 @@ object SourceResolver {
                     key = keyOf(item.id, ep.id),
                     itemId = item.id,
                     episodeId = ep.id,
-                    title = item.title,
+                    title = notificationTitle(item),
                     subtitle = "S$season:E${ep.n} · ${ep.title}",
                     plan = plan(src, ep.subtitles.ifEmpty { item.subtitles }),
                     durationSec = ep.durationSec,
@@ -149,7 +150,7 @@ object SourceResolver {
             key = keyOf(item.id, null),
             itemId = item.id,
             episodeId = null,
-            title = item.title,
+            title = notificationTitle(item),
             subtitle = null,
             plan = plan(src, item.subtitles),
             durationSec = item.durationSec,
@@ -157,6 +158,9 @@ object SourceResolver {
             introEndSec = item.introEndSec,
         )
     }
+
+    /** Title for MediaSession/notification metadata: adult titles are never shown outside the app. */
+    fun notificationTitle(item: Item): String = if (item.space == Space.ADULT) "Private video" else item.title
 
     fun keyOf(itemId: String, episodeId: String?): String = if (episodeId == null) itemId else "$itemId#$episodeId"
 

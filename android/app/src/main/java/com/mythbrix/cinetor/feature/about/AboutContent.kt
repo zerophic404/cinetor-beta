@@ -1,0 +1,56 @@
+package com.mythbrix.cinetor.feature.about
+
+import com.mythbrix.cinetor.core.AppLinks
+
+/** Exact About copy (Task 5.3) — covered by AboutTest; the UI renders only these strings. */
+object AboutCopy {
+    const val APP_NAME = "Cinetor"
+    const val DEVELOPED_BY = "Developed By Mythbrix"
+    const val THANKS_PREFIX = "Thanks to "
+    const val THANKS_NAME = "Ahmed Ishtiaq Zarir"
+    const val THANKS = THANKS_PREFIX + THANKS_NAME
+    const val TMDB_ATTRIBUTION = "This product uses the TMDB API but is not endorsed or certified by TMDB."
+    const val TELEGRAM_CHANNEL = "Telegram Channel"
+    const val TELEGRAM_GROUP = "Telegram Group"
+
+    fun versionLine(versionName: String, versionCode: Int, build: String): String =
+        "Version $versionName ($versionCode) · Build $build"
+}
+
+/** Tappable links of the About card. */
+enum class AboutLink(val label: String, val url: String) {
+    TELEGRAM_CHANNEL(AboutCopy.TELEGRAM_CHANNEL, AppLinks.TELEGRAM_CHANNEL_URL),
+    TELEGRAM_GROUP(AboutCopy.TELEGRAM_GROUP, AppLinks.TELEGRAM_GROUP_URL),
+    ZARIR(AboutCopy.THANKS_NAME, AppLinks.ZARIR_URL),
+}
+
+/** Opens links through [opener] (UriHandler in the app, a recorder in tests). */
+class AboutActions(private val opener: (String) -> Unit) {
+    fun open(link: AboutLink) = opener(link.url)
+}
+
+/** "Thanks to Ahmed Ishtiaq Zarir": only [start] until [end] (the name) is hyperlinked to [url]. */
+data class LinkedText(val text: String, val start: Int, val end: Int, val url: String) {
+    val linkedPart: String get() = text.substring(start, end)
+}
+
+fun thanksText(): LinkedText = LinkedText(
+    text = AboutCopy.THANKS,
+    start = AboutCopy.THANKS_PREFIX.length,
+    end = AboutCopy.THANKS.length,
+    url = AppLinks.ZARIR_URL,
+)
+
+data class OssLicense(val name: String, val license: String)
+
+/** Open-source components bundled in the APK (static list). */
+val OSS_LICENSES: List<OssLicense> = listOf(
+    OssLicense("AndroidX (Core, Activity, Lifecycle, Navigation, DataStore, Room, WorkManager)", "Apache License 2.0"),
+    OssLicense("Jetpack Compose & Material 3", "Apache License 2.0"),
+    OssLicense("Media3 ExoPlayer", "Apache License 2.0"),
+    OssLicense("Kotlin, kotlinx.coroutines, kotlinx.serialization", "Apache License 2.0"),
+    OssLicense("Coil 3", "Apache License 2.0"),
+    OssLicense("OkHttp", "Apache License 2.0"),
+    OssLicense("Haze (Chris Banes)", "Apache License 2.0"),
+    OssLicense("Palette", "Apache License 2.0"),
+)

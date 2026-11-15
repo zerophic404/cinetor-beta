@@ -84,7 +84,7 @@ fun SpaceScreen(
                 onOpen = onOpenItem,
                 onSelectTab = vm::selectTab,
                 onSelectGenre = vm::selectGenre,
-                onToggleMyList = { container.toggleMyList(it.id) },
+                onToggleMyList = { container.toggleMyList(it) },
                 onPlay = { container.playback.play(it) },
             )
         }

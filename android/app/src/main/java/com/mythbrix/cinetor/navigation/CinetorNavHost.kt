@@ -68,13 +68,27 @@ import com.mythbrix.cinetor.design.CinetorMark
 import com.mythbrix.cinetor.design.GlassLevel
 import com.mythbrix.cinetor.design.glass
 import com.mythbrix.cinetor.feature.about.AboutScreen
+import com.mythbrix.cinetor.feature.adult.AdultGate
+import com.mythbrix.cinetor.feature.adult.AdultSpace
+import com.mythbrix.cinetor.feature.comics.ComicDetails
+import com.mythbrix.cinetor.feature.comics.ComicIds
+import com.mythbrix.cinetor.feature.comics.ComicsHome
 import com.mythbrix.cinetor.feature.details.DetailsScreen
 import com.mythbrix.cinetor.feature.downloads.DownloadsScreen
 import com.mythbrix.cinetor.feature.home.SpaceScreen
+import com.mythbrix.cinetor.feature.profile.EditProfile
+import com.mythbrix.cinetor.feature.profile.LibraryScreen
 import com.mythbrix.cinetor.feature.profile.MeScreen
+import com.mythbrix.cinetor.feature.profile.ProfilePicker
 import com.mythbrix.cinetor.feature.search.SearchScreen
 import com.mythbrix.cinetor.feature.settings.SettingsScreen
 import dev.chrisbanes.haze.haze
+import com.mythbrix.cinetor.feature.music.AlbumScreen
+import com.mythbrix.cinetor.feature.music.MusicHome
+import com.mythbrix.cinetor.feature.music.MusicMiniBarHeight
+import com.mythbrix.cinetor.feature.tv.LiveTvScreen
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.map
 
 private val TopBarHeight = 56.dp
 
@@ -123,7 +137,8 @@ fun CinetorNavHost(container: AppContainer, modifier: Modifier = Modifier) {
 
     val config = LocalConfiguration.current
     val layout = navLayoutFor(config.screenWidthDp, config.screenHeightDp, container.deviceProfile.isTv)
-    val adultEnabled by container.settings.adultEnabled.collectAsStateWithLifecycle(initialValue = false)
+    // Gate state (not the raw flag): a Kids profile hides the Adult space.
+    val adultEnabled by container.adult.enabled.collectAsStateWithLifecycle()
     var switcherOpen by rememberSaveable { mutableStateOf(false) }
     BackHandler(enabled = switcherOpen) { switcherOpen = false }
 
@@ -147,17 +162,24 @@ fun CinetorNavHost(container: AppContainer, modifier: Modifier = Modifier) {
 
     val statusTop = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
     val navBottom = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
+    val musicActive by remember(container) { container.music.state.map { it.active }.distinctUntilChanged() }
+        .collectAsStateWithLifecycle(initialValue = false)
     val contentPadding = PaddingValues(
         top = statusTop + TopBarHeight + 8.dp,
-        bottom = navBottom + if (layout == NavLayout.BOTTOM_BAR) BottomBarHeight + 24.dp else 16.dp,
+        bottom = navBottom + (if (layout == NavLayout.BOTTOM_BAR) BottomBarHeight + 24.dp else 16.dp) +
+            (if (musicActive) MusicMiniBarHeight else 0.dp),
     )
     val haze = Cinetor.haze
     val tabs = navTabsFor(activeSpace)
-    val openItem: (String) -> Unit = { id -> nav.navigate(DetailsRoute(id)) }
+    val openItem: (String) -> Unit = { id ->
+        if (ComicIds.isComic(id)) nav.navigate(ComicDetailsRoute(id)) else nav.navigate(DetailsRoute(id))
+    }
     val openCard: (Item, String?) -> Unit = { item, key ->
         container.peek.put(item)
-        nav.navigate(DetailsRoute(item.id, key.orEmpty()))
+        if (item.space == Space.COMICS) nav.navigate(ComicDetailsRoute(item.id))
+        else nav.navigate(DetailsRoute(item.id, key.orEmpty()))
     }
+    val exitAdult: () -> Unit = { nav.navigateTab(HomeRoute) }
 
     Box(modifier.fillMaxSize()) {
         Row(Modifier.fillMaxSize()) {
@@ -184,14 +206,52 @@ fun CinetorNavHost(container: AppContainer, modifier: Modifier = Modifier) {
                                         onSettings = { nav.navigate(SettingsRoute) },
                                         onAbout = { nav.navigate(AboutRoute) },
                                         onDownloads = { nav.navigate(DownloadsRoute) },
+                                        onProfiles = { nav.navigate(ProfilesRoute) },
+                                        onLibrary = { nav.navigate(LibraryRoute) },
                                     )
                                 }
+                                screen<ProfilesRoute> {
+                                    ProfilePicker(
+                                        container.profiles, contentPadding,
+                                        onEdit = { nav.navigate(EditProfileRoute(it)) },
+                                        onAdd = { nav.navigate(EditProfileRoute()) },
+                                        onDone = { nav.popBackStack() },
+                                    )
+                                }
+                                screen<EditProfileRoute> { e ->
+                                    EditProfile(container.profiles, e.toRoute<EditProfileRoute>().id, contentPadding) { nav.popBackStack() }
+                                }
+                                screen<LibraryRoute> {
+                                    LibraryScreen(container.profiles, contentPadding, openItem, onClearHistory = { container.clearHistory() })
+                                }
                                 screen<SpaceRoute> { e ->
-                                    SpaceScreen(Space.valueOf(e.toRoute<SpaceRoute>().space), container, contentPadding, openCard)
+                                    when (val sp = Space.valueOf(e.toRoute<SpaceRoute>().space)) {
+                                        Space.TV -> LiveTvScreen(container, contentPadding)
+                                        Space.MUSIC -> MusicHome(container, contentPadding, onOpenAlbum = { nav.navigate(AlbumRoute(it)) })
+                                        Space.COMICS -> ComicsHome(container, contentPadding, openCard)
+                                        Space.ADULT -> AdultSpace(container.adult, contentPadding, exitAdult) {
+                                            SpaceScreen(sp, container, contentPadding, openCard)
+                                        }
+                                        else -> SpaceScreen(sp, container, contentPadding, openCard)
+                                    }
                                 }
                                 screen<SpaceSearchRoute> { e ->
-                                    SearchScreen(Space.valueOf(e.toRoute<SpaceSearchRoute>().space), container, contentPadding, openItem)
+                                    val sp = Space.valueOf(e.toRoute<SpaceSearchRoute>().space)
+                                    val open: (String) -> Unit = when (sp) {
+                                        Space.TV -> { id -> container.playTvById(id) }
+                                        Space.MUSIC -> { id -> if (id.startsWith("mu-al")) nav.navigate(AlbumRoute(id)) else container.music.playById(id) }
+                                        else -> openItem
+                                    }
+                                    if (sp == Space.ADULT) {
+                                        AdultSpace(container.adult, contentPadding, exitAdult) {
+                                            SearchScreen(sp, container, contentPadding, open)
+                                        }
+                                    } else {
+                                        SearchScreen(sp, container, contentPadding, open)
+                                    }
                                 }
+                                screen<AlbumRoute> { e -> AlbumScreen(e.toRoute<AlbumRoute>().id, container, contentPadding) }
+                                screen<ComicDetailsRoute> { e -> ComicDetails(e.toRoute<ComicDetailsRoute>().id, container, contentPadding) }
                                 composable<DetailsRoute>(
                                     enterTransition = {
                                         fadeIn(tween(260)) + scaleIn(tween(320, easing = CinetorTokens.Motion.emphasized), initialScale = 0.94f)
@@ -202,10 +262,22 @@ fun CinetorNavHost(container: AppContainer, modifier: Modifier = Modifier) {
                                 ) { e ->
                                     CompositionLocalProvider(LocalNavAnimatedScope provides this) {
                                         val r = e.toRoute<DetailsRoute>()
-                                        DetailsScreen(r.id, r.origin, container, contentPadding, openCard)
+                                        if (AdultGate.isAdultId(r.id)) {
+                                            AdultSpace(container.adult, contentPadding, exitAdult) {
+                                                DetailsScreen(r.id, r.origin, container, contentPadding, openCard)
+                                            }
+                                        } else {
+                                            DetailsScreen(r.id, r.origin, container, contentPadding, openCard)
+                                        }
                                     }
                                 }
-                                screen<SettingsRoute> { SettingsScreen(contentPadding, container.settings) }
+                                screen<SettingsRoute> {
+                                    SettingsScreen(
+                                        container, contentPadding,
+                                        onProfiles = { nav.navigate(ProfilesRoute) },
+                                        onAbout = { nav.navigate(AboutRoute) },
+                                    )
+                                }
                                 screen<AboutRoute> { AboutScreen(contentPadding) }
                                 screen<DownloadsRoute> {
                                     DownloadsScreen(container.downloads, contentPadding, openItem, onPlay = { container.playDownload(it) })

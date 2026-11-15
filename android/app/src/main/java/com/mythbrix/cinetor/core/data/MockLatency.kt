@@ -16,7 +16,11 @@ class MockLatency(
         require(minMs >= 0 && maxMs >= minMs) { "Invalid latency range $minMs..$maxMs" }
     }
 
-    fun nextMs(): Long = if (maxMs == 0L) 0L else random.nextLong(minMs, maxMs + 1)
+    /** Settings → Developer → Mock latency. */
+    @Volatile
+    var enabled: Boolean = true
+
+    fun nextMs(): Long = if (!enabled || maxMs == 0L) 0L else random.nextLong(minMs, maxMs + 1)
 
     suspend fun await() {
         val ms = nextMs()

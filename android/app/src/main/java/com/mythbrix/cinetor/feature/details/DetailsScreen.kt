@@ -220,7 +220,7 @@ fun DetailsScreen(
                                 else -> optionsTarget = DownloadTarget(item)
                             }
                         },
-                        onToggleMyList = { container.toggleMyList(item.id) },
+                        onToggleMyList = { container.toggleMyList(item) },
                         onShare = {
                             val send = Intent(Intent.ACTION_SEND).apply {
                                 type = "text/plain"

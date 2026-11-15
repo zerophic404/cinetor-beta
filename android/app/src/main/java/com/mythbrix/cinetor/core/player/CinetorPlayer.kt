@@ -56,6 +56,13 @@ interface CinetorPlayer {
     }
     fun setSpeed(speed: Float)
 
+    /** Live: jump to the live edge (default position); VOD: to the end of the seekable window. */
+    fun goLive() {
+        val s = state.value
+        if (s.durationMs > 0) seekTo(s.durationMs)
+        play()
+    }
+
     /** Null = Auto (adaptive). */
     fun selectQuality(height: Int?)
     fun selectAudio(trackId: String)
@@ -144,6 +151,9 @@ class ExoCinetorPlayer(
                 speed = exo.playbackParameters.speed,
                 videoWidth = vs.width,
                 videoHeight = vs.height,
+                isLive = exo.isCurrentMediaItemLive,
+                seekable = exo.isCurrentMediaItemSeekable,
+                liveOffsetMs = exo.currentLiveOffset.takeIf { it != C.TIME_UNSET } ?: -1,
             )
         }
     }
@@ -186,6 +196,12 @@ class ExoCinetorPlayer(
     }
 
     override fun pause() = exo.pause()
+
+    override fun goLive() {
+        if (exo.isCurrentMediaItemLive) exo.seekToDefaultPosition() else super.goLive()
+        exo.play()
+        refresh()
+    }
 
     override fun seekTo(positionMs: Long) {
         exo.seekTo(positionMs.coerceAtLeast(0))

@@ -56,6 +56,10 @@
             android:name=".core.download.CinetorDownloadService"
             android:exported="false"
             android:foregroundServiceType="dataSync" />
+        <!-- Sports kick-off reminders (Task 4.1): inexact alarm → local notification. -->
+        <receiver
+            android:name=".feature.tv.SportsReminderReceiver"
+            android:exported="false" />
         <!-- WorkManager foreground (ResumeDownloadsWorker) needs the dataSync type too. -->
         <service
             android:name="androidx.work.impl.foreground.SystemForegroundService"

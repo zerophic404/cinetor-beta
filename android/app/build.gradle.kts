@@ -22,6 +22,9 @@ android {
         // TMDB v4 read token from CI secret (never committed). Empty → mock catalog only.
         val tmdbToken = (System.getenv("TMDB_TOKEN") ?: "").trim().replace("\"", "")
         buildConfigField("String", "TMDB_TOKEN", "\"$tmdbToken\"")
+        // CI run number shown in About (Task 5.3); "local" outside Actions.
+        val buildNumber = (System.getenv("GITHUB_RUN_NUMBER") ?: "local").trim()
+        buildConfigField("String", "BUILD_NUMBER", "\"$buildNumber\"")
     }
 
     // Release keystore (PKCS12) from CI secrets; same key for debug so builds update in place.

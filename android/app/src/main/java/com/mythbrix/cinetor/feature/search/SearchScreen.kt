@@ -63,10 +63,11 @@ fun SearchScreen(
     contentPadding: PaddingValues,
     onOpenItem: (String) -> Unit,
 ) {
+    val profileId = container.activeProfileId
     val vm: SearchViewModel = viewModel(
-        key = "search-${space?.name ?: "global"}",
+        key = "search-${space?.name ?: "global"}-$profileId",
         factory = viewModelFactory {
-            initializer { SearchViewModel(container.searchEngine, container.searchHistory, space) }
+            initializer { SearchViewModel(container.searchEngine, container.searchHistory, space, profileId) }
         },
     )
     val tokens = Cinetor.tokens
