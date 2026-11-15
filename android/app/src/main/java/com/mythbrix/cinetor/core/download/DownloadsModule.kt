@@ -123,7 +123,9 @@ class DownloadsModule(
     /** Probes a source for the options sheet: HEAD size (progressive) or Media3 tracks (HLS/DASH). */
     suspend fun options(source: Source, durationSec: Long): Pair<List<QualityOption>, StreamTrackInfo?> {
         val kind = downloadKindOf(source.kind) ?: return emptyList<QualityOption>() to null
-        return if (kind == DownloadKind.PROGRESSIVE) {
+        return if (kind == DownloadKind.PROGRESSIVE && (source.sizeBytes ?: 0) > 0) {
+            qualityOptions(source, null, durationSec) to null
+        } else if (kind == DownloadKind.PROGRESSIVE) {
             val len = withContext(Dispatchers.IO) {
                 runCatching { OkHttpRangeHttp(client).probe(source.url, source.headers).contentLength }.getOrDefault(-1L)
             }

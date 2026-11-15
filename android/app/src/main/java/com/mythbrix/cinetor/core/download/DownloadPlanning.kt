@@ -46,9 +46,11 @@ data class DownloadChoice(
 fun qualityOptions(source: Source, tracks: StreamTrackInfo?, durationSec: Long, contentLength: Long = -1): List<QualityOption> {
     val kind = downloadKindOf(source.kind) ?: return emptyList()
     if (kind == DownloadKind.PROGRESSIVE) {
-        val est = if (contentLength > 0) contentLength else -1
+        val est = if (contentLength > 0) contentLength else source.sizeBytes ?: -1
         val base = source.label?.takeIf { it.isNotBlank() } ?: source.kind.name
-        return listOf(QualityOption(source, kind, "Original · $base", estimatedBytes = est))
+        // Gateway sources carry their resolution + real size → "1080p · MP4".
+        val label = if (source.height != null) base else "Original · $base"
+        return listOf(QualityOption(source, kind, label, height = source.height, codecs = source.codec, estimatedBytes = est))
     }
     val dur = if (tracks != null && tracks.durationSec > 0) tracks.durationSec else durationSec
     val videos = tracks?.videos.orEmpty().filter { it.height > 0 }.distinctBy { it.height }

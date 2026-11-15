@@ -17,7 +17,11 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowRight
+import androidx.compose.material.icons.rounded.AutoStories
 import androidx.compose.material.icons.rounded.Download
+import androidx.compose.material.icons.rounded.LiveTv
+import androidx.compose.material.icons.rounded.Lock
+import androidx.compose.material.icons.rounded.MusicNote
 import androidx.compose.material.icons.rounded.Info
 import androidx.compose.material.icons.rounded.Palette
 import androidx.compose.material.icons.rounded.People
@@ -62,6 +66,9 @@ fun MeScreen(
     onDownloads: () -> Unit = {},
     onProfiles: () -> Unit = {},
     onLibrary: () -> Unit = {},
+    /** Isolated spaces (Live TV & Sports, Music, Comics, 18+ when enabled) — the old top switcher. */
+    spaces: List<com.mythbrix.cinetor.core.data.Space> = emptyList(),
+    onSpace: (com.mythbrix.cinetor.core.data.Space) -> Unit = {},
 ) {
     val tokens = Cinetor.tokens
     val scope = rememberCoroutineScope()
@@ -95,6 +102,7 @@ fun MeScreen(
                 )
             }
         }
+        if (spaces.isNotEmpty()) SpacesSection(spaces, onSpace)
         MeRow(Icons.Rounded.People, "Switch profile", "Add, edit or switch profiles", onProfiles)
         MeRow(Icons.Rounded.VideoLibrary, "Library", "My List ${watchlist.size} · history", onLibrary)
         val dl by container.downloads.visible.collectAsStateWithLifecycle()
@@ -117,6 +125,51 @@ fun MeScreen(
             color = tokens.textTertiary,
             modifier = Modifier.padding(horizontal = 4.dp),
         )
+    }
+}
+
+/** Glass "Spaces" card: one row per isolated space; opening one enters it (back returns here). */
+@Composable
+private fun SpacesSection(spaces: List<com.mythbrix.cinetor.core.data.Space>, onSpace: (com.mythbrix.cinetor.core.data.Space) -> Unit) {
+    val tokens = Cinetor.tokens
+    Column(
+        Modifier
+            .fillMaxWidth()
+            .glass(RoundedCornerShape(18.dp), GlassLevel.SURFACE)
+            .semantics { contentDescription = "Spaces" }
+            .padding(vertical = 8.dp),
+    ) {
+        Text(
+            "Spaces",
+            style = MaterialTheme.typography.labelLarge,
+            color = tokens.textSecondary,
+            modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp),
+        )
+        spaces.forEach { sp ->
+            val (title, sub) = com.mythbrix.cinetor.navigation.spaceEntryLabel(sp)
+            val icon = when (sp) {
+                com.mythbrix.cinetor.core.data.Space.TV -> Icons.Rounded.LiveTv
+                com.mythbrix.cinetor.core.data.Space.MUSIC -> Icons.Rounded.MusicNote
+                com.mythbrix.cinetor.core.data.Space.COMICS -> Icons.Rounded.AutoStories
+                else -> Icons.Rounded.Lock
+            }
+            Row(
+                Modifier
+                    .fillMaxWidth()
+                    .clickable { onSpace(sp) }
+                    .semantics { contentDescription = "Space $title" }
+                    .padding(horizontal = 16.dp, vertical = 12.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(14.dp),
+            ) {
+                Icon(icon, contentDescription = null, tint = tokens.accent)
+                Column(Modifier.weight(1f)) {
+                    Text(title, style = MaterialTheme.typography.titleMedium, color = tokens.textPrimary)
+                    Text(sub, style = MaterialTheme.typography.bodySmall, color = tokens.textSecondary)
+                }
+                Icon(Icons.AutoMirrored.Rounded.KeyboardArrowRight, contentDescription = null, tint = tokens.textSecondary)
+            }
+        }
     }
 }
 

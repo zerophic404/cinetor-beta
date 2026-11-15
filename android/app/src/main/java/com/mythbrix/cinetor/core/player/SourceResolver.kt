@@ -119,7 +119,8 @@ object SourceResolver {
 
     /** Best source: HLS/DASH first (adaptive), then the rest in catalog order. */
     fun pickSource(sources: List<Source>): Source? =
-        sources.firstOrNull { it.kind == SourceKind.HLS || it.kind == SourceKind.DASH } ?: sources.firstOrNull()
+        // Gateway sources arrive pre-sorted for the quality cap (GatewaySourceResolver.sortSources).
+        if (sources.any { it.height != null }) sources.firstOrNull() else sources.firstOrNull { it.kind == SourceKind.HLS || it.kind == SourceKind.DASH } ?: sources.firstOrNull()
 
     /** All episodes of [item] in watch order. */
     fun episodes(item: Item): List<Episode> = item.seasons.flatMap { it.episodes }

@@ -61,6 +61,8 @@ class MediaPlaybackPreloader(
     private val dataSaver: () -> Boolean = { false },
     private val clock: () -> Long = System::currentTimeMillis,
     private val log: (String) -> Unit = {},
+    /** Attaches real sources right before resolving (gateway streams expire → resolved per warm). */
+    private val prepare: suspend (Item, String?) -> Item = { item, _ -> item },
 ) : PlaybackPreloader {
     private val _readiness = MutableStateFlow<Map<String, Readiness>>(emptyMap())
     override val readiness: StateFlow<Map<String, Readiness>> = _readiness.asStateFlow()
@@ -215,7 +217,15 @@ class MediaPlaybackPreloader(
         set(item.id, Readiness.RESOLVING)
         s.job = scope.launch {
             val entry = lookup(item.id, episodeId)
-            val req = SourceResolver.request(item, episodeId ?: entry?.episodeId)
+            val target = episodeId ?: entry?.episodeId
+            val prepared = try {
+                prepare(item, target)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                item
+            }
+            val req = SourceResolver.request(prepared, target)
             if (req == null) {
                 set(item.id, Readiness.ERROR)
                 return@launch

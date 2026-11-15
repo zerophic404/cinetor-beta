@@ -36,6 +36,8 @@ fun ContentRow(
     onOpen: (Item, String?) -> Unit,
     onTint: (Color) -> Unit,
     modifier: Modifier = Modifier,
+    /** Paged rows (gateway lists): called once the user scrolls near the end. */
+    onNearEnd: (() -> Unit)? = null,
 ) {
     val tokens = Cinetor.tokens
     val resumeEntries = com.mythbrix.cinetor.core.ui.LocalResumeEntries.current
@@ -48,6 +50,14 @@ fun ContentRow(
         row.items
     }
     val state = rememberLazyListState()
+    if (onNearEnd != null) {
+        LaunchedEffect(state, rowItems.size) {
+            snapshotFlow { (state.layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: 0) >= rowItems.size - 5 }
+                .distinctUntilChanged()
+                .filter { it && rowItems.size >= 10 }
+                .collect { onNearEnd() }
+        }
+    }
     LaunchedEffect(state, row) {
         snapshotFlow { state.isScrollInProgress to state.firstVisibleItemIndex }
             .filter { it.first }

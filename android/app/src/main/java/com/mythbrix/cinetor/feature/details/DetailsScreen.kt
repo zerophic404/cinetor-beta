@@ -290,6 +290,15 @@ fun DetailsScreen(
             module = container.downloads,
             onDismiss = { optionsTarget = null },
             onStarted = { n -> Toast.makeText(context, if (n > 1) "$n downloads queued" else "Download started", Toast.LENGTH_SHORT).show() },
+            resolve = if (container.streams.handles(target.item)) {
+                { item, ep ->
+                    val attached = container.streams.attach(item, ep?.id)
+                    if (ep == null) attached.sources
+                    else com.mythbrix.cinetor.core.player.SourceResolver.episodes(attached).firstOrNull { it.id == ep.id }?.sources.orEmpty()
+                }
+            } else {
+                null
+            },
         )
     }
     dlDetailsId?.let { dlId ->

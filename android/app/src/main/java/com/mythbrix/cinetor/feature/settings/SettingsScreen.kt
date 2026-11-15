@@ -197,6 +197,16 @@ fun SettingsScreen(
             Toggle("Mock latency", "Simulated 0.3–1.2 s delay on the mock catalog (shows skeletons)", s.mockLatency) { v ->
                 set { it.copy(mockLatency = v) }
             }
+            var gatewayUrl by androidx.compose.runtime.saveable.rememberSaveable { androidx.compose.runtime.mutableStateOf(s.gatewayUrl) }
+            androidx.compose.material3.OutlinedTextField(
+                value = gatewayUrl,
+                onValueChange = { v -> gatewayUrl = v; set { it.copy(gatewayUrl = v.trim()) } },
+                label = { Text("Gateway URL") },
+                placeholder = { Text(com.mythbrix.cinetor.core.data.gateway.GatewayConfig.BASE_URL) },
+                supportingText = { Text("Blank = default. Catalog + streams for Home, Anime, Drama, 18+") },
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp).semantics { contentDescription = "Gateway URL" },
+            )
         }
 
         Group("About") {

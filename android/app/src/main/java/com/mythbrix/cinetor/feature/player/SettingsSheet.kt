@@ -51,7 +51,10 @@ enum class SettingsPage { MAIN, QUALITY, SPEED, AUDIO, SUBTITLES, SLEEP }
 fun speedLabel(speed: Float): String =
     if (speed == 1f) "Normal" else (if (speed % 1f == 0f) "${speed.toInt()}" else speed.toString().trimEnd('0')) + "×"
 
-fun qualityLabel(ui: PlayerUiState): String {
+fun qualityLabel(ui: PlayerUiState, screen: PlayerScreenState? = null): String {
+    screen?.sources?.getOrNull(screen.sourceIndex)?.let { src ->
+        if (screen.sources.size > 1 && ui.tracks.forcedHeight == null) return src.label ?: "Source ${screen.sourceIndex + 1}"
+    }
     val t = ui.tracks
     return t.forcedHeight?.let { "${it}p" } ?: ("Auto" + (t.playingHeight?.takeIf { it > 0 }?.let { " (${it}p)" } ?: ""))
 }
@@ -89,7 +92,7 @@ fun SettingsSheet(
                     val subLabel = extras.sideLoadedLabel
                         ?: ui.tracks.text.firstOrNull { it.selected }?.label
                         ?: "Off"
-                    SheetRow(Icons.Rounded.HighQuality, "Quality", qualityLabel(ui)) { page = SettingsPage.QUALITY }
+                    SheetRow(Icons.Rounded.HighQuality, "Quality", qualityLabel(ui, screen)) { page = SettingsPage.QUALITY }
                     SheetRow(Icons.Rounded.Speed, "Playback speed", speedLabel(ui.speed)) { page = SettingsPage.SPEED }
                     SheetRow(Icons.Rounded.Audiotrack, "Audio", ui.tracks.audio.firstOrNull { it.selected }?.label ?: "Default") {
                         page = SettingsPage.AUDIO
@@ -99,6 +102,18 @@ fun SettingsSheet(
                 }
                 SettingsPage.QUALITY -> SubPage("Quality", { page = SettingsPage.MAIN }) {
                     val t = ui.tracks
+                    // Provider sources (gateway resolutions): switching keeps the position.
+                    if (screen.sources.size > 1) {
+                        item { Text("Source", color = Color.White.copy(alpha = 0.6f), modifier = Modifier.padding(horizontal = 20.dp, vertical = 4.dp)) }
+                        items(screen.sources.size, key = { "src$it" }) { i ->
+                            val src = screen.sources[i]
+                            val size = src.sizeBytes?.let { b -> " · " + "%.1f GB".format(b / 1_073_741_824.0).replace(" 0.", " 0.") }.orEmpty()
+                            Choice((src.label ?: "Source ${i + 1}") + size, screen.sourceIndex == i) {
+                                holder.selectSource(i); page = SettingsPage.MAIN
+                            }
+                        }
+                        if (t.video.isNotEmpty()) item { Text("Stream tracks", color = Color.White.copy(alpha = 0.6f), modifier = Modifier.padding(horizontal = 20.dp, vertical = 4.dp)) }
+                    }
                     val auto = "Auto" + (t.playingHeight?.takeIf { it > 0 }?.let { " (${it}p)" } ?: "")
                     item { Choice(auto, t.autoQuality) { holder.selectQuality(null); page = SettingsPage.MAIN } }
                     items(t.video, key = { it.height }) { q ->

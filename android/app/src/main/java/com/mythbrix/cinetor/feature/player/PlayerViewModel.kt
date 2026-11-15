@@ -4,6 +4,7 @@ import androidx.compose.runtime.Immutable
 import com.mythbrix.cinetor.core.data.Episode
 import com.mythbrix.cinetor.core.data.Item
 import com.mythbrix.cinetor.core.data.ItemType
+import com.mythbrix.cinetor.core.data.Source
 import com.mythbrix.cinetor.core.player.CinetorPlayer
 import com.mythbrix.cinetor.core.player.DEFAULT_PROFILE
 import com.mythbrix.cinetor.core.player.PlaybackPhase
@@ -76,6 +77,11 @@ data class PlayerScreenState(
     val channels: List<Item> = emptyList(),
     /** Digits typed on a TV remote (OSD) before jumping to that channel number. */
     val channelInput: String? = null,
+    /** User-facing notice instead of a stream (e.g. "No source available"). */
+    val notice: String? = null,
+    /** Provider sources of the loaded title/episode (gateway resolutions) for the quality menu. */
+    val sources: List<Source> = emptyList(),
+    val sourceIndex: Int = 0,
 ) {
     val active: Boolean get() = mode != HostMode.HIDDEN && item != null
     val episodes: List<Episode> get() = item?.let { SourceResolver.episodes(it) }.orEmpty()
@@ -111,6 +117,12 @@ class PlayerStateHolder(
     private val channelEntryMs: Long = 1_500,
     /** Settings → Playback → Autoplay next episode. */
     private val autoplayNext: () -> Boolean = { true },
+    /** Items whose sources are resolved at play time (gateway / TMDB-origin). */
+    private val needsPrepare: (Item) -> Boolean = { false },
+    /** Attach real sources (fresh = bypass the stream cache, used after a playback error). */
+    private val prepare: suspend (Item, String?, Boolean) -> Item = { item, _, _ -> item },
+    /** Last resort after a failed re-resolve: the gateway proxy source. */
+    private val fallbackFor: (Item, String?) -> Item? = { _, _ -> null },
 ) {
     private val _state = MutableStateFlow(PlayerScreenState())
     val state: StateFlow<PlayerScreenState> = _state.asStateFlow()
@@ -132,6 +144,12 @@ class PlayerStateHolder(
     private var autoplayCancelledFor: String? = null
     private var lineupOverride: List<Item>? = null
     private var digitJob: Job? = null
+    private var recoverJob: Job? = null
+    private var recoverAttempts = 0
+
+    /** Error recoveries done for the current load (diagnostics/tests). */
+    var recoveries: Int = 0
+        private set
 
     val playback: PlayerUiState get() = _player.value?.state?.value ?: PlayerUiState()
 
@@ -166,6 +184,32 @@ class PlayerStateHolder(
         (item.type == ItemType.SERIES && item.seasons.isEmpty()) || (item.sources.isEmpty() && item.seasons.isEmpty())
 
     private fun start(item: Item, episodeId: String?) {
+        if (!needsPrepare(item)) return startNow(item, episodeId)
+        val prev = _state.value
+        if (prev.item != null && _player.value != null) {
+            saveNow()
+            _player.value?.pause()
+        }
+        _state.update { it.copy(mode = HostMode.FULL, item = item, title = item.title, notice = null) }
+        resolveJob = scope.launch {
+            val prepared = try {
+                prepare(item, episodeId, false)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                item
+            }
+            startNow(prepared, episodeId)
+        }
+    }
+
+    private fun sourcesOf(item: Item, episodeId: String?): List<Source> {
+        val ep = SourceResolver.episodes(item).let { eps -> eps.firstOrNull { it.id == episodeId } ?: if (episodeId == null) eps.firstOrNull() else null }
+        val list = ep?.sources?.ifEmpty { null } ?: item.sources
+        return if (list.any { it.height != null }) list else emptyList()
+    }
+
+    private fun startNow(item: Item, episodeId: String?) {
         val prev = _state.value
         if (prev.item != null && _player.value != null) {
             saveNow() // previous title keeps its position
@@ -173,6 +217,17 @@ class PlayerStateHolder(
         }
         cancelJobs()
         autoplayCancelledFor = null
+        recoverAttempts = 0
+        if (needsPrepare(item) && SourceResolver.request(item, episodeId) == null) {
+            // Gateway / resolver found nothing playable: tell the user instead of spinning forever.
+            _player.value?.let { preloader.release(prev.item?.id ?: item.id) }
+            _player.value = null
+            _state.value = PlayerScreenState(
+                mode = HostMode.FULL, item = item, title = item.title, aspect = prev.aspect,
+                generation = prev.generation + 1, notice = "No source available",
+            )
+            return
+        }
         val p = preloader.open(item, episodeId) ?: run {
             _state.update { it.copy(mode = HostMode.HIDDEN) }
             return
@@ -198,6 +253,7 @@ class PlayerStateHolder(
                 generation = prev.generation + 1,
                 live = live,
                 channels = lineup,
+                sources = sourcesOf(item, req?.episodeId),
             )
         }
         watch(p, item)
@@ -208,6 +264,8 @@ class PlayerStateHolder(
         saveJob?.cancel()
         countdownJob?.cancel()
         sleepJob?.cancel()
+        recoverJob?.cancel()
+        recoverJob = null
         watchJob = null
         saveJob = null
         countdownJob = null
@@ -225,18 +283,37 @@ class PlayerStateHolder(
                 if (key != lastKey) {
                     lastKey = key
                     endedHandled = false
+                    recoverAttempts = 0
                     val epId = key.substringAfter('#', "").ifEmpty { null }
-                    val req = SourceResolver.request(item, epId)
+                    val current = _state.value.item?.takeIf { it.id == item.id } ?: item
+                    val req = SourceResolver.request(current, epId)
                     _state.update {
                         it.copy(
                             episodeId = epId,
                             subtitle = req?.subtitle,
                             introStartMs = req?.introStartSec?.let { s -> s * 1000L },
                             introEndMs = req?.introEndSec?.let { s -> s * 1000L },
-                            nextEpisode = SourceResolver.nextEpisode(item, epId),
+                            nextEpisode = SourceResolver.nextEpisode(current, epId),
                             subs = req?.plan?.subtitles.orEmpty(),
+                            sources = sourcesOf(current, epId),
+                            sourceIndex = 0,
                         )
                     }
+                    // Resume picked another episode than the one prepared: fetch its sources/subs for the menus.
+                    if (needsPrepare(current) && epId != null && sourcesOf(current, epId).isEmpty()) {
+                        scope.launch {
+                            val fresh = runCatching { prepare(current, epId, false) }.getOrNull() ?: return@launch
+                            val r = SourceResolver.request(fresh, epId)
+                            _state.update { s ->
+                                if (s.item?.id != fresh.id || s.episodeId != epId) s
+                                else s.copy(item = fresh, subs = r?.plan?.subtitles.orEmpty(), sources = sourcesOf(fresh, epId))
+                            }
+                        }
+                    }
+                }
+                if (st.phase == PlaybackPhase.READY) recoverAttempts = 0
+                if (st.error != null && recoverJob?.isActive != true && recoverAttempts < 2 && needsPrepare(item)) {
+                    recover(p, key, st.positionMs)
                 }
                 if (st.phase == PlaybackPhase.ENDED && !endedHandled) {
                     endedHandled = true
@@ -362,6 +439,49 @@ class PlayerStateHolder(
     fun setSpeed(speed: Float) = _player.value?.setSpeed(speed)
     fun selectQuality(height: Int?) = _player.value?.selectQuality(height)
     fun selectAudio(trackId: String) = _player.value?.selectAudio(trackId)
+
+    /** Quality menu: switch to provider source [index] (gateway resolution), keeping the position. */
+    fun selectSource(index: Int) {
+        val s = _state.value
+        val item = s.item ?: return
+        val src = s.sources.getOrNull(index) ?: return
+        val p = _player.value ?: return
+        val req = SourceResolver.request(item, s.episodeId) ?: return
+        val plan = SourceResolver.plan(src, emptyList()).copy(subtitles = req.plan.subtitles)
+        val pos = p.state.value.positionMs
+        p.load(req.copy(plan = plan), pos, playWhenReady = true)
+        _state.update { it.copy(sourceIndex = index) }
+    }
+
+    /**
+     * Playback error (expired link / 403 …) on a resolved title: 1st → re-resolve fresh and reload at the
+     * same position (same resolution when offered), 2nd → gateway proxy (`direct_play_url`), then give up.
+     */
+    private fun recover(p: CinetorPlayer, key: String, positionMs: Long) {
+        val s = _state.value
+        val item = s.item ?: return
+        val epId = key.substringAfter('#', "").ifEmpty { null }
+        val wantHeight = s.sources.getOrNull(s.sourceIndex)?.height
+        recoverAttempts++
+        recoveries++
+        val attempt = recoverAttempts
+        recoverJob = scope.launch {
+            val next = if (attempt == 1) {
+                runCatching { prepare(item, epId, true) }.getOrNull()
+            } else {
+                fallbackFor(item, epId)
+            } ?: if (attempt == 1) fallbackFor(item, epId) else null
+            next ?: return@launch
+            val req = SourceResolver.request(next, epId) ?: return@launch
+            val sources = sourcesOf(next, epId)
+            val idx = sources.indexOfFirst { wantHeight != null && it.height == wantHeight }.coerceAtLeast(0)
+            val chosen = sources.getOrNull(idx)
+            val plan = chosen?.let { SourceResolver.plan(it, emptyList()).copy(subtitles = req.plan.subtitles) } ?: req.plan
+            if (_player.value !== p || _state.value.item?.id != item.id) return@launch
+            p.load(req.copy(plan = plan), positionMs, playWhenReady = true)
+            _state.update { it.copy(item = next, sources = sources, sourceIndex = idx) }
+        }
+    }
     fun selectText(trackId: String?) = _player.value?.selectText(trackId)
 
     fun skipIntro() {

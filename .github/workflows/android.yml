@@ -80,9 +80,10 @@ jobs:
           cp app/build/outputs/apk/debug/*universal*.apk "out-debug/Cinetor-$V-debug-universal.apk"
           ls -la out out-debug
           U=$(ls out/*-universal.apk)
-          # Mock catalog must be bundled from shared/mock (generated assets, not in git)
-          unzip -l "$U" | grep -q 'assets/mock/home.json'
-          unzip -l "$U" | grep -q 'assets/mock/images/posters/'
+          # Only isolated-space mock catalogs are bundled (video/adult spaces = gateway only)
+          unzip -l "$U" | grep -q 'assets/mock/tv.json'
+          unzip -l "$U" | grep -q 'assets/mock/comics.json'
+          if unzip -l "$U" | grep -qE 'assets/mock/(home|anime|drama|adult)\.json'; then echo "::error::video mock bundled"; exit 1; fi
           echo "mock assets: $(unzip -l "$U" | grep -c 'assets/mock/') files"
           unzip -l "$U" | grep -q 'assets/dexopt/baseline.prof' && echo "baseline profile: bundled"
           # TV packaging (Task 6.1): leanback launcher + banner, touch/leanback/PiP optional.

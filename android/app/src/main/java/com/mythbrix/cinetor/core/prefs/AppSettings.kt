@@ -50,6 +50,8 @@ data class AppSettings(
     val bannerAutoplay: Boolean = true,
     // Developer
     val mockLatency: Boolean = true,
+    /** Gateway base URL override ("" = GatewayConfig.BASE_URL). */
+    val gatewayUrl: String = "",
 ) {
     /** Clamp to the options the UI offers (old / corrupted blobs never reach the player out of range). */
     fun normalized(): AppSettings = copy(

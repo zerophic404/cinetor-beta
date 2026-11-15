@@ -119,6 +119,36 @@ class SpaceStateHolder(
     private var genre: String? = null
     private var job: Job? = null
 
+    /** Next page to fetch per row id; absent = page 2; -1 = no more. */
+    private val nextPage = HashMap<String, Int>()
+    private val pageJobs = HashMap<String, Job>()
+
+    /** Row scrolled near its end: fetch the next gateway page and append (no-op for non-paged rows). */
+    fun loadMore(rowId: String) {
+        val paged = catalog as? com.mythbrix.cinetor.core.data.gateway.PagedCatalog ?: return
+        val page = nextPage[rowId] ?: 2
+        if (page < 0 || pageJobs[rowId]?.isActive == true) return
+        val tabId = tabs.getOrNull(selected)?.id ?: return
+        pageJobs[rowId] = scope.launch {
+            val result = orNull { paged.rowPage(rowId, page) } ?: return@launch
+            nextPage[rowId] = if (result.hasMore && result.items.isNotEmpty()) page + 1 else -1
+            val content = cache[tabId] ?: return@launch
+            val rows = content.rows.map { r ->
+                if (r.id != rowId) r else r.copy(items = (r.items + result.items).distinctBy { it.id })
+            }
+            val updated = TabContent(content.heroes, rows)
+            cache[tabId] = updated
+            if (tabs.getOrNull(selected)?.id == tabId && _state.value is SpaceUiState.Ready) {
+                _state.value = SpaceUiState.Ready(ui(updated))
+            }
+        }
+    }
+
+    private fun friendly(e: Exception): String = when (e) {
+        is java.io.IOException -> "Can't reach the catalog right now. Check your connection and retry."
+        else -> e.message ?: "Failed to load"
+    }
+
     fun load() {
         job?.cancel()
         job = scope.launch {
@@ -134,7 +164,7 @@ class SpaceStateHolder(
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
-                SpaceUiState.Error(e.message ?: "Failed to load")
+                SpaceUiState.Error(friendly(e))
             }
         }
     }
@@ -160,7 +190,7 @@ class SpaceStateHolder(
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
-                _state.value = SpaceUiState.Error(e.message ?: "Failed to load")
+                _state.value = SpaceUiState.Error(friendly(e))
                 return@launch
             }
             if (selected == index) _state.value = SpaceUiState.Ready(ui(content))
@@ -225,4 +255,5 @@ class SpaceViewModel(space: Space, catalog: CatalogRepository) : ViewModel() {
     fun load() = holder.load()
     fun selectTab(index: Int) = holder.selectTab(index)
     fun selectGenre(genre: String?) = holder.selectGenre(genre)
+    fun loadMore(rowId: String) = holder.loadMore(rowId)
 }

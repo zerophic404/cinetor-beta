@@ -76,6 +76,11 @@ data class Source(
     val kind: SourceKind,
     val label: String? = null,
     val headers: Map<String, String> = emptyMap(),
+    /** Vertical resolution when the provider states it (gateway `1080p` → 1080). */
+    val height: Int? = null,
+    /** Real file size in bytes when known (gateway `size`). */
+    val sizeBytes: Long? = null,
+    val codec: String? = null,
 )
 
 @Immutable
@@ -188,6 +193,8 @@ data class Item(
     val trackIds: List<String> = emptyList(),
     val cast: List<String> = emptyList(),
     val studio: String? = null,
+    /** Gateway `detail_path` (needed for /detail + /stream); null for mock/TMDB items. */
+    val slug: String? = null,
 )
 
 @Immutable

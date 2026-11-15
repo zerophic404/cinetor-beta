@@ -26,8 +26,8 @@ class NavModelTest {
 
     @Test
     fun switcher_hidesAdultUnlessEnabled() {
-        assertEquals(listOf(Space.TV, Space.MUSIC, Space.COMICS), switcherSpaces(adultEnabled = false))
-        assertTrue(Space.ADULT in switcherSpaces(adultEnabled = true))
+        assertEquals(listOf(Space.TV, Space.MUSIC, Space.COMICS), profileSpaces(adultEnabled = false))
+        assertTrue(Space.ADULT in profileSpaces(adultEnabled = true))
     }
 
     @Test

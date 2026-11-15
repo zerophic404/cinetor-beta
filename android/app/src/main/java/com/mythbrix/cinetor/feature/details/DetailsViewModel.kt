@@ -89,7 +89,8 @@ class DetailsStateHolder(
             }
             // Re-warm with the full item when the card summary wasn't playable (no sources yet).
             val summaryUnplayable = summary != null && SourceResolver.request(summary, null) == null
-            if (warmedId != id || (summaryUnplayable && SourceResolver.request(item, null) != null)) warm(item)
+            // (Gateway titles resolve their stream inside the preloader, so "unplayable" summaries re-warm too.)
+            if (warmedId != id || summaryUnplayable) warm(item)
             _state.value = DetailsUiState.Ready(DetailsUi(item))
             val more = moreLikeThis(item, candidates(item))
             _state.value = DetailsUiState.Ready(DetailsUi(item, more, moreLoading = false))

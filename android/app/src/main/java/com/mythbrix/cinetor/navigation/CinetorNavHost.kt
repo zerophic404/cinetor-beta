@@ -149,8 +149,6 @@ fun CinetorNavHost(container: AppContainer, modifier: Modifier = Modifier) {
     val layout = navLayoutFor(config.screenWidthDp, config.screenHeightDp, container.deviceProfile.isTv)
     // Gate state (not the raw flag): a Kids profile hides the Adult space.
     val adultEnabled by container.adult.enabled.collectAsStateWithLifecycle()
-    var switcherOpen by rememberSaveable { mutableStateOf(false) }
-    BackHandler(enabled = switcherOpen) { switcherOpen = false }
 
     val onTab: (TabKey) -> Unit = { key ->
         when (key) {
@@ -165,7 +163,7 @@ fun CinetorNavHost(container: AppContainer, modifier: Modifier = Modifier) {
             TabKey.SPACE_SEARCH -> activeSpace?.let { s ->
                 nav.navigate(SpaceSearchRoute(s.name)) { launchSingleTop = true }
             }
-            TabKey.SPACES -> switcherOpen = true
+            TabKey.SPACES -> nav.navigateTab(MeRoute)
             TabKey.EXIT_SPACE -> nav.navigateTab(HomeRoute)
         }
     }
@@ -224,6 +222,8 @@ fun CinetorNavHost(container: AppContainer, modifier: Modifier = Modifier) {
                             onDownloads = { nav.navigate(DownloadsRoute) },
                             onProfiles = { nav.navigate(ProfilesRoute) },
                             onLibrary = { nav.navigate(LibraryRoute) },
+                            spaces = profileSpaces(adultEnabled),
+                            onSpace = { s -> nav.enterSpace(s) },
                         )
                     }
                     screen<ProfilesRoute> {
@@ -335,7 +335,6 @@ fun CinetorNavHost(container: AppContainer, modifier: Modifier = Modifier) {
                 AppBackground(Modifier.haze(haze)) { navHost() }
                 GlassTopBar(
                     title = activeSpace?.displayName ?: "Cinetor",
-                    onLogo = { switcherOpen = true },
                     modifier = Modifier.align(Alignment.TopCenter),
                 )
                 if (layout == NavLayout.BOTTOM_BAR) {
@@ -346,21 +345,11 @@ fun CinetorNavHost(container: AppContainer, modifier: Modifier = Modifier) {
                 }
             }
         }
-        SpacesSwitcher(
-            visible = switcherOpen,
-            spaces = switcherSpaces(adultEnabled),
-            activeSpace = activeSpace,
-            onPick = { s ->
-                switcherOpen = false
-                if (s == null) nav.navigateTab(HomeRoute) else nav.enterSpace(s)
-            },
-            onDismiss = { switcherOpen = false },
-        )
     }
 }
 
 @Composable
-private fun GlassTopBar(title: String, onLogo: () -> Unit, modifier: Modifier = Modifier) {
+private fun GlassTopBar(title: String, modifier: Modifier = Modifier) {
     val tokens = Cinetor.tokens
     Row(
         modifier
@@ -372,17 +361,8 @@ private fun GlassTopBar(title: String, onLogo: () -> Unit, modifier: Modifier = 
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(10.dp),
     ) {
-        Row(
-            Modifier
-                .clip(RoundedCornerShape(12.dp))
-                .clickable(onClick = onLogo)
-                .semantics { contentDescription = "Open spaces" }
-                .padding(4.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            CinetorMark(Modifier.size(36.dp))
-            Icon(Icons.Rounded.KeyboardArrowDown, contentDescription = null, tint = tokens.textSecondary)
-        }
+        // Plain brand mark: the spaces switcher moved into Me → Spaces.
+        CinetorMark(Modifier.padding(4.dp).size(36.dp))
         Text(title, style = MaterialTheme.typography.titleLarge, color = tokens.textPrimary)
     }
 }
@@ -456,9 +436,9 @@ private fun NavHostController.navigateTab(route: Any) {
     }
 }
 
+/** Opened from Me → Spaces (TV: Profile group): back returns to where it was opened (Me). */
 private fun NavHostController.enterSpace(space: Space) {
     navigate(SpaceRoute(space.name)) {
-        popUpTo(graph.findStartDestination().id)
         launchSingleTop = true
     }
 }
