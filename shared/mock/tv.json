@@ -216,7 +216,7 @@
    "channelGroup": "News",
    "sources": [
     {
-     "url": "https://cph-p2p-msl.akamaized.net/hls/live/2000341/test/master.m3u8",
+     "url": "https://devstreaming-cdn.apple.com/videos/streaming/examples/img_bipbop_adv_example_ts/master.m3u8",
      "kind": "HLS",
      "label": "Live"
     },
@@ -366,7 +366,7 @@
    "channelGroup": "News",
    "sources": [
     {
-     "url": "https://cph-p2p-msl.akamaized.net/hls/live/2000341/test/master.m3u8",
+     "url": "https://devstreaming-cdn.apple.com/videos/streaming/examples/img_bipbop_adv_example_ts/master.m3u8",
      "kind": "HLS",
      "label": "Live"
     },
@@ -508,7 +508,7 @@
    "channelGroup": "News",
    "sources": [
     {
-     "url": "https://cph-p2p-msl.akamaized.net/hls/live/2000341/test/master.m3u8",
+     "url": "https://devstreaming-cdn.apple.com/videos/streaming/examples/img_bipbop_adv_example_ts/master.m3u8",
      "kind": "HLS",
      "label": "Live"
     },
@@ -658,7 +658,7 @@
    "channelGroup": "News",
    "sources": [
     {
-     "url": "https://cph-p2p-msl.akamaized.net/hls/live/2000341/test/master.m3u8",
+     "url": "https://devstreaming-cdn.apple.com/videos/streaming/examples/img_bipbop_adv_example_ts/master.m3u8",
      "kind": "HLS",
      "label": "Live"
     },
@@ -792,7 +792,7 @@
    "channelGroup": "News",
    "sources": [
     {
-     "url": "https://cph-p2p-msl.akamaized.net/hls/live/2000341/test/master.m3u8",
+     "url": "https://devstreaming-cdn.apple.com/videos/streaming/examples/img_bipbop_adv_example_ts/master.m3u8",
      "kind": "HLS",
      "label": "Live"
     },
@@ -942,7 +942,7 @@
    "channelGroup": "Entertainment",
    "sources": [
     {
-     "url": "https://cph-p2p-msl.akamaized.net/hls/live/2000341/test/master.m3u8",
+     "url": "https://devstreaming-cdn.apple.com/videos/streaming/examples/img_bipbop_adv_example_ts/master.m3u8",
      "kind": "HLS",
      "label": "Live"
     },
@@ -1100,7 +1100,7 @@
    "channelGroup": "Entertainment",
    "sources": [
     {
-     "url": "https://cph-p2p-msl.akamaized.net/hls/live/2000341/test/master.m3u8",
+     "url": "https://devstreaming-cdn.apple.com/videos/streaming/examples/img_bipbop_adv_example_ts/master.m3u8",
      "kind": "HLS",
      "label": "Live"
     },
@@ -1250,7 +1250,7 @@
    "channelGroup": "Entertainment",
    "sources": [
     {
-     "url": "https://cph-p2p-msl.akamaized.net/hls/live/2000341/test/master.m3u8",
+     "url": "https://devstreaming-cdn.apple.com/videos/streaming/examples/img_bipbop_adv_example_ts/master.m3u8",
      "kind": "HLS",
      "label": "Live"
     },
@@ -1384,7 +1384,7 @@
    "channelGroup": "Entertainment",
    "sources": [
     {
-     "url": "https://cph-p2p-msl.akamaized.net/hls/live/2000341/test/master.m3u8",
+     "url": "https://devstreaming-cdn.apple.com/videos/streaming/examples/img_bipbop_adv_example_ts/master.m3u8",
      "kind": "HLS",
      "label": "Live"
     },
@@ -1518,7 +1518,7 @@
    "channelGroup": "Entertainment",
    "sources": [
     {
-     "url": "https://cph-p2p-msl.akamaized.net/hls/live/2000341/test/master.m3u8",
+     "url": "https://devstreaming-cdn.apple.com/videos/streaming/examples/img_bipbop_adv_example_ts/master.m3u8",
      "kind": "HLS",
      "label": "Live"
     },
@@ -1668,7 +1668,7 @@
    "channelGroup": "Kids",
    "sources": [
     {
-     "url": "https://cph-p2p-msl.akamaized.net/hls/live/2000341/test/master.m3u8",
+     "url": "https://devstreaming-cdn.apple.com/videos/streaming/examples/img_bipbop_adv_example_ts/master.m3u8",
      "kind": "HLS",
      "label": "Live"
     },
@@ -1802,7 +1802,7 @@
    "channelGroup": "Kids",
    "sources": [
     {
-     "url": "https://cph-p2p-msl.akamaized.net/hls/live/2000341/test/master.m3u8",
+     "url": "https://devstreaming-cdn.apple.com/videos/streaming/examples/img_bipbop_adv_example_ts/master.m3u8",
      "kind": "HLS",
      "label": "Live"
     },
@@ -1936,7 +1936,7 @@
    "channelGroup": "Kids",
    "sources": [
     {
-     "url": "https://cph-p2p-msl.akamaized.net/hls/live/2000341/test/master.m3u8",
+     "url": "https://devstreaming-cdn.apple.com/videos/streaming/examples/img_bipbop_adv_example_ts/master.m3u8",
      "kind": "HLS",
      "label": "Live"
     },
@@ -2094,7 +2094,7 @@
    "channelGroup": "Kids",
    "sources": [
     {
-     "url": "https://cph-p2p-msl.akamaized.net/hls/live/2000341/test/master.m3u8",
+     "url": "https://devstreaming-cdn.apple.com/videos/streaming/examples/img_bipbop_adv_example_ts/master.m3u8",
      "kind": "HLS",
      "label": "Live"
     },
@@ -2236,7 +2236,7 @@
    "channelGroup": "Kids",
    "sources": [
     {
-     "url": "https://cph-p2p-msl.akamaized.net/hls/live/2000341/test/master.m3u8",
+     "url": "https://devstreaming-cdn.apple.com/videos/streaming/examples/img_bipbop_adv_example_ts/master.m3u8",
      "kind": "HLS",
      "label": "Live"
     },
@@ -2378,7 +2378,7 @@
    "channelGroup": "Movies",
    "sources": [
     {
-     "url": "https://cph-p2p-msl.akamaized.net/hls/live/2000341/test/master.m3u8",
+     "url": "https://devstreaming-cdn.apple.com/videos/streaming/examples/img_bipbop_adv_example_ts/master.m3u8",
      "kind": "HLS",
      "label": "Live"
     },
@@ -2536,7 +2536,7 @@
    "channelGroup": "Movies",
    "sources": [
     {
-     "url": "https://cph-p2p-msl.akamaized.net/hls/live/2000341/test/master.m3u8",
+     "url": "https://devstreaming-cdn.apple.com/videos/streaming/examples/img_bipbop_adv_example_ts/master.m3u8",
      "kind": "HLS",
      "label": "Live"
     },
@@ -2686,7 +2686,7 @@
    "channelGroup": "Movies",
    "sources": [
     {
-     "url": "https://cph-p2p-msl.akamaized.net/hls/live/2000341/test/master.m3u8",
+     "url": "https://devstreaming-cdn.apple.com/videos/streaming/examples/img_bipbop_adv_example_ts/master.m3u8",
      "kind": "HLS",
      "label": "Live"
     },
@@ -2820,7 +2820,7 @@
    "channelGroup": "Movies",
    "sources": [
     {
-     "url": "https://cph-p2p-msl.akamaized.net/hls/live/2000341/test/master.m3u8",
+     "url": "https://devstreaming-cdn.apple.com/videos/streaming/examples/img_bipbop_adv_example_ts/master.m3u8",
      "kind": "HLS",
      "label": "Live"
     },
@@ -2978,7 +2978,7 @@
    "channelGroup": "Movies",
    "sources": [
     {
-     "url": "https://cph-p2p-msl.akamaized.net/hls/live/2000341/test/master.m3u8",
+     "url": "https://devstreaming-cdn.apple.com/videos/streaming/examples/img_bipbop_adv_example_ts/master.m3u8",
      "kind": "HLS",
      "label": "Live"
     },
@@ -3120,7 +3120,7 @@
    "channelGroup": "Music",
    "sources": [
     {
-     "url": "https://cph-p2p-msl.akamaized.net/hls/live/2000341/test/master.m3u8",
+     "url": "https://devstreaming-cdn.apple.com/videos/streaming/examples/img_bipbop_adv_example_ts/master.m3u8",
      "kind": "HLS",
      "label": "Live"
     },
@@ -3262,7 +3262,7 @@
    "channelGroup": "Music",
    "sources": [
     {
-     "url": "https://cph-p2p-msl.akamaized.net/hls/live/2000341/test/master.m3u8",
+     "url": "https://devstreaming-cdn.apple.com/videos/streaming/examples/img_bipbop_adv_example_ts/master.m3u8",
      "kind": "HLS",
      "label": "Live"
     },
@@ -3412,7 +3412,7 @@
    "channelGroup": "Music",
    "sources": [
     {
-     "url": "https://cph-p2p-msl.akamaized.net/hls/live/2000341/test/master.m3u8",
+     "url": "https://devstreaming-cdn.apple.com/videos/streaming/examples/img_bipbop_adv_example_ts/master.m3u8",
      "kind": "HLS",
      "label": "Live"
     },
@@ -3554,7 +3554,7 @@
    "channelGroup": "Music",
    "sources": [
     {
-     "url": "https://cph-p2p-msl.akamaized.net/hls/live/2000341/test/master.m3u8",
+     "url": "https://devstreaming-cdn.apple.com/videos/streaming/examples/img_bipbop_adv_example_ts/master.m3u8",
      "kind": "HLS",
      "label": "Live"
     },
@@ -3696,7 +3696,7 @@
    "channelGroup": "Music",
    "sources": [
     {
-     "url": "https://cph-p2p-msl.akamaized.net/hls/live/2000341/test/master.m3u8",
+     "url": "https://devstreaming-cdn.apple.com/videos/streaming/examples/img_bipbop_adv_example_ts/master.m3u8",
      "kind": "HLS",
      "label": "Live"
     },
@@ -3854,7 +3854,7 @@
    "channelGroup": "Sports",
    "sources": [
     {
-     "url": "https://cph-p2p-msl.akamaized.net/hls/live/2000341/test/master.m3u8",
+     "url": "https://devstreaming-cdn.apple.com/videos/streaming/examples/img_bipbop_adv_example_ts/master.m3u8",
      "kind": "HLS",
      "label": "Live"
     },
@@ -3996,7 +3996,7 @@
    "channelGroup": "Sports",
    "sources": [
     {
-     "url": "https://cph-p2p-msl.akamaized.net/hls/live/2000341/test/master.m3u8",
+     "url": "https://devstreaming-cdn.apple.com/videos/streaming/examples/img_bipbop_adv_example_ts/master.m3u8",
      "kind": "HLS",
      "label": "Live"
     },
@@ -4130,7 +4130,7 @@
    "channelGroup": "Sports",
    "sources": [
     {
-     "url": "https://cph-p2p-msl.akamaized.net/hls/live/2000341/test/master.m3u8",
+     "url": "https://devstreaming-cdn.apple.com/videos/streaming/examples/img_bipbop_adv_example_ts/master.m3u8",
      "kind": "HLS",
      "label": "Live"
     },
@@ -4272,7 +4272,7 @@
    "channelGroup": "Sports",
    "sources": [
     {
-     "url": "https://cph-p2p-msl.akamaized.net/hls/live/2000341/test/master.m3u8",
+     "url": "https://devstreaming-cdn.apple.com/videos/streaming/examples/img_bipbop_adv_example_ts/master.m3u8",
      "kind": "HLS",
      "label": "Live"
     },
@@ -4414,7 +4414,7 @@
    "channelGroup": "Sports",
    "sources": [
     {
-     "url": "https://cph-p2p-msl.akamaized.net/hls/live/2000341/test/master.m3u8",
+     "url": "https://devstreaming-cdn.apple.com/videos/streaming/examples/img_bipbop_adv_example_ts/master.m3u8",
      "kind": "HLS",
      "label": "Live"
     },
@@ -4577,7 +4577,7 @@
    "durationSec": 7200,
    "sources": [
     {
-     "url": "https://cph-p2p-msl.akamaized.net/hls/live/2000341/test/master.m3u8",
+     "url": "https://devstreaming-cdn.apple.com/videos/streaming/examples/img_bipbop_adv_example_ts/master.m3u8",
      "kind": "HLS",
      "label": "Live"
     }
@@ -4621,7 +4621,7 @@
    "durationSec": 7200,
    "sources": [
     {
-     "url": "https://cph-p2p-msl.akamaized.net/hls/live/2000341/test/master.m3u8",
+     "url": "https://devstreaming-cdn.apple.com/videos/streaming/examples/img_bipbop_adv_example_ts/master.m3u8",
      "kind": "HLS",
      "label": "Live"
     }
@@ -4665,7 +4665,7 @@
    "durationSec": 7200,
    "sources": [
     {
-     "url": "https://cph-p2p-msl.akamaized.net/hls/live/2000341/test/master.m3u8",
+     "url": "https://devstreaming-cdn.apple.com/videos/streaming/examples/img_bipbop_adv_example_ts/master.m3u8",
      "kind": "HLS",
      "label": "Live"
     }

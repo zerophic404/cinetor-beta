@@ -79,7 +79,24 @@ export function loadShaka(): Promise<ShakaNS | null> {
       sh.polyfill.installAll();
       return sh.Player.isBrowserSupported() ? sh : null;
     })
-    .catch(() => null));
+    .catch(() => {
+      void healStaleApp();
+      return null;
+    }));
+}
+
+/** A stale service-worker shell can reference lazy chunks that no longer exist → drop caches + SW and reload once. */
+async function healStaleApp(): Promise<void> {
+  try {
+    if (typeof window === 'undefined' || sessionStorage.getItem('cinetor.healed')) return;
+    sessionStorage.setItem('cinetor.healed', '1');
+    const regs = (await navigator.serviceWorker?.getRegistrations?.()) ?? [];
+    await Promise.all(regs.map((r) => r.unregister()));
+    if ('caches' in window) await Promise.all((await caches.keys()).map((k) => caches.delete(k)));
+    location.reload();
+  } catch {
+    /* ignore */
+  }
 }
 
 /** Human message for shaka / media errors. Unsupported formats → caller shows external-player link. */
@@ -126,7 +143,7 @@ class Engine implements EngineLike {
     v.addEventListener('error', () => {
       if (this.tryRecover()) return;
       const code = v.error?.code;
-      if (code === 4 || code === 3) this._error.set({ msg: "This format or codec isn't supported by your browser.", unsupported: true });
+      if (code === 4 || code === 3) void this.explainMediaError(v.currentSrc, code);
       else if (code === 2) this._error.set({ msg: 'Network error — check your connection and retry.', unsupported: false });
     });
     this.video = v;
@@ -145,6 +162,23 @@ class Engine implements EngineLike {
     this.park = el;
     if (el) this.ensureVideo();
     this.place();
+  }
+
+  /** MEDIA_ERR_SRC_NOT_SUPPORTED is also what browsers report for HTTP 403/404/429 — tell the two apart. */
+  private async explainMediaError(src: string, code: number): Promise<void> {
+    const unsupported = { msg: "This format or codec isn't supported by your browser.", unsupported: true };
+    if (!/^https?:/i.test(src)) return void this._error.set(unsupported);
+    try {
+      const r = await fetch(src, { headers: { Range: 'bytes=0-0' }, cache: 'no-store' });
+      void r.body?.cancel();
+      if (r.status >= 400) {
+        this._error.set({ msg: `The stream isn't available right now (HTTP ${r.status}). Retry in a moment or pick another quality.`, unsupported: false });
+        return;
+      }
+    } catch {
+      /* cross-origin without CORS / offline → fall through */
+    }
+    this._error.set(code === 3 ? { msg: 'Playback was interrupted — retry.', unsupported: false } : unsupported);
   }
 
   /** Move the persistent element into `host` (latest host wins). Returns detach. */
@@ -289,22 +323,31 @@ class Engine implements EngineLike {
     const sh = await loadShaka();
     if (opts.signal?.aborted) throw new DOMException('aborted', 'AbortError');
     this.headers = src.headers;
+    const nativeHls = src.kind === 'HLS' && this.canPlay('application/vnd.apple.mpegurl');
+    const canFallBack = !src.url.startsWith('offline:') && (kind === 'native' || nativeHls);
     if (sh) {
-      const p = await this.getPlayer(sh);
-      p.configure({
-        streaming: { bufferingGoal: opts.buffer ? 30 : 4, rebufferingGoal: 0.5, bufferBehind: 30 },
-        abr: { enabled: true }
-      });
-      // offline: URIs (downloaded HLS/DASH) are resolved by shaka's offline scheme — no MIME hint.
-      await p.load(src.url, startSec > 0 ? startSec : null, src.url.startsWith('offline:') ? undefined : MIME[src.kind]);
-    } else {
-      // No MSE (old iOS): native element (Safari plays HLS natively).
-      if (kind === 'shaka' && !(src.kind === 'HLS' && this.canPlay('application/vnd.apple.mpegurl'))) {
-        this._error.set({ msg: "Adaptive streaming isn't supported by this browser.", unsupported: true });
-        throw new Error('unsupported');
+      try {
+        const p = await this.getPlayer(sh);
+        p.configure({
+          streaming: { bufferingGoal: opts.buffer ? 30 : 4, rebufferingGoal: 0.5, bufferBehind: 30 },
+          abr: { enabled: true }
+        });
+        // offline: URIs (downloaded HLS/DASH) are resolved by shaka's offline scheme — no MIME hint.
+        await p.load(src.url, startSec > 0 ? startSec : null, src.url.startsWith('offline:') ? undefined : MIME[src.kind]);
+        return;
+      } catch (e) {
+        if (opts.signal?.aborted || !canFallBack) throw e;
+        // Progressive file / Safari HLS: the browser's own decoder is the most compatible path.
+        this._error.set(null);
+        await this.player?.unload().catch(() => {});
       }
-      await nativeLoad(v, src.url, startSec, opts.signal);
     }
+    // No shaka (no MediaSource, e.g. old iOS) or shaka failed on a natively playable source.
+    if (kind === 'shaka' && !nativeHls) {
+      this._error.set({ msg: "This browser can't play adaptive streams (no MediaSource). Update it, or try Chrome, Edge, Firefox or Safari 17.1+.", unsupported: true });
+      throw new Error('unsupported');
+    }
+    await nativeLoad(v, src.url, startSec, opts.signal);
   }
 
   async unload(): Promise<void> {

@@ -33,7 +33,7 @@ MP4_BUNNY = "https://media.w3.org/2010/05/bunny/trailer.mp4"
 MP4_SINTEL = "https://media.w3.org/2010/05/sintel/trailer.mp4"
 MP4_OCEANS = "https://vjs.zencdn.net/v/oceans.mp4"
 MP4_BBB720 = "https://test-videos.co.uk/vids/bigbuckbunny/mp4/h264/720/Big_Buck_Bunny_720_10s_1MB.mp4"
-LIVE = "https://cph-p2p-msl.akamaized.net/hls/live/2000341/test/master.m3u8"
+LIVE = "https://devstreaming-cdn.apple.com/videos/streaming/examples/img_bipbop_adv_example_ts/master.m3u8"
 VIDEO_SOURCES = [
     ("HLS", MUX, "Auto · HLS"),
     ("MP4", MP4_BUNNY, "MP4"),
