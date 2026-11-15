@@ -42,7 +42,7 @@ Plan: docs/plans/2026-11-14-cinetor-master-plan.md · Decisions: docs/handoff/de
 - [ ] release.yml v0.1.0 · [ ] QA matrix · [ ] final report to user
 
 ## Log (newest first, one line each)
-- 2026-11-15 Ph6+7 done on wip/phase-6 (caa9aac..), runs 43678402983 (6.1) 43681409616 (6.2) 43682848369 (7.1) 43684811368 (7.2) green incl. phone + Android TV emulator smoke; merged to main → signed Cinetor-<ver>-<abi>.apk in cinetor-app releases. Per-ABI 16.8 MB. Handoff docs/handoff/phase-6-7.md.
+- 2026-11-15 Ph6+7 done on wip/phase-6 (caa9aac..), runs 43678402983 (6.1) 43681409616 (6.2) 43682848369 (7.1) 43684811368 (7.2) green incl. phone + Android TV emulator smoke; merged to main 1d0c502 (PR #4), main run https://github.com/Ashrix404/cinetor/actions/runs/43687370076 green → https://github.com/Ashrix404/cinetor-app/releases/tag/android-build-46 (signed Cinetor-0.1.46-{arm64-v8a,armeabi-v7a,x86_64,universal}.apk). Per-ABI 16.8 MB. Handoff docs/handoff/phase-6-7.md.
 - 2026-11-15 00:40 Ph3 merged (android-build-30), web 8.3–8.5 merged; Ph4 started; packed for limit, auto-resume 04:45.
 - 2026-11-15 00:20 Phase 3 merged to main 696e0ee (dl/phase-3 → wip/phase-3 f2c911a, offline playback 1f347fc: OfflineResolver local file / download cache, Downloads Play → player, OfflineResolverTest 5). CI wip https://github.com/Ashrix404/cinetor/actions/runs/43622939407 , main https://github.com/Ashrix404/cinetor/actions/runs/43624369659 green; APK https://github.com/Ashrix404/cinetor-app/releases/tag/android-build-30 .
 - 2026-11-14 20:10 Ph3 code complete on two branches, packed for limit; auto-resume cron scheduled.
