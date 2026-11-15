@@ -18,6 +18,8 @@ class MockCatalogSource(
     private val reader: AssetReader,
     private val latency: MockLatency = MockLatency.Default,
     private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
+    /** Spaces whose JSON is bundled (the APK ships only TV / Music / Comics). */
+    private val spaces: List<Space> = Space.entries,
 ) : CatalogRepository {
 
     private class Data(
@@ -47,7 +49,7 @@ class MockCatalogSource(
     }
 
     private suspend fun parseAll(): Data = coroutineScope {
-        val files = Space.entries
+        val files = spaces
             .map { space -> async { space to parse(space) } }
             .awaitAll()
             .toMap()

@@ -1,0 +1,831 @@
+{
+ "status": "success",
+ "sections": [
+  {
+   "section": "Banner",
+   "count": 14,
+   "items": [
+    {
+     "name": "12 12 12",
+     "poster_url": "https://pbcdnw.aoneroom.com/image/2026/09/15/8adc684ee89af8fbb9bf626d209d9c0c.jpg",
+     "slug": "12-12-12-gQ2HnAj3ny5",
+     "subject_id": "4661791271722305928",
+     "rating": "6.9",
+     "year": "2026",
+     "genre": "Crime,Drama,Thriller",
+     "type": "tv",
+     "country": "United States",
+     "release_date": "2026-11-13",
+     "has_resource": true
+    },
+    {
+     "name": "The Lord of the Rings: The Rings of Power",
+     "poster_url": "https://pbcdn.aoneroom.com/image/2026/09/29/5aad7dd8d87f5e0ec17986e0d1d13d74.jpg",
+     "slug": "the-lord-of-the-rings-the-rings-of-power-oWxADnOpP26",
+     "subject_id": "5074096615720375064",
+     "rating": "6.8",
+     "year": "2022",
+     "genre": "Action,Adventure,Drama",
+     "type": "tv",
+     "country": "United States",
+     "release_date": "2022-09-01",
+     "has_resource": true
+    }
+   ]
+  },
+  {
+   "section": "Trending Short Drama",
+   "count": 10,
+   "items": [
+    {
+     "name": "The Mermaid's Tear",
+     "poster_url": "https://pbcdn.aoneroom.com/image/2026/11/04/d86cbbe4ce9425c5c61772ddd34b33b8.jpg",
+     "slug": "the-mermaids-tear-uzE9rEqfEM1",
+     "subject_id": "1497867462384180128",
+     "rating": "7.7",
+     "year": "2026",
+     "genre": "Modern Drama",
+     "type": "tv",
+     "country": "United States",
+     "release_date": "2026-11-01",
+     "has_resource": true
+    },
+    {
+     "name": "The Bride They Gave the Beast",
+     "poster_url": "https://pbcdnw.aoneroom.com/image/2026/11/07/1b6559567c0f923e6d998ec0c9096170.jpg",
+     "slug": "the-bride-they-gave-the-beast-Wb5LXm89575",
+     "subject_id": "4292380305664758512",
+     "rating": "7.2",
+     "year": "2026",
+     "genre": "Modern Drama",
+     "type": "tv",
+     "country": "United States",
+     "release_date": "2026-11-04",
+     "has_resource": true
+    }
+   ]
+  },
+  {
+   "section": "🔥Hot Short TV",
+   "count": 10,
+   "items": [
+    {
+     "name": "Where is Home [Bengali]",
+     "poster_url": "https://pbcdnw.aoneroom.com/image/2025/08/25/709a5f690a84ac74d54a95cf67c7c253.png",
+     "slug": "where-is-home-bengali-6XoMSqzVHc1",
+     "subject_id": "1011335773633364112",
+     "rating": "7.8",
+     "year": "2024",
+     "genre": "drama",
+     "type": "tv",
+     "release_date": "2024-01-01",
+     "has_resource": true
+    },
+    {
+     "name": "Little Poor Thing Rises by Bearing Children, Reigns Over the Electronics Factory [Bengali]",
+     "poster_url": "https://pbcdnw.aoneroom.com/image/2025/08/15/7109e4d73a7dcf8bdc4cad885348a85f.jpeg",
+     "slug": "little-poor-thing-rises-by-bearing-children-reigns-over-the-electronics-factory-bengali-8wiolm5dap",
+     "subject_id": "340656650174512800",
+     "rating": "7.4",
+     "year": "2024",
+     "genre": "drama",
+     "type": "tv",
+     "release_date": "2024-01-01",
+     "has_resource": true
+    }
+   ]
+  },
+  {
+   "section": "Zee Bangla Shows",
+   "count": 10,
+   "items": [
+    {
+     "name": "Neem Phuler Modhu",
+     "poster_url": "https://pbcdn.aoneroom.com/image/2024/05/20/neemphuler.jpg",
+     "slug": "neem-phuler-modhu-bengali-zee-bangla",
+     "subject_id": "8829102938102938101",
+     "rating": "8.4",
+     "year": "2023",
+     "genre": "Drama,Family",
+     "type": "tv",
+     "country": "India",
+     "release_date": "2023-11-14",
+     "has_resource": true
+    },
+    {
+     "name": "Jagaddhatri",
+     "poster_url": "https://pbcdn.aoneroom.com/image/2024/05/20/jagaddhatri.jpg",
+     "slug": "jagaddhatri-bengali-zee-bangla",
+     "subject_id": "8829102938102938102",
+     "rating": "8.7",
+     "year": "2022",
+     "genre": "Action,Crime,Drama",
+     "type": "tv",
+     "country": "India",
+     "release_date": "2022-08-29",
+     "has_resource": true
+    }
+   ]
+  },
+  {
+   "section": "Indian Dramas",
+   "count": 20,
+   "items": [
+    {
+     "name": "Student of the Year 3 [Hindi]",
+     "poster_url": "https://pbcdnw.aoneroom.com/image/2026/11/13/941ec7ba8b8b990674b99112c4c2ea21.jpg",
+     "slug": "student-of-the-year-3-hindi-CfUGmjBGwe5",
+     "subject_id": "4393152951532114072",
+     "rating": "7.0",
+     "year": "2023",
+     "genre": "Drama",
+     "type": "tv",
+     "release_date": "2023-01-02",
+     "has_resource": true
+    },
+    {
+     "name": "Akka [Hindi]",
+     "poster_url": "https://pbcdn.aoneroom.com/image/2026/11/13/58d6f205273ce060d13c902b007259cf.jpg",
+     "slug": "akka-hindi-mlh8tDobs91",
+     "subject_id": "967286804867079072",
+     "rating": "5.0",
+     "year": "2026",
+     "genre": "Crime,Drama,Thriller",
+     "type": "tv",
+     "release_date": "2026-10-30",
+     "has_resource": true
+    }
+   ]
+  },
+  {
+   "section": "Original Western TV",
+   "count": 20,
+   "items": [
+    {
+     "name": "The Institute",
+     "poster_url": "https://pbcdn.aoneroom.com/image/2026/11/03/2337f74edcac44a82280f086da840604.jpg",
+     "slug": "the-institute-GXFdSFUdvG",
+     "subject_id": "575375178381902192",
+     "rating": "6.7",
+     "year": "2025",
+     "genre": "Horror,Sci-Fi,Thriller",
+     "type": "tv",
+     "release_date": "2025-07-13",
+     "has_resource": true
+    },
+    {
+     "name": "City of God: The Fight Rages On",
+     "poster_url": "https://pbcdn.aoneroom.com/image/2026/11/10/029bf8613235131b9d593fbd4686ffb2.jpg",
+     "slug": "city-of-god-the-fight-rages-on-8SfCOVHCira",
+     "subject_id": "8762561434065717992",
+     "rating": "7.2",
+     "year": "2024",
+     "genre": "Crime,Drama",
+     "type": "tv",
+     "release_date": "2024-08-25",
+     "has_resource": true
+    }
+   ]
+  },
+  {
+   "section": "Popular Series",
+   "count": 20,
+   "items": [
+    {
+     "name": "12 12 12",
+     "poster_url": "https://pbcdnw.aoneroom.com/image/2026/09/15/8adc684ee89af8fbb9bf626d209d9c0c.jpg",
+     "slug": "12-12-12-gQ2HnAj3ny5",
+     "subject_id": "4661791271722305928",
+     "rating": "6.9",
+     "year": "2026",
+     "genre": "Crime,Drama,Thriller",
+     "type": "tv",
+     "country": "United States",
+     "release_date": "2026-11-13",
+     "has_resource": true
+    },
+    {
+     "name": "The Lord of the Rings: The Rings of Power",
+     "poster_url": "https://pbcdn.aoneroom.com/image/2026/09/29/5aad7dd8d87f5e0ec17986e0d1d13d74.jpg",
+     "slug": "the-lord-of-the-rings-the-rings-of-power-oWxADnOpP26",
+     "subject_id": "5074096615720375064",
+     "rating": "6.8",
+     "year": "2022",
+     "genre": "Action,Adventure,Drama",
+     "type": "tv",
+     "country": "United States",
+     "release_date": "2022-09-01",
+     "has_resource": true
+    }
+   ]
+  },
+  {
+   "section": "Popular Movie",
+   "count": 20,
+   "items": [
+    {
+     "name": "Street Fighter",
+     "poster_url": "https://pbcdnw.aoneroom.com/image/2026/10/12/324ac3d0904fe0a08bf4bf604d4c2ae3.jpg",
+     "slug": "street-fighter-2DhSc6ZNzf1",
+     "subject_id": "1050173597374890184",
+     "rating": "6.6",
+     "year": "2026",
+     "genre": "Action",
+     "type": "movie",
+     "country": "United States",
+     "release_date": "2026-10-16",
+     "has_resource": true
+    },
+    {
+     "name": "Tyler Perry's the Gospel of Christmas",
+     "poster_url": "https://pbcdn.aoneroom.com/image/2026/11/11/1e1528ac5250e803bd27f6a2336700ad.jpeg",
+     "slug": "tyler-perrys-the-gospel-of-christmas-oKP4mZNT2g5",
+     "subject_id": "4413723422518307176",
+     "rating": "6.2",
+     "year": "2026",
+     "genre": "Drama",
+     "type": "movie",
+     "country": "United States",
+     "release_date": "2026-11-11",
+     "has_resource": true
+    }
+   ]
+  },
+  {
+   "section": "Nollywood Movie",
+   "count": 20,
+   "items": [
+    {
+     "name": "Warlord: Olori Ogun",
+     "poster_url": "https://pbcdn.aoneroom.com/image/2026/11/14/a39c3194dbfc197ae30d1102e5aa2835.jpg",
+     "slug": "warlord-olori-ogun-wG9nPKkREp4",
+     "subject_id": "3704546055833408424",
+     "rating": "9.2",
+     "year": "2025",
+     "genre": "Adventure,Fantasy,History",
+     "type": "movie",
+     "country": "Nigeria",
+     "release_date": "2025-11-28",
+     "has_resource": true
+    },
+    {
+     "name": "CHASING SHADOWS",
+     "poster_url": "https://pbcdn.aoneroom.com/image/2026/11/10/3b5860b24272f65dbcea5b08a6a40a1a.jpg",
+     "slug": "chasing-shadows-G9iwXkMVEU3",
+     "subject_id": "3284912026065194064",
+     "rating": "0",
+     "year": "2026",
+     "genre": "drama",
+     "type": "movie",
+     "country": "Nigeria",
+     "release_date": "2026-11-10",
+     "has_resource": true
+    }
+   ]
+  },
+  {
+   "section": "Adult Animation",
+   "count": 20,
+   "items": [
+    {
+     "name": "Avatar: Seven Havens",
+     "poster_url": "https://pbcdn.aoneroom.com/image/2026/11/11/f6d290b6e166092ae814bb3546a5bbbd.jpg",
+     "slug": "avatar-seven-havens-6RjmSI53tma",
+     "subject_id": "8697152315721245208",
+     "rating": "8.1",
+     "year": "2026",
+     "genre": "Animation,Action,Adventure",
+     "type": "tv",
+     "country": "United States",
+     "release_date": "2026-10-09",
+     "has_resource": true
+    },
+    {
+     "name": "Cyberpunk: Edgerunners",
+     "poster_url": "https://pbcdn.aoneroom.com/image/2026/10/12/3f5e1147f2036a4e717d93363d26a685.jpg",
+     "slug": "cyberpunk-edgerunners-Wl8UpVsa63a",
+     "subject_id": "8434951818110719008",
+     "rating": "8.3",
+     "year": "2022",
+     "genre": "Anime,Action,Adventure",
+     "type": "tv",
+     "country": "Japan",
+     "release_date": "2022-09-13",
+     "has_resource": true
+    }
+   ]
+  },
+  {
+   "section": "Epic Fantasy",
+   "count": 20,
+   "items": [
+    {
+     "name": "Game of Thrones",
+     "poster_url": "https://pbcdn.aoneroom.com/image/2026/01/27/4d78066a556fd124f810aebdeaba98f3.jpg",
+     "slug": "game-of-thrones-AQP5Q48Qsq2",
+     "subject_id": "2036860087691609120",
+     "rating": "9.2",
+     "year": "2011",
+     "genre": "Action,Adventure,Drama",
+     "type": "tv",
+     "country": "United States",
+     "release_date": "2011-04-17",
+     "has_resource": true
+    },
+    {
+     "name": "House of the Dragon",
+     "poster_url": "https://pbcdn.aoneroom.com/image/2026/11/03/ee53e864c995eed66c51609995af1907.jpg",
+     "slug": "house-of-the-dragon-uTatZHG9Wo6",
+     "subject_id": "5373384118887662624",
+     "rating": "8.2",
+     "year": "2022",
+     "genre": "Action,Adventure,Drama",
+     "type": "tv",
+     "country": "United States",
+     "release_date": "2022-08-21",
+     "has_resource": true
+    }
+   ]
+  },
+  {
+   "section": "Comedy",
+   "count": 20,
+   "items": [
+    {
+     "name": "Friends",
+     "poster_url": "https://pbcdn.aoneroom.com/image/2026/01/27/b2da364a48d800a3b603df85c7b60813.jpg",
+     "slug": "friends-QqM8Vz4IoH",
+     "subject_id": "587490095175978800",
+     "rating": "8.9",
+     "year": "1994",
+     "genre": "Comedy,Romance",
+     "type": "tv",
+     "country": "United States",
+     "release_date": "1994-09-22",
+     "has_resource": true
+    },
+    {
+     "name": "Georgie & Mandy's First Marriage",
+     "poster_url": "https://pbcdn.aoneroom.com/image/2026/11/01/8d7a5bf0c87acea3d74bf25c81ce2d45.jpg",
+     "slug": "georgie-and-mandys-first-marriage-kWSGTZ3Ked6",
+     "subject_id": "5214997303169270584",
+     "rating": "7.1",
+     "year": "2024",
+     "genre": "Comedy",
+     "type": "tv",
+     "country": "United States",
+     "release_date": "2024-10-17",
+     "has_resource": true
+    }
+   ]
+  },
+  {
+   "section": "Teen Romance",
+   "count": 20,
+   "items": [
+    {
+     "name": "Campus Drivers [English]",
+     "poster_url": "https://pbcdn.aoneroom.com/image/2026/11/14/ab05421738b623afdf4c0d46a2e7a120.jpg",
+     "slug": "campus-drivers-english-ShHvTvEttW4",
+     "subject_id": "4148784774271983128",
+     "rating": "7.3",
+     "year": "2026",
+     "genre": "Drama,Romance",
+     "type": "tv",
+     "country": "France",
+     "release_date": "2026-11-06",
+     "has_resource": true
+    },
+    {
+     "name": "Minerva Academy [English]",
+     "poster_url": "https://pbcdn.aoneroom.com/image/2026/09/21/af78383efdbe62bf4b520979008c7faf.jpg",
+     "slug": "minerva-academy-english-GjHEgvNvdt6",
+     "subject_id": "5431322108334862864",
+     "rating": "6.0",
+     "year": "2026",
+     "genre": "Drama",
+     "type": "tv",
+     "country": "Italy",
+     "release_date": "2026-09-22",
+     "has_resource": true
+    }
+   ]
+  },
+  {
+   "section": "Superhero Series",
+   "count": 20,
+   "items": [
+    {
+     "name": "VisionQuest",
+     "poster_url": "https://pbcdn.aoneroom.com/image/2026/10/14/de5c792a67c4571a6ea7993273f52f81.jpg",
+     "slug": "visionquest-ckrGvttzXW5",
+     "subject_id": "4994654846008578576",
+     "rating": "8.3",
+     "year": "2026",
+     "genre": "Action,Adventure,Drama",
+     "type": "tv",
+     "country": "United States",
+     "release_date": "2026-10-14",
+     "has_resource": true
+    },
+    {
+     "name": "Lanterns",
+     "poster_url": "https://pbcdn.aoneroom.com/image/2026/08/23/5955a61baab9872682d7a6bcf5d4342d.jpg",
+     "slug": "lanterns-yrpqwiUJSn9",
+     "subject_id": "7876999319520708224",
+     "rating": "8.0",
+     "year": "2026",
+     "genre": "Action,Adventure,Crime",
+     "type": "tv",
+     "country": "United States",
+     "release_date": "2026-08-16",
+     "has_resource": true
+    }
+   ]
+  },
+  {
+   "section": "BL Story",
+   "count": 20,
+   "items": [
+    {
+     "name": "Fool in Love",
+     "poster_url": "https://pbcdn.aoneroom.com/image/2026/10/08/c7670049cec0efe7183bb0351b149d56.jpg",
+     "slug": "fool-in-love-OHf7REWtbW2",
+     "subject_id": "2466256951248831984",
+     "rating": "7.0",
+     "year": "2026",
+     "genre": "Drama",
+     "type": "tv",
+     "country": "Thailand",
+     "release_date": "2026-10-08",
+     "has_resource": true
+    },
+    {
+     "name": "Khemjira Forever",
+     "poster_url": "https://pbcdn.aoneroom.com/image/2026/11/02/a432e8a4c41b5e7cfd182f8903efe14b.jpeg",
+     "slug": "khemjira-forever-suSPPmONno4",
+     "subject_id": "3687284783060501776",
+     "rating": "6.2",
+     "year": "2026",
+     "genre": "drama",
+     "type": "tv",
+     "country": "Thailand",
+     "release_date": "2026-10-31",
+     "has_resource": true
+    }
+   ]
+  },
+  {
+   "section": "Bet+",
+   "count": 20,
+   "items": [
+    {
+     "name": "Sistas",
+     "poster_url": "https://pbcdn.aoneroom.com/image/2026/10/16/0f4166de614f50a470534c2ef0fb8a2d.jpg",
+     "slug": "sistas-WvtmA9qQcd1",
+     "subject_id": "1018086181784933408",
+     "rating": "5.7",
+     "year": "2019",
+     "genre": "Comedy,Drama,Romance",
+     "type": "tv",
+     "country": "United States",
+     "release_date": "2019-10-23",
+     "has_resource": true
+    },
+    {
+     "name": "The Oval",
+     "poster_url": "https://pbcdn.aoneroom.com/image/2026/09/08/ea460ccd7bf04a7a6b1c5575afdab60a.jpg",
+     "slug": "the-oval-Me5h4IJQf69",
+     "subject_id": "7638377634019562528",
+     "rating": "4.5",
+     "year": "2019",
+     "genre": "Crime,Drama,Thriller",
+     "type": "tv",
+     "country": "United States",
+     "release_date": "2019-10-23",
+     "has_resource": true
+    }
+   ]
+  },
+  {
+   "section": "Action&Thriller",
+   "count": 20,
+   "items": [
+    {
+     "name": "Neagley",
+     "poster_url": "https://pbcdn.aoneroom.com/image/2026/09/14/cae6bf74aeb0d6411d531ca0bedd36b1.jpg",
+     "slug": "neagley-kgfRKfjK46",
+     "subject_id": "82258967610676552",
+     "rating": "6.9",
+     "year": "2026",
+     "genre": "Action,Crime,Drama",
+     "type": "tv",
+     "country": "United States",
+     "release_date": "2026-09-16",
+     "has_resource": true
+    },
+    {
+     "name": "Paris Has Fallen",
+     "poster_url": "https://pbcdn.aoneroom.com/image/2026/10/29/df4a35a3cf60475e3ca87a43a12cc816.jpg",
+     "slug": "paris-has-fallen-MECZzYIddA8",
+     "subject_id": "7204616799684888000",
+     "rating": "6.5",
+     "year": "2024",
+     "genre": "Action,Drama",
+     "type": "tv",
+     "country": "United Kingdom",
+     "release_date": "2024-12-06",
+     "has_resource": true
+    }
+   ]
+  },
+  {
+   "section": "Gangster",
+   "count": 20,
+   "items": [
+    {
+     "name": "Snowfall",
+     "poster_url": "https://pbcdn.aoneroom.com/image/2026/01/27/bd0959b7ce517e11ee5a4294e987317c.jpg",
+     "slug": "snowfall-6JvIRkxS4b",
+     "subject_id": "149973373144159000",
+     "rating": "8.5",
+     "year": "2017",
+     "genre": "Crime,Drama",
+     "type": "tv",
+     "country": "United States",
+     "release_date": "2017-07-05",
+     "has_resource": true
+    },
+    {
+     "name": "Peaky Blinders",
+     "poster_url": "https://pbcdn.aoneroom.com/image/2026/01/27/10295919bb6d968ca4f1d424d08391da.jpg",
+     "slug": "peaky-blinders-Ii0kbUrUZL4",
+     "subject_id": "4006958073083480920",
+     "rating": "8.7",
+     "year": "2014",
+     "genre": "Crime,Drama",
+     "type": "tv",
+     "country": "United Kingdom",
+     "release_date": "2014-09-30",
+     "has_resource": true
+    }
+   ]
+  },
+  {
+   "section": "Teen Fantasy",
+   "count": 20,
+   "items": [
+    {
+     "name": "Percy Jackson and the Olympians",
+     "poster_url": "https://pbcdn.aoneroom.com/image/2026/11/12/b5e45533b30b80b5706d8db4e9bb6140.jpg",
+     "slug": "percy-jackson-and-the-olympians-OxG19N1Uao3",
+     "subject_id": "2845168888013275776",
+     "rating": "7.0",
+     "year": "2023",
+     "genre": "Action,Adventure,Family",
+     "type": "tv",
+     "country": "United States",
+     "release_date": "2023-12-19",
+     "has_resource": true
+    },
+    {
+     "name": "The Institute",
+     "poster_url": "https://pbcdn.aoneroom.com/image/2026/11/03/2337f74edcac44a82280f086da840604.jpg",
+     "slug": "the-institute-GXFdSFUdvG",
+     "subject_id": "575375178381902192",
+     "rating": "6.7",
+     "year": "2025",
+     "genre": "Horror,Sci-Fi,Thriller",
+     "type": "tv",
+     "country": "United States",
+     "release_date": "2025-07-13",
+     "has_resource": true
+    }
+   ]
+  },
+  {
+   "section": "Coming Soon",
+   "count": 9,
+   "items": [
+    {
+     "name": "Crash",
+     "poster_url": "https://pbcdn.aoneroom.com/image/2026/10/29/eeeecc1af23127b81f67e2c022f15933.jpg",
+     "slug": "crash-QCu9FpjuKZ7",
+     "subject_id": "6711008236411439048",
+     "rating": "7.5",
+     "year": "2024",
+     "genre": "Action,Comedy,Mystery",
+     "type": "tv",
+     "country": "Korea",
+     "release_date": "2024-05-13",
+     "has_resource": false
+    },
+    {
+     "name": "The Odyssey",
+     "poster_url": "https://pbcdn.aoneroom.com/image/2026/10/31/3be2f488ea9f1482060b692b52699eb4.jpg",
+     "slug": "the-odyssey-Qo3OhdfhiS2",
+     "subject_id": "2413592258760133680",
+     "rating": "8.4",
+     "year": "2026",
+     "genre": "Action,Adventure,Fantasy",
+     "type": "movie",
+     "country": "United Kingdom",
+     "release_date": "2026-07-17",
+     "has_resource": true
+    }
+   ]
+  },
+  {
+   "section": "Anime[English Dubbed]",
+   "count": 20,
+   "items": [
+    {
+     "name": "Black Clover [English]",
+     "poster_url": "https://pbcdnw.aoneroom.com/image/2024/04/15/386a86ed69fea9bcb84146ae4ef90c98.jpg",
+     "slug": "black-clover-english-4Q7h8lHl4T8",
+     "subject_id": "7459884463091499088",
+     "rating": "7.1",
+     "year": "2017",
+     "genre": "Anime,Action,Adventure",
+     "type": "tv",
+     "country": "Japan",
+     "release_date": "2017-10-03",
+     "has_resource": true
+    },
+    {
+     "name": "One Piece [English]",
+     "poster_url": "https://pbcdn.aoneroom.com/image/2026/11/12/f766d528d05fd374807ff87c074b7482.jpg",
+     "slug": "one-piece-english-OJafGbGekK4",
+     "subject_id": "3984321945629247112",
+     "rating": "9.0",
+     "year": "2025",
+     "genre": "Anime,Action,Adventure",
+     "type": "tv",
+     "country": "Japan",
+     "release_date": "2025-01-01",
+     "has_resource": true
+    }
+   ]
+  },
+  {
+   "section": "Action Movies",
+   "count": 20,
+   "items": [
+    {
+     "name": "Street Fighter",
+     "poster_url": "https://pbcdnw.aoneroom.com/image/2026/10/12/324ac3d0904fe0a08bf4bf604d4c2ae3.jpg",
+     "slug": "street-fighter-2DhSc6ZNzf1",
+     "subject_id": "1050173597374890184",
+     "rating": "6.6",
+     "year": "2026",
+     "genre": "Action",
+     "type": "movie",
+     "country": "United States",
+     "release_date": "2026-10-16",
+     "has_resource": true
+    },
+    {
+     "name": "Your Mother Your Mother Your Mother",
+     "poster_url": "https://pbcdn.aoneroom.com/image/2026/11/03/3fa18e3a52ccc7f1ad97e919bbac5d0f.jpg",
+     "slug": "your-mother-your-mother-your-mother-q79QbGbBa76",
+     "subject_id": "5132870165285303040",
+     "rating": "7.5",
+     "year": "2026",
+     "genre": "Action,Crime,Drama",
+     "type": "movie",
+     "country": "United Kingdom",
+     "release_date": "2026-10-09",
+     "has_resource": true
+    }
+   ]
+  },
+  {
+   "section": "Horror Movies",
+   "count": 20,
+   "items": [
+    {
+     "name": "Other Mommy",
+     "poster_url": "https://pbcdn.aoneroom.com/image/2026/11/14/96f9224f78469e6353e9b9599da0a72b.jpg",
+     "slug": "other-mommy-84S8sHyyOJ1",
+     "subject_id": "1459506971643629432",
+     "rating": "5.3",
+     "year": "2026",
+     "genre": "Horror,Thriller",
+     "type": "movie",
+     "country": "United States",
+     "release_date": "2026-10-09",
+     "has_resource": true
+    },
+    {
+     "name": "Resident Evil",
+     "poster_url": "https://pbcdn.aoneroom.com/image/2026/11/11/c5a6aa4194be80d3fd52c0cbfd36ee99.jpg",
+     "slug": "resident-evil-M6HaKKRdGZ4",
+     "subject_id": "4192178861456740576",
+     "rating": "7.4",
+     "year": "2026",
+     "genre": "Horror",
+     "type": "movie",
+     "country": "Germany",
+     "release_date": "2026-09-18",
+     "has_resource": true
+    }
+   ]
+  },
+  {
+   "section": "Must-watch Black Shows",
+   "count": 20,
+   "items": [
+    {
+     "name": "Sistas",
+     "poster_url": "https://pbcdn.aoneroom.com/image/2026/10/16/0f4166de614f50a470534c2ef0fb8a2d.jpg",
+     "slug": "sistas-WvtmA9qQcd1",
+     "subject_id": "1018086181784933408",
+     "rating": "5.7",
+     "year": "2019",
+     "genre": "Comedy,Drama,Romance",
+     "type": "tv",
+     "country": "United States",
+     "release_date": "2019-10-23",
+     "has_resource": true
+    },
+    {
+     "name": "All the Queen's Men",
+     "poster_url": "https://pbcdn.aoneroom.com/image/2026/11/12/261a22e8896ef5a1824b3c4c7d2d9ca8.jpg",
+     "slug": "all-the-queens-men-KZRjzyGRtj3",
+     "subject_id": "2781623667900437536",
+     "rating": "6.7",
+     "year": "2021",
+     "genre": "Crime,Drama,Romance",
+     "type": "tv",
+     "country": "United States",
+     "release_date": "2021-09-09",
+     "has_resource": true
+    }
+   ]
+  },
+  {
+   "section": "💓Romance 💓",
+   "count": 20,
+   "items": [
+    {
+     "name": "Sense and Sensibility",
+     "poster_url": "https://pbcdn.aoneroom.com/image/2026/11/14/3b5422fe719f268c84fac1482c836a44.jpg",
+     "slug": "sense-and-sensibility-6veT5w4Ok04",
+     "subject_id": "3361740602919607640",
+     "rating": "7.2",
+     "year": "2026",
+     "genre": "Drama,Romance",
+     "type": "movie",
+     "country": "United Kingdom",
+     "release_date": "2026-10-16",
+     "has_resource": true
+    },
+    {
+     "name": "Drive - The Pretenders [English]",
+     "poster_url": "https://pbcdnw.aoneroom.com/image/2026/10/27/6aa66876c524133b736dc42677c15f0b.jpg",
+     "slug": "drive-the-pretenders-english-kKO55BW9kf7",
+     "subject_id": "6082553684301335688",
+     "rating": "6.3",
+     "year": "2026",
+     "genre": "Drama,Romance,Sport",
+     "type": "movie",
+     "country": "Germany",
+     "release_date": "2026-10-28",
+     "has_resource": true
+    }
+   ]
+  },
+  {
+   "section": "🔔🎄Christmas Movies 2026",
+   "count": 10,
+   "items": [
+    {
+     "name": "Tyler Perry's the Gospel of Christmas",
+     "poster_url": "https://pbcdn.aoneroom.com/image/2026/11/11/1e1528ac5250e803bd27f6a2336700ad.jpeg",
+     "slug": "tyler-perrys-the-gospel-of-christmas-oKP4mZNT2g5",
+     "subject_id": "4413723422518307176",
+     "rating": "6.2",
+     "year": "2026",
+     "genre": "Drama",
+     "type": "movie",
+     "country": "United States",
+     "release_date": "2026-11-11",
+     "has_resource": true
+    },
+    {
+     "name": "A Dog's Perfect Christmas",
+     "poster_url": "https://pbcdn.aoneroom.com/image/2026/11/13/2dc0ee17523c303d91f80fb9beca201a.jpg",
+     "slug": "a-dogs-perfect-christmas-0oimT5bqgu3",
+     "subject_id": "2927596327863314936",
+     "rating": "6.4",
+     "year": "2026",
+     "genre": "Comedy,Drama,Family",
+     "type": "movie",
+     "country": "Canada",
+     "release_date": "2026-11-04",
+     "has_resource": true
+    }
+   ]
+  }
+ ]
+}

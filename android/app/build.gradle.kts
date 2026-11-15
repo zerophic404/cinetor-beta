@@ -91,8 +91,9 @@ composeCompiler {
 }
 
 /**
- * Copies the shared mock catalog (json, images, subs) into a generated assets dir so it is
- * never duplicated in git. Accessible at runtime as `mock/home.json`, `mock/images/...`.
+ * Copies the shared mock catalog of the ISOLATED spaces only (Live TV & Sports, Music, Comics) into a generated
+ * assets dir — Home/Anime/Drama/Adult come from the gateway, so their JSON + art are not shipped (smaller APK).
+ * Only images/subs referenced by the kept JSON files are copied. Runtime path: `mock/tv.json`, `mock/images/...`.
  */
 abstract class CopyMockAssetsTask : DefaultTask() {
     @get:InputDirectory
@@ -107,10 +108,14 @@ abstract class CopyMockAssetsTask : DefaultTask() {
 
     @TaskAction
     fun copy() {
+        val root = mockDir.get().asFile
+        val kept = listOf("tv.json", "music.json", "comics.json")
+        val refs = Regex("\"((?:images|subs)/[^\"]+)\"")
+        val paths = kept.flatMap { name -> refs.findAll(File(root, name).readText()).map { it.groupValues[1] }.toList() }.toSortedSet()
         fs.sync {
-            from(mockDir) {
-                include("*.json", "images/**", "subs/**")
-                exclude("catalog.schema.json")
+            from(root) {
+                kept.forEach { include(it) }
+                paths.forEach { include(it) }
             }
             into(outputDir.dir("mock"))
         }

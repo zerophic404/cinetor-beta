@@ -42,7 +42,7 @@ class DesignLogicTest {
 
     @Test
     fun glass_midBarsOnly_highAllOverlays() {
-        assertTrue(glassUsesLiveBlur(PerformanceTier.MID, GlassLevel.BAR))
+        assertFalse(glassUsesLiveBlur(PerformanceTier.MID, GlassLevel.BAR)) // lag fix: no per-frame bar blur on MID
         assertTrue(glassUsesLiveBlur(PerformanceTier.MID, GlassLevel.SHEET))
         assertFalse(glassUsesLiveBlur(PerformanceTier.MID, GlassLevel.FLOATING))
         assertFalse(glassUsesLiveBlur(PerformanceTier.MID, GlassLevel.SURFACE))

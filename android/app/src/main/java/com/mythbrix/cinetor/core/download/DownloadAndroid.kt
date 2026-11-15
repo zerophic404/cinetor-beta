@@ -16,6 +16,7 @@ import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.longPreferencesKey
+import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -116,6 +117,18 @@ class DownloadPrefs(context: Context, scope: CoroutineScope) {
         )
     }.stateIn(scope, SharingStarted.Eagerly, QueuePolicy())
 
+    /** User-chosen download folder (SAF tree), remembered as the default. */
+    val location: StateFlow<DownloadLocation> = store.data.map { p ->
+        DownloadLocation(p[TREE].orEmpty(), p[TREE_LABEL].orEmpty())
+    }.stateIn(scope, SharingStarted.Eagerly, DownloadLocation())
+
+    suspend fun setLocation(treeUri: String, label: String) {
+        store.edit {
+            it[TREE] = treeUri
+            it[TREE_LABEL] = label
+        }
+    }
+
     suspend fun update(f: (QueuePolicy) -> QueuePolicy) {
         val n = f(policy.value)
         store.edit {
@@ -133,6 +146,8 @@ class DownloadPrefs(context: Context, scope: CoroutineScope) {
         val CHARGING = booleanPreferencesKey("charging_only")
         val LIMIT = longPreferencesKey("speed_limit_bps")
         val CONN = intPreferencesKey("connections")
+        val TREE = stringPreferencesKey("location_tree_uri")
+        val TREE_LABEL = stringPreferencesKey("location_label")
     }
 }
 

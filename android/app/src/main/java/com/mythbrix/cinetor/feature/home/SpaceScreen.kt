@@ -86,6 +86,7 @@ fun SpaceScreen(
                 onSelectGenre = vm::selectGenre,
                 onToggleMyList = { container.toggleMyList(it) },
                 onPlay = { container.playback.play(it) },
+                onLoadMore = vm::loadMore,
             )
         }
     }
@@ -113,6 +114,7 @@ private fun SpaceContent(
     onSelectGenre: (String?) -> Unit,
     onToggleMyList: (Item) -> Unit,
     onPlay: (Item) -> Unit,
+    onLoadMore: (String) -> Unit = {},
 ) {
     val listState = rememberLazyListState()
     val heroVisible by remember {
@@ -156,7 +158,8 @@ private fun SpaceContent(
             }
         } else {
             items(ui.rows, key = { it.id }, contentType = { it.style }) { row ->
-                ContentRow(row, onOpen, onTint)
+                val nearEnd = remember(row.id, onLoadMore) { { onLoadMore(row.id) } }
+                ContentRow(row, onOpen, onTint, onNearEnd = nearEnd)
             }
             if (ui.rows.isEmpty()) {
                 item(key = "empty", contentType = "empty") {

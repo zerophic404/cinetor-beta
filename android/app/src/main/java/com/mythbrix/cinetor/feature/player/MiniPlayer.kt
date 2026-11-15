@@ -7,6 +7,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.gestures.detectTransformGestures
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.WindowInsets
@@ -44,6 +45,7 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.mythbrix.cinetor.core.player.PlayerUiState
 import com.mythbrix.cinetor.design.Cinetor
 import kotlinx.coroutines.launch
@@ -52,8 +54,58 @@ import kotlin.math.roundToInt
 
 enum class Corner { TOP_START, TOP_END, BOTTOM_START, BOTTOM_END }
 
+/** Remembers the mini-player width fraction per profile (docs/requirements-hardening.md §3). */
+interface MiniSizeStore {
+    fun get(profileId: String): Float
+    fun set(profileId: String, fraction: Float)
+}
+
+class InMemoryMiniSizeStore : MiniSizeStore {
+    private val map = java.util.concurrent.ConcurrentHashMap<String, Float>()
+    override fun get(profileId: String): Float = map[profileId] ?: MiniPlayerMath.DEFAULT_FRACTION
+    override fun set(profileId: String, fraction: Float) {
+        map[profileId] = fraction
+    }
+}
+
+/** App-private SharedPreferences (`mini_size.<profileId>`). */
+class PrefsMiniSizeStore(context: android.content.Context) : MiniSizeStore {
+    private val prefs = context.applicationContext
+        .getSharedPreferences("cinetor_mini_player", android.content.Context.MODE_PRIVATE)
+
+    override fun get(profileId: String): Float = prefs.getFloat(key(profileId), MiniPlayerMath.DEFAULT_FRACTION)
+
+    override fun set(profileId: String, fraction: Float) {
+        prefs.edit().putFloat(key(profileId), fraction).apply()
+    }
+
+    private fun key(profileId: String) = "mini_size.$profileId"
+}
+
 /** Pure mini-window maths (px). */
 object MiniPlayerMath {
+    /** Resizable range as a fraction of screen width (docs/requirements-hardening.md §3). */
+    const val MIN_FRACTION = 0.25f
+    const val MAX_FRACTION = 0.80f
+    const val DEFAULT_FRACTION = 0.42f
+
+    fun clampFraction(f: Float): Float = if (f.isNaN()) DEFAULT_FRACTION else f.coerceIn(MIN_FRACTION, MAX_FRACTION)
+
+    /** Height of a 16:9 window of [widthPx]. */
+    fun heightFor(widthPx: Float): Float = widthPx * 9f / 16f
+
+    /**
+     * Bottom-end corner handle drag → new width fraction. Vertical travel is weighted by 16:9 so
+     * dragging along the window diagonal feels 1:1; the aspect ratio itself never changes.
+     */
+    fun resize(current: Float, dx: Float, dy: Float, areaW: Float): Float {
+        if (areaW <= 0f) return clampFraction(current)
+        return clampFraction(current + (dx + dy * 16f / 9f) / 2f / areaW)
+    }
+
+    /** Pinch gesture → new width fraction. */
+    fun pinch(current: Float, zoom: Float): Float = clampFraction(current * if (zoom <= 0f) 1f else zoom)
+
     /** Corner nearest to the window centre. */
     fun nearestCorner(x: Float, y: Float, boxW: Float, boxH: Float, areaW: Float, areaH: Float): Corner {
         val left = x + boxW / 2 < areaW / 2
@@ -78,8 +130,9 @@ object MiniPlayerMath {
 }
 
 /**
- * In-app floating player: draggable 16:9 window (~40 % width), snaps to the nearest corner,
- * tap = expand, swipe off a side = stop. Rest of the screen stays interactive.
+ * In-app floating player: draggable 16:9 window, snaps to the nearest corner, tap = expand,
+ * swipe off a side = stop. Drag the bottom-end handle (or pinch) to resize between 25 % and 80 %
+ * of screen width; the size is remembered per profile. Rest of the screen stays interactive.
  */
 @Composable
 fun MiniPlayer(
@@ -91,12 +144,16 @@ fun MiniPlayer(
     val density = LocalDensity.current
     val insets = WindowInsets.safeDrawing.asPaddingValues()
     var corner by rememberSaveable { mutableStateOf(Corner.BOTTOM_END) }
+    val savedFraction by holder.miniFraction.collectAsStateWithLifecycle()
     BoxWithConstraints(Modifier.fillMaxSize()) {
         val areaW = constraints.maxWidth.toFloat()
         val areaH = constraints.maxHeight.toFloat()
-        val boxWdp = (maxWidth * 0.42f).coerceIn(160.dp, 320.dp)
+        // Live value while the handle is dragged; committed to the profile on release.
+        var fraction by remember { mutableStateOf(savedFraction) }
+        LaunchedEffect(savedFraction) { fraction = savedFraction }
+        val boxWdp = maxWidth * MiniPlayerMath.clampFraction(fraction)
         val boxW = with(density) { boxWdp.toPx() }
-        val boxH = boxW * 9f / 16f
+        val boxH = MiniPlayerMath.heightFor(boxW)
         val m = with(density) { 12.dp.toPx() }
         val top = with(density) { (insets.calculateTopPadding() + 64.dp).toPx() }
         val bottom = with(density) { (insets.calculateBottomPadding() + 96.dp).toPx() }
@@ -104,8 +161,9 @@ fun MiniPlayer(
         val target = MiniPlayerMath.offsetFor(corner, boxW, boxH, areaW, areaH, m, top, bottom)
         val pos = remember { Animatable(target, Offset.VectorConverter) }
         var dragging by remember { mutableStateOf(false) }
-        LaunchedEffect(target, dragging) {
-            if (!dragging) pos.animateTo(target, spring(dampingRatio = 0.8f, stiffness = 500f))
+        var resizing by remember { mutableStateOf(false) }
+        LaunchedEffect(target, dragging, resizing) {
+            if (!dragging && !resizing) pos.animateTo(target, spring(dampingRatio = 0.8f, stiffness = 500f))
         }
         val fade = if (dragging) (1f - abs(pos.value.x - target.x) / (areaW / 2)).coerceIn(0.35f, 1f) else 1f
         Box(
@@ -118,6 +176,15 @@ fun MiniPlayer(
                 .background(Color.Black)
                 .border(1.dp, Color.White.copy(alpha = 0.18f), RoundedCornerShape(12.dp))
                 .semantics { contentDescription = "Mini player" }
+                // Pinch to resize (keeps 16:9, clamped 25–80 % of width).
+                .pointerInput(areaW) {
+                    detectTransformGestures { _, _, zoom, _ ->
+                        if (zoom != 1f) {
+                            fraction = MiniPlayerMath.pinch(fraction, zoom)
+                            holder.setMiniFraction(fraction)
+                        }
+                    }
+                }
                 .pointerInput(Unit) {
                     detectTapGestures(onTap = { holder.expand() })
                 }
@@ -161,6 +228,32 @@ fun MiniPlayer(
                 modifier = Modifier.align(Alignment.TopEnd).padding(4.dp),
                 size = 28.dp, iconSize = 16.dp,
             )
+            // Bottom-end resize handle: drag outward to grow, inward to shrink (16:9 kept, 25–80 %).
+            Box(
+                Modifier
+                    .align(Alignment.BottomEnd)
+                    .size(28.dp)
+                    .semantics { contentDescription = "Resize mini player" }
+                    .pointerInput(areaW) {
+                        detectDragGestures(
+                            onDragStart = { resizing = true },
+                            onDragEnd = { resizing = false; holder.setMiniFraction(fraction) },
+                            onDragCancel = { resizing = false },
+                            onDrag = { change, amount ->
+                                change.consume()
+                                fraction = MiniPlayerMath.resize(fraction, amount.x, amount.y, areaW)
+                            },
+                        )
+                    },
+            ) {
+                Box(
+                    Modifier
+                        .align(Alignment.BottomEnd)
+                        .padding(5.dp)
+                        .size(12.dp)
+                        .background(Color.White.copy(alpha = 0.5f), RoundedCornerShape(2.dp)),
+                )
+            }
         }
     }
 }

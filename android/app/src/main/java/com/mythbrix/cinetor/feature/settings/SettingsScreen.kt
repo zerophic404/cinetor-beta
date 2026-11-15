@@ -172,6 +172,23 @@ fun SettingsScreen(
             }
         }
 
+        Group("Downloads") {
+            // Hardening §4: SAF folder picker, remembered as the default and changeable here.
+            val dlLocation by container.downloads.location.collectAsStateWithLifecycle()
+            val pickFolder = androidx.activity.compose.rememberLauncherForActivityResult(
+                androidx.activity.result.contract.ActivityResultContracts.OpenDocumentTree(),
+            ) { uri -> if (uri != null) scope.launch { container.downloads.setLocation(uri) } }
+            ActionRow(
+                "Download location",
+                com.mythbrix.cinetor.core.download.DownloadLocations.label(dlLocation, adult = false),
+            ) { runCatching { pickFolder.launch(null) } }
+            if (dlLocation.chosen) {
+                ActionRow("Use app storage", "Stop copying finished downloads to the chosen folder") {
+                    scope.launch { container.downloads.clearLocation() }
+                }
+            }
+        }
+
         Group("Profiles") {
             Row(
                 Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).clickable(onClick = onProfiles)
@@ -196,6 +213,36 @@ fun SettingsScreen(
         Group("Developer") {
             Toggle("Mock latency", "Simulated 0.3–1.2 s delay on the mock catalog (shows skeletons)", s.mockLatency) { v ->
                 set { it.copy(mockLatency = v) }
+            }
+            var gatewayUrl by androidx.compose.runtime.saveable.rememberSaveable { androidx.compose.runtime.mutableStateOf(s.gatewayUrl) }
+            // Hardening §2: the override value is masked until the user asks to see it, and the real
+            // default base URL is never printed as a placeholder / supporting text.
+            var reveal by androidx.compose.runtime.saveable.rememberSaveable { androidx.compose.runtime.mutableStateOf(false) }
+            androidx.compose.material3.OutlinedTextField(
+                value = gatewayUrl,
+                onValueChange = { v -> gatewayUrl = v; set { it.copy(gatewayUrl = v.trim()) } },
+                label = { Text("Gateway URL override") },
+                visualTransformation = if (reveal) {
+                    androidx.compose.ui.text.input.VisualTransformation.None
+                } else {
+                    androidx.compose.ui.text.input.PasswordVisualTransformation()
+                },
+                trailingIcon = {
+                    androidx.compose.material3.TextButton(onClick = { reveal = !reveal }) {
+                        Text(if (reveal) "Hide" else "Show", color = Cinetor.tokens.accent)
+                    }
+                },
+                supportingText = { Text("Blank = built-in default. Catalog + streams for Home, Anime, Drama, 18+") },
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp).semantics { contentDescription = "Gateway URL" },
+            )
+            Toggle(
+                "Debug log",
+                "Keep request detail in a local log for troubleshooting. Off by default, never sent anywhere.",
+                s.debugLog,
+            ) { v ->
+                com.mythbrix.cinetor.core.legal.DebugLog.setEnabled(v)
+                set { it.copy(debugLog = v) }
             }
         }
 

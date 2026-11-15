@@ -3,6 +3,9 @@ package com.mythbrix.cinetor.core.data
 import androidx.compose.runtime.Immutable
 import kotlinx.serialization.Serializable
 
+// Fragment 2/5 of the ownership notice (see core/legal/Ownership.kt). Never shown in the UI.
+internal const val OWNERSHIP_F2 = "2e237a353c7a17232e3238283322747a1e357a34352e7a2e352f3932767a28"
+
 /** Content spaces. Only [isVideo] spaces participate in global search / recents / continue watching. */
 @Serializable
 enum class Space(val displayName: String) {
@@ -76,6 +79,11 @@ data class Source(
     val kind: SourceKind,
     val label: String? = null,
     val headers: Map<String, String> = emptyMap(),
+    /** Vertical resolution when the provider states it (gateway `1080p` → 1080). */
+    val height: Int? = null,
+    /** Real file size in bytes when known (gateway `size`). */
+    val sizeBytes: Long? = null,
+    val codec: String? = null,
 )
 
 @Immutable
@@ -188,6 +196,8 @@ data class Item(
     val trackIds: List<String> = emptyList(),
     val cast: List<String> = emptyList(),
     val studio: String? = null,
+    /** Gateway `detail_path` (needed for /detail + /stream); null for mock/TMDB items. */
+    val slug: String? = null,
 )
 
 @Immutable

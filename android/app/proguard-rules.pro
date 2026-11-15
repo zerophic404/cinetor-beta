@@ -19,3 +19,16 @@
 -dontwarn org.conscrypt.**
 -dontwarn org.bouncycastle.**
 -dontwarn org.openjsse.**
+
+# ---- Hardening §2 (docs/requirements-hardening.md): no endpoint leakage in release ----
+# Strip every android.util.Log call from release bytecode so request URLs / headers / stream URLs
+# can never reach logcat on a shipped APK. Developer detail lives in the in-memory DebugLog only.
+-assumenosideeffects class android.util.Log {
+    public static *** v(...);
+    public static *** d(...);
+    public static *** i(...);
+    public static *** w(...);
+    public static *** e(...);
+    public static *** wtf(...);
+    public static *** println(...);
+}

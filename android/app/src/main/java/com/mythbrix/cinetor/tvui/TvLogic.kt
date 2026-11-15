@@ -31,7 +31,8 @@ fun tvKeyOf(keyCode: Int): TvKey = when (keyCode) {
 
 enum class TvDest { SEARCH, HOME, ANIME, DRAMA, LIVE_TV, MUSIC, COMICS, ADULT, DOWNLOADS, LIBRARY, PROFILES, SETTINGS }
 
-enum class TvNavGroup { VIDEO, SPACES, SYSTEM }
+/** VIDEO spaces · PROFILE (profiles + the isolated spaces, like the phone Me screen) · MORE. */
+enum class TvNavGroup { VIDEO, PROFILE, SYSTEM }
 
 data class TvNavEntry(val dest: TvDest, val label: String, val group: TvNavGroup)
 
@@ -45,13 +46,13 @@ fun tvNavEntries(adultEnabled: Boolean, activeSpace: Space? = null): List<TvNavE
     add(TvNavEntry(TvDest.HOME, "Home", TvNavGroup.VIDEO))
     add(TvNavEntry(TvDest.ANIME, "Anime", TvNavGroup.VIDEO))
     add(TvNavEntry(TvDest.DRAMA, "Drama", TvNavGroup.VIDEO))
-    add(TvNavEntry(TvDest.LIVE_TV, "Live TV", TvNavGroup.SPACES))
-    add(TvNavEntry(TvDest.MUSIC, "Music", TvNavGroup.SPACES))
-    add(TvNavEntry(TvDest.COMICS, "Comics", TvNavGroup.SPACES))
-    if (adultEnabled) add(TvNavEntry(TvDest.ADULT, "Adult", TvNavGroup.SPACES))
+    add(TvNavEntry(TvDest.PROFILES, "Profiles", TvNavGroup.PROFILE))
+    add(TvNavEntry(TvDest.LIVE_TV, "Live TV & Sports", TvNavGroup.PROFILE))
+    add(TvNavEntry(TvDest.MUSIC, "Music", TvNavGroup.PROFILE))
+    add(TvNavEntry(TvDest.COMICS, "Comics", TvNavGroup.PROFILE))
+    if (adultEnabled) add(TvNavEntry(TvDest.ADULT, "18+", TvNavGroup.PROFILE))
     add(TvNavEntry(TvDest.DOWNLOADS, "Downloads", TvNavGroup.SYSTEM))
     add(TvNavEntry(TvDest.LIBRARY, "Library", TvNavGroup.SYSTEM))
-    add(TvNavEntry(TvDest.PROFILES, "Profiles", TvNavGroup.SYSTEM))
     add(TvNavEntry(TvDest.SETTINGS, "Settings", TvNavGroup.SYSTEM))
 }
 

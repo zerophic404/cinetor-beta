@@ -5,13 +5,20 @@ import com.mythbrix.cinetor.BuildConfig
 import com.mythbrix.cinetor.core.data.tmdb.OkHttpTmdbHttp
 import com.mythbrix.cinetor.core.data.tmdb.TmdbApi
 import com.mythbrix.cinetor.core.data.tmdb.TmdbCatalogSource
+import com.mythbrix.cinetor.core.data.gateway.FileGatewayDiskCache
+import com.mythbrix.cinetor.core.data.gateway.GatewayApi
+import com.mythbrix.cinetor.core.data.gateway.GatewayCache
+import com.mythbrix.cinetor.core.data.gateway.GatewayCatalogSource
+import com.mythbrix.cinetor.core.data.gateway.OkHttpGatewayHttp
+import com.mythbrix.cinetor.core.data.gateway.PaletteDominantColors
+import com.mythbrix.cinetor.core.data.gateway.SharedPrefsSlugStore
+import com.mythbrix.cinetor.core.player.GatewaySourceResolver
 import com.mythbrix.cinetor.core.download.DownloadRecord
 import com.mythbrix.cinetor.core.download.DownloadsModule
 import com.mythbrix.cinetor.core.download.OfflineResolver
 import com.mythbrix.cinetor.core.player.SourceResolver
 import kotlinx.coroutines.withTimeoutOrNull
 import com.mythbrix.cinetor.core.perf.DeviceProfile
-import android.util.Log
 import com.mythbrix.cinetor.core.perf.PerformanceTier
 import com.mythbrix.cinetor.core.perf.detectTier
 import com.mythbrix.cinetor.core.player.MediaPlaybackPreloader
@@ -59,7 +66,8 @@ class AppContainer(context: Context) {
 
     val latency: MockLatency = MockLatency(MockLatency.Default.minMs, MockLatency.Default.maxMs)
 
-    val catalogSource: MockCatalogSource = MockCatalogSource(assetReader, latency)
+    /** Bundled mock data for the isolated spaces only (Live TV & Sports, Music, Comics). */
+    val catalogSource: MockCatalogSource = MockCatalogSource(assetReader, latency, spaces = listOf(Space.TV, Space.MUSIC, Space.COMICS))
 
     val httpClient: OkHttpClient by lazy {
         OkHttpClient.Builder()
@@ -68,14 +76,75 @@ class AppContainer(context: Context) {
             .build()
     }
 
-    /** TMDB metadata for Home/Anime/Drama; null when the build has no token (→ mock only). */
-    val tmdb: TmdbCatalogSource? = BuildConfig.TMDB_TOKEN.takeIf { it.isNotBlank() }
-        ?.let { token -> TmdbCatalogSource(TmdbApi(OkHttpTmdbHttp(httpClient, token))) }
+    /** TMDB client kept as a metadata helper only (not a catalog source any more). */
+    val tmdb: TmdbCatalogSource? by lazy {
+        BuildConfig.TMDB_TOKEN.takeIf { it.isNotBlank() }?.let { token -> TmdbCatalogSource(TmdbApi(OkHttpTmdbHttp(httpClient, token))) }
+    }
 
-    /** TMDB for video spaces (falls back to mock on error), mock for isolated spaces. */
-    val catalog: CatalogRepository = HybridCatalog(tmdb, catalogSource)
+    /** User's gateway (docs/gateway.md); base URL from Settings → Developer (blank = default). */
+    val gatewayApi: GatewayApi by lazy {
+        GatewayApi(
+            http = OkHttpGatewayHttp(httpClient),
+            cache = GatewayCache(disk = FileGatewayDiskCache(java.io.File(appContext.cacheDir, "gateway"))),
+            baseUrl = { runCatching { settingsState.state.value.gatewayUrl }.getOrDefault("") },
+        )
+    }
+
+    private val adultUnlocked: () -> Boolean = { runCatching { adult.enabled.value && adult.unlocked.value }.getOrDefault(false) }
+
+    /** Comics metadata/chapters from MangaDex; chapter pages via the gateway proxy (docs/gateway.md). */
+    val comicsApi: com.mythbrix.cinetor.core.data.comics.MangaDexApi by lazy {
+        com.mythbrix.cinetor.core.data.comics.MangaDexApi(
+            http = OkHttpGatewayHttp(httpClient),
+            cache = GatewayCache(disk = FileGatewayDiskCache(java.io.File(appContext.cacheDir, "comics"))),
+            gatewayBase = { runCatching { settingsState.state.value.gatewayUrl }.getOrDefault("") },
+        )
+    }
+
+    val comicsCatalog: com.mythbrix.cinetor.core.data.comics.MangaDexCatalogSource by lazy {
+        com.mythbrix.cinetor.core.data.comics.MangaDexCatalogSource(comicsApi)
+    }
+
+    /** Home / Anime / Drama (+ Adult while unlocked) — gateway only, no mock fallback. */
+    val gateway: GatewayCatalogSource by lazy {
+        GatewayCatalogSource(
+            api = gatewayApi,
+            slugs = SharedPrefsSlugStore(appContext),
+            colors = PaletteDominantColors(appContext, httpClient, appScope),
+            adultAllowed = adultUnlocked,
+        )
+    }
+
+    /** Gateway for video spaces + unlocked Adult (errors → retry UI, never mock); mock for TV / Music / Comics. */
+    val catalog: CatalogRepository = HybridCatalog(
+        chain = listOf(gateway),
+        mock = catalogSource,
+        adultChain = { if (adultUnlocked()) listOf(gateway) else emptyList() },
+        mockFallback = { it == Space.TV || it == Space.MUSIC || it == Space.COMICS },
+        comicsChain = { listOf(comicsCatalog) },
+    )
     val search: SearchRepository = SearchRepository(catalog)
-    val remoteSearch: RemoteSearch? get() = tmdb
+    val remoteSearch: RemoteSearch? get() = gateway
+
+    /** Real playable sources (gateway streams) attached at warm / play / download time. */
+    val streams: GatewaySourceResolver by lazy {
+        GatewaySourceResolver(
+            api = gatewayApi,
+            slugOf = { id -> gateway.slugOf(id) },
+            maxHeight = { defaultMaxHeight() },
+            log = { com.mythbrix.cinetor.core.legal.DebugLog.log("playback") { it } },
+            onNoSource = { id -> gateway.markUnplayable(id) },
+        )
+    }
+
+    private fun defaultMaxHeight(): Int? = runCatching {
+        val s = settingsState.state.value
+        val metered = (appContext.getSystemService(Context.CONNECTIVITY_SERVICE) as? android.net.ConnectivityManager)
+            ?.isActiveNetworkMetered ?: false
+        val cap = maxHeightFor(if (metered) s.qualityMobile else s.qualityWifi, s.dataSaver)
+        // Low-tier devices: 720p cap by default (software decode of 1080p stutters).
+        if (playerTier == PerformanceTier.LOW) minOf(cap ?: 720, 720) else cap
+    }.getOrNull()
 
     /** Local-only recent searches (per profile; isolated spaces in their own buckets). */
     val searchHistory: SearchHistory = SearchHistory(SearchHistoryDataStore(appContext))
@@ -196,7 +265,8 @@ class AppContainer(context: Context) {
         resume = resume,
         profileId = { activeProfileId },
         dataSaver = { dataSaver || !preloadDetails },
-        log = { Log.i("CinetorPlayback", it) },
+        log = { com.mythbrix.cinetor.core.legal.DebugLog.log("playback") { it } },
+        prepare = { item, ep -> if (streams.handles(item)) streams.attach(item, ep) else item },
     )
 
     /** App-scoped player state (PlayerHost above the NavHost): survives rotation + navigation. */
@@ -211,6 +281,10 @@ class AppContainer(context: Context) {
             audioHandler = { item -> music.handles(item) },
             beforePlay = { music.yieldToVideo(); applyLanguagePrefs() },
             autoplayNext = { settingsState.state.value.autoplayNext },
+            needsPrepare = { item -> streams.handles(item) },
+            prepare = { item, ep, fresh -> streams.attach(item, ep, fresh) },
+            fallbackFor = { item, ep -> streams.fallback(item, ep) },
+            miniSizes = com.mythbrix.cinetor.feature.player.PrefsMiniSizeStore(appContext),
         )
     }
 
@@ -282,7 +356,14 @@ class AppContainer(context: Context) {
 
     /** Comics space (Task 4.3): reading progress, chapter downloads, reader overlay. */
     val comics: com.mythbrix.cinetor.feature.comics.ComicsModule by lazy {
-        com.mythbrix.cinetor.feature.comics.ComicsModule(appContext, appScope)
+        com.mythbrix.cinetor.feature.comics.ComicsModule(
+            context = appContext,
+            scope = appScope,
+            // MangaDex chapters carry no page URLs until the reader opens them (gateway → direct fallback).
+            pageResolver = { chapter ->
+                if (comicsCatalog.isComicChapter(chapter.id)) comicsCatalog.pages(chapter.id) else chapter.pages
+            },
+        )
     }
 
     /** Adult gate (Task 4.4): PIN session mirrored to the download engine; FLAG_SECURE + lifecycle wiring. */
@@ -308,6 +389,8 @@ class AppContainer(context: Context) {
                 dataSaver = st.dataSaver
                 preloadDetails = st.preloadDetails
                 latency.enabled = st.mockLatency
+                // Developer debug log stays off unless the user turned it on (hardening §2).
+                com.mythbrix.cinetor.core.legal.DebugLog.setEnabled(st.debugLog)
             }
         }
         // Profile switch → that profile's subtitle style.

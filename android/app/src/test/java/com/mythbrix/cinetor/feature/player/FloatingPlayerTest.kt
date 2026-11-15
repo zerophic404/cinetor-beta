@@ -117,4 +117,63 @@ class FloatingPlayerTest {
         assertTrue(MiniPlayerMath.shouldDismiss(900f, 400f, w))
         assertFalse(MiniPlayerMath.shouldDismiss(500f, 400f, w))
     }
+
+    // ---------------------------------------------- resizable mini player (hardening §3)
+
+    @Test
+    fun miniResize_clampedTo25To80PercentAndKeeps16By9() {
+        assertEquals(0.25f, MiniPlayerMath.MIN_FRACTION, 0f)
+        assertEquals(0.80f, MiniPlayerMath.MAX_FRACTION, 0f)
+        // Clamp
+        assertEquals(0.25f, MiniPlayerMath.clampFraction(0.05f), 1e-4f)
+        assertEquals(0.80f, MiniPlayerMath.clampFraction(1.5f), 1e-4f)
+        assertEquals(0.42f, MiniPlayerMath.clampFraction(Float.NaN), 1e-4f)
+        // Corner-handle drag: outward grows, inward shrinks, never past the clamps.
+        val areaW = 1000f
+        assertEquals(0.5f, MiniPlayerMath.resize(0.4f, 100f, 100f * 9f / 16f, areaW), 1e-3f)
+        assertTrue(MiniPlayerMath.resize(0.4f, -300f, -300f, areaW) == MiniPlayerMath.MIN_FRACTION)
+        assertTrue(MiniPlayerMath.resize(0.4f, 3000f, 3000f, areaW) == MiniPlayerMath.MAX_FRACTION)
+        assertEquals(0.4f, MiniPlayerMath.resize(0.4f, 10f, 10f, 0f), 1e-4f) // not measured yet
+        // Pinch
+        assertEquals(0.6f, MiniPlayerMath.pinch(0.3f, 2f), 1e-4f)
+        assertEquals(MiniPlayerMath.MIN_FRACTION, MiniPlayerMath.pinch(0.3f, 0.1f), 1e-4f)
+        assertEquals(0.3f, MiniPlayerMath.pinch(0.3f, 0f), 1e-4f)
+        // 16:9 is a property of the size function, so resizing can never change the aspect.
+        listOf(0.25f, 0.42f, 0.8f).forEach { f ->
+            val w = 1080f * f
+            assertEquals(16f / 9f, w / MiniPlayerMath.heightFor(w), 1e-4f)
+        }
+    }
+
+    @Test
+    fun miniSize_rememberedPerProfile() = runTest {
+        val sizes = InMemoryMiniSizeStore()
+        var profile = "default"
+        val pre = com.mythbrix.cinetor.core.player.MediaPlaybackPreloader(
+            scope = backgroundScope,
+            playerProvider = { com.mythbrix.cinetor.core.player.FakeCinetorPlayer() },
+            clock = { testScheduler.currentTime },
+        )
+        fun holder() = PlayerStateHolder(
+            scope = backgroundScope, preloader = pre, profileId = { profile },
+            clock = { testScheduler.currentTime }, miniSizes = sizes,
+        )
+        val h = holder()
+        assertEquals(MiniPlayerMath.DEFAULT_FRACTION, h.miniFraction.value, 1e-4f)
+        h.setMiniFraction(0.7f)
+        assertEquals(0.7f, h.miniFraction.value, 1e-4f)
+        // Out-of-range input is clamped before it is stored.
+        h.setMiniFraction(9f)
+        assertEquals(MiniPlayerMath.MAX_FRACTION, h.miniFraction.value, 1e-4f)
+        // Another profile keeps its own size; switching back restores 0.80.
+        profile = "kids"
+        h.reloadMiniFraction()
+        assertEquals(MiniPlayerMath.DEFAULT_FRACTION, h.miniFraction.value, 1e-4f)
+        h.setMiniFraction(0.3f)
+        profile = "default"
+        h.reloadMiniFraction()
+        assertEquals(MiniPlayerMath.MAX_FRACTION, h.miniFraction.value, 1e-4f)
+        // A fresh holder (process restart) reads the stored value.
+        assertEquals(MiniPlayerMath.MAX_FRACTION, holder().miniFraction.value, 1e-4f)
+    }
 }

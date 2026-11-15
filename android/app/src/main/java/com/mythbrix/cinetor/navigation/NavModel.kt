@@ -26,14 +26,30 @@ fun navTabsFor(activeSpace: Space?): List<TabSpec> {
     return listOf(
         TabSpec(TabKey.SPACE_BROWSE, browse),
         TabSpec(TabKey.SPACE_SEARCH, "Search"),
-        TabSpec(TabKey.SPACES, "Spaces"),
+        // Spaces live in Me now (no switcher): this tab returns to the Me screen.
+        TabSpec(TabKey.SPACES, "Me"),
         TabSpec(TabKey.EXIT_SPACE, "Video"),
     )
 }
 
-/** Isolated spaces offered by the switcher; Adult only when enabled. */
-fun switcherSpaces(adultEnabled: Boolean): List<Space> =
+/** Isolated spaces listed in Me → Spaces (TV: Profile group); Adult only when enabled. */
+fun profileSpaces(adultEnabled: Boolean): List<Space> =
     Space.ISOLATED.filter { it != Space.ADULT || adultEnabled }
+
+@Deprecated("Top spaces switcher removed; spaces live in Me", ReplaceWith("profileSpaces(adultEnabled)"))
+fun switcherSpaces(adultEnabled: Boolean): List<Space> = profileSpaces(adultEnabled)
+
+/** The top logo no longer opens anything (switcher removed). */
+const val TOP_BAR_HAS_SWITCHER = false
+
+/** Label + subtitle of a space entry in Me → Spaces. */
+fun spaceEntryLabel(space: Space): Pair<String, String> = when (space) {
+    Space.TV -> "Live TV & Sports" to "Channels, guide, live events"
+    Space.MUSIC -> "Music" to "Albums, tracks, queue"
+    Space.COMICS -> "Comics" to "Manga · Manhwa · Manhua"
+    Space.ADULT -> "18+" to "PIN protected"
+    else -> space.displayName to ""
+}
 
 enum class NavLayout { BOTTOM_BAR, RAIL, TV_RAIL }
 

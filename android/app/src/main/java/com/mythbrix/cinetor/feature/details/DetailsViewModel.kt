@@ -84,12 +84,14 @@ class DetailsStateHolder(
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
-                _state.value = DetailsUiState.Error(id, e.message ?: "Title not found")
+                _state.value = DetailsUiState.Error(id, com.mythbrix.cinetor.core.legal.UserErrors.safe(e, com.mythbrix.cinetor.core.legal.UserErrors.NOT_FOUND))
                 return@launch
             }
             // Re-warm with the full item when the card summary wasn't playable (no sources yet).
             val summaryUnplayable = summary != null && SourceResolver.request(summary, null) == null
-            if (warmedId != id || (summaryUnplayable && SourceResolver.request(item, null) != null)) warm(item)
+            // Gateway series: the card summary has no seasons (warm skipped) → warm the full item (stream resolved in the preloader).
+            val gainedSeasons = item.seasons.isNotEmpty() && summary?.seasons.isNullOrEmpty()
+            if (warmedId != id || (summaryUnplayable && (SourceResolver.request(item, null) != null || gainedSeasons))) warm(item)
             _state.value = DetailsUiState.Ready(DetailsUi(item))
             val more = moreLikeThis(item, candidates(item))
             _state.value = DetailsUiState.Ready(DetailsUi(item, more, moreLoading = false))

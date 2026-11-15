@@ -221,12 +221,12 @@ fun PlayerScreen(
             VideoSurface(cinetorPlayer?.media3Player(), screen.aspect, Modifier.fillMaxSize(), layers.zoom, layers.configureView)
             layers.overVideo()
             layers.gestures(Modifier.fillMaxSize(), toggle)
-            if (cinetorPlayer == null || (ui.buffering && !controlsVisible && ui.playWhenReady)) {
+            if (screen.notice == null && (cinetorPlayer == null || (ui.buffering && !controlsVisible && ui.playWhenReady))) {
                 CircularProgressIndicator(color = Cinetor.tokens.accent, modifier = Modifier.align(Alignment.Center).size(48.dp))
             }
-            ui.error?.let { err ->
+            (screen.notice ?: ui.error?.let { "Playback error: $it" })?.let { err ->
                 Text(
-                    "Playback error: $err",
+                    err,
                     color = Color.White,
                     modifier = Modifier.align(Alignment.Center).background(Color.Black.copy(alpha = 0.7f), RoundedCornerShape(8.dp)).padding(12.dp),
                 )

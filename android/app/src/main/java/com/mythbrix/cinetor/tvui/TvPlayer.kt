@@ -203,12 +203,12 @@ fun TvPlayerScreen(
         layers.overVideo()
         // Invisible key catcher: holds focus while no overlay is shown.
         Box(Modifier.fillMaxSize().focusRequester(catcher).focusable().semantics { contentDescription = "Player" })
-        if (cinetorPlayer == null || (ui.buffering && ui.playWhenReady)) {
+        if (screen.notice == null && (cinetorPlayer == null || (ui.buffering && ui.playWhenReady))) {
             CircularProgressIndicator(color = Cinetor.tokens.accent, modifier = Modifier.align(Alignment.Center).size(56.dp))
         }
-        ui.error?.let { err ->
+        (screen.notice ?: ui.error?.let { "Playback error: $it" })?.let { err ->
             Text(
-                "Playback error: $err", color = Color.White,
+                err, color = Color.White,
                 modifier = Modifier.align(Alignment.Center).background(Color.Black.copy(alpha = 0.7f), RoundedCornerShape(8.dp)).padding(16.dp),
             )
         }

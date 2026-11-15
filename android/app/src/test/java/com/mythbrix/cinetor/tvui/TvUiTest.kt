@@ -41,10 +41,11 @@ class TvUiTest {
             listOf(TvDest.SEARCH, TvDest.HOME, TvDest.ANIME, TvDest.DRAMA),
             off.filter { it.group == TvNavGroup.VIDEO }.map { it.dest },
         )
-        assertEquals(listOf(TvDest.LIVE_TV, TvDest.MUSIC, TvDest.COMICS), off.filter { it.group == TvNavGroup.SPACES }.map { it.dest })
+        // Spaces moved under the Profile group (phone: Me → Spaces)
+        assertEquals(listOf(TvDest.PROFILES, TvDest.LIVE_TV, TvDest.MUSIC, TvDest.COMICS), off.filter { it.group == TvNavGroup.PROFILE }.map { it.dest })
         assertEquals(TvDest.SETTINGS, off.last().dest)
         assertFalse(off.any { it.dest == TvDest.ADULT })
-        assertTrue(tvNavEntries(adultEnabled = true).any { it.dest == TvDest.ADULT && it.group == TvNavGroup.SPACES })
+        assertTrue(tvNavEntries(adultEnabled = true).any { it.dest == TvDest.ADULT && it.group == TvNavGroup.PROFILE })
         // Inside an isolated space, search is the in-space search (isolation)
         assertEquals("Search Music", tvNavEntries(false, Space.MUSIC).first().label)
         assertEquals("Search", tvNavEntries(false, Space.HOME).first().label)

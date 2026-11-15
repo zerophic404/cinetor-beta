@@ -155,6 +155,14 @@ class DownloadEngine(
 
     suspend fun cancel(id: String) = delete(id)
 
+    /** Current record (used by the delete flow to find the files). */
+    suspend fun record(id: String): DownloadRecord? = store.get(id)
+
+    /** Remembers where the finished file was exported (user-chosen SAF folder). */
+    suspend fun setExportUri(id: String, uri: String) {
+        edit(id) { it.copy(exportUri = uri) }
+    }
+
     suspend fun pauseAll() = store.all().filter { it.isActive }.forEach { pause(it.id) }
 
     suspend fun resumeAll() {
@@ -238,7 +246,9 @@ class DownloadEngine(
                 throw e
             } catch (e: Throwable) {
                 flush(id)
-                val msg = e.message ?: e.javaClass.simpleName
+                // lastError / events are user-visible → generic text only (hardening §2); detail to DebugLog.
+                com.mythbrix.cinetor.core.legal.DebugLog.log("download") { "$id failed: ${e.message}" }
+                val msg = com.mythbrix.cinetor.core.legal.UserErrors.safe(e, com.mythbrix.cinetor.core.legal.UserErrors.DOWNLOAD)
                 edit(id) { it.copy(status = DownloadStatus.FAILED, lastError = msg) }
                 event(id, "error", msg)
             } finally {

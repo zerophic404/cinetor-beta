@@ -4,7 +4,6 @@ import androidx.media3.exoplayer.source.MediaSource
 import com.mythbrix.cinetor.core.download.DownloadCacheProvider
 import com.mythbrix.cinetor.core.download.OfflineSource
 import android.content.Context
-import android.util.Log
 import androidx.annotation.OptIn
 import androidx.media3.common.C
 import androidx.media3.common.PlaybackException
@@ -106,7 +105,7 @@ class ExoCinetorPlayer(
             refresh()
         }
         override fun onPlayerError(error: PlaybackException) {
-            Log.w(TAG, "playback error ${error.errorCodeName}", error)
+            com.mythbrix.cinetor.core.legal.DebugLog.log(TAG) { "playback error ${error.errorCodeName}: ${error.message}" }
             _state.update { it.copy(error = error.errorCodeName.removePrefix("ERROR_CODE_").lowercase().replace('_', ' ')) }
         }
         override fun onVideoSizeChanged(videoSize: VideoSize) = refresh()
@@ -178,11 +177,11 @@ class ExoCinetorPlayer(
         val src = provider?.let { runCatching { it.offlineSource(request.itemId, request.episodeId) }.getOrNull() }
         return when (src) {
             is OfflineSource.LocalFile -> {
-                Log.i(TAG, "source offline-file ${request.key}")
+                com.mythbrix.cinetor.core.legal.DebugLog.log(TAG) { "source offline-file ${request.key}" }
                 SourceResolver.toLocalMediaSource(context, request, src)
             }
             is OfflineSource.Cached -> {
-                Log.i(TAG, "source offline-cache ${request.key}")
+                com.mythbrix.cinetor.core.legal.DebugLog.log(TAG) { "source offline-cache ${request.key}" }
                 SourceResolver.toCachedMediaSource(context, request, src, provider!!)
             }
             null -> SourceResolver.toMediaSource(context, request, cache)

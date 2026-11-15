@@ -11,7 +11,7 @@ import com.mythbrix.cinetor.core.player.ResumeEntry
 import com.mythbrix.cinetor.core.player.SourceResolver
 import com.mythbrix.cinetor.core.player.continueEntries
 import com.mythbrix.cinetor.core.player.progressByItem
-import com.mythbrix.cinetor.navigation.switcherSpaces
+import com.mythbrix.cinetor.navigation.profileSpaces
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.test.TestScope
@@ -40,7 +40,7 @@ class AdultGateTest {
         assertFalse(g.enabled.value)
         assertFalse(g.isEnabled())
         assertFalse(g.unlocked.value)
-        assertFalse(Space.ADULT in switcherSpaces(g.enabled.value))
+        assertFalse(Space.ADULT in profileSpaces(g.enabled.value))
         assertEquals(UnlockResult.NotEnabled, g.unlock("1234"))
         // Download engine told "locked" from the start (adult downloads hidden).
         assertEquals(listOf(false), sessions)
@@ -53,7 +53,7 @@ class AdultGateTest {
         assertEquals(EnableResult.Ok, g.enable(ageConfirmed = true, pin = "1234"))
         runCurrent()
         assertTrue(g.enabled.value)
-        assertTrue(Space.ADULT in switcherSpaces(g.enabled.value))
+        assertTrue(Space.ADULT in profileSpaces(g.enabled.value))
         assertFalse("enabling does not open the session", g.unlocked.value)
         assertEquals(UnlockResult.Ok, g.unlock("1234"))
         assertTrue(g.unlocked.value)

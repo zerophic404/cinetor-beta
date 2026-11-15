@@ -49,9 +49,11 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.mythbrix.cinetor.core.data.Episode
 import com.mythbrix.cinetor.core.data.Item
+import com.mythbrix.cinetor.core.data.Source
 import com.mythbrix.cinetor.core.download.DownloadChoice
 import com.mythbrix.cinetor.core.download.DownloadKind
 import com.mythbrix.cinetor.core.download.DownloadsModule
+import com.mythbrix.cinetor.core.download.dedupeQualityOptions
 import com.mythbrix.cinetor.core.download.MAX_CONNECTIONS
 import com.mythbrix.cinetor.core.download.QualityOption
 import com.mythbrix.cinetor.core.download.StreamTrackInfo
@@ -59,7 +61,19 @@ import com.mythbrix.cinetor.core.download.downloadKindOf
 import com.mythbrix.cinetor.core.download.formatBytes
 import com.mythbrix.cinetor.core.download.qualityOptions
 import com.mythbrix.cinetor.design.Cinetor
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import kotlinx.coroutines.launch
+
+/**
+ * Downloadable sources; gateway lists (resolution-tagged) keep MP4 files only when any exist — DASH
+ * manifests there need signed cookies the Media3 downloader cannot probe.
+ */
+fun downloadableSources(sources: List<Source>): List<Source> {
+    val ok = sources.filter { downloadKindOf(it.kind) != null }
+    val tagged = ok.any { it.height != null }
+    val files = ok.filter { it.kind == com.mythbrix.cinetor.core.data.SourceKind.MP4 }
+    return if (tagged && files.isNotEmpty()) files.distinctBy { it.height } else ok
+}
 
 /** What the sheet downloads: one title/episode, or several episodes (season / next 3). */
 data class DownloadTarget(val item: Item, val episodes: List<Episode> = emptyList(), val seasonNumber: Int? = null, val label: String? = null) {
@@ -73,11 +87,18 @@ data class DownloadTarget(val item: Item, val episodes: List<Episode> = emptyLis
  */
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
-fun DownloadOptionsSheet(target: DownloadTarget, module: DownloadsModule, onDismiss: () -> Unit, onStarted: (Int) -> Unit) {
+fun DownloadOptionsSheet(
+    target: DownloadTarget,
+    module: DownloadsModule,
+    onDismiss: () -> Unit,
+    onStarted: (Int) -> Unit,
+    /** Gateway titles: resolve real sources (same URL + headers as playback) for an episode / the movie. */
+    resolve: (suspend (Item, Episode?) -> List<Source>)? = null,
+) {
     val t = Cinetor.tokens
     val scope = rememberCoroutineScope()
     val first = target.episodes.firstOrNull()
-    val sources = remember(target) { (first?.sources ?: target.item.sources).filter { downloadKindOf(it.kind) != null } }
+    var sources by remember(target) { mutableStateOf(downloadableSources(first?.sources ?: target.item.sources)) }
     val duration = (first?.durationSec ?: target.item.durationSec ?: 0).toLong()
     val options = remember(target) { mutableStateListOf<QualityOption>() }
     var tracks by remember(target) { mutableStateOf<StreamTrackInfo?>(null) }
@@ -88,8 +109,11 @@ fun DownloadOptionsSheet(target: DownloadTarget, module: DownloadsModule, onDism
     var connections by remember { mutableFloatStateOf(module.defaultConnectionCount().toFloat()) }
 
     LaunchedEffect(target) {
+        if (resolve != null) {
+            sources = downloadableSources(runCatching { resolve(target.item, first) }.getOrDefault(emptyList()))
+        }
         // Cheap placeholders first (sizes unknown), then probe each source.
-        sources.forEach { options += qualityOptions(it, null, duration) }
+        options += dedupeQualityOptions(sources.flatMap { qualityOptions(it, null, duration) })
         selected = options.firstOrNull()
         val probed = mutableListOf<QualityOption>()
         for (s in sources) {
@@ -98,8 +122,10 @@ fun DownloadOptionsSheet(target: DownloadTarget, module: DownloadsModule, onDism
             if (tr != null && tracks == null) tracks = tr
         }
         if (probed.isNotEmpty()) {
-            options.clear(); options += probed
-            selected = probed.first()
+            // Hardening §4: identical resolution + format + size is listed ONCE.
+            val unique = dedupeQualityOptions(probed)
+            options.clear(); options += unique
+            selected = unique.first()
         }
         loading = false
     }
@@ -161,10 +187,25 @@ fun DownloadOptionsSheet(target: DownloadTarget, module: DownloadsModule, onDism
                 }
             }
             Section("Location")
-            Text(
-                if (target.item.space.name == "ADULT") "Internal · private folder (hidden)" else "Internal storage (app)",
-                color = t.textSecondary, style = MaterialTheme.typography.bodyMedium,
-            )
+            val adultTarget = target.item.space.name == "ADULT"
+            val location by module.location.collectAsStateWithLifecycle()
+            val pickFolder = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocumentTree()) { uri ->
+                if (uri != null) scope.launch { module.setLocation(uri) }
+            }
+            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    com.mythbrix.cinetor.core.download.DownloadLocations.label(location, adultTarget),
+                    color = t.textSecondary, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f),
+                )
+                if (!adultTarget) {
+                    androidx.compose.material3.TextButton(
+                        onClick = { runCatching { pickFolder.launch(null) } },
+                        modifier = Modifier.semantics { contentDescription = "Choose download folder" },
+                    ) {
+                        Text(if (location.chosen) "Change" else "Choose folder", color = t.accent)
+                    }
+                }
+            }
             if (selected?.kind == DownloadKind.PROGRESSIVE) {
                 Section("Connections: ${connections.toInt()}")
                 Slider(
@@ -186,7 +227,13 @@ fun DownloadOptionsSheet(target: DownloadTarget, module: DownloadsModule, onDism
                         } else {
                             val srcIndex = sources.indexOf(q.source).coerceAtLeast(0)
                             eps.forEach { ep ->
-                                val epSrc = ep.sources.filter { downloadKindOf(it.kind) != null }.getOrNull(srcIndex) ?: q.source
+                                val epSources = if (ep != first && resolve != null) {
+                                    downloadableSources(runCatching { resolve(target.item, ep) }.getOrDefault(emptyList()))
+                                } else {
+                                    downloadableSources(ep.sources)
+                                }
+                                val epSrc = epSources.firstOrNull { q.height != null && it.height == q.height }
+                                    ?: epSources.getOrNull(srcIndex) ?: q.source
                                 val epChoice = if (ep == first) choice else choice.copy(quality = q.copy(source = epSrc, estimatedBytes = -1))
                                 module.start(target.item, ep, target.seasonNumber, epChoice)
                             }

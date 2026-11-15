@@ -36,7 +36,10 @@ class DownloadsModule(
     val paths = DownloadPaths(app)
     val prefs = DownloadPrefs(app, scope)
     val monitor = DeviceConditionsMonitor(app, scope)
-    private val store: DownloadStore = RoomDownloadStore(CinetorDb.get(app).downloads())
+    private val store: DownloadStore = VaultedDownloadStore(
+        RoomDownloadStore(CinetorDb.get(app).downloads()),
+        UrlVault.forApp(app),
+    )
 
     private val client: OkHttpClient = baseClient.newBuilder()
         .connectTimeout(15, TimeUnit.SECONDS)
@@ -90,6 +93,8 @@ class DownloadsModule(
         scope.launch {
             engine.downloads.collect { l ->
                 completed.value = l.filter { it.record.status == DownloadStatus.COMPLETED }.associate { it.record.id to it.record }
+                // Finished files are copied into the user-chosen folder (hardening §4).
+                l.map { it.record }.forEach { r -> runCatching { exportIfNeeded(r) } }
             }
         }
         // Running work → foreground service; queued but blocked → WorkManager waits for the constraint.
@@ -105,6 +110,44 @@ class DownloadsModule(
     }
 
     fun scheduleResumeWork() = runCatching { ResumeDownloadsWorker.enqueue(app, prefs.policy.value) }
+
+    // ----------------------------------------------- user-chosen location + delete (hardening §4)
+
+    private val exporter = DownloadExporter(app)
+
+    /** Chosen download folder (blank = app storage). */
+    val location: StateFlow<DownloadLocation> get() = prefs.location
+
+    /** Remembers the SAF tree the user picked as the new default. */
+    suspend fun setLocation(treeUri: android.net.Uri) {
+        exporter.remember(treeUri)
+        val s = treeUri.toString()
+        prefs.setLocation(s, DownloadLocations.folderName(s))
+    }
+
+    suspend fun clearLocation() = prefs.setLocation("", "")
+
+    fun locationLabel(adult: Boolean): String = DownloadLocations.label(location.value, adult)
+
+    /** Removes the entry only; files stay where they are. */
+    suspend fun removeEntry(id: String) = engine.delete(id)
+
+    /** Removes the entry AND deletes the file from the chosen location + app storage. */
+    suspend fun deleteWithFile(id: String): Boolean {
+        val record = engine.record(id)
+        val deleted = record?.let { exporter.deleteFiles(it) } ?: false
+        engine.delete(id)
+        return deleted
+    }
+
+    /** Copies finished files into the chosen folder; failures are silent (the app copy still plays). */
+    private suspend fun exportIfNeeded(record: DownloadRecord) {
+        val loc = location.value
+        if (!DownloadLocations.needsExport(record, loc)) return
+        val uri = exporter.export(loc.treeUri, java.io.File(record.filePath), DownloadLocations.fileName(record), record.mimeType)
+            ?: return
+        engine.setExportUri(record.id, uri)
+    }
 
     suspend fun refreshStorage() {
         _storage.value = withContext(Dispatchers.IO) {
@@ -123,7 +166,9 @@ class DownloadsModule(
     /** Probes a source for the options sheet: HEAD size (progressive) or Media3 tracks (HLS/DASH). */
     suspend fun options(source: Source, durationSec: Long): Pair<List<QualityOption>, StreamTrackInfo?> {
         val kind = downloadKindOf(source.kind) ?: return emptyList<QualityOption>() to null
-        return if (kind == DownloadKind.PROGRESSIVE) {
+        return if (kind == DownloadKind.PROGRESSIVE && (source.sizeBytes ?: 0) > 0) {
+            qualityOptions(source, null, durationSec) to null
+        } else if (kind == DownloadKind.PROGRESSIVE) {
             val len = withContext(Dispatchers.IO) {
                 runCatching { OkHttpRangeHttp(client).probe(source.url, source.headers).contentLength }.getOrDefault(-1L)
             }

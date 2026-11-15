@@ -77,6 +77,8 @@ fun DownloadDetailsSheet(
     onDismiss: () -> Unit,
     onOpen: (String) -> Unit,
     onPlay: ((DownloadRecord) -> Unit)? = null,
+    /** Delete tapped → the caller asks Cancel / Remove entry / Delete file (hardening §4). */
+    onDelete: (() -> Unit)? = null,
 ) {
     val t = Cinetor.tokens
     val all by module.visible.collectAsStateWithLifecycle()
@@ -197,7 +199,10 @@ fun DownloadDetailsSheet(
                     Action("Move up") { scope.launch { engine.move(r.id, -1) } }
                 }
                 Action("Open") { onOpen(r.itemId) }
-                Action("Delete") { scope.launch { engine.delete(r.id); onDismiss() } }
+                Action("Delete") {
+                    val ask = onDelete
+                    if (ask != null) ask() else scope.launch { engine.delete(r.id); onDismiss() }
+                }
             }
 
             if (events.isNotEmpty()) {

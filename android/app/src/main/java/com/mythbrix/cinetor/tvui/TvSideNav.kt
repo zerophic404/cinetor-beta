@@ -119,7 +119,7 @@ fun TvSideNav(
                 AnimatedVisibility(expanded, enter = fadeIn(), exit = fadeOut()) {
                     Text(
                         when (e.group) {
-                            TvNavGroup.SPACES -> "SPACES"
+                            TvNavGroup.PROFILE -> "PROFILE"
                             TvNavGroup.SYSTEM -> "MORE"
                             TvNavGroup.VIDEO -> "VIDEO"
                         },

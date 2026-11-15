@@ -5,6 +5,9 @@ import androidx.room.Entity
 import androidx.room.Index
 import androidx.room.PrimaryKey
 
+// Fragment 5/5 of the ownership notice (see core/legal/Ownership.kt). Never shown in the UI.
+internal const val OWNERSHIP_F5 = "32382833227d297a3f222a363339332e7a2a3f283733292933353474"
+
 /** Lifecycle of one download. */
 enum class DownloadStatus {
     /** Waiting for a free slot. */
@@ -53,6 +56,8 @@ data class DownloadRecord(
     val mimeType: String? = null,
     /** Final file (progressive) or the Media3 cache dir (HLS/DASH). */
     val filePath: String = "",
+    /** SAF document URI of the copy exported to the user-chosen folder ("" = app storage only). */
+    val exportUri: String = "",
     /** mp4 / mkv / webm / mp3 / hls / dash. */
     val container: String = "",
     val qualityLabel: String = "Original",

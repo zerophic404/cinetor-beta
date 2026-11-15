@@ -26,8 +26,8 @@ class NavModelTest {
 
     @Test
     fun switcher_hidesAdultUnlessEnabled() {
-        assertEquals(listOf(Space.TV, Space.MUSIC, Space.COMICS), switcherSpaces(adultEnabled = false))
-        assertTrue(Space.ADULT in switcherSpaces(adultEnabled = true))
+        assertEquals(listOf(Space.TV, Space.MUSIC, Space.COMICS), profileSpaces(adultEnabled = false))
+        assertTrue(Space.ADULT in profileSpaces(adultEnabled = true))
     }
 
     @Test
@@ -38,5 +38,19 @@ class NavModelTest {
         assertEquals(NavLayout.RAIL, navLayoutFor(700, 600, isTv = false))
         assertEquals(NavLayout.BOTTOM_BAR, navLayoutFor(600, 960, isTv = false))
         assertEquals(NavLayout.TV_RAIL, navLayoutFor(960, 540, isTv = true))
+    }
+
+    @Test
+    fun meScreen_listsSpaces_switcherRemoved() {
+        assertFalse(TOP_BAR_HAS_SWITCHER)
+        assertEquals(listOf(Space.TV, Space.MUSIC, Space.COMICS), profileSpaces(adultEnabled = false))
+        assertEquals(listOf(Space.TV, Space.MUSIC, Space.COMICS, Space.ADULT), profileSpaces(adultEnabled = true))
+        assertEquals("Live TV & Sports", spaceEntryLabel(Space.TV).first)
+        assertEquals("Manga · Manhwa · Manhua", spaceEntryLabel(Space.COMICS).second)
+        assertEquals("18+", spaceEntryLabel(Space.ADULT).first)
+        // Inside an isolated space the old "Spaces" tab now returns to Me
+        for (space in Space.ISOLATED) {
+            assertEquals("Me", navTabsFor(space).first { it.key == TabKey.SPACES }.label)
+        }
     }
 }
