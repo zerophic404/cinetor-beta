@@ -1,0 +1,45 @@
+{
+ "subject_id": "6391474290696802080",
+ "se": 0,
+ "ep": 0,
+ "has_resource": true,
+ "direct_play_url": "/api/public/v1/stream/6391474290696802080/play?detail_path=inception-e1BOR6f19C7&se=0&ep=0",
+ "sources": [
+  {
+   "source": "MovieBox",
+   "isBdix": false,
+   "resolution": "1080p",
+   "format": "DASH",
+   "url": "https://sbcdnw.hakunaymatata.com/dash/6391474290696802080_0_0_1080_h265_884/index.mpd",
+   "size": 3591595268,
+   "duration": 8888,
+   "codec": "hevc/h264",
+   "vip_locked": false,
+   "headers": {
+    "Referer": "https://movieboxhd.net/",
+    "Origin": "https://movieboxhd.net",
+    "Cookie": "Edge-Cache-Cookie=urlprefix=aHR0cHM6Ly9zYmNkbncuaGFrdW5heW1hdGF0YS5jb20vZGFzaC82MzkxNDc0MjkwNjk2ODAyMDgwXzBfMF8xMDgwX2gyNjVfODg0Lw:sign=85e0ad17dec14677e073a106f8ff773c:t=1794742125",
+    "X-MB-Token": "Edge-Cache-Cookie=urlprefix=aHR0cHM6Ly9zYmNkbncuaGFrdW5heW1hdGF0YS5jb20vZGFzaC82MzkxNDc0MjkwNjk2ODAyMDgwXzBfMF8xMDgwX2gyNjVfODg0Lw:sign=85e0ad17dec14677e073a106f8ff773c:t=1794742125"
+   },
+   "proxy_url": "/api/public/v1/stream/6391474290696802080/play?url=https%3A%2F%2Fsbcdnw.hakunaymatata.com%2Fdash%2F6391474290696802080_0_0_1080_h265_884%2Findex.mpd&res=1080p"
+  }
+ ],
+ "hls": [],
+ "dash": [
+  {
+   "format": "DASH",
+   "id": "3017343561827342496",
+   "url": "https://sbcdnw.hakunaymatata.com/dash/6391474290696802080_0_0_1080_h265_884/index_web.mpd",
+   "resolutions": "1080,720,480",
+   "size": "3591595268",
+   "duration": 8888,
+   "codecName": "hevc",
+   "signCookie": "Edge-Cache-Cookie=urlprefix=aHR0cHM6Ly9zYmNkbncuaGFrdW5heW1hdGF0YS5jb20vZGFzaC82MzkxNDc0MjkwNjk2ODAyMDgwXzBfMF8xMDgwX2gyNjVfODg0Lw:sign=85e0ad17dec14677e073a106f8ff773c:t=1794742125",
+   "signHeaderKey": "X-MB-Token",
+   "vipLocked": false
+  }
+ ],
+ "free_episodes": 999,
+ "limited": false,
+ "note": null
+}

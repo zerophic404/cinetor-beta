@@ -1,0 +1,53 @@
+{
+ "page": 1,
+ "per_page": 36,
+ "has_more": true,
+ "total": 1000000,
+ "items": [
+  {
+   "name": "Avatar: The Last Airbender",
+   "poster_url": "https://pbcdnw.aoneroom.com/image/2026/01/27/98712318c66eb7aa430b7ba858096b6e.jpg",
+   "slug": "avatar-the-last-airbender-CxFouOOmHG3",
+   "subject_id": "3095924718877167400",
+   "badge": null,
+   "rating": "9.3",
+   "year": "2005",
+   "genre": "Animation,Action,Adventure",
+   "type": "tv",
+   "country": "United States",
+   "description": null,
+   "release_date": "2005-02-21",
+   "has_resource": true
+  },
+  {
+   "name": "Rick and Morty",
+   "poster_url": "https://pbcdnw.aoneroom.com/image/2026/10/29/04c8109c0b3567c57bf31a684443a718.jpg",
+   "slug": "rick-and-morty-aPze2KlOcN2",
+   "subject_id": "2344713369481008160",
+   "badge": null,
+   "rating": "9.0",
+   "year": "2013",
+   "genre": "Animation,Adventure,Comedy",
+   "type": "tv",
+   "country": "United States",
+   "description": null,
+   "release_date": "2013-12-02",
+   "has_resource": true
+  },
+  {
+   "name": "The Legend of Korra",
+   "poster_url": "https://pbcdnw.aoneroom.com/image/2026/01/27/8689548f52b8177ed99abe1fa4951ba8.jpg",
+   "slug": "the-legend-of-korra-CTySJM6FjS9",
+   "subject_id": "8288990199971989792",
+   "badge": null,
+   "rating": "8.3",
+   "year": "2012",
+   "genre": "Animation,Action,Adventure",
+   "type": "tv",
+   "country": "United States",
+   "description": null,
+   "release_date": "2012-04-14",
+   "has_resource": true
+  }
+ ]
+}

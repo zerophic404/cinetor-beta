@@ -1,0 +1,53 @@
+{
+ "page": 1,
+ "per_page": 36,
+ "has_more": true,
+ "total": 1000000,
+ "items": [
+  {
+   "name": "The Empire",
+   "poster_url": "https://pbcdnw.aoneroom.com/image/2026/01/26/47afd21033fa2748e13a6d97ec4a8834.jpg",
+   "slug": "the-empire-IkRVudCz1n3",
+   "subject_id": "2829594855561643344",
+   "badge": null,
+   "rating": "7.2",
+   "year": "2022",
+   "genre": "Crime",
+   "type": "tv",
+   "country": "Korea",
+   "description": null,
+   "release_date": "2022-09-24",
+   "has_resource": true
+  },
+  {
+   "name": "Soldier",
+   "poster_url": "https://pbcdnw.aoneroom.com/image/2026/01/27/03c2a409091ee989debeac2f2b486488.jpg",
+   "slug": "soldier-KJXaGsO2KE7",
+   "subject_id": "6426632577301758800",
+   "badge": null,
+   "rating": "5.7",
+   "year": "2012",
+   "genre": "Drama,History",
+   "type": "tv",
+   "country": "Korea",
+   "description": null,
+   "release_date": "2012-02-11",
+   "has_resource": true
+  },
+  {
+   "name": "Personal Taste",
+   "poster_url": "https://pbcdnw.aoneroom.com/image/2026/01/27/c236d7346c1860e2b534b7c407e005b7.jpg",
+   "slug": "personal-taste-I6mE54Evfo3",
+   "subject_id": "2846174722109366280",
+   "badge": null,
+   "rating": "7.3",
+   "year": "2010",
+   "genre": "Comedy,Drama,Romance",
+   "type": "tv",
+   "country": "Korea",
+   "description": null,
+   "release_date": "2010-03-31",
+   "has_resource": true
+  }
+ ]
+}

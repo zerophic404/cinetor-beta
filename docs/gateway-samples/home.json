@@ -1,0 +1,158 @@
+{
+ "status": "success",
+ "sections": [
+  {
+   "section": "Banner",
+   "count": 14,
+   "items": [
+    {
+     "name": "12 12 12",
+     "poster_url": "https://pbcdn.aoneroom.com/image/2026/09/15/8adc684ee89af8fbb9bf626d209d9c0c.jpg",
+     "slug": "12-12-12-gQ2HnAj3ny5",
+     "subject_id": "4661791271722305928",
+     "badge": null,
+     "rating": "6.9",
+     "year": "2026",
+     "genre": "Crime,Drama,Thriller",
+     "type": "tv",
+     "country": "United States",
+     "description": null,
+     "release_date": "2026-11-13",
+     "has_resource": true
+    },
+    {
+     "name": "The Lord of the Rings: The Rings of Power",
+     "poster_url": "https://pbcdn.aoneroom.com/image/2026/09/29/5aad7dd8d87f5e0ec17986e0d1d13d74.jpg",
+     "slug": "the-lord-of-the-rings-the-rings-of-power-oWxADnOpP26",
+     "subject_id": "5074096615720375064",
+     "badge": null,
+     "rating": "6.8",
+     "year": "2022",
+     "genre": "Action,Adventure,Drama",
+     "type": "tv",
+     "country": "United States",
+     "description": null,
+     "release_date": "2022-09-01",
+     "has_resource": true
+    },
+    {
+     "name": "Tyler Perry's the Gospel of Christmas",
+     "poster_url": "https://pbcdn.aoneroom.com/image/2026/11/11/1e1528ac5250e803bd27f6a2336700ad.jpeg",
+     "slug": "tyler-perrys-the-gospel-of-christmas-oKP4mZNT2g5",
+     "subject_id": "4413723422518307176",
+     "badge": null,
+     "rating": "6.2",
+     "year": "2026",
+     "genre": "Drama",
+     "type": "movie",
+     "country": "United States",
+     "description": null,
+     "release_date": "2026-11-11",
+     "has_resource": true
+    }
+   ]
+  },
+  {
+   "section": "Popular Series",
+   "count": 20,
+   "items": [
+    {
+     "name": "12 12 12",
+     "poster_url": "https://pbcdn.aoneroom.com/image/2026/09/15/8adc684ee89af8fbb9bf626d209d9c0c.jpg",
+     "slug": "12-12-12-gQ2HnAj3ny5",
+     "subject_id": "4661791271722305928",
+     "badge": null,
+     "rating": "6.9",
+     "year": "2026",
+     "genre": "Crime,Drama,Thriller",
+     "type": "tv",
+     "country": "United States",
+     "description": null,
+     "release_date": "2026-11-13",
+     "has_resource": true
+    },
+    {
+     "name": "The Lord of the Rings: The Rings of Power",
+     "poster_url": "https://pbcdn.aoneroom.com/image/2026/09/29/5aad7dd8d87f5e0ec17986e0d1d13d74.jpg",
+     "slug": "the-lord-of-the-rings-the-rings-of-power-oWxADnOpP26",
+     "subject_id": "5074096615720375064",
+     "badge": null,
+     "rating": "6.8",
+     "year": "2022",
+     "genre": "Action,Adventure,Drama",
+     "type": "tv",
+     "country": "United States",
+     "description": null,
+     "release_date": "2022-09-01",
+     "has_resource": true
+    },
+    {
+     "name": "The Body",
+     "poster_url": "https://pbcdn.aoneroom.com/image/2026/10/30/971b1a476307ee0431a6b88e8ee20e4e.jpeg",
+     "slug": "the-body-swzRnJ8bb14",
+     "subject_id": "3373175524922212368",
+     "badge": null,
+     "rating": "6.9",
+     "year": "2023",
+     "genre": "Drama,Thriller",
+     "type": "tv",
+     "country": "United States",
+     "description": null,
+     "release_date": "2023-01-02",
+     "has_resource": true
+    }
+   ]
+  },
+  {
+   "section": "Popular Movie",
+   "count": 20,
+   "items": [
+    {
+     "name": "Street Fighter",
+     "poster_url": "https://pbcdn.aoneroom.com/image/2026/10/12/324ac3d0904fe0a08bf4bf604d4c2ae3.jpg",
+     "slug": "street-fighter-2DhSc6ZNzf1",
+     "subject_id": "1050173597374890184",
+     "badge": null,
+     "rating": "6.6",
+     "year": "2026",
+     "genre": "Action",
+     "type": "movie",
+     "country": "United States",
+     "description": null,
+     "release_date": "2026-10-16",
+     "has_resource": true
+    },
+    {
+     "name": "Tyler Perry's the Gospel of Christmas",
+     "poster_url": "https://pbcdn.aoneroom.com/image/2026/11/11/1e1528ac5250e803bd27f6a2336700ad.jpeg",
+     "slug": "tyler-perrys-the-gospel-of-christmas-oKP4mZNT2g5",
+     "subject_id": "4413723422518307176",
+     "badge": null,
+     "rating": "6.2",
+     "year": "2026",
+     "genre": "Drama",
+     "type": "movie",
+     "country": "United States",
+     "description": null,
+     "release_date": "2026-11-11",
+     "has_resource": true
+    },
+    {
+     "name": "The Odyssey",
+     "poster_url": "https://pbcdnw.aoneroom.com/image/2026/10/31/3be2f488ea9f1482060b692b52699eb4.jpg",
+     "slug": "the-odyssey-Qo3OhdfhiS2",
+     "subject_id": "2413592258760133680",
+     "badge": null,
+     "rating": "8.4",
+     "year": "2026",
+     "genre": "Action,Adventure,Fantasy",
+     "type": "movie",
+     "country": "United Kingdom",
+     "description": null,
+     "release_date": "2026-07-17",
+     "has_resource": true
+    }
+   ]
+  }
+ ]
+}

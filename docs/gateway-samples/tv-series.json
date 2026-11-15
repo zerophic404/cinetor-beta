@@ -1,0 +1,53 @@
+{
+ "page": 1,
+ "per_page": 36,
+ "has_more": true,
+ "total": 1000000,
+ "items": [
+  {
+   "name": "Twin Angel: Twinkle Paradise [English]",
+   "poster_url": "https://pbcdnw.aoneroom.com/image/2026/01/26/b169b18edf5eea4cb9766adeefc30a8b.jpg",
+   "slug": "twin-angel-twinkle-paradise-english-0w6etNaYWr6",
+   "subject_id": "5414173168284193688",
+   "badge": "English",
+   "rating": "6.8",
+   "year": "2011",
+   "genre": "Anime",
+   "type": "tv",
+   "country": "Japan",
+   "description": null,
+   "release_date": "2011-07-04",
+   "has_resource": true
+  },
+  {
+   "name": "XXXHOLiC [English]",
+   "poster_url": "https://pbcdnw.aoneroom.com/image/2026/01/27/c50ccf3ff3179fa06d08ea58f9d5f546.jpg",
+   "slug": "xxxholic-english-YozAkWppX4",
+   "subject_id": "67119926225554744",
+   "badge": "English",
+   "rating": "7.6",
+   "year": "2006",
+   "genre": "Anime,Comedy,Drama",
+   "type": "tv",
+   "country": "Japan",
+   "description": null,
+   "release_date": "2006-04-06",
+   "has_resource": true
+  },
+  {
+   "name": "Mars Daybreak [English]",
+   "poster_url": "https://pbcdnw.aoneroom.com/image/2025/11/02/d19290e2c4b297dc1e94d8a1cc303880.jpg",
+   "slug": "mars-daybreak-english-S3OEcm9t0E9",
+   "subject_id": "8095280413033268280",
+   "badge": "English",
+   "rating": "7.1",
+   "year": "2004",
+   "genre": "Anime,Sci-Fi",
+   "type": "tv",
+   "country": "Japan",
+   "description": null,
+   "release_date": "2004-04-01",
+   "has_resource": true
+  }
+ ]
+}

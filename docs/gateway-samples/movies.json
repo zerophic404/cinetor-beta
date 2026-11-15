@@ -1,0 +1,53 @@
+{
+ "page": 1,
+ "per_page": 36,
+ "has_more": true,
+ "total": 1000000,
+ "items": [
+  {
+   "name": "Locksmiths, ma-UNLOCK kaya ang swerte sa Laro Laro Pick? It's Showtime",
+   "poster_url": "https://pbcdnw.aoneroom.com/image/2026/11/14/d17153a991ac34dd3ad7af1589a9ebc7.jpg",
+   "slug": "locksmiths-ma-unlock-kaya-ang-swerte-sa-laro-laro-pick-its-showtime-wUsPbo1QV84",
+   "subject_id": "3478122744783560312",
+   "badge": null,
+   "rating": "0",
+   "year": "2026",
+   "genre": "Reality",
+   "type": "movie",
+   "country": "Philippines",
+   "description": null,
+   "release_date": "2026-11-14",
+   "has_resource": true
+  },
+  {
+   "name": "Baricuatro: Batang Cebu .45 Batas Sa Sariling Kamay",
+   "poster_url": "https://pbcdnw.aoneroom.com/image/2026/11/14/ccfc1a5be38548d138f3c5663bc2c594.jpg",
+   "slug": "baricuatro-batang-cebu-45-batas-sa-sariling-kamay-U2BP7Ma7YC6",
+   "subject_id": "5563331153697856800",
+   "badge": null,
+   "rating": "0",
+   "year": "2026",
+   "genre": "Drama",
+   "type": "movie",
+   "country": null,
+   "description": null,
+   "release_date": "2026-11-14",
+   "has_resource": true
+  },
+  {
+   "name": "It's Showtime",
+   "poster_url": "https://pbcdnw.aoneroom.com/image/2026/11/14/6f0777362d04d723b161e7c7f12d5c3d.jpg",
+   "slug": "its-showtime-UUiubdYLHL6",
+   "subject_id": "5681596823404694704",
+   "badge": null,
+   "rating": "0",
+   "year": "2026",
+   "genre": "Reality",
+   "type": "movie",
+   "country": "Philippines",
+   "description": null,
+   "release_date": "2026-11-14",
+   "has_resource": true
+  }
+ ]
+}
