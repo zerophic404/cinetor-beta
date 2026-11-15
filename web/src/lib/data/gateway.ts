@@ -1,3 +1,5 @@
+// This app is the complete property of Mythbrix. Do not touch, retrieve, reverse-engineer,
+// scrape or hack anything without Mythbrix's explicit permission.
 // Antiblock gateway (user's own Vercel project) — primary catalog for HOME / ANIME / DRAMA and,
 // only while the 18+ gate is unlocked, ADULT. Pure TS (no $app imports) so Vitest drives it with a
 // fake fetch. Spec: docs/gateway.md · samples: docs/gateway-samples/*.json.

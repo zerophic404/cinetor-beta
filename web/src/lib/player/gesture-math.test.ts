@@ -15,7 +15,7 @@ import {
   sideOf,
   verticalTarget
 } from './gesture-math';
-import { cornerPos, isSwipeOff, snapCorner } from './mini-math';
+import { MINI_MAX_FRAC, MINI_MIN_FRAC, clampMiniWidth, cornerPos, isSwipeOff, miniFrac, miniHeight, resizeWidth, snapCorner } from './mini-math';
 import { keyAction, stepSpeed } from './keys';
 
 describe('gesture math', () => {
@@ -116,5 +116,29 @@ describe('keyboard', () => {
     expect(stepSpeed(3, 1)).toBe(3);
     expect(stepSpeed(0.25, -1)).toBe(0.25);
     expect(stepSpeed(1.1, 1)).toBe(1.25);
+  });
+});
+
+describe('mini player resize (corner handle)', () => {
+  it('clamps width to 25–80 % of the viewport and keeps 16:9', () => {
+    expect(clampMiniWidth(10, 1000)).toBe(250);
+    expect(clampMiniWidth(5000, 1000)).toBe(800);
+    expect(clampMiniWidth(400, 1000)).toBe(400);
+    // Never below 160 px on tiny viewports.
+    expect(clampMiniWidth(10, 400)).toBe(160);
+    expect(miniHeight(320)).toBe(180);
+    expect(miniFrac(400, 1000)).toBeCloseTo(0.4);
+    expect(miniFrac(10, 1000)).toBeCloseTo(MINI_MIN_FRAC);
+    expect(miniFrac(9999, 1000)).toBeCloseTo(MINI_MAX_FRAC);
+  });
+
+  it('right-anchored corners grow when dragged leftwards', () => {
+    expect(resizeWidth(400, -100, 'br', 1000)).toBe(500);
+    expect(resizeWidth(400, 100, 'br', 1000)).toBe(300);
+    expect(resizeWidth(400, 100, 'bl', 1000)).toBe(500);
+    expect(resizeWidth(400, -100, 'tl', 1000)).toBe(300);
+    // Clamped at both ends.
+    expect(resizeWidth(400, -5000, 'br', 1000)).toBe(800);
+    expect(resizeWidth(400, 5000, 'br', 1000)).toBe(250);
   });
 });

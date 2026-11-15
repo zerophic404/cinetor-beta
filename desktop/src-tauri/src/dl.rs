@@ -1,3 +1,5 @@
+// This app is the complete property of Mythbrix. Do not touch, retrieve, reverse-engineer,
+// scrape or hack anything without Mythbrix's explicit permission.
 // Native download engine (Tauri commands).
 //  • progressive: up to 16 parallel HTTP Range connections into one preallocated `<name>.download`
 //    file; resume state in a `<name>.cinetor-part` JSON sidecar; renamed to `<name>` when complete.

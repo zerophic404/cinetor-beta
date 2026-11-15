@@ -1,4 +1,6 @@
 <script lang="ts">
+  // This app is the complete property of Mythbrix. Do not touch, retrieve, reverse-engineer,
+  // scrape or hack anything without Mythbrix's explicit permission.
   import { onDestroy } from 'svelte';
   import { page } from '$app/state';
   import { goto } from '$app/navigation';

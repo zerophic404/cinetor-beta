@@ -1,3 +1,5 @@
+// This app is the complete property of Mythbrix. Do not touch, retrieve, reverse-engineer,
+// scrape or hack anything without Mythbrix's explicit permission.
 // Cinetor desktop shell: frameless window (glass title bar drawn by the web app), Windows Mica/Acrylic,
 // single instance, remembered window size, mini-player mode and the native download engine.
 mod dl;
@@ -37,12 +39,22 @@ pub fn run() {
             Ok(())
         })
         .on_window_event(|window, event| {
-            // Never persist the 480x270 mini size as the remembered window size.
-            if let tauri::WindowEvent::CloseRequested { .. } = event {
-                if let Some(w) = window.app_handle().get_webview_window(window.label()) {
-                    let state = window.app_handle().state::<mini::MiniState>();
-                    mini::restore(&w, &state);
+            let app = window.app_handle();
+            let state = app.state::<mini::MiniState>();
+            match event {
+                // Mini mode stays 16:9 and remembers its bounds.
+                tauri::WindowEvent::Resized(_) | tauri::WindowEvent::Moved(_) => {
+                    if let Some(w) = app.get_webview_window(window.label()) {
+                        mini::on_bounds_changed(&w, &state);
+                    }
                 }
+                // Never persist the mini size as the remembered full-window size.
+                tauri::WindowEvent::CloseRequested { .. } => {
+                    if let Some(w) = app.get_webview_window(window.label()) {
+                        mini::restore(&w, &state);
+                    }
+                }
+                _ => {}
             }
         })
         .run(tauri::generate_context!())

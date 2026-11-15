@@ -1,3 +1,5 @@
+// This app is the complete property of Mythbrix. Do not touch, retrieve, reverse-engineer,
+// scrape or hack anything without Mythbrix's explicit permission.
 // Gateway playback: lazy placeholder sources ('gw-stream:' for gateway items, 'gw-find:' for
 // TMDB-origin items) are resolved right before play / download into proxy MP4 variants.
 // Browsers can't send Cookie/Referer → video goes through the gateway proxy

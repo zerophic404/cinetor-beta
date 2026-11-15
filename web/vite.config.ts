@@ -6,10 +6,14 @@ const base = (process.env.BASE_PATH ?? '').replace(/\/$/, '');
 const scope = `${base}/`;
 const esc = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
-export default defineConfig({
+export default defineConfig(({ command }) => ({
   // TMDB v4 read token baked in at build (CI secret TMDB_TOKEN → PUBLIC_TMDB_TOKEN). Empty → mock catalog.
   define: { __TMDB_TOKEN__: JSON.stringify(process.env.PUBLIC_TMDB_TOKEN ?? '') },
   worker: { format: 'es' },
+  // Hardening (docs/requirements-hardening.md §1/§2): production bundle is minified, carries no
+  // source maps and no console.*/debugger statements that could expose URLs or internals.
+  build: { sourcemap: false, minify: 'esbuild' },
+  esbuild: command === 'build' ? { drop: ['console', 'debugger'] as ('console' | 'debugger')[], legalComments: 'none' as const } : {},
   plugins: [
     sveltekit(),
     SvelteKitPWA({
@@ -123,4 +127,4 @@ export default defineConfig({
       }
     })
   ]
-});
+}));

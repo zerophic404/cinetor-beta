@@ -1,3 +1,5 @@
+// This app is the complete property of Mythbrix. Do not touch, retrieve, reverse-engineer,
+// scrape or hack anything without Mythbrix's explicit permission.
 // Browser download manager singleton: queue + runners + persistence + live stats (Svelte 5 runes).
 import type { Episode, Item, Source, SourceKind } from '../data/types';
 import type { Media } from '../player/sources';

@@ -1,3 +1,5 @@
+// This app is the complete property of Mythbrix. Do not touch, retrieve, reverse-engineer,
+// scrape or hack anything without Mythbrix's explicit permission.
 // App-facing catalog. Fallback chain for Home/Anime/Drama: Gateway → TMDB → mock.
 // ADULT: gateway only while the 18+ gate is unlocked (else mock placeholder file).
 // TV / Music / Comics: always mock (never call the gateway).

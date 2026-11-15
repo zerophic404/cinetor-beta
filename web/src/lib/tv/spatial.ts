@@ -1,3 +1,5 @@
+// This app is the complete property of Mythbrix. Do not touch, retrieve, reverse-engineer,
+// scrape or hack anything without Mythbrix's explicit permission.
 // TV / remote spatial navigation: pure nearest-neighbour selection + DOM engine
 // (arrow keys / D-pad, Enter, Back/Escape/Backspace, focus memory per route).
 import { writable, get } from 'svelte/store';

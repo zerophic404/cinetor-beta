@@ -1,3 +1,5 @@
+// This app is the complete property of Mythbrix. Do not touch, retrieve, reverse-engineer,
+// scrape or hack anything without Mythbrix's explicit permission.
 // Shaka-player singleton bound to ONE persistent <video> (owned by the /app layout's park slot).
 // The element is MOVED between hosts (park → player → mini), never recreated → buffer + state kept.
 import { writable, type Readable } from 'svelte/store';

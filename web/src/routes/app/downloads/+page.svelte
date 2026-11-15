@@ -1,4 +1,6 @@
 <script lang="ts">
+  // This app is the complete property of Mythbrix. Do not touch, retrieve, reverse-engineer,
+  // scrape or hack anything without Mythbrix's explicit permission.
   import { onMount } from 'svelte';
   import { base } from '$app/paths';
   import DownloadDetailsSheet from '$lib/download/DownloadDetailsSheet.svelte';

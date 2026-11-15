@@ -1,4 +1,6 @@
 <script lang="ts">
+  // This app is the complete property of Mythbrix. Do not touch, retrieve, reverse-engineer,
+  // scrape or hack anything without Mythbrix's explicit permission.
   // Full player: the persistent <video> is MOVED into .stage (instant start, buffer kept).
   import { onMount } from 'svelte';
   import { engine } from './engine';

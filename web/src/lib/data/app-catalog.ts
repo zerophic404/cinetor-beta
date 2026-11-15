@@ -1,3 +1,5 @@
+// This app is the complete property of Mythbrix. Do not touch, retrieve, reverse-engineer,
+// scrape or hack anything without Mythbrix's explicit permission.
 // App-wide catalog. Home/Anime/Drama (+ 18+ while unlocked) come ONLY from the antiblock gateway
 // (offline → cached gateway data or error + retry). Live TV & Sports and Music stay mock; Comics
 // come from MangaDex (mock library = offline fallback).

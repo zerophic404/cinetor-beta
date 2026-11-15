@@ -4,6 +4,7 @@
   import { imgFor } from '$lib/ui/img';
   import { watchHref } from '$lib/ui/handoff';
   import { downloads } from './manager.svelte';
+  import { GENERIC, userMessage } from '$lib/errors';
   import { chunkBytes, chunkDone, chunkSize, formatBytes, formatDuration, formatSpeed, percent } from './math';
 
   let { open = $bindable(false), id }: { open?: boolean; id: string } = $props();
@@ -111,12 +112,11 @@
       <dt>Subtitles</dt><dd>{r.tracks.texts.length ? r.tracks.texts.join(', ') : 'None'}</dd>
       <dt>Size</dt><dd>{total ? formatBytes(total) : '?'} {r.estimatedBytes ? `(estimated ${formatBytes(r.estimatedBytes)})` : ''}</dd>
       <dt>Stored in</dt><dd class="mono">{storageLabel}</dd>
-      <dt>Source host</dt><dd class="mono">{r.host || '—'}</dd>
       <dt>Added</dt><dd>{ts(r.createdAt)}</dd>
       <dt>Started</dt><dd>{ts(r.startedAt)}</dd>
       <dt>Finished</dt><dd>{ts(r.finishedAt)}</dd>
       <dt>Retries</dt><dd>{r.retries}</dd>
-      <dt>Last error</dt><dd class:errtxt={!!r.lastError}>{r.lastError ?? '—'}</dd>
+      <dt>Last error</dt><dd class:errtxt={!!r.lastError}>{r.lastError ? userMessage(new Error(r.lastError), GENERIC.download) : '—'}</dd>
     </dl>
 
     <div class="actions">
