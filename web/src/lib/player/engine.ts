@@ -3,6 +3,8 @@
 import { writable, type Readable } from 'svelte/store';
 import { MIME, playbackOf, type Media } from './sources';
 import type { EngineLike, LoadOpts } from './types';
+import type { Source } from '../data/types';
+import { isLazySource } from '../data/gateway-play';
 
 interface ShakaTrack {
   id: number;
@@ -101,6 +103,15 @@ class Engine implements EngineLike {
   private _error = writable<{ msg: string; unsupported: boolean } | null>(null);
   readonly error: Readable<{ msg: string; unsupported: boolean } | null> = { subscribe: this._error.subscribe };
   private videoListeners: ((v: HTMLVideoElement) => void)[] = [];
+  /** Gateway variants of the loaded media (quality menu = reload another proxy MP4). */
+  private variants: Source[] = [];
+  private current: Source | null = null;
+  private media: Media | null = null;
+  private recovering = false;
+  /** Re-resolve a failing gateway stream (expired signed link) — wired by the controller. */
+  recover: ((m: Media) => Promise<Media | null>) | null = null;
+  /** Manual quality picks are remembered here (controller sets localStorage). */
+  onQualityPick: ((height: number | null) => void) | null = null;
 
   ensureVideo(): HTMLVideoElement {
     if (this.video) return this.video;
@@ -111,6 +122,7 @@ class Engine implements EngineLike {
     v.preload = 'auto';
     v.className = 'cinetor-video';
     v.addEventListener('error', () => {
+      if (this.tryRecover()) return;
       const code = v.error?.code;
       if (code === 4 || code === 3) this._error.set({ msg: "This format or codec isn't supported by your browser.", unsupported: true });
       else if (code === 2) this._error.set({ msg: 'Network error — check your connection and retry.', unsupported: false });
@@ -174,6 +186,7 @@ class Engine implements EngineLike {
     p.addEventListener('error', (e) => {
       const d = e.detail;
       if (d?.code === 7000) return; // LOAD_INTERRUPTED: newer load won
+      if (this.tryRecover()) return;
       this._error.set(describeError(d?.code, d?.category));
     });
     const refresh = () => this.refreshTracks();
@@ -187,17 +200,90 @@ class Engine implements EngineLike {
 
   async load(media: Media, startSec: number, opts: LoadOpts): Promise<void> {
     const src = media.source;
-    if (!src) throw new Error('No source');
+    if (!src || isLazySource(src)) throw new Error('No source available');
     const v = this.ensureVideo();
     this.loadedKey = null;
     this._error.set(null);
     this._tracks.set(NO_TRACKS);
+    this.media = media;
+    this.variants = media.variants ?? [];
+    this.current = src;
+    v.preload = opts.buffer ? 'auto' : 'metadata';
+    try {
+      await this.loadSrc(src, startSec, opts);
+    } catch (e) {
+      if (opts.signal?.aborted || (e as Error)?.name === 'AbortError' || !this.variants.length) throw e;
+      // Gateway: other variants, then a fresh resolution (expired link), before giving up.
+      const ok = await this.fallback(media, src, startSec, opts);
+      if (!ok) throw e;
+    }
+    if (opts.signal?.aborted) throw new DOMException('aborted', 'AbortError');
+    this.loadedKey = media.key;
+    this.refreshTracks();
+  }
+
+  private async fallback(media: Media, failed: Source, startSec: number, opts: LoadOpts): Promise<boolean> {
+    for (const alt of this.variants) {
+      if (alt.url === failed.url) continue;
+      try {
+        await this.loadSrc(alt, startSec, opts);
+        this.current = alt;
+        this._error.set(null);
+        return true;
+      } catch {
+        if (opts.signal?.aborted) return false;
+      }
+    }
+    const fresh = this.recover ? await this.recover(media).catch(() => null) : null;
+    if (!fresh?.source || opts.signal?.aborted) return false;
+    try {
+      await this.loadSrc(fresh.source, startSec, opts);
+      this.variants = fresh.variants ?? [];
+      this.current = fresh.source;
+      this._error.set(null);
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  /** Mid-playback failure of a gateway stream: re-resolve once and continue at the same position. */
+  private tryRecover(): boolean {
+    const m = this.media;
+    const v = this.video;
+    if (!m || !v || !this.loadedKey || !this.variants.length || this.recovering || !this.recover) return false;
+    this.recovering = true;
+    const t = v.currentTime;
+    const wasPlaying = !v.paused;
+    const key = this.loadedKey;
+    void (async () => {
+      try {
+        const fresh = await this.recover!(m);
+        if (!fresh?.source || this.loadedKey !== key) throw new Error('No source available');
+        const h = this.current?.height;
+        const src = fresh.variants?.find((x) => x.height === h) ?? fresh.source;
+        await this.loadSrc(src, t, { buffer: true });
+        this.variants = fresh.variants ?? [];
+        this.current = src;
+        this._error.set(null);
+        this.refreshTracks();
+        if (wasPlaying) await v.play().catch(() => {});
+      } catch {
+        this._error.set({ msg: 'Stream link expired or failed — retry.', unsupported: false });
+      } finally {
+        setTimeout(() => (this.recovering = false), 10_000);
+      }
+    })();
+    return true;
+  }
+
+  private async loadSrc(src: Source, startSec: number, opts: LoadOpts): Promise<void> {
+    const v = this.ensureVideo();
     const kind = playbackOf(src, (m) => this.canPlay(m));
     if (kind === 'unsupported') {
       this._error.set({ msg: "This format isn't supported by your browser.", unsupported: true });
       throw new Error('unsupported');
     }
-    v.preload = opts.buffer ? 'auto' : 'metadata';
     const sh = await loadShaka();
     if (opts.signal?.aborted) throw new DOMException('aborted', 'AbortError');
     this.headers = src.headers;
@@ -217,13 +303,13 @@ class Engine implements EngineLike {
       }
       await nativeLoad(v, src.url, startSec, opts.signal);
     }
-    if (opts.signal?.aborted) throw new DOMException('aborted', 'AbortError');
-    this.loadedKey = media.key;
-    this.refreshTracks();
   }
 
   async unload(): Promise<void> {
     this.loadedKey = null;
+    this.media = null;
+    this.variants = [];
+    this.current = null;
     this._tracks.set(NO_TRACKS);
     const v = this.video;
     if (!v) return;
@@ -247,7 +333,20 @@ class Engine implements EngineLike {
 
   refreshTracks(): void {
     const p = this.player;
-    if (!p || !this.loadedKey) return;
+    if (!this.loadedKey) return;
+    if (this.variants.length) {
+      // Progressive gateway variants: one quality per proxy MP4.
+      const texts = p ? p.getTextTracks().map((t) => ({ id: t.id, language: t.language, label: t.label || langName(t.language) })) : [];
+      this._tracks.update((cur) => ({
+        ...cur,
+        qualities: this.variants.filter((x) => x.height).map((x) => ({ height: x.height!, bandwidth: 0 })),
+        auto: cur.auto && !this.current?.height ? true : cur.auto,
+        activeHeight: this.current?.height ?? null,
+        texts
+      }));
+      return;
+    }
+    if (!p) return;
     const variants = p.getVariantTracks();
     const byH = new Map<number, number>();
     for (const t of variants) if (t.height) byH.set(t.height, Math.max(byH.get(t.height) ?? 0, t.bandwidth));
@@ -267,6 +366,10 @@ class Engine implements EngineLike {
   }
 
   selectQuality(height: number | null): void {
+    if (this.variants.length) {
+      void this.switchVariant(height);
+      return;
+    }
     const p = this.player;
     if (!p) return;
     if (height === null) {
@@ -282,6 +385,31 @@ class Engine implements EngineLike {
     p.selectVariantTrack(pick, true);
     this._tracks.update((t) => ({ ...t, auto: false }));
     this.refreshTracks();
+  }
+
+  /** Reload another gateway variant at the current position (keeps play/pause state). */
+  private async switchVariant(height: number | null): Promise<void> {
+    const v = this.video;
+    const key = this.loadedKey;
+    if (!v || !key) return;
+    this.onQualityPick?.(height);
+    const target = height === null ? this.variants.find((x) => (x.height ?? 0) <= 1080) ?? this.variants[0] : this.variants.find((x) => x.height === height);
+    if (!target || target.url === this.current?.url) {
+      this._tracks.update((t) => ({ ...t, auto: height === null }));
+      return;
+    }
+    const t = v.currentTime;
+    const wasPlaying = !v.paused;
+    try {
+      await this.loadSrc(target, t, { buffer: true });
+      if (this.loadedKey !== key) return;
+      this.current = target;
+      this._tracks.update((x) => ({ ...x, auto: height === null }));
+      this.refreshTracks();
+      if (wasPlaying) await v.play().catch(() => {});
+    } catch {
+      this._error.set({ msg: `Couldn't switch to ${target.label ?? 'that quality'}.`, unsupported: false });
+    }
   }
 
   selectAudio(language: string): void {

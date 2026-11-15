@@ -7,9 +7,8 @@
   interface Props {
     tabs: NavTab[];
     spaceLabel?: string | null;
-    onSpaces: () => void;
   }
-  let { tabs, spaceLabel = null, onSpaces }: Props = $props();
+  let { tabs, spaceLabel = null }: Props = $props();
 
   function isActive(t: NavTab): boolean {
     const url = page.url;
@@ -27,10 +26,11 @@
 </script>
 
 <nav class="nav glass glass-bar" aria-label="Main">
-  <button class="brand" onclick={onSpaces} aria-label="Switch space" aria-haspopup="dialog">
+  <!-- Brand only (spaces moved to Me → Spaces). Hidden on phones to give tabs the room. -->
+  <div class="brand" aria-hidden={spaceLabel ? undefined : 'true'}>
     <Logo size={34} />
     {#if spaceLabel}<span class="space-name">{spaceLabel}</span>{/if}
-  </button>
+  </div>
   <ul>
     {#each tabs as t (t.id)}
       {@const active = isActive(t)}
@@ -57,9 +57,8 @@
     padding: 0 6px;
     border-radius: 24px;
   }
-  /* Phone: the logo is the space switcher (TV, Music, Comics, 18+). */
   .brand {
-    display: grid;
+    display: none;
     place-items: center;
     flex: none;
     border: 0;
@@ -134,6 +133,7 @@
     }
     .brand {
       display: grid;
+      place-items: center;
       justify-items: center;
       gap: 4px;
       margin-bottom: 18px;

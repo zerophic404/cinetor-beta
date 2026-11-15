@@ -1,6 +1,8 @@
 // Browser download manager singleton: queue + runners + persistence + live stats (Svelte 5 runes).
 import type { Episode, Item, Source, SourceKind } from '../data/types';
 import type { Media } from '../player/sources';
+import { streams } from '../data/app-catalog';
+import { pickVariant } from '../data/gateway-play';
 import { removeAdaptive, storeAdaptive } from './adaptive';
 import { backoffMs, clampConnections, eta, SpeedMeter } from './math';
 import { assemble, removePieces, runProgressive, type PieceStore, type ProgressiveState } from './progressive';
@@ -28,6 +30,8 @@ export interface StartRequest {
   estimatedBytes: number;
   connections?: number;
   durationSec?: number;
+  /** Gateway placeholder of the media (re-resolve expired links on resume). */
+  lazyUrl?: string;
 }
 
 export const downloadKindOf = (src: Source | undefined): DownloadKind | null => {
@@ -180,7 +184,11 @@ class Downloads {
       backend: chooseBackend({ tauri: isTauriEnv(), kind, container: src.kind }),
       createdAt: Date.now(),
       elapsedMs: 0,
-      retries: 0
+      retries: 0,
+      lazyUrl: req.lazyUrl,
+      resolvedAt: req.lazyUrl ? Date.now() : undefined,
+      directUrl: src.direct?.url,
+      directHeaders: src.direct?.headers
     };
     this.put(rec, true);
     this.queue.enqueue(rec.id);
@@ -421,6 +429,7 @@ class Downloads {
   private async run(id: string, signal: AbortSignal): Promise<void> {
     const r = this.work.get(id);
     if (!r) throw new Error('Unknown download');
+    await this.refreshLink(r);
     if (r.backend === 'native') return this.runNativeJob(r, signal);
     if (r.kind === 'progressive') return this.runProgressiveJob(r, signal);
     return this.runAdaptiveJob(r, signal);
@@ -454,6 +463,16 @@ class Downloads {
     sync(done);
   }
 
+  /** Gateway links are signed (t=…): resolve again (same height) when older than 15 min or after a failure. */
+  private async refreshLink(r: DownloadRecord): Promise<void> {
+    if (!r.lazyUrl || (r.resolvedAt && Date.now() - r.resolvedAt < 15 * 60_000 && !r.retries)) return;
+    streams.invalidate(r.lazyUrl);
+    const res = await streams.resolve({ url: r.lazyUrl }).catch(() => null);
+    const v = res?.sources.find((x) => x.height === r.tracks.height) ?? (res ? pickVariant(res.sources, r.tracks.height ?? 1080) : undefined);
+    if (!v) return;
+    this.patch(r.id, { url: v.url, host: hostOf(v.url), resolvedAt: Date.now(), directUrl: v.direct?.url, directHeaders: v.direct?.headers });
+  }
+
   /** Desktop: Rust engine (multi-connection Range / HLS segments) → Downloads/Cinetor; resumes from its sidecar. */
   private async runNativeJob(r: DownloadRecord, signal: AbortSignal): Promise<void> {
     const { runNative } = await import('../desktop/native-dl');
@@ -461,7 +480,11 @@ class Downloads {
     const done = await runNative(
       {
         id: r.id,
-        url: r.url,
+        // Native can send Cookie/Referer → CDN directly; proxy URL is the fallback.
+        url: r.directUrl ?? r.url,
+        headers: r.directUrl ? r.directHeaders : undefined,
+        fallbackUrl: r.directUrl ? r.url : undefined,
+        resumeKey: r.lazyUrl ? `${r.id}|${r.tracks.height ?? 0}` : undefined,
         kind: r.kind === 'progressive' ? 'progressive' : 'hls',
         connections: r.kind === 'progressive' ? r.connections : clampConnections(this.defaultConnections),
         fileName: nativeFileName(r),

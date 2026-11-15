@@ -14,6 +14,7 @@
   import { settings } from '$lib/settings/store.svelte';
   import { DOUBLE_TAP_OPTIONS, HOLD_SPEED_OPTIONS, SUB_LANGS } from '$lib/settings/settings';
   import { DEFAULT_SUB_STYLE, type SubStyle } from '$lib/player/subs';
+  import { GATEWAY_DEFAULT, gatewayBase, normalizeBase, setGatewayBase } from '$lib/data/gateway';
 
   const tiers: { v: TierOverride; l: string }[] = [
     { v: 'AUTO', l: 'Auto' },
@@ -23,6 +24,20 @@
   ];
   let latencyOn = $state(repo.latency.enabled);
   let notice = $state('');
+
+  // ---- Developer: gateway base URL ----
+  let gw = $state(gatewayBase());
+  let gwMsg = $state('');
+  function saveGateway(v: string | null) {
+    if (v !== null && normalizeBase(v) === null) {
+      gwMsg = 'Enter an http(s) URL (empty = off)';
+      return;
+    }
+    setGatewayBase(v);
+    gw = gatewayBase();
+    gwMsg = 'Saved — reloading…';
+    setTimeout(() => location.reload(), 400);
+  }
 
   function pickTheme(name: ThemeName) {
     theme.set(name);
@@ -184,6 +199,19 @@
       <button class="btn btn-ghost" onclick={clearCache}>Clear cache</button>
       <button class="btn btn-ghost" onclick={clearHistory}>Clear history</button>
     </div>
+  </section>
+
+  <section id="developer" aria-labelledby="dev-h" class="card glass">
+    <h2 id="dev-h">Developer</h2>
+    <label class="field">
+      <span>Streaming gateway (catalog + sources for Home, Anime, Drama, 18+)</span>
+      <input type="url" inputmode="url" spellcheck="false" bind:value={gw} placeholder={GATEWAY_DEFAULT} />
+    </label>
+    <div class="acts">
+      <button class="btn btn-ghost" onclick={() => saveGateway(gw)}>Save</button>
+      <button class="btn btn-ghost" onclick={() => saveGateway(null)}>Reset to default</button>
+    </div>
+    {#if gwMsg}<p class="note" role="status">{gwMsg}</p>{/if}
   </section>
 
   <section id="content" aria-labelledby="ct-h" class="card glass">

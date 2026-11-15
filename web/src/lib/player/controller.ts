@@ -9,6 +9,9 @@ import { Preloader } from './Preloader';
 import { ResumeStore, idbKV, memoryKV, shouldSave, type ResumeEntry } from './resume';
 import { Session } from './session';
 import { buildMedia, type Media } from './sources';
+import { streams } from '$lib/data/app-catalog';
+import { applyResolved, isLazySource } from '$lib/data/gateway-play';
+import { downloads } from '$lib/download/manager.svelte';
 
 export interface Clock {
   t: number;
@@ -65,6 +68,48 @@ export const mediaFor = (item: Item, ep?: Episode): Media =>
     (mime) => engine.canPlay(mime),
     (p) => repo.asset(p)
   );
+
+export const QUALITY_KEY = 'cinetor.gwQuality';
+/** Preferred gateway variant height (last manual quality pick; default 1080). */
+export function preferredHeight(): number {
+  try {
+    return Number(localStorage.getItem(QUALITY_KEY)) || 1080;
+  } catch {
+    return 1080;
+  }
+}
+
+/** Gateway placeholder → proxy MP4 variants + captions (noSource when nothing playable). */
+export async function resolveMedia(m: Media, signal?: AbortSignal): Promise<Media> {
+  if (!isLazySource(m.source)) return m;
+  const r = await streams.resolve(m.source!, signal).catch(() => ({ sources: [], subtitles: [] }));
+  return applyResolved(m, r, preferredHeight());
+}
+
+/** Play/preload target: offline copy when downloaded, else the resolved gateway stream. */
+export async function prepareMedia(item: Item, ep?: Episode, signal?: AbortSignal): Promise<Media> {
+  const m = await downloads.offlineMedia(mediaFor(item, ep));
+  return resolveMedia(m, signal);
+}
+
+/** Expired / failing link: drop the cached resolution and resolve again. */
+export async function reResolve(m: Media): Promise<Media | null> {
+  const lazy = mediaFor(m.item, m.episode);
+  if (!isLazySource(lazy.source)) return null;
+  streams.invalidate(lazy.source!.url);
+  const fresh = await resolveMedia(lazy);
+  return fresh.noSource ? null : fresh;
+}
+
+engine.recover = reResolve;
+engine.onQualityPick = (h) => {
+  try {
+    if (h) localStorage.setItem(QUALITY_KEY, String(h));
+    else localStorage.removeItem(QUALITY_KEY);
+  } catch {
+    /* ignore */
+  }
+};
 
 /** Next-episode action for the current media (set by the watch page; used by N key, Media Session, autoplay). */
 export const nextUp = writable<{ title: string; go: () => void } | null>(null);

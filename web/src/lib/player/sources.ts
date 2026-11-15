@@ -52,6 +52,10 @@ export interface Media {
   introStartSec?: number;
   introEndSec?: number;
   durationSec?: number;
+  /** Gateway quality variants (MP4 via proxy, highest first) — quality menu reloads with another one. */
+  variants?: Source[];
+  /** Resolution ran and found nothing playable → "No source available". */
+  noSource?: boolean;
 }
 
 export function buildMedia(item: Item, episode: Episode | undefined, canPlay: (mime: string) => boolean, asset: (p: string) => string): Media {

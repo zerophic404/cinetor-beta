@@ -5,6 +5,12 @@ import type { NativeProgress } from './env';
 export interface NativeStart {
   id: string;
   url: string;
+  /** Request headers for `url` (CDN Cookie/Referer/Origin). */
+  headers?: Record<string, string>;
+  /** Used when `url` fails the probe (gateway proxy). */
+  fallbackUrl?: string;
+  /** Stable key for resuming across re-signed URLs. */
+  resumeKey?: string;
   kind: 'progressive' | 'hls';
   connections: number;
   fileName: string;

@@ -34,7 +34,8 @@
     media.introEndSec && media.introEndSec > (media.introStartSec ?? 0) ? [media.introStartSec ?? 0, media.introEndSec] : null
   );
   const unsupported = $derived($sess.error === 'unsupported' || !!$err?.unsupported);
-  const errorMsg = $derived($err?.msg ?? ($sess.error && $sess.error !== 'unsupported' && $sess.error !== 'gesture' ? $sess.error : null));
+  const noSource = $derived($sess.error === 'nosource' || !!media.noSource);
+  const errorMsg = $derived($err?.msg ?? ($sess.error && $sess.error !== 'unsupported' && $sess.error !== 'gesture' && $sess.error !== 'nosource' ? $sess.error : null));
 
   // New media → fresh UI state (subs, lock, offset).
   let lastKey = '';
@@ -272,7 +273,13 @@
   {/if}
   {#if ui.hint}<div class="pill center" role="status">{ui.hint}</div>{/if}
 
-  {#if unsupported}
+  {#if noSource}
+    <div class="msg glass" data-no-gesture role="alert">
+      <strong>No source available</strong>
+      <p>This title has no playable stream right now. It will be hidden from lists.</p>
+      <div class="acts"><button class="btn btn-ghost" onclick={onBack}>Back</button></div>
+    </div>
+  {:else if unsupported}
     <div class="msg glass" data-no-gesture role="alert">
       <strong>Can't play this format here</strong>
       <p>{$err?.msg ?? 'This browser cannot decode this file (e.g. MKV / HEVC).'}</p>

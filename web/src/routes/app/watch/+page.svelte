@@ -7,7 +7,7 @@
   import { SkeletonBox, SkeletonEpisodeList } from '$lib/design/skeleton';
   import { detailsHref, watchHref } from '$lib/ui/handoff';
   import { imgFor } from '$lib/ui/img';
-  import { mediaFor, nextUp, session } from '$lib/player/controller';
+  import { nextUp, prepareMedia, session } from '$lib/player/controller';
   import { nextEpisode, type Media } from '$lib/player/sources';
   import Player from '$lib/player/Player.svelte';
   import { downloads } from '$lib/download/manager.svelte';
@@ -40,6 +40,7 @@
     let alive = true;
     status = 'loading';
     if (adultLocked) return;
+    catalog.hintSlug(want, page.url.searchParams.get('slug'));
     catalog
       .item(want)
       .catch(() => undefined)
@@ -81,7 +82,7 @@
         item = it;
         seasons = loaded;
         // Downloaded → play the offline copy (shaka offline URI / OPFS blob URL).
-        const m = await downloads.offlineMedia(mediaFor(it, episode));
+        const m = await prepareMedia(it, episode);
         if (!alive) return;
         media = m;
         status = 'ready';

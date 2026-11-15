@@ -19,6 +19,17 @@ export interface Row {
   title: string;
   style: RowStyle;
   itemIds: string[];
+  /** Remote paged row (gateway): next page is fetched when the row scrolls to its end. */
+  more?: RowMore;
+}
+
+export interface RowMore {
+  /** Gateway list path, e.g. '/movies'. */
+  path: string;
+  params: Record<string, string>;
+  /** Last loaded page. */
+  page: number;
+  hasMore: boolean;
 }
 
 export interface Category {
@@ -34,6 +45,10 @@ export interface Source {
   kind: SourceKind;
   label?: string;
   headers?: Record<string, string>;
+  /** Vertical resolution (gateway variants) — drives the quality menu. */
+  height?: number;
+  /** Original CDN URL + required headers (desktop native downloader can send them; browsers use `url` = proxy). */
+  direct?: { url: string; headers: Record<string, string> };
 }
 
 export interface Sub {
@@ -130,6 +145,9 @@ export interface Item {
   trackIds?: string[];
   cast?: string[];
   studio?: string;
+  /** Gateway detail path (`/detail/{slug}`, `detail_path=` on stream calls). */
+  slug?: string;
+  country?: string;
 }
 
 export interface CatalogFile {

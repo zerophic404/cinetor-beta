@@ -12,8 +12,8 @@ function initialLatency() {
   return DEFAULT_LATENCY;
 }
 
-/** App-wide repository instance (mock JSON under `${base}/mock`). */
-export const repo = new CatalogRepository({ baseUrl: base, latency: initialLatency() });
+/** App-wide repository instance (mock JSON under `${base}/mock`) — isolated TV / Music / Comics only. */
+export const repo = new CatalogRepository({ baseUrl: base, latency: initialLatency(), spaces: ['TV', 'MUSIC', 'COMICS'] });
 
 export function setSimulatedLatency(on: boolean): void {
   repo.setLatency(on ? DEFAULT_LATENCY : NO_LATENCY);

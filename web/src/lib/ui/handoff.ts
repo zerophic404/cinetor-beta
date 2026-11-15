@@ -18,7 +18,7 @@ export function handoff(item: Item, el?: HTMLElement | null): void {
 
 export const handedOff = (id: string): Item | undefined => recent.get(id);
 
-export type HrefItem = Pick<Item, 'id'> & Partial<Pick<Item, 'space' | 'type' | 'albumId'>>;
+export type HrefItem = Pick<Item, 'id'> & Partial<Pick<Item, 'space' | 'type' | 'albumId' | 'slug'>>;
 
 const enc = encodeURIComponent;
 
@@ -30,7 +30,8 @@ export function detailsHref(item: HrefItem): string {
     return `${base}/app/music/album?id=${enc(item.id)}`;
   }
   if (item.space === 'COMICS') return `${base}/app/comics/title?id=${enc(item.id)}`;
-  return `${base}/app/title?id=${enc(item.id)}`;
+  // Gateway titles carry their slug so a shared/deep link can fetch /detail/{slug}.
+  return `${base}/app/title?id=${enc(item.id)}${item.slug ? `&slug=${enc(item.slug)}` : ''}`;
 }
 
 export const watchHref = (id: string, episodeId?: string): string => `${base}/app/watch?id=${enc(id)}${episodeId ? `&ep=${enc(episodeId)}` : ''}`;
