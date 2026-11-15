@@ -72,6 +72,10 @@ class TvUiTest {
         assertEquals(FocusPos(0, 5), memory.resolve(screen, listOf(12, 0, 0)))
         // no content → caller falls back to its default focus (hero Play)
         assertNull(memory.resolve(screen, emptyList()))
+        // hero focused last (e.g. Play → player → back) → hero again, rows' columns kept
+        memory.save(screen, FocusPos.HERO)
+        assertEquals(FocusPos.HERO, memory.resolve(screen, rows))
+        assertEquals(5, memory.columnFor(screen, 2))
         memory.clear(screen)
         assertNull(memory.resolve(screen, rows))
     }

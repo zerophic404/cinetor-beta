@@ -89,6 +89,10 @@ import com.mythbrix.cinetor.feature.music.MusicMiniBarHeight
 import com.mythbrix.cinetor.feature.tv.LiveTvScreen
 import kotlinx.coroutines.flow.distinctUntilChanged
 import com.mythbrix.cinetor.tvui.FocusMemory
+import com.mythbrix.cinetor.tvui.LocalTvRefocus
+import com.mythbrix.cinetor.feature.player.HostMode
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.mutableIntStateOf
 import com.mythbrix.cinetor.tvui.TvDest
 import com.mythbrix.cinetor.tvui.TvHomeScreen
 import com.mythbrix.cinetor.tvui.TvShell
@@ -301,14 +305,23 @@ fun CinetorNavHost(container: AppContainer, modifier: Modifier = Modifier) {
 
     if (isTv) {
         val tvEntries = remember(adultEnabled, activeSpace) { tvNavEntries(adultEnabled, activeSpace) }
+        // Full-screen player closed → screens restore their focus (FocusMemory) instead of losing it.
+        val playerFull by remember(container) {
+            container.playback.state.map { it.mode == HostMode.FULL && it.item != null }.distinctUntilChanged()
+        }.collectAsStateWithLifecycle(initialValue = false)
+        var refocusTick by remember { mutableIntStateOf(0) }
+        LaunchedEffect(playerFull) { if (!playerFull) refocusTick++ }
         AppBackground(modifier.fillMaxSize().haze(haze)) {
-            TvShell(
-                entries = tvEntries,
-                selected = tvSelectedDest(entry, activeSpace, selectedTab),
-                routeKey = entry?.id,
-                onPick = { dest -> nav.openTvDest(dest, activeSpace) },
-                onMenu = { nav.navigate(SettingsRoute) { launchSingleTop = true } },
-            ) { navHost() }
+            CompositionLocalProvider(LocalTvRefocus provides refocusTick) {
+                TvShell(
+                    entries = tvEntries,
+                    selected = tvSelectedDest(entry, activeSpace, selectedTab),
+                    routeKey = entry?.id,
+                    refocusKey = refocusTick,
+                    onPick = { dest -> nav.openTvDest(dest, activeSpace) },
+                    onMenu = { nav.navigate(SettingsRoute) { launchSingleTop = true } },
+                ) { navHost() }
+            }
         }
         return
     }

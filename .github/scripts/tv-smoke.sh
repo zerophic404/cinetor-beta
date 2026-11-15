@@ -5,7 +5,7 @@
 set -uo pipefail
 APK_DIR="$1"; OUT="$2"; PKG=com.mythbrix.cinetor
 mkdir -p "$OUT"
-APK=$(ls "$APK_DIR"/*.apk | grep -v -- '-x86_64\|-arm' | head -1)
+APK=$(ls "$APK_DIR"/*universal*.apk 2>/dev/null | head -1)
 [ -z "$APK" ] && APK=$(ls "$APK_DIR"/*.apk | head -1)
 echo "apk: $APK"
 adb wait-for-device
@@ -59,18 +59,21 @@ shot 13-tv-hero-focus 1
 key KEYCODE_DPAD_CENTER; shot 20-tv-player 8
 anr; check player
 shot 21-tv-player-hidden 5
-key KEYCODE_DPAD_RIGHT; shot 22-tv-player-seek 0.5
+adb shell input keyevent KEYCODE_DPAD_RIGHT; shot 22-tv-player-seek 0.2
 # hold Right (repeats) → accelerating scrub
 adb shell input keyevent --longpress KEYCODE_DPAD_RIGHT 2>/dev/null || true
-shot 23-tv-player-scrub 0.3
+shot 23-tv-player-scrub 0.2
 sleep 2
-key KEYCODE_DPAD_UP; shot 24-tv-player-controls 1
-key KEYCODE_BACK; sleep 1
-key KEYCODE_DPAD_DOWN; shot 25-tv-player-rail 1
-key KEYCODE_BACK; sleep 1
-key KEYCODE_MENU; shot 26-tv-player-settings 2
-key KEYCODE_BACK; sleep 1
-key KEYCODE_BACK; shot 27-tv-after-player 3
+# Up → controls (settings row focused); Back hides controls (player stays). One input call = no JVM gap.
+adb shell input keyevent KEYCODE_DPAD_UP; shot 24-tv-player-controls 0.3
+adb shell input keyevent KEYCODE_BACK; shot 25-tv-player-controls-hidden 1
+check back-hides-controls
+adb shell input keyevent KEYCODE_DPAD_DOWN; shot 26-tv-player-rail 2
+adb shell input keyevent KEYCODE_BACK; sleep 1
+adb shell input keyevent KEYCODE_MENU; shot 27-tv-player-settings 2
+adb shell input keyevent KEYCODE_BACK; sleep 2
+# controls hidden → Back exits the player; home focus restored (hero Play)
+adb shell input keyevent KEYCODE_BACK; shot 28-tv-after-player 3
 check after-player
 # Menu → Settings; Search reachable from the side nav.
 key KEYCODE_MENU; shot 30-tv-settings 3

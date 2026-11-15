@@ -135,10 +135,12 @@ private fun TvHomeContent(
 
     // Initial focus / restore after back or reload (clamped to the current rows).
     val rowsKey = ui.rows.joinToString(",") { it.id + ":" + it.items.size }
-    LaunchedEffect(rowsKey) {
+    val refocus = LocalTvRefocus.current
+    LaunchedEffect(rowsKey, refocus) {
         withFrameNanos { }
         val pos = memory.resolve(screen, rowSizes)
-        if (pos == null) {
+        if (pos == null || pos.isHero) {
+            listState.scrollToItem(0)
             runCatching { playRequester.requestFocus() }
             return@LaunchedEffect
         }
@@ -203,8 +205,18 @@ private fun TvHomeContent(
                     onOpen = { onOpen(it, null) },
                     onToggleMyList = onToggleMyList,
                     onColor = feeder::immediate,
-                    // Focus in hero → grid rules off until a card is focused again.
-                    modifier = Modifier.onFocusChanged { if (it.hasFocus) focused = null },
+                    // Focus in hero → grid rules off until a card is focused again; keep the banner fully
+                    // visible (TV's default pivot scrolling would push it half off-screen).
+                    modifier = Modifier.onFocusChanged {
+                        if (it.hasFocus) {
+                            focused = null
+                            memory.save(screen, FocusPos.HERO)
+                            scope.launch {
+                                withFrameNanos { }
+                                listState.animateScrollToItem(0)
+                            }
+                        }
+                    },
                 )
             }
             if (ui.showTabs) {

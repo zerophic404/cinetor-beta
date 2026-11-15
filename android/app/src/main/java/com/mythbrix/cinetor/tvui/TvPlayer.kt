@@ -108,10 +108,10 @@ fun TvPlayerScreen(
     val railFocus = remember { FocusRequester() }
 
     LaunchedEffect(screen.generation) { overlay = TvOverlay.CONTROLS; interaction++ }
-    // Controls auto-hide after 5 s of no input while playing.
+    // Controls auto-hide after 6 s of no input while playing.
     LaunchedEffect(overlay, interaction, ui.isPlaying, showSettings) {
         if (overlay == TvOverlay.CONTROLS && ui.isPlaying && !showSettings) {
-            delay(5_000)
+            delay(6_000)
             overlay = TvOverlay.NONE
         }
     }
@@ -130,7 +130,7 @@ fun TvPlayerScreen(
     // Scrub preview clears shortly after a tap.
     LaunchedEffect(scrubTarget) {
         if (scrubTarget != null && keys.scrubber.target == null) {
-            delay(1_200)
+            delay(2_000)
             scrubTarget = null
         }
     }

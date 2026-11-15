@@ -23,6 +23,9 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.delay
 
+/** Incremented when the TV player closes; TV screens re-run their focus restore on change. */
+val LocalTvRefocus = androidx.compose.runtime.compositionLocalOf { 0 }
+
 /** Overscan-safe margin: 5% of each screen edge (TV panels crop the outer area). */
 fun overscanMargin(sizeDp: Dp): Dp = sizeDp * 0.05f
 
@@ -36,6 +39,8 @@ fun TvShell(
     entries: List<TvNavEntry>,
     selected: TvDest?,
     routeKey: Any?,
+    /** Bumped when the full-screen player closes → focus returns to the content. */
+    refocusKey: Any? = null,
     onPick: (TvDest) -> Unit,
     onMenu: () -> Unit,
     content: @Composable () -> Unit,
@@ -44,9 +49,10 @@ fun TvShell(
     var contentHasFocus by remember { mutableStateOf(false) }
     var navHasFocus by remember { mutableStateOf(false) }
     // New destination: if nothing claimed focus (screens without their own initial focus), enter content.
-    LaunchedEffect(routeKey) {
+    // (Screens with their own focus restore — TV home — claim focus first; this is the fallback.)
+    LaunchedEffect(routeKey, refocusKey) {
         delay(450)
-        if (!contentHasFocus && !navHasFocus) runCatching { contentFocus.requestFocus() }
+        if (!contentHasFocus) runCatching { contentFocus.requestFocus() }
     }
     BoxWithConstraints(
         Modifier

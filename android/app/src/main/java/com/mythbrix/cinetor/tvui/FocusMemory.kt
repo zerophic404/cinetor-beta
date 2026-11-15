@@ -1,7 +1,15 @@
 package com.mythbrix.cinetor.tvui
 
 /** Position of a focused card on a TV screen: content row + index inside that row. */
-data class FocusPos(val row: Int, val index: Int)
+data class FocusPos(val row: Int, val index: Int) {
+    val isHero: Boolean get() = row == HERO_ROW
+
+    companion object {
+        /** Row id for the hero banner above the content rows. */
+        const val HERO_ROW = -1
+        val HERO = FocusPos(HERO_ROW, 0)
+    }
+}
 
 /**
  * Last focused card per screen (Review Focus #5). Survives the screen leaving composition
@@ -15,6 +23,7 @@ class FocusMemory {
 
     fun save(screen: String, pos: FocusPos) {
         last[screen] = pos
+        if (pos.isHero) return
         columns.getOrPut(screen) { HashMap() }[pos.row] = pos.index
     }
 
@@ -30,6 +39,7 @@ class FocusMemory {
      */
     fun resolve(screen: String, rowSizes: List<Int>): FocusPos? {
         val pos = last[screen] ?: return null
+        if (pos.isHero) return pos
         if (rowSizes.none { it > 0 }) return null
         var row = pos.row.coerceIn(0, rowSizes.lastIndex)
         while (row > 0 && rowSizes[row] == 0) row--

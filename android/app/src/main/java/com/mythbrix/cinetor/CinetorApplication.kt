@@ -5,7 +5,10 @@ import android.graphics.Bitmap
 import coil3.ImageLoader
 import coil3.PlatformContext
 import coil3.SingletonImageLoader
+import coil3.disk.DiskCache
 import coil3.memory.MemoryCache
+import com.mythbrix.cinetor.core.perf.PerformanceTier
+import okio.Path.Companion.toOkioPath
 import coil3.request.bitmapConfig
 import coil3.request.crossfade
 import com.mythbrix.cinetor.core.data.AppContainer
@@ -29,8 +32,22 @@ class CinetorApplication : Application(), SingletonImageLoader.Factory {
             .memoryCache {
                 MemoryCache.Builder().maxSizePercent(context, tier.memCachePercent).build()
             }
+            // Tier-sized disk cache for network art (TMDB); mock art is read from assets.
+            .diskCache {
+                DiskCache.Builder()
+                    .directory(context.cacheDir.resolve("image_cache").toOkioPath())
+                    .maxSizeBytes(diskCacheBytes(tier))
+                    .build()
+            }
             .crossfade(tier.crossfadeMs)
             .apply { if (tier.imageRgb565) bitmapConfig(Bitmap.Config.RGB_565) }
             .build()
     }
+}
+
+/** Coil disk cache per tier: LOW 48 MB · MID 128 MB · HIGH 256 MB. */
+fun diskCacheBytes(tier: PerformanceTier): Long = when (tier) {
+    PerformanceTier.LOW -> 48L shl 20
+    PerformanceTier.MID -> 128L shl 20
+    PerformanceTier.HIGH -> 256L shl 20
 }
