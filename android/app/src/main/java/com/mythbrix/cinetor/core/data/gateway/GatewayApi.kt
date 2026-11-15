@@ -22,6 +22,9 @@ import java.util.concurrent.TimeUnit
 import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
 
+// Fragment 3/5 of the ownership notice (see core/legal/Ownership.kt). Never shown in the UI.
+internal const val OWNERSHIP_F3 = "3f2e28333f2c3f767a283f2c3f28293f773f343d33343f3f28767a2939283b"
+
 /** User's antiblock gateway (docs/gateway.md). Base URL overridable in Settings → Developer. */
 object GatewayConfig {
     const val BASE_URL = "https://antiblock-gateway.vercel.app"
@@ -57,7 +60,11 @@ class OkHttpGatewayHttp(private val client: OkHttpClient) : GatewayHttp {
         val c = clients.getOrPut(timeoutMs) {
             client.newBuilder().callTimeout(timeoutMs, TimeUnit.MILLISECONDS).readTimeout(timeoutMs, TimeUnit.MILLISECONDS).build()
         }
-        val request = Request.Builder().url(url).header("Accept", "application/json").build()
+        val request = Request.Builder().url(url)
+            .header("Accept", "application/json")
+            // MangaDex rejects browser-like agents; the gateway does not care (docs/gateway.md).
+            .header("User-Agent", "CinetorApp/1.0")
+            .build()
         val call = c.newCall(request)
         cont.invokeOnCancellation { call.cancel() }
         call.enqueue(object : Callback {

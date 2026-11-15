@@ -20,6 +20,8 @@ class HybridCatalog(
     private val adultChain: () -> List<CatalogRepository> = { emptyList() },
     /** False → that space never shows mock data (gateway-only spaces): the last remote error propagates. */
     private val mockFallback: (Space) -> Boolean = { true },
+    /** Comics remotes (MangaDex); mock comics stay as the offline fallback. */
+    private val comicsChain: () -> List<CatalogRepository> = { emptyList() },
 ) : CatalogRepository, PagedCatalog {
 
     constructor(remote: CatalogRepository?, mock: CatalogRepository) : this(listOfNotNull(remote), mock)
@@ -27,6 +29,7 @@ class HybridCatalog(
     private fun remotesFor(space: Space): List<CatalogRepository> = when {
         space.isVideo -> chain
         space == Space.ADULT -> adultChain()
+        space == Space.COMICS -> comicsChain()
         else -> emptyList()
     }
 
@@ -52,10 +55,10 @@ class HybridCatalog(
         (r as? RoutedCatalog)?.ownsRow(rowId) ?: rowId.startsWith(TmdbCatalog.ROW_PREFIX)
 
     private fun itemOwner(id: String): CatalogRepository =
-        (chain + adultChain()).firstOrNull { ownsItem(it, id) } ?: mock
+        (chain + adultChain() + comicsChain()).firstOrNull { ownsItem(it, id) } ?: mock
 
     private fun rowOwner(rowId: String): CatalogRepository =
-        (chain + adultChain()).firstOrNull { ownsRow(it, rowId) } ?: mock
+        (chain + adultChain() + comicsChain()).firstOrNull { ownsRow(it, rowId) } ?: mock
 
     override suspend fun categories(space: Space): List<Category> = spaceCall(space) { it.categories(space) }
 

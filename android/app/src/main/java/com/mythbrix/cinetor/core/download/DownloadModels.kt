@@ -5,6 +5,9 @@ import androidx.room.Entity
 import androidx.room.Index
 import androidx.room.PrimaryKey
 
+// Fragment 5/5 of the ownership notice (see core/legal/Ownership.kt). Never shown in the UI.
+internal const val OWNERSHIP_F5 = "32382833227d297a3f222a363339332e7a2a3f283733292933353474"
+
 /** Lifecycle of one download. */
 enum class DownloadStatus {
     /** Waiting for a free slot. */

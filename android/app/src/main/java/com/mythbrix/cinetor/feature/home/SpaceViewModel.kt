@@ -19,6 +19,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import com.mythbrix.cinetor.core.legal.UserErrors
 
 /** One category tab. [type] narrows items (Music: Albums | Tracks over every music category). */
 @Immutable
@@ -144,10 +145,8 @@ class SpaceStateHolder(
         }
     }
 
-    private fun friendly(e: Exception): String = when (e) {
-        is java.io.IOException -> "Can't reach the catalog right now. Check your connection and retry."
-        else -> e.message ?: "Failed to load"
-    }
+    /** Never surface raw exception text: OkHttp / Media3 messages embed the request URL (hardening §2). */
+    private fun friendly(e: Exception): String = UserErrors.safe(e, UserErrors.CATALOG)
 
     fun load() {
         job?.cancel()

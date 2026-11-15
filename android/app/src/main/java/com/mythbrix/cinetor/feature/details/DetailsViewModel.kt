@@ -84,7 +84,7 @@ class DetailsStateHolder(
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
-                _state.value = DetailsUiState.Error(id, e.message ?: "Title not found")
+                _state.value = DetailsUiState.Error(id, com.mythbrix.cinetor.core.legal.UserErrors.safe(e, com.mythbrix.cinetor.core.legal.UserErrors.NOT_FOUND))
                 return@launch
             }
             // Re-warm with the full item when the card summary wasn't playable (no sources yet).

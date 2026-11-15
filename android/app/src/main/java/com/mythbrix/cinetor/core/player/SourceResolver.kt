@@ -24,6 +24,9 @@ import com.mythbrix.cinetor.core.download.OfflineResolver
 import com.mythbrix.cinetor.core.download.OfflineSource
 import com.mythbrix.cinetor.core.download.SidecarSub
 
+// Fragment 4/5 of the ownership notice (see core/legal/Ownership.kt). Never shown in the UI.
+internal const val OWNERSHIP_F4 = "2a3f7a35287a323b39317a3b34232e3233343d7a2d332e32352f2e7a17232e"
+
 /** Container/protocol family chosen for a source (drives which Media3 MediaSource is used). */
 enum class StreamType(val mimeType: String?) {
     HLS("application/x-mpegURL"),

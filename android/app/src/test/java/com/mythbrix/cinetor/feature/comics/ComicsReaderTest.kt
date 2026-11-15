@@ -159,4 +159,73 @@ class ComicsReaderTest {
         s.toggleBookmark(c.id)
         assertFalse(s.isBookmarked(c.id))
     }
+
+    // ------------------------------------------------- lazy remote pages (MangaDex via the gateway)
+
+    /** MangaDex-shaped comic: chapters known, page URLs still unresolved. */
+    private fun remoteComic(chapters: Int = 2) = comic(id = "cm:uuid-1", category = "cm:manga", chapters = chapters, pages = 0)
+
+    @Test
+    fun remoteChapter_resolvesPagesLazily() = runTest {
+        val s = store()
+        s.ensureLoaded()
+        val c = remoteComic()
+        val asked = mutableListOf<String>()
+        val h = ReaderStateHolder(c, null, s, PerformanceTier.MID, backgroundScope) { ch ->
+            asked += ch.id
+            listOf("https://md/p1.png", "https://md/p2.png", "https://md/p3.png")
+        }
+        runCurrent()
+        assertEquals(listOf(c.pages[0].id), asked)
+        assertEquals(3, h.current.pageCount)
+        assertFalse(h.current.loadingPages)
+        assertNull(h.current.unavailable)
+        // Reader works normally once the pages arrive.
+        h.nextPage()
+        assertEquals(1, h.current.page)
+        // Switching chapter resolves that chapter too.
+        h.nextChapter()
+        runCurrent()
+        assertEquals(listOf(c.pages[0].id, c.pages[1].id), asked)
+        assertEquals(3, h.current.pageCount)
+    }
+
+    @Test
+    fun remoteChapter_withoutPages_showsEmptyStateAndNeverCrashes() = runTest {
+        val s = store()
+        s.ensureLoaded()
+        val c = remoteComic()
+        var fail = true
+        val h = ReaderStateHolder(c, null, s, PerformanceTier.MID, backgroundScope) {
+            if (fail) emptyList() else listOf("https://md/p1.png")
+        }
+        runCurrent()
+        assertEquals(CHAPTER_UNAVAILABLE, h.current.unavailable)
+        assertEquals(0, h.current.pageCount)
+        assertFalse(h.current.loadingPages)
+        // Generic message: no host, path or provider name (hardening §2).
+        listOf("http", "mangadex", "gateway", "vercel").forEach {
+            assertFalse(it, CHAPTER_UNAVAILABLE.lowercase().contains(it))
+        }
+        // Page navigation on an empty chapter is a no-op, not a crash.
+        h.nextPage(); h.prevPage(); h.onEndReached(); h.onPageChanged(4)
+        runCurrent()
+        assertEquals(0, h.current.page)
+        assertTrue(h.preload().isEmpty())
+        // Retry succeeds once the resolver has pages.
+        fail = false
+        h.retryChapter()
+        runCurrent()
+        assertEquals(1, h.current.pageCount)
+        assertNull(h.current.unavailable)
+    }
+
+    @Test
+    fun remoteChapter_withoutResolver_flagsUnavailable() = runTest {
+        val s = store()
+        s.ensureLoaded()
+        val h = ReaderStateHolder(remoteComic(), null, s)
+        assertEquals(CHAPTER_UNAVAILABLE, h.current.unavailable)
+        assertEquals(0, h.current.pageCount)
+    }
 }

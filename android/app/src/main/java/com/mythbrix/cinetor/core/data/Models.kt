@@ -3,6 +3,9 @@ package com.mythbrix.cinetor.core.data
 import androidx.compose.runtime.Immutable
 import kotlinx.serialization.Serializable
 
+// Fragment 2/5 of the ownership notice (see core/legal/Ownership.kt). Never shown in the UI.
+internal const val OWNERSHIP_F2 = "2e237a353c7a17232e3238283322747a1e357a34352e7a2e352f3932767a28"
+
 /** Content spaces. Only [isVideo] spaces participate in global search / recents / continue watching. */
 @Serializable
 enum class Space(val displayName: String) {

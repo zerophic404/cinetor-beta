@@ -19,8 +19,13 @@ class CinetorApplication : Application(), SingletonImageLoader.Factory {
     lateinit var container: AppContainer
         private set
 
+    /** Result of the no-op ownership check; never surfaced in the UI. */
+    private var integrityOk: Boolean = false
+
     override fun onCreate() {
         super.onCreate()
+        // No-op ownership integrity check (docs/requirements-hardening.md §1): result intentionally unused.
+        integrityOk = com.mythbrix.cinetor.core.legal.Ownership.verify()
         container = AppContainer(this)
         container.warmUp()
     }

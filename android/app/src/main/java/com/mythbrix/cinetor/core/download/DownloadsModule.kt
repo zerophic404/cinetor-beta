@@ -36,7 +36,10 @@ class DownloadsModule(
     val paths = DownloadPaths(app)
     val prefs = DownloadPrefs(app, scope)
     val monitor = DeviceConditionsMonitor(app, scope)
-    private val store: DownloadStore = RoomDownloadStore(CinetorDb.get(app).downloads())
+    private val store: DownloadStore = VaultedDownloadStore(
+        RoomDownloadStore(CinetorDb.get(app).downloads()),
+        UrlVault.forApp(app),
+    )
 
     private val client: OkHttpClient = baseClient.newBuilder()
         .connectTimeout(15, TimeUnit.SECONDS)

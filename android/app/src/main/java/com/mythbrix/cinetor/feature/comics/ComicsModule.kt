@@ -86,6 +86,7 @@ class ComicDownloads(
         localPage(comicId, chapter, index) ?: AssetUris.of(chapter.pages[index])
 
     fun download(comic: Item, chapter: Chapter) {
+        if (chapter.pages.isEmpty()) return // pages not resolved yet (MangaDex) → nothing to copy
         val st = _states.value[chapter.id]
         if (st is ChapterDownload.Running || st == ChapterDownload.Done) return
         _states.update { it + (chapter.id to ChapterDownload.Running(0, chapter.pages.size)) }
@@ -128,7 +129,12 @@ class ComicDownloads(
 data class ReaderRequest(val comic: Item, val chapterId: String?)
 
 /** Comics space wiring (store + downloads + reader overlay). One per process (AppContainer). */
-class ComicsModule(context: Context, scope: CoroutineScope) {
+class ComicsModule(
+    context: Context,
+    scope: CoroutineScope,
+    /** Resolves a chapter's page URLs on demand (MangaDex); mock chapters already carry theirs. */
+    val pageResolver: (suspend (Chapter) -> List<String>)? = null,
+) {
     private val appContext = context.applicationContext
 
     val store: ComicsStore = ComicsStore(ComicsDataStore(appContext), scope)

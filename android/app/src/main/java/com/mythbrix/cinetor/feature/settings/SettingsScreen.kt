@@ -198,15 +198,35 @@ fun SettingsScreen(
                 set { it.copy(mockLatency = v) }
             }
             var gatewayUrl by androidx.compose.runtime.saveable.rememberSaveable { androidx.compose.runtime.mutableStateOf(s.gatewayUrl) }
+            // Hardening §2: the override value is masked until the user asks to see it, and the real
+            // default base URL is never printed as a placeholder / supporting text.
+            var reveal by androidx.compose.runtime.saveable.rememberSaveable { androidx.compose.runtime.mutableStateOf(false) }
             androidx.compose.material3.OutlinedTextField(
                 value = gatewayUrl,
                 onValueChange = { v -> gatewayUrl = v; set { it.copy(gatewayUrl = v.trim()) } },
-                label = { Text("Gateway URL") },
-                placeholder = { Text(com.mythbrix.cinetor.core.data.gateway.GatewayConfig.BASE_URL) },
-                supportingText = { Text("Blank = default. Catalog + streams for Home, Anime, Drama, 18+") },
+                label = { Text("Gateway URL override") },
+                visualTransformation = if (reveal) {
+                    androidx.compose.ui.text.input.VisualTransformation.None
+                } else {
+                    androidx.compose.ui.text.input.PasswordVisualTransformation()
+                },
+                trailingIcon = {
+                    androidx.compose.material3.TextButton(onClick = { reveal = !reveal }) {
+                        Text(if (reveal) "Hide" else "Show", color = Cinetor.tokens.accent)
+                    }
+                },
+                supportingText = { Text("Blank = built-in default. Catalog + streams for Home, Anime, Drama, 18+") },
                 singleLine = true,
                 modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp).semantics { contentDescription = "Gateway URL" },
             )
+            Toggle(
+                "Debug log",
+                "Keep request detail in a local log for troubleshooting. Off by default, never sent anywhere.",
+                s.debugLog,
+            ) { v ->
+                com.mythbrix.cinetor.core.legal.DebugLog.setEnabled(v)
+                set { it.copy(debugLog = v) }
+            }
         }
 
         Group("About") {

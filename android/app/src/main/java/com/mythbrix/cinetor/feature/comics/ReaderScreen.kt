@@ -90,10 +90,11 @@ fun ComicsReaderHost(comics: ComicsModule) {
     val request by comics.reader.collectAsStateWithLifecycle()
     val r = request ?: return
     val tier = Cinetor.tier
+    val hostScope = rememberCoroutineScope()
     var holder by remember(r) { mutableStateOf<ReaderStateHolder?>(null) }
     LaunchedEffect(r) {
         comics.store.ensureLoaded()
-        holder = ReaderStateHolder(r.comic, r.chapterId, comics.store, tier)
+        holder = ReaderStateHolder(r.comic, r.chapterId, comics.store, tier, hostScope, comics.pageResolver)
     }
     BackHandler { comics.closeReader() }
     Box(Modifier.fillMaxSize().background(Color.Black)) {
@@ -195,10 +196,19 @@ fun ReaderScreen(holder: ReaderStateHolder, downloads: ComicDownloads, onClose: 
             }
             .semantics { contentDescription = "Reader ${state.mode.name}" },
     ) {
-        if (state.mode.paged) {
-            PagedReader(holder, state, downloads, aspect, onTap)
-        } else {
-            VerticalReader(holder, state, downloads, aspect, listState, onTap)
+        when {
+            state.loadingPages -> CircularProgressIndicator(
+                Modifier.align(Alignment.Center),
+                color = Cinetor.tokens.accent,
+            )
+            state.pageCount == 0 -> ChapterEmptyState(
+                message = state.unavailable ?: CHAPTER_UNAVAILABLE,
+                canRetry = state.unavailable != null,
+                onRetry = holder::retryChapter,
+                modifier = Modifier.align(Alignment.Center),
+            )
+            state.mode.paged -> PagedReader(holder, state, downloads, aspect, onTap)
+            else -> VerticalReader(holder, state, downloads, aspect, listState, onTap)
         }
 
         ReaderBars(
@@ -228,6 +238,25 @@ fun ReaderScreen(holder: ReaderStateHolder, downloads: ComicDownloads, onClose: 
             onBrightness = holder::setBrightness,
             onDismiss = { settingsOpen = false },
         )
+    }
+}
+
+/** Chapter with no resolvable pages: generic message (no host/provider) + retry. */
+@Composable
+private fun ChapterEmptyState(message: String, canRetry: Boolean, onRetry: () -> Unit, modifier: Modifier = Modifier) {
+    Column(
+        modifier = modifier
+            .glass(RoundedCornerShape(16.dp), GlassLevel.SHEET)
+            .padding(horizontal = 24.dp, vertical = 18.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        Text(message, color = Color.White, style = MaterialTheme.typography.bodyMedium)
+        if (canRetry) {
+            androidx.compose.material3.TextButton(onClick = onRetry) {
+                Text("Retry", color = Cinetor.tokens.accent)
+            }
+        }
     }
 }
 

@@ -28,8 +28,8 @@ enum class ReaderMode(val label: String) {
 }
 
 object ComicIds {
-    /** Mock comic ids (`co-ma-001`, `co-mw-…`, `co-mh-…`). */
-    fun isComic(id: String): Boolean = id.startsWith("co-")
+    /** Mock comic ids (`co-ma-001`, `co-mw-…`, `co-mh-…`) and MangaDex ids (`cm:<uuid>`). */
+    fun isComic(id: String): Boolean = id.startsWith("co-") || id.startsWith("cm:")
 }
 
 /** Default mode from the catalog: RTL direction / manga category → RTL paged; long strip / TTB → vertical. */
