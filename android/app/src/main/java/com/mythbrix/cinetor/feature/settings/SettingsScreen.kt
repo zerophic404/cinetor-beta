@@ -172,6 +172,23 @@ fun SettingsScreen(
             }
         }
 
+        Group("Downloads") {
+            // Hardening §4: SAF folder picker, remembered as the default and changeable here.
+            val dlLocation by container.downloads.location.collectAsStateWithLifecycle()
+            val pickFolder = androidx.activity.compose.rememberLauncherForActivityResult(
+                androidx.activity.result.contract.ActivityResultContracts.OpenDocumentTree(),
+            ) { uri -> if (uri != null) scope.launch { container.downloads.setLocation(uri) } }
+            ActionRow(
+                "Download location",
+                com.mythbrix.cinetor.core.download.DownloadLocations.label(dlLocation, adult = false),
+            ) { runCatching { pickFolder.launch(null) } }
+            if (dlLocation.chosen) {
+                ActionRow("Use app storage", "Stop copying finished downloads to the chosen folder") {
+                    scope.launch { container.downloads.clearLocation() }
+                }
+            }
+        }
+
         Group("Profiles") {
             Row(
                 Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).clickable(onClick = onProfiles)
