@@ -57,13 +57,19 @@
     padding: 0 6px;
     border-radius: 24px;
   }
+  /* Phone: the logo is the space switcher (TV, Music, Comics, 18+). */
   .brand {
-    display: none;
+    display: grid;
+    place-items: center;
+    flex: none;
     border: 0;
     background: none;
-    padding: 6px;
+    padding: 4px;
     cursor: pointer;
     border-radius: 14px;
+  }
+  .brand .space-name {
+    display: none;
   }
   ul {
     list-style: none;
@@ -131,6 +137,9 @@
       justify-items: center;
       gap: 4px;
       margin-bottom: 18px;
+    }
+    .brand .space-name {
+      display: block;
     }
     ul {
       flex-direction: column;

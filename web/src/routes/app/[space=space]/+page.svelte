@@ -1,8 +1,9 @@
 <script lang="ts">
   import { page } from '$app/state';
-  import { base } from '$app/paths';
   import SpaceView from '$lib/components/SpaceView.svelte';
-  import { ADULT_ENABLED } from '$lib/constants';
+  import LiveTv from '$lib/tv/LiveTv.svelte';
+  import MusicHome from '$lib/music/MusicHome.svelte';
+  import AdultLock from '$lib/adult/AdultLock.svelte';
   import { isVideoSpace, spaceFromSlug } from '$lib/data/types';
 
   const space = $derived(spaceFromSlug(page.params.space ?? '') ?? 'HOME');
@@ -11,23 +12,14 @@
 
 <svelte:head><title>{titles[space] ?? 'Cinetor'} · Cinetor</title></svelte:head>
 
-{#if space === 'ADULT' && !ADULT_ENABLED}
-  <section class="locked glass">
-    <h1>18+ space is off</h1>
-    <p>Enable it in Settings with an 18+ confirmation and a 4-digit PIN.</p>
-    <a class="btn btn-primary" href="{base}/app/me">Open settings</a>
-  </section>
+{#if space === 'ADULT'}
+  <AdultLock>
+    <SpaceView {space} cat={page.url.searchParams.get('cat')} showCategoryChips={false} />
+  </AdultLock>
+{:else if space === 'TV'}
+  <LiveTv cat={page.url.searchParams.get('cat')} />
+{:else if space === 'MUSIC'}
+  <MusicHome cat={page.url.searchParams.get('cat')} />
 {:else}
   <SpaceView {space} cat={page.url.searchParams.get('cat')} showCategoryChips={isVideoSpace(space)} />
 {/if}
-
-<style>
-  .locked {
-    margin: 40px 16px;
-    padding: 28px;
-    text-align: center;
-  }
-  .locked p {
-    color: var(--text-secondary);
-  }
-</style>

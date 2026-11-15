@@ -228,3 +228,13 @@ button {
     transform: none;
   }
 }
+
+/* Settings → Appearance → Reduce motion. */
+[data-motion='reduce'] *,
+[data-motion='reduce'] *::before,
+[data-motion='reduce'] *::after {
+  animation-duration: 1ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 1ms !important;
+  scroll-behavior: auto !important;
+}

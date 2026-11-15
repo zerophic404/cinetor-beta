@@ -11,9 +11,16 @@
   import { nextEpisode, type Media } from '$lib/player/sources';
   import Player from '$lib/player/Player.svelte';
   import { downloads } from '$lib/download/manager.svelte';
+  import { repo, img } from '$lib/data/repo';
+  import { channelsOf, currentProgram, zapChannel } from '$lib/tv/epg';
+  import { live } from '$lib/tv/live.svelte';
+  import { spaceForId } from '$lib/data/catalog';
+  import { adult } from '$lib/adult/store.svelte';
+  import AdultLock from '$lib/adult/AdultLock.svelte';
 
   const id = $derived(page.url.searchParams.get('id') ?? '');
   const epId = $derived(page.url.searchParams.get('ep'));
+  const adultLocked = $derived(spaceForId(id) === 'ADULT' && !adult.unlocked);
 
   let item = $state.raw<Item | undefined>(undefined);
   let media = $state.raw<Media | undefined>(undefined);
@@ -32,6 +39,7 @@
     const ep = epId;
     let alive = true;
     status = 'loading';
+    if (adultLocked) return;
     catalog
       .item(want)
       .catch(() => undefined)
@@ -86,6 +94,21 @@
     };
   });
 
+  // ---- Live TV: channel list for zapping + quick list ----
+  let channels = $state.raw<Item[]>([]);
+  const isChannel = $derived(!!item?.live && item.type === 'CHANNEL');
+  $effect(() => {
+    if (!isChannel || channels.length) return;
+    repo.items('TV').then((l) => (channels = channelsOf(l)), () => {});
+  });
+  $effect(() => (isChannel ? live.tick() : undefined));
+  function zap(dir: 1 | -1) {
+    const next = zapChannel(channels, item?.id, dir);
+    if (next && next.id !== item?.id) goto(watchHref(next.id), { replaceState: true });
+  }
+  const onAir = $derived(item && isChannel ? currentProgram(item.programs, live.base, live.now) : undefined);
+  const liveInfo = $derived(item && isChannel ? `${item.channelNumber ?? ''} · ${item.title}${onAir ? ` · ${onAir.program.title}` : ''}` : (item?.live ? (item.league ?? '') : ''));
+
   onDestroy(() => {
     nextUp.set(null);
     session.minimize();
@@ -105,8 +128,10 @@
 
 <section class="watch">
   <div class="pwrap">
-    {#if media}
-      <Player {media} onBack={back} />
+    {#if adultLocked}
+      <AdultLock><span></span></AdultLock>
+    {:else if media}
+      <Player {media} onBack={back} live={!!item?.live} {liveInfo} onZap={isChannel ? zap : undefined} />
     {:else if status === 'loading'}
       <SkeletonBox aspect="16 / 9" radius="0" />
     {:else}
@@ -121,9 +146,27 @@
     {#if item && media}
       <h1>{item.title}</h1>
       {#if media.subtitle}<p class="sub">{media.subtitle}</p>{/if}
-      <div class="links">
-        <a class="btn btn-ghost" href={detailsHref(item)}>Details</a>
-      </div>
+      {#if !item.live}
+        <div class="links">
+          <a class="btn btn-ghost" href={detailsHref(item)}>Details</a>
+        </div>
+      {/if}
+      {#if isChannel}
+        {#if onAir}<p class="sub">Now: <b>{onAir.program.title}</b></p>{/if}
+        <h2 class="section-title qtitle">Channels <small>PgUp / PgDn · swipe ↑↓ to zap</small></h2>
+        <ul class="quick" aria-label="Quick channel list">
+          {#each channels as ch (ch.id)}
+            {@const cur = currentProgram(ch.programs, live.base, live.now)}
+            <li>
+              <a href={watchHref(ch.id)} data-sveltekit-replacestate aria-current={ch.id === item.id ? 'true' : undefined}>
+                {#if ch.logo}<img src={img(ch.logo)} alt="" width="40" height="40" loading="lazy" />{/if}
+                <span><b>{ch.channelNumber} {ch.title}</b><small>{cur?.program.title ?? ''}</small></span>
+                {#if live.isFav(ch.id)}<i aria-label="Favorite">★</i>{/if}
+              </a>
+            </li>
+          {/each}
+        </ul>
+      {/if}
       {#if current?.episodes.length}
         <h2 class="section-title">Season {current.n}</h2>
         <ol class="eps">
@@ -272,5 +315,64 @@
   .sk {
     display: grid;
     gap: 14px;
+  }
+  .qtitle {
+    margin-left: 0;
+  }
+  .qtitle small {
+    font-size: 0.72rem;
+    font-weight: 500;
+    color: var(--text-tertiary);
+    margin-left: 8px;
+  }
+  .quick {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+    gap: 8px;
+    max-height: 46vh;
+    overflow-y: auto;
+  }
+  .quick a {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px;
+    border-radius: 14px;
+    text-decoration: none;
+    background: var(--glass-fill);
+  }
+  .quick a[aria-current='true'] {
+    box-shadow: inset 0 0 0 2px var(--accent);
+  }
+  .quick img {
+    width: 40px;
+    height: 40px;
+    border-radius: 10px;
+    object-fit: cover;
+  }
+  .quick span {
+    display: grid;
+    min-width: 0;
+    flex: 1;
+  }
+  .quick b,
+  .quick small {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .quick b {
+    font-size: 0.85rem;
+  }
+  .quick small {
+    color: var(--text-secondary);
+    font-size: 0.75rem;
+  }
+  .quick i {
+    color: #ffc93c;
+    font-style: normal;
   }
 </style>

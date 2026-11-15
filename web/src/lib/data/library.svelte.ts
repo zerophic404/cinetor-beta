@@ -36,6 +36,11 @@ class MyList {
     return (this.lists[scope] ?? read(key(this.profile, scope))).includes(item.id);
   }
 
+  /** Saved ids for a scope ('video' | 'music' | 'comics' | 'tv' | 'adult'), newest first. */
+  ids(scope: string): string[] {
+    return this.lists[scope] ?? read(key(this.profile, scope));
+  }
+
   toggle(item: Pick<Item, 'id' | 'space'>): boolean {
     const scope = scopeOf(item.space);
     const cur = this.ensure(scope);

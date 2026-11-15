@@ -1,6 +1,10 @@
 <script lang="ts">
   import { goto } from '$app/navigation';
-  import { ISOLATED_SPACE_ENTRIES, spaceHref } from '$lib/nav';
+  import { visibleSpaceEntries, spaceHref } from '$lib/nav';
+  import { adult } from '$lib/adult/store.svelte';
+  import { base } from '$app/paths';
+  import { profiles } from '$lib/profile/store.svelte';
+  import { initials } from '$lib/profile/profiles';
   import Icon from './Icon.svelte';
   import Logo from './Logo.svelte';
 
@@ -38,7 +42,7 @@
         <span><b>Movies & Shows</b><small>Home · Anime · Drama</small></span>
       </button>
     </li>
-    {#each ISOLATED_SPACE_ENTRIES as e (e.space)}
+    {#each visibleSpaceEntries(adult.enabled) as e (e.space)}
       <li>
         <button onclick={() => go(spaceHref(e.space))}>
           <span class="ic"><Icon name={e.icon} /></span>
@@ -47,6 +51,14 @@
       </li>
     {/each}
   </ul>
+  <div class="foot">
+    <button class="prof" onclick={() => go(`${base}/app/me`)} aria-label="Profiles: {profiles.active.name}">
+      <span class="av" style:background={profiles.active.color}>{initials(profiles.active.name)}</span>
+      <span>{profiles.active.name}{profiles.active.kids ? ' · Kids' : ''}</span>
+    </button>
+    <button class="lnk" onclick={() => go(`${base}/app/settings`)}>Settings</button>
+    <button class="lnk" onclick={() => go(`${base}/app/about`)}>About</button>
+  </div>
 </dialog>
 
 <style>
@@ -126,5 +138,40 @@
   }
   small {
     color: var(--text-secondary);
+  }
+  .foot {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-top: 14px;
+  }
+  .prof {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    border: 0;
+    background: none;
+    cursor: pointer;
+    font-weight: 650;
+    text-align: left;
+  }
+  .av {
+    width: 34px;
+    height: 34px;
+    display: grid;
+    place-items: center;
+    border-radius: 50%;
+    font-size: 0.8rem;
+    font-weight: 800;
+    color: #fff;
+  }
+  .lnk {
+    border: 0;
+    background: var(--glass-fill);
+    border-radius: 99px;
+    padding: 8px 14px;
+    cursor: pointer;
+    font-weight: 600;
   }
 </style>

@@ -15,10 +15,16 @@
   import { mediaFor, preloader, resume } from '$lib/player/controller';
   import DownloadButton from '$lib/download/DownloadButton.svelte';
   import { downloads } from '$lib/download/manager.svelte';
+  import { spaceForId } from '$lib/data/catalog';
+  import { adult } from '$lib/adult/store.svelte';
+  import AdultLock from '$lib/adult/AdultLock.svelte';
+  import { settings } from '$lib/settings/store.svelte';
 
   const readiness = preloader.readiness;
 
   const id = $derived(page.url.searchParams.get('id') ?? '');
+  /** 18+ titles stay behind the PIN gate (no metadata, no preload) until unlocked this session. */
+  const adultLocked = $derived(spaceForId(id) === 'ADULT' && !adult.unlocked);
 
   /** Instant header (clicked card / TMDB list cache) while full details resolve. */
   let preview = $state.raw<Item | undefined>(undefined);
@@ -114,7 +120,7 @@
   $effect(() => {
     const it = item;
     const eps = episodes;
-    if (!it || (it.seasons?.length && eps === null)) return;
+    if (adultLocked || !settings.s.preloadDetails || !it || (it.seasons?.length && eps === null)) return;
     let alive = true;
     let key = '';
     (async () => {
@@ -161,7 +167,9 @@
 
 <svelte:head><title>{shown?.title ?? 'Details'} · Cinetor</title></svelte:head>
 
-{#if status === 'missing' && !shown}
+{#if adultLocked}
+  <AdultLock><span></span></AdultLock>
+{:else if status === 'missing' && !shown}
   <section class="state glass">
     <h1>Title not found</h1>
     <p>It may have been removed, or the link is incomplete.</p>

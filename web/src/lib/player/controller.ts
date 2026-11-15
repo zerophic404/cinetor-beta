@@ -4,6 +4,7 @@ import { activeProfileId } from '$lib/data/library.svelte';
 import { repo } from '$lib/data/repo';
 import type { Episode, Item } from '$lib/data/types';
 import { engine } from './engine';
+import { arbiter } from '$lib/media/arbiter';
 import { Preloader } from './Preloader';
 import { ResumeStore, idbKV, memoryKV, shouldSave, type ResumeEntry } from './resume';
 import { Session } from './session';
@@ -91,7 +92,13 @@ let lastPos = 0;
 export function wirePlayer(): void {
   if (wired || typeof document === 'undefined') return;
   wired = true;
+  // Single audible source: music starting stops the video session; video playing pauses music.
+  arbiter.register('video', () => {
+    if (session.snapshot.media) void session.stop();
+    else engine.pause();
+  });
   engine.onVideo((v) => {
+    v.addEventListener('play', () => arbiter.claim('video'));
     const sync = () => {
       const b: [number, number][] = [];
       for (let i = 0; i < v.buffered.length; i++) b.push([v.buffered.start(i), v.buffered.end(i)]);

@@ -18,6 +18,19 @@ export function handoff(item: Item, el?: HTMLElement | null): void {
 
 export const handedOff = (id: string): Item | undefined => recent.get(id);
 
-export const detailsHref = (item: Pick<Item, 'id'>): string => `${base}/app/title?id=${encodeURIComponent(item.id)}`;
-export const watchHref = (id: string, episodeId?: string): string =>
-  `${base}/app/watch?id=${encodeURIComponent(id)}${episodeId ? `&ep=${encodeURIComponent(episodeId)}` : ''}`;
+export type HrefItem = Pick<Item, 'id'> & Partial<Pick<Item, 'space' | 'type' | 'albumId'>>;
+
+const enc = encodeURIComponent;
+
+/** Where a card leads: channels play directly, music → album page, comics → comic details, else title details. */
+export function detailsHref(item: HrefItem): string {
+  if (item.type === 'CHANNEL') return watchHref(item.id);
+  if (item.space === 'MUSIC') {
+    if (item.type === 'TRACK' && item.albumId) return `${base}/app/music/album?id=${enc(item.albumId)}&track=${enc(item.id)}`;
+    return `${base}/app/music/album?id=${enc(item.id)}`;
+  }
+  if (item.space === 'COMICS') return `${base}/app/comics/title?id=${enc(item.id)}`;
+  return `${base}/app/title?id=${enc(item.id)}`;
+}
+
+export const watchHref = (id: string, episodeId?: string): string => `${base}/app/watch?id=${enc(id)}${episodeId ? `&ep=${enc(episodeId)}` : ''}`;

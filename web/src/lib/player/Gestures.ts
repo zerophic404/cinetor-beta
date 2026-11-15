@@ -32,6 +32,8 @@ export interface GestureHandlers {
   levelGet(kind: LevelKind): number;
   levelSet(kind: LevelKind, value: number): void;
   levelEnd(kind: LevelKind): void;
+  /** Optional: vertical swipe in the centre third (live TV zapping) instead of a level drag. dir +1 = up. */
+  swipeV?(dir: 1 | -1): void;
 }
 
 export const LEVEL_RANGE: Record<LevelKind, [number, number]> = { brightness: [BRIGHTNESS_MIN, BRIGHTNESS_MAX], volume: [0, 1] };
@@ -53,6 +55,8 @@ export function attachGestures(el: HTMLElement, h: GestureHandlers, step = 10): 
   let seekTarget = 0;
   let level: LevelKind = 'volume';
   let levelStart = 0;
+  let swipe = false;
+  let lastDy = 0;
 
   const ignore = (t: EventTarget | null) => t instanceof Element && !!t.closest('button, a, input, select, textarea, [role="slider"], [data-no-gesture]');
 
@@ -65,6 +69,7 @@ export function attachGestures(el: HTMLElement, h: GestureHandlers, step = 10): 
     axis = null;
     moved = false;
     holding = false;
+    swipe = false;
     if (!gesturesAllowed(h.locked())) return;
     holdTimer = setTimeout(() => {
       if (axis || moved) return;
@@ -91,6 +96,7 @@ export function attachGestures(el: HTMLElement, h: GestureHandlers, step = 10): 
       axis = a;
       const r = el.getBoundingClientRect();
       if (a === 'h') seekStart = h.time();
+      else if (h.swipeV && sideOf(x0 - r.left, r.width) === 'center') swipe = true;
       else {
         level = verticalTarget(x0 - r.left, r.width);
         levelStart = h.levelGet(level);
@@ -98,7 +104,9 @@ export function attachGestures(el: HTMLElement, h: GestureHandlers, step = 10): 
     }
     if (!axis) return;
     const r = el.getBoundingClientRect();
-    if (axis === 'h') {
+    if (swipe) {
+      lastDy = dy;
+    } else if (axis === 'h') {
       seekTarget = dragSeekTarget(seekStart, dx, r.width, h.duration());
       h.seekPreview(seekTarget, seekTarget - seekStart);
     } else {
@@ -115,6 +123,12 @@ export function attachGestures(el: HTMLElement, h: GestureHandlers, step = 10): 
     if (holding) {
       holding = false;
       h.holdEnd();
+      return;
+    }
+    if (swipe) {
+      swipe = false;
+      if (Math.abs(lastDy) > 60 && e.type !== 'pointercancel') h.swipeV?.(lastDy < 0 ? 1 : -1);
+      lastDy = 0;
       return;
     }
     if (axis === 'h') return void h.seekCommit(seekTarget);

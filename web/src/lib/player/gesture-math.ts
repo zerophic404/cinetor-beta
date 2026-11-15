@@ -72,9 +72,12 @@ export class HoldSpeed {
   get holding(): boolean {
     return this.prev !== null;
   }
-  start(currentRate: number): number {
+  /** Rate applied by the active hold (Settings → Playback → Hold speed). */
+  rate = HOLD_RATE;
+  start(currentRate: number, rate = HOLD_RATE): number {
     if (this.prev === null) this.prev = currentRate;
-    return HOLD_RATE;
+    this.rate = rate;
+    return rate;
   }
   /** Rate to restore, or null when no hold was active. */
   end(): number | null {

@@ -1,88 +1,104 @@
 <script lang="ts">
-  import Credits from '$lib/components/Credits.svelte';
-  import Logo from '$lib/components/Logo.svelte';
-  import { THEME_NAMES, theme } from '$lib/design/theme.svelte';
-  import { themes } from '$lib/design/tokens';
-  import { perf } from '$lib/perf/tier.svelte';
-  import type { TierOverride } from '$lib/perf/tier';
-  import { repo, setSimulatedLatency } from '$lib/data/repo';
   import { base } from '$app/paths';
+  import Logo from '$lib/components/Logo.svelte';
+  import Sheet from '$lib/components/Sheet.svelte';
   import InstallButton from '$lib/pwa/InstallButton.svelte';
+  import PinPad from '$lib/adult/PinPad.svelte';
+  import { pinHash } from '$lib/adult/gate';
+  import ProfileEditor from '$lib/profile/ProfileEditor.svelte';
+  import { MAX_PROFILES, initials, type Profile } from '$lib/profile/profiles';
+  import { profiles } from '$lib/profile/store.svelte';
 
-  const tiers: { v: TierOverride; l: string }[] = [
-    { v: 'AUTO', l: 'Auto' },
-    { v: 'LOW', l: 'Low' },
-    { v: 'MID', l: 'Medium' },
-    { v: 'HIGH', l: 'High' }
+  let editing = $state<Profile | null>(null);
+  let editorOpen = $state(false);
+  let unlockFor = $state<Profile | null>(null);
+  let unlockOpen = $state(false);
+
+  function pick(p: Profile) {
+    if (p.id === profiles.activeId) return;
+    if (p.pinHash) {
+      unlockFor = p;
+      unlockOpen = true;
+    } else profiles.switchTo(p.id);
+  }
+  function edit(p: Profile | null) {
+    editing = p;
+    editorOpen = true;
+  }
+  async function tryPin(pin: string): Promise<true | string> {
+    const p = unlockFor;
+    if (!p) return 'No profile';
+    if ((await pinHash(p.id, pin)) !== p.pinHash) return 'Wrong PIN';
+    unlockOpen = false;
+    profiles.switchTo(p.id);
+    return true;
+  }
+
+  const links = [
+    { href: `${base}/app/library`, title: 'Library', sub: 'Watchlist · history · saved albums & comics', icon: 'M5 4h4v16H5zM10 4h4v16h-4zM15.5 4.5l3.8 1 -3.6 15 -3.8-1z' },
+    { href: `${base}/app/downloads`, title: 'Downloads', sub: 'Offline movies & episodes · storage', icon: 'M12 4v11m0 0l-4.5-4.5M12 15l4.5-4.5M5 19.5h14' },
+    { href: `${base}/app/settings`, title: 'Settings', sub: 'Appearance · playback · subtitles · data · content', icon: 'M12 9a3 3 0 1 0 0 6 3 3 0 0 0 0-6zM4 12h2M18 12h2M12 4v2M12 18v2M6.3 6.3l1.4 1.4M16.3 16.3l1.4 1.4M6.3 17.7l1.4-1.4M16.3 7.7l1.4-1.4' },
+    { href: `${base}/app/about`, title: 'About', sub: 'Version · community · credits', icon: 'M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18zM12 11v6M12 7.5v.5' }
   ];
-  let latencyOn = $state(repo.latency.enabled);
 </script>
 
 <svelte:head><title>Me · Cinetor</title></svelte:head>
 
 <div class="me">
   <header class="profile glass">
-    <Logo size={56} />
-    <div>
-      <h1>Me</h1>
-      <p>Profile, library and settings arrive in the next phase.</p>
+    <span class="av big" style:background={profiles.active.color}>{initials(profiles.active.name)}</span>
+    <div class="who">
+      <h1>{profiles.active.name}</h1>
+      <p>{profiles.active.kids ? 'Kids profile' : 'Profile'} · {profiles.list.length}/{MAX_PROFILES} on this device</p>
     </div>
+    <button class="btn btn-ghost" onclick={() => edit(profiles.active)}>Edit</button>
   </header>
 
-  <a class="dl-link glass" href="{base}/app/downloads">
-    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M12 4v11m0 0l-4.5-4.5M12 15l4.5-4.5M5 19.5h14" /></svg>
-    <span><b>Downloads</b><small>Offline movies & episodes · storage</small></span>
-    <span aria-hidden="true">›</span>
-  </a>
-
-  <section aria-labelledby="theme-h">
-    <h2 id="theme-h" class="section-title">Theme</h2>
-    <div class="themes" role="radiogroup" aria-label="Theme">
-      {#each THEME_NAMES as name (name)}
-        {@const t = themes[name]}
-        <button
-          class="theme-card"
-          data-theme={name}
-          role="radio"
-          aria-checked={theme.current === name}
-          onclick={() => theme.set(name)}
-        >
-          <span class="preview">
-            <span class="pv-hero"></span>
-            <span class="pv-glass glass glass-bar"><i></i><i></i><i></i></span>
-          </span>
-          <span class="name">{t.name}</span>
-          <span class="desc">blur {t.blurDp}px · tint {Math.round(t.tintStrength * 100)}%</span>
-        </button>
+  <section aria-labelledby="prof-h">
+    <h2 id="prof-h" class="section-title">Who's watching?</h2>
+    <ul class="picker">
+      {#each profiles.list as p (p.id)}
+        <li>
+          <button class="pp" class:current={p.id === profiles.activeId} onclick={() => pick(p)} aria-current={p.id === profiles.activeId ? 'true' : undefined} aria-label="Switch to {p.name}{p.kids ? ' (Kids)' : ''}{p.pinHash ? ', PIN protected' : ''}">
+            <span class="av" style:background={p.color}>{initials(p.name)}{#if p.pinHash}<i aria-hidden="true">🔒</i>{/if}</span>
+            <span class="nm">{p.name}</span>
+            {#if p.kids}<span class="kid">Kids</span>{/if}
+          </button>
+          {#if p.id !== profiles.activeId}<button class="mini" onclick={() => edit(p)} aria-label="Edit {p.name}">✎</button>{/if}
+        </li>
       {/each}
-    </div>
+      {#if profiles.canCreate}
+        <li>
+          <button class="pp add" onclick={() => edit(null)} aria-label="Add profile">
+            <span class="av">+</span>
+            <span class="nm">Add</span>
+          </button>
+        </li>
+      {/if}
+    </ul>
   </section>
 
-  <section aria-labelledby="fx-h">
-    <h2 id="fx-h" class="section-title">Effects quality</h2>
-    <div class="h-scroll" role="radiogroup" aria-label="Effects quality">
-      {#each tiers as t (t.v)}
-        <button class="chip" class:active={perf.override === t.v} role="radio" aria-checked={perf.override === t.v} onclick={() => perf.setOverride(t.v)}>{t.l}</button>
-      {/each}
-    </div>
-    <p class="note">Active tier: <b>{perf.flags.tier}</b> · live blur {perf.flags.blurScope} · animations ×{perf.flags.durationScale}</p>
-  </section>
-
-  <section aria-labelledby="dev-h">
-    <h2 id="dev-h" class="section-title">Developer</h2>
-    <label class="toggle">
-      <input type="checkbox" bind:checked={latencyOn} onchange={() => setSimulatedLatency(latencyOn)} />
-      <span>Simulated network latency (300–1200 ms) for skeleton preview</span>
-    </label>
-  </section>
+  <nav class="links" aria-label="Me">
+    {#each links as l (l.href)}
+      <a class="lnk glass" href={l.href}>
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d={l.icon} /></svg>
+        <span><b>{l.title}</b><small>{l.sub}</small></span>
+        <span aria-hidden="true">›</span>
+      </a>
+    {/each}
+  </nav>
 
   <div class="install"><InstallButton label="Install Cinetor app" /></div>
-
-  <section class="about glass" aria-label="About">
-    <Logo size={40} wordmark />
-    <Credits />
-  </section>
+  <p class="brand"><Logo size={28} wordmark /></p>
 </div>
+
+<Sheet bind:open={editorOpen} title={editing ? `Edit ${editing.name}` : 'New profile'}>
+  <ProfileEditor profile={editing} onDone={() => (editorOpen = false)} />
+</Sheet>
+
+<Sheet bind:open={unlockOpen} title={unlockFor ? `Switch to ${unlockFor.name}` : 'Profile PIN'}>
+  <PinPad title="Profile PIN" onSubmit={tryPin} />
+</Sheet>
 
 <style>
   .me {
@@ -95,121 +111,127 @@
     margin: 0 16px;
     padding: 18px;
   }
-  .profile h1 {
+  .who {
+    flex: 1;
+    min-width: 0;
+  }
+  .who h1 {
     margin: 0;
     font-size: 1.4rem;
   }
-  .profile p {
+  .who p {
     margin: 2px 0 0;
     color: var(--text-secondary);
-    font-size: 0.88rem;
+    font-size: 0.85rem;
   }
-  .dl-link {
+  .av {
+    position: relative;
+    width: 64px;
+    height: 64px;
+    display: grid;
+    place-items: center;
+    border-radius: 50%;
+    font-weight: 800;
+    font-size: 1.3rem;
+    color: #fff;
+    background: var(--glass-fill);
+    box-shadow: inset 0 0 0 1px var(--glass-stroke);
+  }
+  .av.big {
+    width: 60px;
+    height: 60px;
+  }
+  .av i {
+    position: absolute;
+    right: -2px;
+    bottom: -2px;
+    font-size: 0.8rem;
+    font-style: normal;
+  }
+  .picker {
+    list-style: none;
+    margin: 0;
+    padding: 0 16px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 14px;
+  }
+  .picker li {
+    position: relative;
+  }
+  .pp {
+    display: grid;
+    justify-items: center;
+    gap: 6px;
+    width: 84px;
+    border: 0;
+    background: none;
+    cursor: pointer;
+    padding: 6px;
+    border-radius: 18px;
+  }
+  .pp.current .av {
+    box-shadow: 0 0 0 3px var(--bg, #000), 0 0 0 5px var(--accent);
+  }
+  .pp.add .av {
+    font-size: 1.8rem;
+    color: var(--text-secondary);
+  }
+  .nm {
+    font-size: 0.82rem;
+    font-weight: 650;
+    max-width: 80px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .kid {
+    font-size: 0.62rem;
+    font-weight: 800;
+    padding: 1px 6px;
+    border-radius: 6px;
+    background: #17c964;
+    color: #000;
+  }
+  .mini {
+    position: absolute;
+    top: 0;
+    right: 0;
+    width: 26px;
+    height: 26px;
+    border: 0;
+    border-radius: 50%;
+    background: var(--glass-fill);
+    cursor: pointer;
+    font-size: 0.75rem;
+  }
+  .links {
+    display: grid;
+    gap: 10px;
+    margin: 18px 16px 0;
+  }
+  .lnk {
     display: flex;
     align-items: center;
     gap: 14px;
-    margin: 14px 16px 0;
     padding: 14px 18px;
     text-decoration: none;
   }
-  .dl-link span:nth-child(2) {
+  .lnk span:nth-child(2) {
     flex: 1;
     display: grid;
   }
-  .dl-link small {
+  .lnk small {
     color: var(--text-secondary);
-  }
-  .themes {
-    display: grid;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-    gap: 12px;
-    padding: 0 16px;
-  }
-  .theme-card {
-    display: grid;
-    gap: 4px;
-    padding: 10px;
-    border: 0;
-    border-radius: var(--radius-lg);
-    background: var(--bg);
-    color: var(--text-primary);
-    box-shadow: inset 0 0 0 1px var(--glass-stroke);
-    cursor: pointer;
-    text-align: left;
-    transition: transform calc(var(--dur-medium) * var(--dur-scale)) var(--ease-emphasized);
-  }
-  .theme-card[aria-checked='true'] {
-    box-shadow: 0 0 0 2px var(--accent), 0 10px 30px -12px var(--accent-glow);
-  }
-  .theme-card:hover {
-    transform: translateY(-2px);
-  }
-  .preview {
-    position: relative;
-    display: block;
-    aspect-ratio: 4 / 3;
-    border-radius: var(--radius-md);
-    overflow: hidden;
-    background: var(--surface);
-  }
-  .pv-hero {
-    position: absolute;
-    inset: 0;
-    background: radial-gradient(80% 70% at 20% 10%, var(--accent), transparent 70%),
-      radial-gradient(60% 60% at 90% 30%, var(--accent-end), transparent 70%);
-    opacity: 0.85;
-  }
-  .pv-glass {
-    position: absolute !important;
-    left: 8%;
-    right: 8%;
-    bottom: 8%;
-    height: 26%;
-    border-radius: 12px;
-    display: flex;
-    align-items: center;
-    justify-content: space-around;
-  }
-  .pv-glass i {
-    width: 14%;
-    height: 34%;
-    border-radius: 99px;
-    background: var(--text-secondary);
-  }
-  .pv-glass i:first-child {
-    background: var(--accent);
-  }
-  .name {
-    font-weight: 750;
-  }
-  .desc,
-  .note {
-    font-size: 0.75rem;
-    color: var(--text-secondary);
-  }
-  .note {
-    margin: 0 16px;
-  }
-  .toggle {
-    display: flex;
-    gap: 10px;
-    align-items: center;
-    margin: 0 16px;
-    color: var(--text-secondary);
-  }
-  .toggle input {
-    width: 20px;
-    height: 20px;
-    accent-color: var(--accent);
+    font-size: 0.8rem;
   }
   .install {
     margin: 18px 16px 0;
   }
-  .about {
-    display: grid;
-    justify-items: center;
-    gap: 12px;
-    margin: 28px 16px 0;
-    padding: 22px;
+  .brand {
+    display: flex;
+    justify-content: center;
+    margin-top: 26px;
+    opacity: 0.8;
   }
 </style>
