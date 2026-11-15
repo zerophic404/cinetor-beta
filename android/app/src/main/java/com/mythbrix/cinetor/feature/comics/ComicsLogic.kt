@@ -41,6 +41,12 @@ fun defaultReaderMode(item: Item): ReaderMode = when {
     else -> ReaderMode.VERTICAL
 }
 
+/**
+ * Generic message for a chapter whose pages cannot be resolved. Deliberately carries no host, path or
+ * provider name (docs/requirements-hardening.md §2).
+ */
+const val CHAPTER_UNAVAILABLE: String = "Chapter unavailable. Try another chapter."
+
 /** Pages decoded ahead of the reader: 3 normally, 1 on LOW tier. */
 fun preloadCount(tier: PerformanceTier): Int = if (tier == PerformanceTier.LOW) 1 else 3
 

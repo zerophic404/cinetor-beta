@@ -287,10 +287,11 @@ class GatewayTest {
         var now = 0L
         val http = FakeGatewayHttp(GatewayFixtures.routes())
         val gw = GatewayCatalogSource(GatewayApi(http, GatewayCache(ttlMs = 1_000, clock = { now })))
-        gw.categories(Space.HOME)
+        val online = gw.categories(Space.HOME).size
+        assertTrue("home tabs", online >= 2)
         now = 10_000
         http.down = true
-        assertEquals(2, gw.categories(Space.HOME).size) // stale gateway data instead of an error
+        assertEquals(online, gw.categories(Space.HOME).size) // stale gateway data instead of an error
         val fresh = GatewayCatalogSource(GatewayApi(http, GatewayCache(clock = { now })))
         try {
             fresh.categories(Space.HOME); fail("expected IOException without any cached copy")
