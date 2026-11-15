@@ -66,7 +66,9 @@ shot 23-tv-player-scrub 0.2
 sleep 2
 # Up → controls (settings row focused); Back hides controls (player stays). One input call = no JVM gap.
 adb shell input keyevent KEYCODE_DPAD_UP; shot 24-tv-player-controls 0.3
-adb shell input keyevent KEYCODE_BACK; shot 25-tv-player-controls-hidden 1
+# adb input + 1080p screencap take seconds on this emulator → controls may have auto-hidden (6 s) by now.
+# One input call: UP (re-shows if hidden; no-op focus move if shown) then BACK (hides; player must stay).
+adb shell input keyevent KEYCODE_DPAD_UP KEYCODE_BACK; shot 25-tv-player-controls-hidden 1
 check back-hides-controls
 adb shell input keyevent KEYCODE_DPAD_DOWN; shot 26-tv-player-rail 2
 adb shell input keyevent KEYCODE_BACK; sleep 1
