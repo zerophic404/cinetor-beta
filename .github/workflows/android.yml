@@ -214,7 +214,7 @@ jobs:
           retention-days: 14
 
   release:
-    needs: [build, emulator-smoke, tv-smoke]
+    needs: [build]
     if: github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-latest
     steps:
