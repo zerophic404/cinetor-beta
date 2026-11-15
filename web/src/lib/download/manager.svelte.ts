@@ -8,6 +8,7 @@ import { DEFAULT_MAX_CONCURRENT, DownloadQueue, type QueueStatus } from './queue
 import { idbPieceStore, opfsPieceStore, quota, recordsKV, requestPersist, type Quota } from './store';
 import { adultUnlocked, hostOf, visibleDownloads, type DownloadKind, type DownloadRecord, type TrackChoice } from './types';
 import type { KV } from '../player/resume';
+import { applyNativeProgress, chooseBackend, isTauriEnv, localPlaylist, nativeFileName } from '../desktop/env';
 
 export const MAX_AUTO_RETRIES = 3;
 const SETTINGS_KEY = 'cinetor.dl.settings';
@@ -176,6 +177,7 @@ class Downloads {
       connections: kind === 'progressive' ? clampConnections(req.connections ?? this.defaultConnections) : 4,
       chunks: [],
       pieceEnds: [],
+      backend: chooseBackend({ tauri: isTauriEnv(), kind, container: src.kind }),
       createdAt: Date.now(),
       elapsedMs: 0,
       retries: 0
@@ -231,6 +233,22 @@ class Downloads {
     const r = this.work.get(m.key);
     if (!r || r.status !== 'completed') return m;
     try {
+      if (r.backend === 'native' && r.nativePath) {
+        const { fileUrl } = await import('../desktop/tauri');
+        const fileSrc = await fileUrl(r.nativePath);
+        if (r.nativePlaylist) {
+          // Native HLS: byte-range playlist over the single concatenated file.
+          let url = this.blobUrls.get(r.id);
+          if (!url) {
+            const { readPlaylist } = await import('../desktop/native-dl');
+            const text = localPlaylist(await readPlaylist(r.nativePlaylist), fileSrc);
+            url = URL.createObjectURL(new Blob([text], { type: 'application/x-mpegurl' }));
+            this.blobUrls.set(r.id, url);
+          }
+          return { ...m, key: `${m.key}@offline`, source: { url, kind: 'HLS', label: 'Downloaded' }, playable: true };
+        }
+        return { ...m, key: `${m.key}@offline`, source: { url: fileSrc, kind: (m.source?.kind ?? 'MP4') as Source['kind'], label: 'Downloaded' }, playable: true };
+      }
       if (r.kind === 'adaptive' && r.offlineUri) {
         return { ...m, key: `${m.key}@offline`, source: { url: r.offlineUri, kind: r.container === 'DASH' ? 'DASH' : 'HLS', label: 'Downloaded' }, playable: true };
       }
@@ -308,6 +326,12 @@ class Downloads {
     const url = this.blobUrls.get(r.id);
     if (url) URL.revokeObjectURL(url);
     this.blobUrls.delete(r.id);
+    if (r.backend === 'native') {
+      const { removeNative } = await import('../desktop/native-dl');
+      await removeNative(r.id, nativeFileName(r), r.nativePath).catch(() => {});
+      this.patch(r.id, { chunks: [], doneBytes: 0, nativePath: undefined, nativePlaylist: undefined, fraction: 0, segmentsDone: 0 });
+      return;
+    }
     if (r.kind === 'progressive') await removePieces(await this.pieceStore(), { id: r.id, pieceEnds: r.pieceEnds ?? [] });
     if (r.offlineUri) await removeAdaptive(r.offlineUri).catch(() => {});
     this.patch(r.id, { chunks: [], pieceEnds: [], doneBytes: 0, offlineUri: undefined, fraction: 0 });
@@ -397,6 +421,7 @@ class Downloads {
   private async run(id: string, signal: AbortSignal): Promise<void> {
     const r = this.work.get(id);
     if (!r) throw new Error('Unknown download');
+    if (r.backend === 'native') return this.runNativeJob(r, signal);
     if (r.kind === 'progressive') return this.runProgressiveJob(r, signal);
     return this.runAdaptiveJob(r, signal);
   }
@@ -427,6 +452,34 @@ class Downloads {
       signal
     );
     sync(done);
+  }
+
+  /** Desktop: Rust engine (multi-connection Range / HLS segments) → Downloads/Cinetor; resumes from its sidecar. */
+  private async runNativeJob(r: DownloadRecord, signal: AbortSignal): Promise<void> {
+    const { runNative } = await import('../desktop/native-dl');
+    let lastPersist = Date.now();
+    const done = await runNative(
+      {
+        id: r.id,
+        url: r.url,
+        kind: r.kind === 'progressive' ? 'progressive' : 'hls',
+        connections: r.kind === 'progressive' ? r.connections : clampConnections(this.defaultConnections),
+        fileName: nativeFileName(r),
+        bandwidth: r.tracks.bandwidth,
+        height: r.tracks.height
+      },
+      (p) => {
+        const delta = applyNativeProgress(r, p);
+        if (delta > 0) this.onBytes(r.id, delta);
+        this.dirty.add(r.id);
+        if (Date.now() - lastPersist > 5000) {
+          lastPersist = Date.now();
+          void this.kv?.set(r.id, { ...r, chunks: r.chunks.map((c) => ({ ...c })) });
+        }
+      },
+      signal
+    );
+    this.patch(r.id, { nativePath: done.path, nativePlaylist: done.playlist ?? undefined, totalBytes: done.size || r.totalBytes, doneBytes: done.size || r.doneBytes, fraction: 1 });
   }
 
   private async runAdaptiveJob(r: DownloadRecord, signal: AbortSignal): Promise<void> {

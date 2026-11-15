@@ -19,6 +19,8 @@
   import NowPlaying from '$lib/music/NowPlaying.svelte';
   import { adult } from '$lib/adult/store.svelte';
   import { settings } from '$lib/settings/store.svelte';
+  import { desktop } from '$lib/desktop/desktop.svelte';
+  import DesktopMini from '$lib/desktop/DesktopMini.svelte';
 
   let { children } = $props();
   let spacesOpen = $state(false);
@@ -93,7 +95,8 @@
 </main>
 
 <div class="video-park" aria-hidden="true" use:park></div>
-<MiniPlayer hidden={watching} />
+<MiniPlayer hidden={watching || desktop.mini} />
+<DesktopMini />
 <!-- The ONE audio element for music: owned here so playback survives navigation. -->
 <audio class="music-audio" use:music.attach preload="metadata"></audio>
 <MusicBar hidden={immersive} />
@@ -118,6 +121,10 @@
   }
   .app.watching {
     padding: 0 0 calc(24px + var(--safe-b));
+  }
+  /* Desktop: keep the player clear of the custom title bar. */
+  :global(html.tauri) .app.watching {
+    padding-top: var(--titlebar-h, 36px);
   }
   .video-park {
     position: fixed;

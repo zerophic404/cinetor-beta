@@ -67,6 +67,7 @@
 
     <div class="bar" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow={Math.round(pct)}><i style:width="{pct}%"></i></div>
     <p class="bytes">{formatBytes(r.doneBytes)} / {total ? formatBytes(total) : '?'}{r.kind === 'adaptive' && r.status !== 'completed' ? ' (total estimated)' : ''}</p>
+    {#if r.backend === 'native'}<p class="muted">Desktop download · {r.nativePath ?? 'Downloads/Cinetor'}</p>{/if}
 
     <div class="stats">
       <div><span>Speed</span><b>{formatSpeed(s?.speed ?? 0)}</b></div>
