@@ -54,6 +54,54 @@ pub struct StartReq {
     pub file_name: String,
     pub bandwidth: Option<u64>,
     pub height: Option<u32>,
+    /// Request headers for `url` (gateway CDN: Cookie / Referer / Origin — browsers can't send them).
+    #[serde(default)]
+    pub headers: Option<HashMap<String, String>>,
+    /// Used when `url` (+ headers) fails the first probe (gateway proxy URL, no headers needed).
+    #[serde(default)]
+    pub fallback_url: Option<String>,
+    /// Resume identity independent of re-signed URLs (`t=` changes on every resolve).
+    #[serde(default)]
+    pub resume_key: Option<String>,
+}
+
+/// reqwest client that sends `headers` on every request (unknown/invalid header names are skipped).
+pub fn client_with_headers(headers: &HashMap<String, String>) -> Option<reqwest::Client> {
+    let mut map = reqwest::header::HeaderMap::new();
+    for (k, v) in headers {
+        let (Ok(name), Ok(val)) = (reqwest::header::HeaderName::from_bytes(k.as_bytes()), reqwest::header::HeaderValue::from_str(v)) else {
+            continue;
+        };
+        map.insert(name, val);
+    }
+    reqwest::Client::builder()
+        .user_agent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36")
+        .default_headers(map)
+        .connect_timeout(Duration::from_secs(20))
+        .read_timeout(Duration::from_secs(40))
+        .build()
+        .ok()
+}
+
+/// Direct CDN URL with headers when it answers, else the fallback (proxy) with the plain client.
+async fn pick_route(plain: &reqwest::Client, req: &StartReq) -> (reqwest::Client, StartReq) {
+    let Some(h) = req.headers.as_ref().filter(|h| !h.is_empty()) else {
+        return (plain.clone(), req.clone());
+    };
+    let Some(direct) = client_with_headers(h) else {
+        return (plain.clone(), req.clone());
+    };
+    let Some(fb) = req.fallback_url.clone() else {
+        return (direct, req.clone());
+    };
+    let ok = tokio::time::timeout(Duration::from_secs(12), probe(&direct, &req.url)).await.map(|r| r.is_ok()).unwrap_or(false);
+    if ok {
+        return (direct, req.clone());
+    }
+    let mut r2 = req.clone();
+    r2.url = fb;
+    r2.headers = None;
+    (plain.clone(), r2)
 }
 
 #[derive(Serialize, Clone)]
@@ -98,11 +146,12 @@ struct Failed {
 #[tauri::command]
 pub async fn dl_start(app: AppHandle, state: State<'_, DlState>, req: StartReq) -> Result<(), String> {
     stop_job(&state, &req.id).await;
-    let client = state.client.clone();
+    let plain = state.client.clone();
     let id = req.id.clone();
     let gen = state.gen.fetch_add(1, Ordering::SeqCst);
     let app2 = app.clone();
     let handle = tauri::async_runtime::spawn(async move {
+        let (client, req) = pick_route(&plain, &req).await;
         let res = if req.kind == "hls" {
             run_hls(&app2, &client, &req).await
         } else {
@@ -287,6 +336,8 @@ impl Meter {
 #[serde(rename_all = "camelCase")]
 struct Sidecar {
     url: String,
+    #[serde(default)]
+    key: Option<String>,
     total: u64,
     range_supported: bool,
     chunks: Vec<(u64, u64, u64)>,
@@ -332,9 +383,18 @@ async fn save_sidecar(path: &Path, sc: &Sidecar) {
     }
 }
 
-fn snapshot(url: &str, total: u64, ranges: bool, chunks: &[Arc<ChunkState>]) -> Sidecar {
+/// Same download: same resume key (gateway, URL re-signed) or same URL.
+fn sidecar_matches(s: &Sidecar, req: &StartReq) -> bool {
+    match (&s.key, &req.resume_key) {
+        (Some(a), Some(b)) => a == b,
+        _ => s.url == req.url,
+    }
+}
+
+fn snapshot(req: &StartReq, total: u64, ranges: bool, chunks: &[Arc<ChunkState>]) -> Sidecar {
     Sidecar {
-        url: url.to_string(),
+        url: req.url.clone(),
+        key: req.resume_key.clone(),
         total,
         range_supported: ranges,
         chunks: chunks.iter().map(|c| (c.start, c.end.load(Ordering::SeqCst), c.pos.load(Ordering::SeqCst))).collect(),
@@ -348,7 +408,7 @@ async fn run_progressive(app: &AppHandle, client: &reqwest::Client, req: &StartR
     let side_path = dir.join(format!("{name}.cinetor-part"));
 
     let prev: Option<Sidecar> = match tokio::fs::read(&side_path).await {
-        Ok(b) if data_path.exists() => serde_json::from_slice::<Sidecar>(&b).ok().filter(|s| s.url == req.url && s.range_supported),
+        Ok(b) if data_path.exists() => serde_json::from_slice::<Sidecar>(&b).ok().filter(|s| sidecar_matches(s, req) && s.range_supported),
         _ => None,
     };
     let (total, ranges, chunks): (u64, bool, Vec<Arc<ChunkState>>) = match prev {
@@ -378,7 +438,7 @@ async fn run_progressive(app: &AppHandle, client: &reqwest::Client, req: &StartR
         }
     };
     if ranges {
-        save_sidecar(&side_path, &snapshot(&req.url, total, ranges, &chunks)).await;
+        save_sidecar(&side_path, &snapshot(req, total, ranges, &chunks)).await;
     }
 
     let counter = Arc::new(AtomicU64::new(chunks.iter().map(|c| c.pos.load(Ordering::SeqCst) - c.start).sum()));
@@ -420,14 +480,14 @@ async fn run_progressive(app: &AppHandle, client: &reqwest::Client, req: &StartR
                 emit(s);
                 n += 1;
                 if ranges && n % 4 == 0 {
-                    save_sidecar(&side_path, &snapshot(&req.url, total, ranges, &chunks)).await;
+                    save_sidecar(&side_path, &snapshot(req, total, ranges, &chunks)).await;
                 }
             }
         }
     };
     if let Err(e) = result {
         if ranges {
-            save_sidecar(&side_path, &snapshot(&req.url, total, ranges, &chunks)).await;
+            save_sidecar(&side_path, &snapshot(req, total, ranges, &chunks)).await;
         }
         return Err(e);
     }
@@ -820,6 +880,31 @@ mod tests {
         assert!(lp.contains("#EXT-X-MAP:URI=\"__CINETOR_MEDIA__\",BYTERANGE=\"10@0\""));
         assert!(lp.contains("#EXT-X-BYTERANGE:50@110"));
         assert!(lp.ends_with("#EXT-X-ENDLIST\n"));
+    }
+
+    #[test]
+    fn headers_client_and_sidecar_key() {
+        let mut h = HashMap::new();
+        h.insert("Referer".to_string(), "https://movieboxhd.net/".to_string());
+        h.insert("Cookie".to_string(), "a=b".to_string());
+        h.insert("bad header".to_string(), "x".to_string());
+        assert!(client_with_headers(&h).is_some());
+        let req = StartReq {
+            id: "x".into(),
+            url: "https://cdn/a.mp4?t=2".into(),
+            kind: "progressive".into(),
+            connections: None,
+            file_name: "a.mp4".into(),
+            bandwidth: None,
+            height: None,
+            headers: Some(h),
+            fallback_url: Some("https://gw/play".into()),
+            resume_key: Some("x|720".into()),
+        };
+        let sc = Sidecar { url: "https://cdn/a.mp4?t=1".into(), key: Some("x|720".into()), total: 10, range_supported: true, chunks: vec![] };
+        assert!(sidecar_matches(&sc, &req));
+        let old = Sidecar { url: "https://cdn/a.mp4?t=1".into(), key: None, total: 10, range_supported: true, chunks: vec![] };
+        assert!(!sidecar_matches(&old, &req));
     }
 
     #[test]

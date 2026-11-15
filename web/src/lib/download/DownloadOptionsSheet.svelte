@@ -7,10 +7,17 @@
   import { probe } from './progressive';
   import { isIOS } from './store';
   import type { TrackChoice } from './types';
+  import { isLazySource } from '$lib/data/gateway-play';
+  import { resolveMedia } from '$lib/player/controller';
 
   let { open = $bindable(false), media, onstarted }: { open?: boolean; media: Media; onstarted?: () => void } = $props();
 
-  const kind = $derived(downloadKindOf(media.source));
+  /** Gateway titles: placeholder → proxy MP4 variants (resolved when the sheet opens). */
+  let resolved = $state.raw<Media | null>(null);
+  let vi = $state(0);
+  const variants = $derived(resolved?.variants ?? []);
+  const cur = $derived<Media | null>(resolved ? (variants.length ? { ...resolved, source: variants[vi] ?? resolved.source } : resolved) : null);
+  const kind = $derived(downloadKindOf(cur?.source ?? media.source));
   let loading = $state(true);
   let err = $state('');
   let info = $state.raw<AdaptiveProbe | null>(null);
@@ -25,15 +32,42 @@
 
   $effect(() => {
     if (!open) return;
-    const m = media;
+    const m0 = media;
+    let alive = true;
+    loading = true;
+    err = '';
+    resolved = null;
+    connections = downloads.defaultConnections;
+    void downloads.refreshQuota();
+    (async () => {
+      try {
+        const m = isLazySource(m0.source) ? await resolveMedia(m0) : m0;
+        if (!alive) return;
+        if (m.noSource || !m.source) throw new Error('No source available');
+        const vs = m.variants ?? [];
+        vi = Math.max(0, vs.findIndex((x) => x.url === m.source?.url));
+        resolved = m;
+      } catch (e) {
+        if (alive) {
+          err = (e as Error).message || 'No source available';
+          loading = false;
+        }
+      }
+    })();
+    return () => {
+      alive = false;
+    };
+  });
+
+  $effect(() => {
+    const m = cur;
+    if (!open || !m?.source) return;
     let alive = true;
     loading = true;
     err = '';
     info = null;
     fileSize = 0;
     ranges = null;
-    connections = downloads.defaultConnections;
-    void downloads.refreshQuota();
     (async () => {
       try {
         const src = m.source!;
@@ -70,12 +104,16 @@
   async function start() {
     busy = true;
     try {
+      const m = cur;
+      if (!m?.source) throw new Error('No source available');
       const q = info?.qualities[qi];
       const choice: TrackChoice =
         kind === 'adaptive' && q
           ? { quality: q.label, height: q.height, bandwidth: q.bandwidth, codecs: q.codecs, audio, texts: [...texts] }
-          : { quality: `Original (${media.source?.kind ?? 'file'})`, texts: [] };
-      await downloads.start({ media, choice, estimatedBytes: estimate, connections, durationSec: info?.durationSec || media.durationSec });
+          : m.source.height
+            ? { quality: m.source.label ?? `${m.source.height}p`, height: m.source.height, texts: [] }
+            : { quality: `Original (${m.source.kind ?? 'file'})`, texts: [] };
+      await downloads.start({ media: m, choice, estimatedBytes: estimate, connections, durationSec: info?.durationSec || m.durationSec, lazyUrl: isLazySource(media.source) ? media.source?.url : undefined });
       open = false;
       onstarted?.();
     } catch (e) {
@@ -95,7 +133,7 @@
 
   {#if loading}
     <div class="loading" aria-busy="true"><span class="spin"></span> Reading {kind === 'adaptive' ? 'stream tracks' : 'file size'}…</div>
-  {:else if err && !info && !fileSize && kind === 'adaptive'}
+  {:else if err && (!resolved || (!info && !fileSize && kind === 'adaptive'))}
     <p class="err" role="alert">{err}</p>
   {:else}
     {#if kind === 'adaptive' && info}
@@ -128,10 +166,22 @@
       {/if}
       <p class="note">Duration {formatDuration(info.durationSec)} · stored in the browser's offline database (IndexedDB).</p>
     {:else}
+      {#if variants.length > 1}
+        <fieldset>
+          <legend>Quality</legend>
+          {#each variants as v, i (v.url)}
+            <label class="opt">
+              <input type="radio" name="dlv" checked={vi === i} onchange={() => (vi = i)} />
+              <span class="lbl">{v.label ?? `${v.height}p`}</span>
+              <span class="sub">MP4</span>
+            </label>
+          {/each}
+        </fieldset>
+      {/if}
       <fieldset>
         <legend>File</legend>
         <div class="opt static">
-          <span class="lbl">Original · {media.source?.kind}</span>
+          <span class="lbl">{cur?.source?.label && cur.source.height ? `${cur.source.label} · MP4` : `Original · ${cur?.source?.kind ?? media.source?.kind}`}</span>
           <span class="size">{fileSize ? formatBytes(fileSize) : `≈ ${formatBytes(estimate)} (size unknown)`}</span>
         </div>
       </fieldset>

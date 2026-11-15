@@ -50,6 +50,13 @@ export interface DownloadRecord {
   fraction?: number;
   segmentsTotal?: number;
   segmentsDone?: number;
+  // gateway (signed links expire → re-resolved before each run when older than 15 min)
+  /** Lazy placeholder ('gw-stream:…') the URL was resolved from. */
+  lazyUrl?: string;
+  resolvedAt?: number;
+  /** CDN URL + headers (desktop native downloader sends them; falls back to `url` = proxy). */
+  directUrl?: string;
+  directHeaders?: Record<string, string>;
   // desktop (Tauri) native engine
   /** 'native' = Rust downloader into Downloads/Cinetor; undefined/'browser' = OPFS / shaka offline. */
   backend?: 'native' | 'browser';

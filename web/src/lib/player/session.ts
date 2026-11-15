@@ -55,7 +55,7 @@ export class Session {
       this.latest.cancel();
       engine.pause();
       await engine.unload();
-      this.st.update((s) => ({ ...s, error: 'unsupported', loading: false }));
+      this.st.update((s) => ({ ...s, error: media.noSource ? 'nosource' : 'unsupported', loading: false }));
       return false;
     }
     let instant = false;
