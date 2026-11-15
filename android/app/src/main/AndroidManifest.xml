@@ -17,6 +17,20 @@
     <uses-feature
         android:name="android.software.leanback"
         android:required="false" />
+    <!-- Same APK on phone + TV boxes without PiP (Task 6.1). -->
+    <uses-feature
+        android:name="android.software.picture_in_picture"
+        android:required="false" />
+    <uses-feature
+        android:name="android.hardware.microphone"
+        android:required="false" />
+
+    <!-- Voice search (Task 6.2): resolve the system speech recognizer on API 30+. -->
+    <queries>
+        <intent>
+            <action android:name="android.speech.action.RECOGNIZE_SPEECH" />
+        </intent>
+    </queries>
 
     <application
         android:name=".CinetorApplication"

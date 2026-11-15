@@ -8,7 +8,7 @@ on:
       - 'android/**'
       - 'shared/**'
       - '.github/workflows/android.yml'
-      - '.github/scripts/emulator-smoke.sh'
+      - '.github/scripts/**'
   workflow_dispatch:
 
 permissions:
@@ -76,6 +76,15 @@ jobs:
           unzip -l out/*.apk | grep -q 'assets/mock/home.json'
           unzip -l out/*.apk | grep -q 'assets/mock/images/posters/'
           echo "mock assets: $(unzip -l out/*.apk | grep -c 'assets/mock/') files"
+          # TV packaging (Task 6.1): leanback launcher + banner, touch/leanback/PiP optional.
+          AAPT=$(ls "$ANDROID_HOME"/build-tools/*/aapt | sort -V | tail -1)
+          "$AAPT" dump badging out/*.apk > badging.txt
+          grep -E "leanback-launchable-activity|banner|uses-feature-not-required|uses-feature:" badging.txt || true
+          grep -q "leanback-launchable-activity" badging.txt
+          grep -q "banner=" badging.txt
+          for f in android.hardware.touchscreen android.software.leanback android.software.picture_in_picture; do
+            grep -q "uses-feature-not-required: name='$f'" badging.txt || { echo "missing optional $f"; exit 1; }
+          done
 
       - uses: actions/upload-artifact@v4
         with:
