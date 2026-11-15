@@ -92,6 +92,11 @@ export class Catalog {
     return space === 'ADULT' ? this.adultUnlocked() : isVideoSpace(space);
   }
 
+  /** Where the last file(space) came from. */
+  originOf(space: Space): Origin | undefined {
+    return this.origins.get(space);
+  }
+
   private useTmdb(space: Space): boolean {
     return !!this.tmdb && isVideoSpace(space) && this.online();
   }

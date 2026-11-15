@@ -58,7 +58,7 @@ function backend(): LocalBackend {
 
 const engines = new Map<string, { engine: SearchEngine; ready: Promise<void> }>();
 
-/** Global engine (no space) or in-space engine. Isolated spaces never get remote (TMDB) search. */
+/** Global engine (no space) or in-space engine. Isolated spaces (incl. 18+) never get remote search. */
 export function engineFor(space?: Space | null): { engine: SearchEngine; ready: Promise<void> } {
   const key = space ?? 'global';
   let e = engines.get(key);
@@ -71,8 +71,14 @@ export function engineFor(space?: Space | null): { engine: SearchEngine; ready: 
       remote: remoteOk && catalog.remoteEnabled ? (q, signal) => catalog.remoteSearch(q, signal) : null
     });
     const ready = catalog.pool(scope).then(
-      (items) => engine.index(items),
-      () => undefined
+      (items) => {
+        engine.index(items);
+        // Nothing loaded (offline / gateway hiccup / 18+ still locked): rebuild on next open.
+        if (!items.length) engines.delete(key);
+      },
+      () => {
+        engines.delete(key);
+      }
     );
     e = { engine, ready };
     engines.set(key, e);

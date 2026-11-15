@@ -5,7 +5,6 @@
   import { base } from '$app/paths';
   import { installSpatialNav, restoreFocus } from '$lib/tv/spatial';
   import Nav from '$lib/components/Nav.svelte';
-  import SpacesSheet from '$lib/components/SpacesSheet.svelte';
   import { spaceFromSlug, isVideoSpace } from '$lib/data/types';
   import { ISOLATED_SPACE_ENTRIES, VIDEO_TABS, isolatedTabs, spaceOfPath } from '$lib/nav';
   import { bindTintToDocument } from '$lib/design/tint.svelte';
@@ -18,12 +17,14 @@
   import MusicBar from '$lib/music/MusicBar.svelte';
   import NowPlaying from '$lib/music/NowPlaying.svelte';
   import { adult } from '$lib/adult/store.svelte';
+  import { setAdultGate } from '$lib/data/app-catalog';
   import { settings } from '$lib/settings/store.svelte';
   import { desktop } from '$lib/desktop/desktop.svelte';
   import DesktopMini from '$lib/desktop/DesktopMini.svelte';
 
   let { children } = $props();
-  let spacesOpen = $state(false);
+  // Catalog asks the 18+ gate before any gateway adult request (set before children render).
+  setAdultGate(() => adult.enabled && adult.unlocked);
 
   const space = $derived(spaceFromSlug(page.params.space ?? '') ?? spaceOfPath(page.url.pathname));
   const isolated = $derived(!isVideoSpace(space));
@@ -65,7 +66,7 @@
         const p = location.pathname.replace(/\/$/, '');
         if (p === `${base}/app`) return;
         if (history.length > 1) history.back();
-        else goto(`${base}/app`);
+        else goto(spaceOfPath(location.pathname) !== 'HOME' ? `${base}/app/me` : `${base}/app`);
       }
     });
     requestAnimationFrame(() => window.__cinetorReady?.());
@@ -87,8 +88,7 @@
 <div class="ambient" aria-hidden="true"></div>
 <a class="skip" href="#main">Skip to content</a>
 
-{#if !immersive}<Nav {tabs} {spaceLabel} onSpaces={() => (spacesOpen = true)} />{/if}
-<SpacesSheet bind:open={spacesOpen} />
+{#if !immersive}<Nav {tabs} {spaceLabel} />{/if}
 
 <main id="main" class="app" class:watching={immersive} class:with-bar={barShown} tabindex="-1">
   {@render children()}

@@ -3,7 +3,7 @@
 import { untrack } from 'svelte';
 import { SvelteMap } from 'svelte/reactivity';
 import { colors } from './app-catalog';
-import { colorSampleUrl, isTmdbPath } from './images';
+import { colorSampleUrl, isGwImage, isTmdbPath } from './images';
 import { repo } from './repo';
 import type { Item } from './types';
 
@@ -15,7 +15,7 @@ export function colorOf(item: Item): string {
 
 /** Call from effects / event handlers only (writes state). Mock items already carry real colors. */
 export function ensureColor(item: Item | undefined): void {
-  if (!item || !isTmdbPath(item.poster)) return;
+  if (!item || !(isTmdbPath(item.poster) || isGwImage(item.poster))) return;
   untrack(() => {
     if (live.has(item.id)) return;
     const url = colorSampleUrl(item.poster, (p) => repo.asset(p));

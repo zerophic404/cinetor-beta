@@ -14,7 +14,6 @@
   import { activeProfileId } from '$lib/data/library.svelte';
   import { mediaFor, prepareMedia, preloader, resume } from '$lib/player/controller';
   import DownloadButton from '$lib/download/DownloadButton.svelte';
-  import { downloads } from '$lib/download/manager.svelte';
   import { spaceForId } from '$lib/data/catalog';
   import { adult } from '$lib/adult/store.svelte';
   import AdultLock from '$lib/adult/AdultLock.svelte';

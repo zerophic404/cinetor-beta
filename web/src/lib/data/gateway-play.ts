@@ -169,6 +169,8 @@ export function matchSearch(hits: GwListItem[], ref: Pick<FindRef, 'title' | 'ye
     if (s < 0) continue;
     const y = Number(h.year) || Number((h.release_date ?? '').slice(0, 4)) || 0;
     if (ref.year && y) s += y === ref.year ? 30 : Math.abs(y - ref.year) === 1 ? 15 : -50;
+    // Dubbed / regional re-uploads ("[Hindi]") rank below the original.
+    if (/\[[^\]]*\]/.test(h.name)) s -= 10;
     if ((h.type === 'tv') === (ref.type === 'tv')) s += 20;
     else s -= 30;
     if (s > 0 && (!best || s > best.s)) best = { h, s };
