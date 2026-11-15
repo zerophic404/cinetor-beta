@@ -15,7 +15,7 @@ class DownloadsUxTest {
 
     private fun opt(h: Int?, kind: SourceKind, bytes: Long, url: String = "https://cdn/$h-$kind") = QualityOption(
         source = src(kind, "${h}p", h, bytes, url),
-        kind = if (kind == SourceKind.MP4 || kind == SourceKind.MKV) DownloadKind.PROGRESSIVE else DownloadKind.SEGMENTED,
+        kind = if (kind == SourceKind.MP4 || kind == SourceKind.MKV) DownloadKind.PROGRESSIVE else DownloadKind.HLS,
         label = "${h}p · $kind",
         height = h,
         estimatedBytes = bytes,
@@ -79,7 +79,7 @@ class DownloadsUxTest {
         assertFalse(DownloadLocations.needsExport(base, DownloadLocation()))
         assertFalse(DownloadLocations.needsExport(base.copy(status = DownloadStatus.DOWNLOADING), loc))
         assertFalse(DownloadLocations.needsExport(base.copy(adult = true), loc)) // 18+ stays private
-        assertFalse(DownloadLocations.needsExport(base.copy(kind = DownloadKind.SEGMENTED), loc))
+        assertFalse(DownloadLocations.needsExport(base.copy(kind = DownloadKind.HLS), loc))
         assertFalse(DownloadLocations.needsExport(base.copy(exportUri = "content://x/doc/1"), loc)) // already done
         assertFalse(DownloadLocations.needsExport(base.copy(filePath = ""), loc))
     }
