@@ -290,7 +290,12 @@ class GatewayApi(
     fun absolute(pathOrUrl: String): String =
         if (pathOrUrl.startsWith("http://") || pathOrUrl.startsWith("https://")) pathOrUrl else base + "/" + pathOrUrl.trimStart('/')
 
-    private suspend fun cached(url: String): String {
+    /** Disk cache + JSON decoding never run on the main thread (scroll jank). */
+    private suspend fun <T> off(block: suspend () -> T): T = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { block() }
+
+    private suspend fun cached(url: String): String = off { cachedNow(url) }
+
+    private suspend fun cachedNow(url: String): String {
         cache?.get(url)?.let { return it }
         val body = try {
             http.get(url, GatewayConfig.CATALOG_TIMEOUT_MS)
@@ -304,21 +309,21 @@ class GatewayApi(
         return body
     }
 
-    suspend fun home(): GwHome = json.decodeFromString(GwHome.serializer(), cached(url("home")))
+    suspend fun home(): GwHome = off { json.decodeFromString(GwHome.serializer(), cachedNow(url("home"))) }
 
     /** `movies` | `tv-series` | `animation` | `adult` list page. */
     suspend fun list(path: String, params: Map<String, String?>, page: Int = 1): GwPage =
-        json.decodeFromString(GwPage.serializer(), cached(url(path, params + ("page" to page.toString()))))
+        off { json.decodeFromString(GwPage.serializer(), cachedNow(url(path, params + ("page" to page.toString())))) }
 
     suspend fun search(q: String, page: Int = 1): GwPage =
-        json.decodeFromString(GwPage.serializer(), cached(url("search", mapOf("q" to q, "page" to page.toString()))))
+        off { json.decodeFromString(GwPage.serializer(), cachedNow(url("search", mapOf("q" to q, "page" to page.toString())))) }
 
     suspend fun suggest(q: String): List<String> =
         json.decodeFromString(GwSuggest.serializer(), cached(url("search/suggest", mapOf("q" to q))))
             .suggestions.mapNotNull { it.title?.takeIf { t -> t.isNotBlank() } }
 
     suspend fun detail(slug: String): GwDetail =
-        json.decodeFromString(GwDetail.serializer(), cached(url("detail/${enc(slug)}")))
+        off { json.decodeFromString(GwDetail.serializer(), cachedNow(url("detail/${enc(slug)}"))) }
 
     suspend fun stream(subjectId: String, slug: String?, se: Int, ep: Int): GwStream =
         json.decodeFromString(

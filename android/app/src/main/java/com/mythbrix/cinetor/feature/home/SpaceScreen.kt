@@ -158,7 +158,8 @@ private fun SpaceContent(
             }
         } else {
             items(ui.rows, key = { it.id }, contentType = { it.style }) { row ->
-                ContentRow(row, onOpen, onTint, onNearEnd = { onLoadMore(row.id) })
+                val nearEnd = remember(row.id, onLoadMore) { { onLoadMore(row.id) } }
+                ContentRow(row, onOpen, onTint, onNearEnd = nearEnd)
             }
             if (ui.rows.isEmpty()) {
                 item(key = "empty", contentType = "empty") {

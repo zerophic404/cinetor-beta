@@ -84,5 +84,13 @@ key KEYCODE_DPAD_LEFT; sleep 0.5
 adb shell input keyevent KEYCODE_DPAD_UP; adb shell input keyevent KEYCODE_DPAD_UP; adb shell input keyevent KEYCODE_DPAD_UP
 key KEYCODE_DPAD_CENTER; shot 31-tv-search 3
 check search
+# Profile group in the side nav: Search · Home · Anime · Drama | Profiles · Live TV & Sports …
+key KEYCODE_DPAD_LEFT; sleep 0.5
+adb shell input keyevent KEYCODE_DPAD_UP KEYCODE_DPAD_UP KEYCODE_DPAD_UP KEYCODE_DPAD_UP
+adb shell input keyevent KEYCODE_DPAD_DOWN KEYCODE_DPAD_DOWN KEYCODE_DPAD_DOWN KEYCODE_DPAD_DOWN KEYCODE_DPAD_DOWN
+shot 40-tv-sidenav-profile-group 1
+key KEYCODE_DPAD_CENTER; shot 41-tv-live-tv 6
+anr; check live-tv
 adb logcat -d | grep -E 'FATAL EXCEPTION|AndroidRuntime' | head -20 || true
+adb logcat -d > "$OUT/logcat.txt" || true
 echo "TV smoke OK"

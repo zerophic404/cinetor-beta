@@ -11,16 +11,21 @@ adb wait-for-device
 adb shell settings put global window_animation_scale 0 || true
 adb install -r -g "$APK" || { echo "install failed"; exit 1; }
 adb logcat -c || true
+adb logcat -G 16M >/dev/null 2>&1 || true   # big buffer: a crash stack must survive the whole run
 
 shot() { sleep "${2:-3}"; adb exec-out screencap -p > "$OUT/$1.png"; echo "shot $1"; }
 alive() { adb shell pidof "$PKG" >/dev/null 2>&1; }
 
 adb shell am start -W -n "$PKG/.MainActivity"
 shot 01-splash 1
-shot 02-home 8
+shot 02-home 12   # gateway catalog (network)
 SIZE=$(adb shell wm size | grep -oE '[0-9]+x[0-9]+' | tail -1); W=${SIZE%x*}; H=${SIZE#*x}
 echo "screen ${W}x${H}"
-# scroll home rows
+# scroll home rows (+ frame-time sample: gfxinfo janky-frame share while flinging Home)
+adb shell dumpsys gfxinfo "$PKG" reset >/dev/null 2>&1 || true
+for _ in 1 2 3; do adb shell input swipe $((W/2)) $((H*3/4)) $((W/2)) $((H/4)) 300; sleep 0.5; adb shell input swipe $((W/2)) $((H/4)) $((W/2)) $((H*3/4)) 300; sleep 0.5; done
+adb shell dumpsys gfxinfo "$PKG" > "$OUT/gfxinfo-home.txt" 2>/dev/null || true
+grep -E "Total frames rendered|Janky frames|50th percentile|90th percentile|99th percentile" "$OUT/gfxinfo-home.txt" | head -5 || true
 adb shell input swipe $((W/2)) $((H*3/4)) $((W/2)) $((H/4)) 400; shot 03-home-scrolled 3
 adb shell input swipe $((W/2)) $((H/4)) $((W/2)) $((H*3/4)) 400; sleep 1
 # bottom bar: 5 tabs Home Anime Drama Search Me
@@ -50,7 +55,8 @@ shot 21-details 4
 # Controls auto-hide after 3 s and uiautomator dumps are slower → position taps right after a show-tap.
 if tap_desc "Play"; then
   shot 30-player-portrait 3
-  shot 31-player-playing 4
+  shot 31-player-playing 12   # real gateway stream: resolve + first segments
+  adb logcat -d | grep -E "CinetorPlayback|playback error" | tail -8 || true
   adb shell input tap $((W*85/100)) $((H/8)); sleep 0.6          # show controls
   adb shell input tap $((W*93/100)) $((H*64/1000))               # gear
   shot 35-player-settings 2
@@ -65,13 +71,8 @@ fi
 adb shell input swipe $((W/2)) $((H*3/4)) $((W/2)) $((H/4)) 400; shot 22-details-scrolled 2
 adb shell input swipe $((W/2)) $((H/4)) $((W/2)) $((H*3/4)) 400; sleep 1
 if tap_desc "Download"; then
-  shot 23-download-sheet 6
-  # real download through the engine (options sheet → Start); fallback: close sheet
-  if tap_desc "Start download" || { adb shell input swipe $((W/2)) $((H*4/5)) $((W/2)) $((H/3)) 300; sleep 1; tap_desc "Start download"; }; then
-    shot 23b-download-started 3
-  else
-    adb shell input keyevent KEYCODE_BACK; sleep 1
-  fi
+  shot 23-download-sheet 8   # gateway resolutions with real sizes (no 1 GB download on CI)
+  adb shell input keyevent KEYCODE_BACK; sleep 1
 fi
 adb shell input keyevent KEYCODE_BACK; shot 24-back-home 2
 # category tab swap (Series) → hero swaps
@@ -109,6 +110,13 @@ adb shell input keyevent KEYCODE_HOME; shot 42-pip 3
 adb shell am start -n "$PKG/.MainActivity" >/dev/null 2>&1; shot 43-back-from-pip 3
 tap_desc "Close mini player" && shot 41-mini-closed 2
 
+# Spaces live in Me → Spaces now (top switcher removed). $1 = space title as in the XML (escaped).
+open_space() {
+  tap_text "Me" || adb shell input tap $(( W * 9 / 10 )) $BAR_Y
+  sleep 2
+  tap_desc "Space $1"
+}
+
 # --- Phase 4A: Live TV grid, EPG, Sports, live player zap, Music album → now playing → queue ---
 # last match = topmost overlay (switcher is drawn above the space content)
 tap_text() {
@@ -119,9 +127,8 @@ tap_text() {
   set -- $b
   adb shell input tap $(( ($1 + $3) / 2 )) $(( ($2 + $4) / 2 ))
 }
-if tap_desc "Open spaces"; then
-  sleep 2
-  if tap_text "Live TV &amp; Sports" || tap_text "Live TV"; then
+if true; then
+  if open_space "Live TV &amp; Sports"; then
     shot 50-tv-live 6
     adb shell input swipe $((W/2)) $((H*3/4)) $((W/2)) $((H/4)) 400; shot 51-tv-grid 2
     adb shell input swipe $((W/2)) $((H/4)) $((W/2)) $((H*3/4)) 400; sleep 1
@@ -141,9 +148,9 @@ if tap_desc "Open spaces"; then
     adb shell input keyevent KEYCODE_BACK; sleep 1
   fi
 fi
-if tap_desc "Open spaces"; then
-  sleep 2
-  if tap_text "Music"; then
+adb shell input keyevent KEYCODE_BACK; sleep 2   # space → back to Me
+if true; then
+  if open_space "Music"; then
     shot 60-music-home 6
     adb shell input swipe $((W/2)) $((H*3/4)) $((W/2)) $((H/3)) 400; sleep 2
     if tap_prefix "Album "; then
@@ -155,7 +162,7 @@ if tap_desc "Open spaces"; then
         adb shell input keyevent KEYCODE_BACK; sleep 2                # collapse to mini bar
       fi
       # navigate away: music keeps playing, mini bar stays above the nav
-      tap_desc "Open spaces" && { sleep 2; tap_text "Video" && shot 65-music-mini-on-home 4; }
+      tap_text "Video" && shot 65-music-mini-on-home 4
       adb logcat -d | grep -cE "CinetorPlayer.*error" || true
     fi
   fi

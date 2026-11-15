@@ -28,11 +28,14 @@ enum class GlassLevel(val overlay: Boolean) {
     FLOATING(overlay = true),
 }
 
-/** Pure rule: LOW → never; MID → bars/sheets; HIGH → every overlay level. */
+/**
+ * Pure rule: LOW → never; MID → sheets only (bars re-blur the scrolling content every frame — the main
+ * scroll-jank source on mid devices, so they use the tinted fill); HIGH → every overlay level.
+ */
 fun glassUsesLiveBlur(tier: PerformanceTier, level: GlassLevel): Boolean = when {
     !tier.liveBlur || !level.overlay -> false
     tier.liveBlurEverywhere -> true
-    else -> level == GlassLevel.BAR || level == GlassLevel.SHEET
+    else -> level == GlassLevel.SHEET
 }
 
 /** Opacity of the tinted fallback fill (no live blur). LOW is near-opaque (88%). */
