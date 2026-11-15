@@ -5,17 +5,8 @@ Status: [x] done · [~] in progress / partial · [ ] not started
 Plan: docs/plans/2026-11-14-cinetor-master-plan.md · Decisions: docs/handoff/decisions.md · Phase notes: docs/handoff/phase-*.md
 
 ## Resume here
-- 2026-11-15 Android Ph0–7 DONE (main). Desktop Phase 9 merged to main via PR #3 (see its handoff). Next: Phase 10 (tag v0.1.0 → signed APKs + installers, QA matrix incl. macrobenchmark, final report).
-- RULE (user): every green main build → publish installers to PUBLIC Ashrix404/cinetor-app releases. Desktop from Phase 9.
-- 2026-11-15 00:40 packed before usage limit (resets 04:40). Done: Ph0–3 (APK android-build-30), Web 8.1–8.5 (PR #1, live).
-- Phase 4 IN PROGRESS on two worktrees (agents may have died mid-task):
-  - wip/phase-4a (worktree ~/apk-projects/cinetor): 4.1 Live TV+EPG+Sports, 4.2 Music.
-  - wip/phase-4b (worktree ~/apk-projects/cinetor-dl): 4.3 Comics reader, 4.4 Adult gate. Status notes docs/handoff/phase-4b.md on that branch.
-- NEXT STEPS:
-  1. `git worktree list`; in each worktree commit+push any dirty work to its branch.
-  2. Check CI per branch (`gh run list -b <branch>`); continue unfinished tasks (see plan 4.1–4.4); CI green.
-  3. Merge wip/phase-4b into wip/phase-4a (or both into main), CI green, merge to main (auto APK release). Write docs/handoff/phase-4.md, mark Ph4 [x], mark Web 8.3–8.5 [x].
-  4. Phase 5 (profiles, settings, about) → 6 (TV) → 7 (perf + signed release) → 9 (Tauri desktop exe/msi/deb/AppImage → public releases) → 10 (release v0.1.0, final report). Web parity for profiles/settings/about/EPG/reader/adult gate alongside.
+- ALL PHASES DONE (2026-11-15 13:25). Release v0.1.0: https://github.com/Ashrix404/cinetor-app/releases/tag/v0.1.0 (signed APKs universal + 3 ABI, exe, msi, deb, AppImage, SHA256SUMS). Site https://ashrix404.github.io/cinetor-app/
+- Next (only if user asks): real video sources, TMDB proxy, Play Store/F-Droid listing.
 
 ## Phase checklist
 ### Phase 0 — setup, brand, mock  [x]
@@ -42,6 +33,7 @@ Plan: docs/plans/2026-11-14-cinetor-master-plan.md · Decisions: docs/handoff/de
 - [ ] release.yml v0.1.0 · [ ] QA matrix · [ ] final report to user
 
 ## Log (newest first, one line each)
+- 2026-11-15 13:25 Ph6+7 merged (PR #4, android-build-46 signed), Ph9 merged (PR #3, desktop-build-4), Ph10: v0.1.0 public release + README; old test releases deleted. DONE.
 - 2026-11-15 Ph6+7 done on wip/phase-6 (caa9aac..), runs 43678402983 (6.1) 43681409616 (6.2) 43682848369 (7.1) 43684811368 (7.2) green incl. phone + Android TV emulator smoke; merged to main 1d0c502 (PR #4), main run https://github.com/Ashrix404/cinetor/actions/runs/43687370076 green → https://github.com/Ashrix404/cinetor-app/releases/tag/android-build-46 (signed Cinetor-0.1.46-{arm64-v8a,armeabi-v7a,x86_64,universal}.apk). Per-ABI 16.8 MB. Handoff docs/handoff/phase-6-7.md.
 - 2026-11-15 00:40 Ph3 merged (android-build-30), web 8.3–8.5 merged; Ph4 started; packed for limit, auto-resume 04:45.
 - 2026-11-15 00:20 Phase 3 merged to main 696e0ee (dl/phase-3 → wip/phase-3 f2c911a, offline playback 1f347fc: OfflineResolver local file / download cache, Downloads Play → player, OfflineResolverTest 5). CI wip https://github.com/Ashrix404/cinetor/actions/runs/43622939407 , main https://github.com/Ashrix404/cinetor/actions/runs/43624369659 green; APK https://github.com/Ashrix404/cinetor-app/releases/tag/android-build-30 .
