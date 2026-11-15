@@ -5,8 +5,10 @@ Status: [x] done · [~] in progress / partial · [ ] not started
 Plan: docs/plans/2026-11-14-cinetor-master-plan.md · Decisions: docs/handoff/decisions.md · Phase notes: docs/handoff/phase-*.md
 
 ## Resume here
-- ALL PHASES DONE (2026-11-15 13:25). Release v0.1.0: https://github.com/Ashrix404/cinetor-app/releases/tag/v0.1.0 (signed APKs universal + 3 ABI, exe, msi, deb, AppImage, SHA256SUMS). Site https://ashrix404.github.io/cinetor-app/
-- Next (only if user asks): real video sources, TMDB proxy, Play Store/F-Droid listing.
+- v0.1.0 released (all phases done). NOW Phase 11 (user request 2026-11-15): gateway integration + nav change → release v0.2.0. Spec: docs/gateway.md (on branch feat/gateway, merges with it).
+  - Android: branch feat/gateway-android (worktree ~/apk-projects/cinetor-dl), notes docs/handoff/gateway-android.md.
+  - Web+Desktop: branch feat/gateway (worktree ~/apk-projects/cinetor-web), notes docs/handoff/gateway-web.md.
+  - When both green: merge feat/gateway → main (PR), then feat/gateway-android → main (PR), CI green → auto releases; then create v0.2.0 release in cinetor-app with all assets (like v0.1.0), update README.
 
 ## Phase checklist
 ### Phase 0 — setup, brand, mock  [x]
