@@ -50,9 +50,13 @@ fun TvShell(
     var navHasFocus by remember { mutableStateOf(false) }
     // New destination: if nothing claimed focus (screens without their own initial focus), enter content.
     // (Screens with their own focus restore — TV home — claim focus first; this is the fallback.)
+    // Retried: during the nav transition the outgoing screen is still composed (its cards can grab
+    // focus and then vanish, which drops focus into the side nav).
     LaunchedEffect(routeKey, refocusKey) {
-        delay(450)
-        if (!contentHasFocus) runCatching { contentFocus.requestFocus() }
+        repeat(4) {
+            delay(400)
+            if (!contentHasFocus) runCatching { contentFocus.requestFocus() }
+        }
     }
     BoxWithConstraints(
         Modifier

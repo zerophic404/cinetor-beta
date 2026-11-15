@@ -177,10 +177,16 @@ fun TvPlayerScreen(
                 val key = tvKeyOf(e.nativeKeyEvent.keyCode)
                 if (key == TvKey.OTHER) return@onPreviewKeyEvent false
                 if (overlay != TvOverlay.NONE) interaction++
+                // Back handled here on key-up (hide overlay → exit), consumed on both edges so the
+                // focus system / NavHost never see it.
+                if (key == TvKey.BACK) {
+                    if (e.type == KeyEventType.KeyUp) {
+                        if (overlay != TvOverlay.NONE) overlay = TvOverlay.NONE else onExit()
+                    }
+                    return@onPreviewKeyEvent true
+                }
                 when (e.type) {
                     KeyEventType.KeyDown -> {
-                        // Back is left to BackHandler (hide → exit) so system back stays consistent.
-                        if (key == TvKey.BACK) return@onPreviewKeyEvent false
                         handle(
                             keys.onKeyDown(
                                 key, e.nativeKeyEvent.repeatCount, overlay, ui.positionMs, ui.durationMs,
