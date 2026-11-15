@@ -6,6 +6,7 @@
   import { clock, session, togglePiP, pipSupported } from './controller';
   import { cornerPos, isSwipeOff, snapCorner, type Corner } from './mini-math';
   import { watchHref } from '$lib/ui/handoff';
+  import { desktop } from '$lib/desktop/desktop.svelte';
 
   let { hidden = false }: { hidden?: boolean } = $props();
   const sess = session.state;
@@ -116,6 +117,11 @@
       {#if pipSupported()}
         <button onclick={() => togglePiP()} aria-label="Picture in picture">
           <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2" /><rect x="12" y="12" width="7" height="5" rx="1" fill="currentColor" /></svg>
+        </button>
+      {/if}
+      {#if desktop.isTauri}
+        <button onclick={() => desktop.setMini(true)} aria-label="Pop out (always-on-top mini window)" title="Pop out">
+          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M14 4h6v6M20 4l-8 8M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5" /></svg>
         </button>
       {/if}
       <button onclick={expand} aria-label="Expand player">
