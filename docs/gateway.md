@@ -31,3 +31,21 @@ No auth needed for public endpoints. CORS `*`. Samples (trimmed, live-captured):
 - Fallback chain: Gateway → TMDB metadata (no playable source → try `/api/v1/resolve`, else show "No source available") → mock catalog when offline.
 - Isolated spaces (Live TV, Sports, Music, Comics) untouched; Adult unchanged.
 - Timeouts: catalog 10 s, stream 15 s; cache catalog 10 min memory+disk; stream links expire (signed `t=`) → re-resolve on 403/expired, never cache > 30 min.
+
+## Gateway update (re-inspected 2026-11-15 20:0x, deployment dpl_CRdqpRwBMi1NqfwPetD8KeTkfaJq)
+New/changed, verified live:
+- `GET /home` now returns 26 curated sections (was ~few): Banner, Trending Short Drama, 🔥Hot Short TV, Zee Bangla Shows, Indian Dramas, Original Western TV, Popular Series, Popular Movie, Nollywood Movie, Adult Animation, Epic Fantasy, Comedy, Teen Romance, Superhero Series, BL Story, Bet+, Action&Thriller, Gangster, Teen Fantasy, Coming Soon, Anime[English Dubbed], Action Movies, Horror Movies, Must-watch Black Shows, 💓Romance 💓, 🔔🎄Christmas Movies 2026. Render ALL sections as rows in order; `Banner` = hero carousel. Section names contain emoji — keep as-is.
+- `GET /short-tv?page=` — micro-dramas / short TV (verified 200). New row/category.
+- `GET /zee-bangla?page=` (alias `/zeebangla`) — Bengali serials (verified 200). New row/category.
+- `GET /adult?kind=movies&page=&sort=latest&country=` — note `kind` + `sort` params.
+- `GET /manga?action=c2&id=<mangadex-chapter-id>` — ONLY chapter-page-server proxy (MangaDex `at-home/server`). `/manga` with no action (or action=browse) returns 404 `{"error":"not_found"}` — browse is NOT in the gateway.
+- Resolver providers added server-side (anime/luna, cinefreak, zeebangla) — still behind `/api/v1/resolve`, which returned 0 sources in testing; do not depend on it.
+
+### Comics plan (all platforms)
+Gateway has no comics browse. Use MangaDex public API directly for metadata + chapters, and the gateway ONLY for chapter page servers:
+- Browse/category: `https://api.mangadex.org/manga?limit=&offset=&order[followedCount]=desc&includes[]=cover_art&contentRating[]=safe&contentRating[]=suggestive&availableTranslatedLanguage[]=en` — Manga vs Manhwa vs Manhua via `originalLanguage[]=ja` / `ko` / `zh,zh-hk`.
+- Search: same endpoint with `title=`.
+- Cover: `https://uploads.mangadex.org/covers/<manga-id>/<cover-file>.512.jpg` (cover file from `includes[]=cover_art` relationship).
+- Chapter list: `https://api.mangadex.org/manga/<id>/feed?translatedLanguage[]=en&order[chapter]=asc&limit=500&includeExternalUrl=0`.
+- Pages: `GET {GATEWAY}/api/public/v1/manga?action=c2&id=<chapter-id>` → `{baseUrl, chapter:{hash,data[],dataSaver[]}}`; page URL = `{baseUrl}/data/{hash}/{file}`. KNOWN ISSUE: in testing this returned `{"chapter":{"data":[]}}` (upstream bot-challenge). Implement: try gateway proxy → on empty, call `https://api.mangadex.org/at-home/server/<chapter-id>` directly with a non-browser UA (`CinetorApp/1.0`) → if still empty, show "Chapter unavailable, try another" and keep the rest of the UI working. Must never crash.
+- Reader UX unchanged (manga RTL paged, manhwa/manhua vertical). Mock comics data stays as offline fallback only.
