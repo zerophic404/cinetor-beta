@@ -19,6 +19,7 @@ import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Close
+import androidx.compose.material.icons.rounded.Mic
 import androidx.compose.material.icons.rounded.History
 import androidx.compose.material.icons.rounded.Search
 import androidx.compose.material3.Icon
@@ -31,6 +32,7 @@ import androidx.compose.material3.TextField
 import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -75,6 +77,20 @@ fun SearchScreen(
     val results by vm.results.collectAsStateWithLifecycle()
     val recent by vm.recent.collectAsStateWithLifecycle()
     val suggestions by vm.suggestions.collectAsStateWithLifecycle()
+    // Voice search (TV remotes' mic button / phones): system speech recognizer → query.
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val voice = androidx.activity.compose.rememberLauncherForActivityResult(
+        androidx.activity.result.contract.ActivityResultContracts.StartActivityForResult(),
+    ) { r ->
+        val text = r.data?.getStringArrayListExtra(android.speech.RecognizerIntent.EXTRA_RESULTS)?.firstOrNull()
+        if (!text.isNullOrBlank()) { vm.onQueryChange(text); vm.submit() }
+    }
+    val voiceIntent = remember {
+        android.content.Intent(android.speech.RecognizerIntent.ACTION_RECOGNIZE_SPEECH)
+            .putExtra(android.speech.RecognizerIntent.EXTRA_LANGUAGE_MODEL, android.speech.RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
+            .putExtra(android.speech.RecognizerIntent.EXTRA_PROMPT, "Search Cinetor")
+    }
+    val voiceAvailable = remember { voiceIntent.resolveActivity(context.packageManager) != null }
 
     Column(Modifier.fillMaxSize().padding(top = contentPadding.calculateTopPadding())) {
         TextField(
@@ -86,6 +102,10 @@ fun SearchScreen(
                 if (query.isNotEmpty()) {
                     IconButton(onClick = { vm.onQueryChange("") }) {
                         Icon(Icons.Rounded.Close, contentDescription = "Clear")
+                    }
+                } else if (voiceAvailable) {
+                    IconButton(onClick = { runCatching { voice.launch(voiceIntent) } }) {
+                        Icon(Icons.Rounded.Mic, contentDescription = "Voice search")
                     }
                 }
             },

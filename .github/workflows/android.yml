@@ -129,8 +129,45 @@ jobs:
           path: shots
           retention-days: 14
 
+  tv-smoke:
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: apk
+          path: apk
+
+      - name: Enable KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+
+      - name: TV smoke on Android TV emulator (API 30, D-pad only)
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 30
+          arch: x86
+          target: android-tv
+          profile: tv_1080p
+          ram-size: 2048M
+          disable-animations: true
+          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
+          script: bash .github/scripts/tv-smoke.sh apk tv-shots
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: tv-screenshots
+          path: tv-shots
+          retention-days: 14
+
   release:
-    needs: [build, emulator-smoke]
+    needs: [build, emulator-smoke, tv-smoke]
     if: github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-latest
     steps:
