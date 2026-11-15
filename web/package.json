@@ -17,6 +17,7 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "@tauri-apps/api": "^2.9.0",
     "shaka-player": "^4.16.0"
   },
   "devDependencies": {

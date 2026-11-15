@@ -1,0 +1,75 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "Cinetor",
+  "version": "0.5.0",
+  "identifier": "com.mythbrix.cinetor",
+  "build": {
+    "beforeBuildCommand": "npm run build:web",
+    "beforeDevCommand": "npm run build:web",
+    "frontendDist": "../../web/build"
+  },
+  "app": {
+    "withGlobalTauri": false,
+    "windows": [
+      {
+        "label": "main",
+        "title": "Cinetor",
+        "url": "app",
+        "width": 1280,
+        "height": 800,
+        "minWidth": 820,
+        "minHeight": 520,
+        "center": true,
+        "decorations": false,
+        "transparent": false,
+        "visible": false,
+        "resizable": true,
+        "backgroundColor": "#000000"
+      }
+    ],
+    "security": {
+      "csp": null,
+      "assetProtocol": {
+        "enable": true,
+        "scope": ["$DOWNLOAD/Cinetor/**", "$HOME/Downloads/Cinetor/**"]
+      }
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": ["nsis", "msi", "deb", "appimage"],
+    "publisher": "Mythbrix",
+    "copyright": "© Mythbrix",
+    "category": "Entertainment",
+    "shortDescription": "Movies, series, anime, drama, live TV, music and comics",
+    "longDescription": "Cinetor — movies, series, anime, drama, live TV, music and comics in one red/black glass app.",
+    "homepage": "https://ashrix404.github.io/cinetor-app/",
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.icns",
+      "icons/icon.ico"
+    ],
+    "windows": {
+      "nsis": {
+        "installMode": "currentUser"
+      },
+      "webviewInstallMode": {
+        "type": "downloadBootstrapper"
+      }
+    },
+    "linux": {
+      "deb": {
+        "depends": [
+          "gstreamer1.0-plugins-good",
+          "gstreamer1.0-plugins-bad",
+          "gstreamer1.0-libav"
+        ]
+      },
+      "appimage": {
+        "bundleMediaFramework": true
+      }
+    }
+  }
+}

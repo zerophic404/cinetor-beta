@@ -50,6 +50,13 @@ export interface DownloadRecord {
   fraction?: number;
   segmentsTotal?: number;
   segmentsDone?: number;
+  // desktop (Tauri) native engine
+  /** 'native' = Rust downloader into Downloads/Cinetor; undefined/'browser' = OPFS / shaka offline. */
+  backend?: 'native' | 'browser';
+  /** Finished native file (absolute path). */
+  nativePath?: string;
+  /** Native HLS: local byte-range playlist next to the file. */
+  nativePlaylist?: string;
   // bookkeeping
   createdAt: number;
   startedAt?: number;

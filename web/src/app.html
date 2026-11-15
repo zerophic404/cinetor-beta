@@ -11,6 +11,7 @@
       (function () {
         try {
           var d = document.documentElement;
+          if (window.__TAURI_INTERNALS__) d.classList.add('tauri');
           var t = localStorage.getItem('cinetor.theme');
           if (t === 'noir' || t === 'obsidian' || t === 'ember') d.dataset.theme = t;
           var c = { noir: '#000000', obsidian: '#0E0E10', ember: '#0A0505' }[d.dataset.theme];
