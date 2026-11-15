@@ -45,10 +45,15 @@ dismiss_anr() {
 echo "== phase 5: profiles =="
 dismiss_anr
 # Back to the video shell from wherever 4b ended (an isolated space has no Me tab).
-# 4b may leave the Spaces switcher open or sit in Comics: "Video" (switcher row / exit tab) leads home in both.
-if tap_text "Video"; then sleep 2
-elif tap_desc "Open spaces"; then sleep 1; tap_text "Video" || adb shell input keyevent KEYCODE_BACK; sleep 2; fi
-dump_ui && adb shell cat /sdcard/ui.xml | tr '>' '\n' | grep -oE 'content-desc="[^"]+"' | head -25
+# 4b may end in Comics with the Spaces switcher open. The first text="Video" node can be the bottom "Video" tab
+# behind the switcher scrim (tap only closes the switcher) → loop until the video shell ("Me" tab) is showing.
+for i in 1 2 3 4; do
+  dump_ui || break
+  if adb shell cat /sdcard/ui.xml | grep -q 'text="Me"'; then break; fi
+  echo "not in video shell (try $i)"
+  tap_text "Video" || adb shell input keyevent KEYCODE_BACK
+  sleep 2
+done
 adb shell input tap $(( W * 9 / 10 )) $BAR_Y; shot 70-me-profiles 3
 if tap_desc "Switch profile"; then
   shot 71-profile-picker 2
