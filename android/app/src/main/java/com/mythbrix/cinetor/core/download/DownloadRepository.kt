@@ -108,7 +108,7 @@ abstract class DownloadDao {
 }
 
 /** App database. Downloads live here; later phases may add tables (bump version + migration). */
-@Database(entities = [DownloadRecord::class, ChunkState::class, DownloadEvent::class], version = 1, exportSchema = false)
+@Database(entities = [DownloadRecord::class, ChunkState::class, DownloadEvent::class], version = 2, exportSchema = false)
 abstract class CinetorDb : RoomDatabase() {
     abstract fun downloads(): DownloadDao
 

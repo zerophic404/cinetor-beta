@@ -280,10 +280,10 @@ fun CinetorNavHost(container: AppContainer, modifier: Modifier = Modifier) {
                             val r = e.toRoute<DetailsRoute>()
                             if (AdultGate.isAdultId(r.id)) {
                                 AdultSpace(container.adult, contentPadding, exitAdult) {
-                                    DetailsScreen(r.id, r.origin, container, contentPadding, openCard)
+                                    DetailsScreen(r.id, r.origin, container, contentPadding, openCard, onOpenDownloads = { nav.navigate(DownloadsRoute) })
                                 }
                             } else {
-                                DetailsScreen(r.id, r.origin, container, contentPadding, openCard)
+                                DetailsScreen(r.id, r.origin, container, contentPadding, openCard, onOpenDownloads = { nav.navigate(DownloadsRoute) })
                             }
                         }
                     }

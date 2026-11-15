@@ -56,6 +56,8 @@ data class DownloadRecord(
     val mimeType: String? = null,
     /** Final file (progressive) or the Media3 cache dir (HLS/DASH). */
     val filePath: String = "",
+    /** SAF document URI of the copy exported to the user-chosen folder ("" = app storage only). */
+    val exportUri: String = "",
     /** mp4 / mkv / webm / mp3 / hls / dash. */
     val container: String = "",
     val qualityLabel: String = "Original",

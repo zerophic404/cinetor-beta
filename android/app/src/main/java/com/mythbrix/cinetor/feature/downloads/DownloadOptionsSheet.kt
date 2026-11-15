@@ -53,6 +53,7 @@ import com.mythbrix.cinetor.core.data.Source
 import com.mythbrix.cinetor.core.download.DownloadChoice
 import com.mythbrix.cinetor.core.download.DownloadKind
 import com.mythbrix.cinetor.core.download.DownloadsModule
+import com.mythbrix.cinetor.core.download.dedupeQualityOptions
 import com.mythbrix.cinetor.core.download.MAX_CONNECTIONS
 import com.mythbrix.cinetor.core.download.QualityOption
 import com.mythbrix.cinetor.core.download.StreamTrackInfo
@@ -60,6 +61,7 @@ import com.mythbrix.cinetor.core.download.downloadKindOf
 import com.mythbrix.cinetor.core.download.formatBytes
 import com.mythbrix.cinetor.core.download.qualityOptions
 import com.mythbrix.cinetor.design.Cinetor
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import kotlinx.coroutines.launch
 
 /**
@@ -111,7 +113,7 @@ fun DownloadOptionsSheet(
             sources = downloadableSources(runCatching { resolve(target.item, first) }.getOrDefault(emptyList()))
         }
         // Cheap placeholders first (sizes unknown), then probe each source.
-        sources.forEach { options += qualityOptions(it, null, duration) }
+        options += dedupeQualityOptions(sources.flatMap { qualityOptions(it, null, duration) })
         selected = options.firstOrNull()
         val probed = mutableListOf<QualityOption>()
         for (s in sources) {
@@ -120,8 +122,10 @@ fun DownloadOptionsSheet(
             if (tr != null && tracks == null) tracks = tr
         }
         if (probed.isNotEmpty()) {
-            options.clear(); options += probed
-            selected = probed.first()
+            // Hardening §4: identical resolution + format + size is listed ONCE.
+            val unique = dedupeQualityOptions(probed)
+            options.clear(); options += unique
+            selected = unique.first()
         }
         loading = false
     }
@@ -183,10 +187,25 @@ fun DownloadOptionsSheet(
                 }
             }
             Section("Location")
-            Text(
-                if (target.item.space.name == "ADULT") "Internal · private folder (hidden)" else "Internal storage (app)",
-                color = t.textSecondary, style = MaterialTheme.typography.bodyMedium,
-            )
+            val adultTarget = target.item.space.name == "ADULT"
+            val location by module.location.collectAsStateWithLifecycle()
+            val pickFolder = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocumentTree()) { uri ->
+                if (uri != null) scope.launch { module.setLocation(uri) }
+            }
+            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    com.mythbrix.cinetor.core.download.DownloadLocations.label(location, adultTarget),
+                    color = t.textSecondary, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f),
+                )
+                if (!adultTarget) {
+                    androidx.compose.material3.TextButton(
+                        onClick = { runCatching { pickFolder.launch(null) } },
+                        modifier = Modifier.semantics { contentDescription = "Choose download folder" },
+                    ) {
+                        Text(if (location.chosen) "Change" else "Choose folder", color = t.accent)
+                    }
+                }
+            }
             if (selected?.kind == DownloadKind.PROGRESSIVE) {
                 Section("Connections: ${connections.toInt()}")
                 Slider(

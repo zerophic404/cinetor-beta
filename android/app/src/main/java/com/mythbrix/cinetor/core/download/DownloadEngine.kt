@@ -155,6 +155,14 @@ class DownloadEngine(
 
     suspend fun cancel(id: String) = delete(id)
 
+    /** Current record (used by the delete flow to find the files). */
+    suspend fun record(id: String): DownloadRecord? = store.get(id)
+
+    /** Remembers where the finished file was exported (user-chosen SAF folder). */
+    suspend fun setExportUri(id: String, uri: String) {
+        edit(id) { it.copy(exportUri = uri) }
+    }
+
     suspend fun pauseAll() = store.all().filter { it.isActive }.forEach { pause(it.id) }
 
     suspend fun resumeAll() {

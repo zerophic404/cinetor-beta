@@ -65,6 +65,27 @@ fun qualityOptions(source: Source, tracks: StreamTrackInfo?, durationSec: Long, 
     }
 }
 
+/**
+ * De-duplicates the quality list (docs/requirements-hardening.md §4): identical
+ * resolution + format + estimated size appears ONCE, and each resolution+format keeps a single entry
+ * (the first / primary source — the resolver already sorted them fastest-first). An option whose size
+ * is still unknown (-1) never hides a probed duplicate of the same resolution+format.
+ */
+fun dedupeQualityOptions(options: List<QualityOption>): List<QualityOption> {
+    val best = LinkedHashMap<Triple<Int?, SourceKind, DownloadKind>, QualityOption>()
+    options.forEach { o ->
+        val k = Triple(o.height, o.source.kind, o.kind)
+        val existing = best[k]
+        best[k] = when {
+            existing == null -> o
+            // Prefer the entry that actually knows its size; otherwise keep the first (primary) source.
+            existing.estimatedBytes <= 0 && o.estimatedBytes > 0 -> o
+            else -> existing
+        }
+    }
+    return best.values.sortedWith(compareByDescending<QualityOption> { it.height ?: 0 }.thenBy { it.source.kind.name })
+}
+
 /** Target file extension for a progressive source. */
 fun extensionOf(kind: SourceKind): String = when (kind) {
     SourceKind.MKV -> "mkv"

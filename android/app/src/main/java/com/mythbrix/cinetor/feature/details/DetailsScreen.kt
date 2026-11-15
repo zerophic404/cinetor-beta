@@ -106,6 +106,8 @@ import com.mythbrix.cinetor.design.SkeletonText
 import com.mythbrix.cinetor.design.glass
 import com.mythbrix.cinetor.design.hexColor
 import com.mythbrix.cinetor.feature.home.PosterCard
+import androidx.compose.runtime.rememberCoroutineScope
+import kotlinx.coroutines.launch
 
 private val HeaderHeight = 280.dp
 private val PosterW = 116.dp
@@ -123,6 +125,8 @@ fun DetailsScreen(
     container: AppContainer,
     contentPadding: PaddingValues,
     onOpenItem: (Item, String?) -> Unit,
+    /** "Show downloads" action of the download-started snackbar (hardening §4). */
+    onOpenDownloads: () -> Unit = {},
 ) {
     val vm: DetailsViewModel = viewModel(
         key = "details-$id",
@@ -160,6 +164,8 @@ fun DetailsScreen(
     val downloadsById by container.downloads.engine.downloads.collectAsStateWithLifecycle()
     val dlMap = remember(downloadsById) { downloadsById.associateBy { it.record.id } }
     var optionsTarget by remember { mutableStateOf<DownloadTarget?>(null) }
+    val snackbar = remember { androidx.compose.material3.SnackbarHostState() }
+    val snackScope = rememberCoroutineScope()
     var dlDetailsId by rememberSaveable { mutableStateOf<String?>(null) }
     var season by rememberSaveable(id) { mutableStateOf(0) }
     val context = LocalContext.current
@@ -289,7 +295,16 @@ fun DetailsScreen(
             target = target,
             module = container.downloads,
             onDismiss = { optionsTarget = null },
-            onStarted = { n -> Toast.makeText(context, if (n > 1) "$n downloads queued" else "Download started", Toast.LENGTH_SHORT).show() },
+            onStarted = { n ->
+                snackScope.launch {
+                    val result = snackbar.showSnackbar(
+                        message = if (n > 1) "Downloading started ($n)" else "Downloading started",
+                        actionLabel = "Show downloads",
+                        duration = androidx.compose.material3.SnackbarDuration.Short,
+                    )
+                    if (result == androidx.compose.material3.SnackbarResult.ActionPerformed) onOpenDownloads()
+                }
+            },
             resolve = if (container.streams.handles(target.item)) {
                 { item, ep ->
                     val attached = container.streams.attach(item, ep?.id)
@@ -305,6 +320,12 @@ fun DetailsScreen(
         DownloadDetailsSheet(
             dlId, container.downloads, onDismiss = { dlDetailsId = null }, onOpen = { dlDetailsId = null },
             onPlay = { r -> dlDetailsId = null; container.playDownload(r) },
+        )
+    }
+    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.BottomCenter) {
+        androidx.compose.material3.SnackbarHost(
+            snackbar,
+            modifier = Modifier.padding(bottom = contentPadding.calculateBottomPadding() + 12.dp),
         )
     }
 }

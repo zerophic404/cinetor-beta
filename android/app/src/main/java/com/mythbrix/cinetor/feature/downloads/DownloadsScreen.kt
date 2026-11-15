@@ -110,6 +110,8 @@ fun DownloadsScreen(
     var sortMenu by remember { mutableStateOf(false) }
     var showSettings by rememberSaveable { mutableStateOf(false) }
     var detailsId by rememberSaveable { mutableStateOf<String?>(null) }
+    // Hardening §4: deleting always asks Cancel / Remove entry / Delete file.
+    var deleteIds by remember { mutableStateOf<List<String>>(emptyList()) }
     val selection = remember { mutableStateListOf<String>() }
 
     LaunchedEffect(Unit) {
@@ -133,9 +135,7 @@ fun DownloadsScreen(
                     if (selection.isNotEmpty()) {
                         Text("${selection.size} selected", color = t.textSecondary, style = MaterialTheme.typography.labelLarge)
                         IconButton(onClick = {
-                            val ids = selection.toList()
-                            selection.clear()
-                            scope.launch { ids.forEach { module.engine.delete(it) } }
+                            deleteIds = selection.toList()
                         }, modifier = Modifier.semantics { contentDescription = "Delete selected" }) {
                             Icon(Icons.Rounded.Delete, contentDescription = null, tint = t.error)
                         }
@@ -238,6 +238,40 @@ fun DownloadsScreen(
             id, module, onDismiss = { detailsId = null },
             onOpen = { itemId -> detailsId = null; onOpenItem(itemId) },
             onPlay = { r -> detailsId = null; onPlay(r) },
+            onDelete = { detailsId = null; deleteIds = listOf(id) },
+        )
+    }
+    if (deleteIds.isNotEmpty()) {
+        val ids = deleteIds
+        androidx.compose.material3.AlertDialog(
+            onDismissRequest = { deleteIds = emptyList() },
+            title = { Text(if (ids.size > 1) "Delete ${ids.size} downloads?" else "Delete download?") },
+            text = { Text("Remove from the list, or delete the file too?", color = t.textSecondary) },
+            confirmButton = {
+                androidx.compose.material3.TextButton(
+                    onClick = {
+                        deleteIds = emptyList(); selection.clear()
+                        scope.launch { ids.forEach { module.deleteWithFile(it) } }
+                    },
+                    modifier = Modifier.semantics { contentDescription = "Delete file" },
+                ) { Text("Delete file", color = t.error) }
+            },
+            dismissButton = {
+                Row {
+                    androidx.compose.material3.TextButton(
+                        onClick = { deleteIds = emptyList() },
+                        modifier = Modifier.semantics { contentDescription = "Cancel delete" },
+                    ) { Text("Cancel", color = t.textSecondary) }
+                    androidx.compose.material3.TextButton(
+                        onClick = {
+                            deleteIds = emptyList(); selection.clear()
+                            scope.launch { ids.forEach { module.removeEntry(it) } }
+                        },
+                        modifier = Modifier.semantics { contentDescription = "Remove entry" },
+                    ) { Text("Remove entry", color = t.textPrimary) }
+                }
+            },
+            containerColor = t.surfaceElevated,
         )
     }
 }
