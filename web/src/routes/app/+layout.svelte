@@ -10,6 +10,7 @@
   import { bindTintToDocument } from '$lib/design/tint.svelte';
   import { perf } from '$lib/perf/tier.svelte';
   import MiniPlayer from '$lib/player/MiniPlayer.svelte';
+  import Toast from '$lib/components/Toast.svelte';
   import { engine } from '$lib/player/engine';
   import { wirePlayer } from '$lib/player/controller';
   import { downloads } from '$lib/download/manager.svelte';
@@ -96,6 +97,7 @@
 
 <div class="video-park" aria-hidden="true" use:park></div>
 <MiniPlayer hidden={watching || desktop.mini} />
+<Toast />
 <DesktopMini />
 <!-- The ONE audio element for music: owned here so playback survives navigation. -->
 <audio class="music-audio" use:music.attach preload="metadata"></audio>

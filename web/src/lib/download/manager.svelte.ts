@@ -11,6 +11,7 @@ import { assemble, removePieces, runProgressive, type PieceStore, type Progressi
 import { DEFAULT_MAX_CONCURRENT, DownloadQueue, type QueueStatus } from './queue';
 import { idbPieceStore, opfsPieceStore, quota, recordsKV, requestPersist, type Quota } from './store';
 import { adultUnlocked, hostOf, visibleDownloads, type DownloadKind, type DownloadRecord, type TrackChoice } from './types';
+import { debugLog } from '../errors';
 import type { KV } from '../player/resume';
 import { applyNativeProgress, chooseBackend, isTauriEnv, localPlaylist, nativeFileName } from '../desktop/env';
 
@@ -220,16 +221,54 @@ class Downloads {
     this.queue.cancel(id);
   }
 
-  async remove(id: string): Promise<void> {
+  async remove(id: string, opts: { deleteFile?: boolean } = {}): Promise<void> {
     this.clearRetry(id);
     this.queue.cancel(id);
     const r = this.work.get(id);
-    if (r) await this.wipeData(r);
+    // Browser downloads live in app-private storage, so removing the entry always frees them;
+    // native (desktop) files are only deleted when the user asked for it.
+    if (r) await this.wipeData(r, { keepFile: r.backend === 'native' && opts.deleteFile === false });
     this.work.delete(id);
     delete this.records[id];
     delete this.live[id];
     await this.kv?.del(id);
     void this.refreshQuota();
+  }
+
+  /** True when the record has a file the user could keep (desktop native download). */
+  hasExternalFile(id: string): boolean {
+    const r = this.records[id];
+    return !!r && r.backend === 'native' && !!r.nativePath;
+  }
+
+  /**
+   * "Save a copy…" on the web: writes the finished progressive download to a user-chosen file via the
+   * File System Access API. Returns 'unsupported' where the browser has no picker (plain note in UI).
+   */
+  async saveCopy(id: string, suggestedName: string): Promise<'saved' | 'canceled' | 'unsupported' | 'unavailable'> {
+    await this.init();
+    const r = this.work.get(id);
+    if (!r || r.status !== 'completed') return 'unavailable';
+    const picker = (globalThis as { showSaveFilePicker?: (o: unknown) => Promise<FileSystemFileHandle> }).showSaveFilePicker;
+    if (typeof picker !== 'function') return 'unsupported';
+    if (r.kind !== 'progressive' || r.backend === 'native') return 'unavailable';
+    let blob: Blob;
+    try {
+      blob = await assemble(await this.pieceStore(), { id: r.id, pieceEnds: r.pieceEnds ?? [] }, r.mime);
+    } catch (e) {
+      debugLog.add('dl.saveCopy', e);
+      return 'unavailable';
+    }
+    try {
+      const handle = await picker({ suggestedName, types: [{ description: 'Video', accept: { [r.mime]: [`.${suggestedName.split('.').pop() || 'mp4'}`] } }] });
+      const w = await (handle as FileSystemFileHandle & { createWritable: () => Promise<{ write(b: Blob): Promise<void>; close(): Promise<void> }> }).createWritable();
+      await w.write(blob);
+      await w.close();
+      return 'saved';
+    } catch (e) {
+      debugLog.add('dl.saveCopy', e);
+      return 'canceled';
+    }
   }
 
   prioritize(id: string): void {
@@ -332,11 +371,12 @@ class Downloads {
     this.autoRetryAt.delete(id);
   }
 
-  private async wipeData(r: DownloadRecord): Promise<void> {
+  private async wipeData(r: DownloadRecord, opts: { keepFile?: boolean } = {}): Promise<void> {
     const url = this.blobUrls.get(r.id);
     if (url) URL.revokeObjectURL(url);
     this.blobUrls.delete(r.id);
     if (r.backend === 'native') {
+      if (opts.keepFile) return;
       const { removeNative } = await import('../desktop/native-dl');
       await removeNative(r.id, nativeFileName(r), r.nativePath).catch(() => {});
       this.patch(r.id, { chunks: [], doneBytes: 0, nativePath: undefined, nativePlaylist: undefined, fraction: 0, segmentsDone: 0 });

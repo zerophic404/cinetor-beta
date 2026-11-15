@@ -138,3 +138,20 @@ export function formatDuration(sec: number | null | undefined): string {
 
 /** Exponential backoff for retries: 2 s, 4 s, 8 s … capped. */
 export const backoffMs = (attempt: number, baseMs = 2000, capMs = 60_000): number => Math.min(capMs, baseMs * 2 ** Math.max(0, attempt));
+
+/**
+ * De-duplicate download/quality options: identical resolution + format + size appear ONCE, and the
+ * first occurrence wins (lists are ordered best/primary first). docs/requirements-hardening.md §4.
+ */
+export function dedupeOptions<T extends { height?: number; label?: string; kind?: string; container?: string; bytes?: number; estimatedBytes?: number; bandwidth?: number }>(list: readonly T[]): T[] {
+  const seen = new Set<string>();
+  const out: T[] = [];
+  for (const o of list) {
+    const size = o.bytes ?? o.estimatedBytes ?? 0;
+    const key = [o.height ?? o.label ?? '', (o.kind ?? o.container ?? '').toUpperCase(), size ? Math.round(size / 1_000_000) : '', o.bandwidth ? Math.round(o.bandwidth / 100_000) : ''].join('|');
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(o);
+  }
+  return out;
+}

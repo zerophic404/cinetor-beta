@@ -3,7 +3,11 @@
   import type { Media } from '$lib/player/sources';
   import { probeAdaptive, type AdaptiveProbe } from './adaptive';
   import { downloadKindOf, downloads } from './manager.svelte';
-  import { estimateSize, formatBytes, formatDuration, MAX_CONNECTIONS } from './math';
+  import { dedupeOptions, estimateSize, formatBytes, formatDuration, MAX_CONNECTIONS } from './math';
+  import { toasts } from '$lib/ui/toast.svelte';
+  import { GENERIC, report } from '$lib/errors';
+  import { goto } from '$app/navigation';
+  import { base } from '$app/paths';
   import { probe } from './progressive';
   import { isIOS } from './store';
   import type { TrackChoice } from './types';
@@ -15,7 +19,8 @@
   /** Gateway titles: placeholder → proxy MP4 variants (resolved when the sheet opens). */
   let resolved = $state.raw<Media | null>(null);
   let vi = $state(0);
-  const variants = $derived(resolved?.variants ?? []);
+  // De-duplicated quality list: one entry per resolution + format + size (§4).
+  const variants = $derived(dedupeOptions(resolved?.variants ?? []));
   const cur = $derived<Media | null>(resolved ? (variants.length ? { ...resolved, source: variants[vi] ?? resolved.source } : resolved) : null);
   const kind = $derived(downloadKindOf(cur?.source ?? media.source));
   let loading = $state(true);
@@ -75,8 +80,9 @@
           const p = await probeAdaptive(src.url, src.kind === 'DASH' ? 'application/dash+xml' : 'application/x-mpegurl', m.durationSec ?? 0);
           if (!alive) return;
           if (p.live) throw new Error('Live streams cannot be downloaded');
-          info = p;
-          const i720 = p.qualities.findIndex((q) => q.height && q.height <= 720);
+          const quals = dedupeOptions(p.qualities);
+          info = { ...p, qualities: quals };
+          const i720 = quals.findIndex((q) => q.height && q.height <= 720);
           qi = i720 >= 0 ? i720 : 0;
           audio = p.audios[0]?.language;
           texts = p.texts.map((t) => t.language);
@@ -115,9 +121,11 @@
             : { quality: `Original (${m.source.kind ?? 'file'})`, texts: [] };
       await downloads.start({ media: m, choice, estimatedBytes: estimate, connections, durationSec: info?.durationSec || m.durationSec, lazyUrl: isLazySource(media.source) ? media.source?.url : undefined });
       open = false;
+      // "Downloading started" popup with a shortcut to the Downloads screen (§4).
+      toasts.show('Downloading started', { label: 'Show downloads', run: () => void goto(`${base}/app/downloads`) });
       onstarted?.();
     } catch (e) {
-      err = (e as Error).message;
+      err = report('dl.start', e, GENERIC.download);
     } finally {
       busy = false;
     }

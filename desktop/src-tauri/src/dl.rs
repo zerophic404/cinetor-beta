@@ -233,6 +233,39 @@ pub fn dl_dir(app: AppHandle) -> Result<String, String> {
     out_dir(&app).map(|p| p.to_string_lossy().into_owned())
 }
 
+/// Remember a user-chosen download folder (Settings → Downloads). Created if missing.
+#[tauri::command]
+pub fn dl_set_dir(app: AppHandle, path: String) -> Result<String, String> {
+    let p = PathBuf::from(path.trim());
+    if !p.is_absolute() {
+        return Err("Choose a folder".into());
+    }
+    std::fs::create_dir_all(&p).map_err(|_| "That folder can't be used".to_string())?;
+    save_dir_pref(&app, &p);
+    Ok(p.to_string_lossy().into_owned())
+}
+
+/// Native folder picker (Tauri dialog); returns the chosen folder (remembered) or None if canceled.
+#[tauri::command]
+pub async fn dl_pick_dir(app: AppHandle) -> Result<Option<String>, String> {
+    use tauri_plugin_dialog::DialogExt;
+    let start = out_dir(&app).ok();
+    let (tx, rx) = tokio::sync::oneshot::channel();
+    let mut dialog = app.dialog().file().set_title("Choose the Cinetor download folder");
+    if let Some(s) = start {
+        dialog = dialog.set_directory(s);
+    }
+    dialog.pick_folder(move |p| {
+        let _ = tx.send(p);
+    });
+    let picked = rx.await.map_err(|_| "Folder picker unavailable".to_string())?;
+    let Some(fp) = picked else { return Ok(None) };
+    let path = fp.into_path().map_err(|_| "That folder can't be used".to_string())?;
+    std::fs::create_dir_all(&path).map_err(|_| "That folder can't be used".to_string())?;
+    save_dir_pref(&app, &path);
+    Ok(Some(path.to_string_lossy().into_owned()))
+}
+
 async fn stop_job(state: &DlState, id: &str) {
     let h = state.jobs.lock().ok().and_then(|mut j| j.remove(id));
     if let Some((_, h)) = h {
@@ -243,7 +276,33 @@ async fn stop_job(state: &DlState, id: &str) {
 
 // ------------------------------------------------------------------ helpers ----
 
+fn dir_pref_path(app: &AppHandle) -> Option<PathBuf> {
+    let dir = app.path().app_config_dir().ok()?;
+    let _ = std::fs::create_dir_all(&dir);
+    Some(dir.join("download-dir.txt"))
+}
+
+fn load_dir_pref(app: &AppHandle) -> Option<PathBuf> {
+    let txt = std::fs::read_to_string(dir_pref_path(app)?).ok()?;
+    let p = PathBuf::from(txt.trim());
+    if p.is_absolute() && p.is_dir() {
+        Some(p)
+    } else {
+        None
+    }
+}
+
+fn save_dir_pref(app: &AppHandle, p: &Path) {
+    if let Some(f) = dir_pref_path(app) {
+        let _ = std::fs::write(f, p.to_string_lossy().as_bytes());
+    }
+}
+
+/// Target folder: the remembered one (Settings → Downloads) else `Downloads/Cinetor`.
 fn out_dir(app: &AppHandle) -> Result<PathBuf, String> {
+    if let Some(p) = load_dir_pref(app) {
+        return Ok(p);
+    }
     let base = app
         .path()
         .download_dir()
