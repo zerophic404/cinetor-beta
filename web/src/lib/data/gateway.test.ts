@@ -72,7 +72,9 @@ const homeRoutes = {
   '/home': sample('home.json'),
   '/movies': sample('movies.json'),
   '/tv-series': (u: URL) => (u.searchParams.get('country') === 'Korea' ? sample('tv-series_country_Korea.json') : sample('tv-series.json')),
-  '/animation': sample('animation.json')
+  '/animation': sample('animation.json'),
+  '/short-tv': sample('short-tv.json'),
+  '/zee-bangla': sample('zee-bangla.json')
 };
 
 describe('gateway config + ids', () => {
@@ -97,22 +99,40 @@ describe('gateway config + ids', () => {
 });
 
 describe('gateway mapping', () => {
-  it('home: Movies/Series categories, Banner hero, paged rows, sections', async () => {
+  it('home: all 26 curated sections in order + Movies/Series/Short TV/Zee Bangla, Banner hero', async () => {
     const calls: string[] = [];
     const src = source(homeRoutes, calls);
     const f = await src.file('HOME');
-    expect(f.categories.map((c) => c.id)).toEqual(['gw-movies', 'gw-series']);
-    const banner = sample('home.json').sections[0].items.map((i: GwListItem) => `gw:${i.subject_id}`);
-    expect(f.categories[0].heroIds.every((id) => banner.includes(id))).toBe(true);
-    const latest = f.categories[0].rows[0];
+    expect(f.categories.map((c) => c.id)).toEqual(['gw-home', 'gw-movies', 'gw-series', 'gw-short-tv', 'gw-zee-bangla']);
+    const home = sample('home.json') as { sections: { section: string; items: GwListItem[] }[] };
+    const banner = home.sections[0].items.map((i: GwListItem) => `gw:${i.subject_id}`);
+    const forYou = f.categories[0];
+    expect(forYou.heroIds.every((id) => banner.includes(id))).toBe(true);
+    // Every non-Banner section becomes a row, in gateway order, with its emoji title intact.
+    const wanted = home.sections.slice(1).map((s) => s.section);
+    expect(forYou.rows.map((r) => r.title)).toEqual(wanted);
+    expect(wanted.length).toBe(25);
+    expect(forYou.rows.some((r) => /🔥Hot Short TV/.test(r.title))).toBe(true);
+    expect(forYou.rows.find((r) => r.title === 'Popular Series')?.style).toBe('TOP10');
+    // Short TV / Zee Bangla categories use the new paged endpoints.
+    const short = f.categories.find((c) => c.id === 'gw-short-tv')!;
+    expect(short.rows[0].more).toEqual({ path: '/short-tv', params: {}, page: 1, hasMore: true });
+    const zee = f.categories.find((c) => c.id === 'gw-zee-bangla')!;
+    expect(zee.rows[0].more?.path).toBe('/zee-bangla');
+    const latest = f.categories[1].rows[0];
     expect(latest.id).toBe('gw-movies-latest');
     expect(latest.more).toEqual({ path: '/movies', params: {}, page: 1, hasMore: true });
-    expect(f.categories[0].rows.length).toBeGreaterThan(1);
     expect(f.items.every((i) => i.id.startsWith('gw:') && /^https:\/\//.test(i.poster) && !!i.slug)).toBe(true);
     const movie = f.items.find((i) => i.type === 'MOVIE')!;
     expect(isLazySource(movie.sources?.[0])).toBe(true);
     // Isolated endpoints never touched for HOME.
     expect(calls.some((u) => u.includes('/adult'))).toBe(false);
+  });
+
+  it('adult plan passes kind + sort params', () => {
+    const p = JSON.stringify(gatewayPlan('ADULT'));
+    expect(p).toContain('"kind":"movies"');
+    expect(p).toContain('"sort":"latest"');
   });
 
   it('paged rows: next page + genre param', async () => {

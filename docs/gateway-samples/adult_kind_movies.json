@@ -1,0 +1,53 @@
+{
+ "page": 1,
+ "per_page": 36,
+ "has_more": true,
+ "total": 1000000,
+ "items": [
+  {
+   "name": "Labas pasok",
+   "poster_url": "https://pbcdnw.aoneroom.com/image/2026/11/13/f14676141908329b391c64b7fd5ae18e.jpg",
+   "slug": "labas-pasok-6HqGYcQkbc4",
+   "subject_id": "3522117640984618440",
+   "badge": null,
+   "rating": "6.9",
+   "year": "2026",
+   "genre": "Adult,Erotic\t",
+   "type": "movie",
+   "country": "Philippines",
+   "description": null,
+   "release_date": "2026-11-13",
+   "has_resource": true
+  },
+  {
+   "name": "Advance",
+   "poster_url": "https://pbcdnw.aoneroom.com/image/2026/11/11/13f314e34bfc9c729d5c2be860027aa7.jpeg",
+   "slug": "advance-qbl2uMPrQU9",
+   "subject_id": "8323222849720842024",
+   "badge": null,
+   "rating": "6.2",
+   "year": "2026",
+   "genre": "Adult,Erotic",
+   "type": "movie",
+   "country": "Philippines",
+   "description": null,
+   "release_date": "2026-11-11",
+   "has_resource": true
+  },
+  {
+   "name": "Bida Max",
+   "poster_url": "https://pbcdnw.aoneroom.com/image/2026/11/05/00a453d1aab953cf7fc056748ba8e465.jpg",
+   "slug": "bida-max-S1lsut1AZ12",
+   "subject_id": "1705581426667577960",
+   "badge": null,
+   "rating": "6.8",
+   "year": "2026",
+   "genre": "Adult,Erotic",
+   "type": "movie",
+   "country": "Philippines",
+   "description": null,
+   "release_date": "2026-11-10",
+   "has_resource": true
+  }
+ ]
+}

@@ -270,18 +270,18 @@ export interface GwListSpec {
   path: string;
   params: Record<string, string>;
 }
-/** Rows taken from `/home` sections (by name or majority type). */
+/** Rows taken from `/home` sections (by name, majority type, or 'all' = every curated section in order). */
 export interface GwSectionSpec {
   kind: 'sections';
-  match: RegExp | 'movie' | 'tv';
+  match: RegExp | 'movie' | 'tv' | 'all';
   /** Max rows produced. */
   limit: number;
 }
 export interface GwCategorySpec {
   id: string;
   title: string;
-  /** Hero: 'banner' (+ type filter) or the first row's items. */
-  hero: 'banner-movie' | 'banner-tv' | 'first';
+  /** Hero: 'banner' (+ optional type filter) or the first row's items. */
+  hero: 'banner' | 'banner-movie' | 'banner-tv' | 'first';
   rows: (GwListSpec | GwSectionSpec)[];
 }
 
@@ -297,9 +297,23 @@ const list = (id: string, title: string, path: string, params: Record<string, st
 export function gatewayPlan(space: GwSpace): GwCategorySpec[] {
   switch (space) {
     case 'HOME':
+      // 'For You' mirrors the curated /home feed: Banner = hero, then EVERY section as a row, in order.
       return [
+        { id: 'gw-home', title: 'For You', hero: 'banner', rows: [{ kind: 'sections', match: 'all', limit: 40 }] },
         { id: 'gw-movies', title: 'Movies', hero: 'banner-movie', rows: [list('gw-movies-latest', 'Latest Movies', '/movies'), { kind: 'sections', match: 'movie', limit: 12 }] },
-        { id: 'gw-series', title: 'Series', hero: 'banner-tv', rows: [list('gw-series-latest', 'Latest Series', '/tv-series'), { kind: 'sections', match: 'tv', limit: 12 }] }
+        { id: 'gw-series', title: 'Series', hero: 'banner-tv', rows: [list('gw-series-latest', 'Latest Series', '/tv-series'), { kind: 'sections', match: 'tv', limit: 12 }] },
+        {
+          id: 'gw-short-tv',
+          title: 'Short TV',
+          hero: 'first',
+          rows: [list('gw-short-tv-latest', 'Trending Short TV', '/short-tv'), { kind: 'sections', match: /short (drama|tv)/i, limit: 2 }]
+        },
+        {
+          id: 'gw-zee-bangla',
+          title: 'Zee Bangla',
+          hero: 'first',
+          rows: [list('gw-zee-bangla-latest', 'Zee Bangla Serials', '/zee-bangla'), { kind: 'sections', match: /zee ?bangla|indian drama/i, limit: 2 }]
+        }
       ];
     case 'ANIME':
       return [
@@ -329,8 +343,8 @@ export function gatewayPlan(space: GwSpace): GwCategorySpec[] {
     case 'ADULT':
       // Ids match the adult space nav tabs.
       return [
-        { id: 'ad-featured', title: 'Movies', hero: 'first', rows: [list('ad-gw-movies', 'Latest', '/adult', { kind: 'movies' })] },
-        { id: 'ad-series', title: 'Series', hero: 'first', rows: [list('ad-gw-series', 'Series', '/adult', { kind: 'tv-series' })] }
+        { id: 'ad-featured', title: 'Movies', hero: 'first', rows: [list('ad-gw-movies', 'Latest', '/adult', { kind: 'movies', sort: 'latest' })] },
+        { id: 'ad-series', title: 'Series', hero: 'first', rows: [list('ad-gw-series', 'Series', '/adult', { kind: 'tv-series', sort: 'latest' })] }
       ];
   }
 }
@@ -338,8 +352,12 @@ export function gatewayPlan(space: GwSpace): GwCategorySpec[] {
 /** First paged list of a category: genre chips query it with `genre=` (null: client-side filter only). */
 export function genreBase(space: GwSpace, categoryId: string): { path: string; params: Record<string, string> } | null {
   if (space === 'ADULT') return null;
-  const c = gatewayPlan(space).find((x) => x.id === categoryId) ?? gatewayPlan(space)[0];
-  const l = c?.rows.find((r): r is GwListSpec => r.kind === 'list');
+  const plan = gatewayPlan(space);
+  const c = plan.find((x) => x.id === categoryId) ?? plan[0];
+  const hasList = (x: GwCategorySpec | undefined) => x?.rows.some((r) => r.kind === 'list');
+  // Section-only categories (Home 'For You') borrow the first paged endpoint of the plan.
+  const owner = hasList(c) ? c : plan.find(hasList);
+  const l = owner?.rows.find((r): r is GwListSpec => r.kind === 'list');
   if (!l) return null;
   const { genre: _g, ...params } = l.params;
   void _g;
@@ -608,7 +626,8 @@ export class GatewayCatalogSource {
           if (/^banner$/i.test(s.section) || usedSections.has(`${c.id}|${s.section}`)) continue;
           const raw = s.items ?? [];
           let ok: boolean;
-          if (spec.match instanceof RegExp) ok = spec.match.test(s.section);
+          if (spec.match === 'all') ok = true;
+          else if (spec.match instanceof RegExp) ok = spec.match.test(s.section);
           else {
             const same = raw.filter((x) => x.type === spec.match).length;
             ok = same * 2 > raw.length && !/anime|k-?drama|c-?drama/i.test(s.section);
@@ -617,11 +636,13 @@ export class GatewayCatalogSource {
           const mapped = this.map(raw, space, c.id);
           if (!mapped.length) continue;
           usedSections.add(`${c.id}|${s.section}`);
+          // Section names keep their emoji (gateway copy is the user-facing title).
+          const top = /^\W*popular/i.test(s.section);
           rows.push({
-            id: `${c.id}-sec-${s.section.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`,
-            title: s.section.replace(/[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}]/gu, '').trim() || s.section,
-            style: /popular/i.test(s.section) && n === 0 ? 'TOP10' : 'POSTER',
-            itemIds: add(mapped.slice(0, /popular/i.test(s.section) && n === 0 ? 10 : 20))
+            id: `${c.id}-sec-${s.section.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')}`,
+            title: s.section.trim(),
+            style: top ? 'TOP10' : 'POSTER',
+            itemIds: add(mapped.slice(0, top ? 10 : ROW_STYLE_LIMIT))
           });
           n++;
         }
@@ -630,10 +651,10 @@ export class GatewayCatalogSource {
       let heroIds: string[] = [];
       if (c.hero !== 'first') {
         const banner = sections.find((s) => /^banner$/i.test(s.section));
-        const want = c.hero === 'banner-movie' ? 'movie' : 'tv';
+        const want = c.hero === 'banner-movie' ? 'MOVIE' : c.hero === 'banner-tv' ? 'SERIES' : null;
         const mapped = this.map(banner?.items, space, c.id);
-        const typed = mapped.filter((i) => (want === 'movie' ? i.type === 'MOVIE' : i.type === 'SERIES'));
-        heroIds = add((typed.length >= 3 ? typed : mapped).slice(0, 6));
+        const typed = want ? mapped.filter((i) => i.type === want) : mapped;
+        heroIds = add((typed.length >= 3 ? typed : mapped).slice(0, want ? 6 : 10));
       }
       if (!heroIds.length) heroIds = rows[0].itemIds.slice(0, 6);
       categories.push({ id: c.id, space, title: c.title, heroIds, rows });
