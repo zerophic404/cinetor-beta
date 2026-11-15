@@ -5,10 +5,12 @@ Status: [x] done · [~] in progress / partial · [ ] not started
 Plan: docs/plans/2026-11-14-cinetor-master-plan.md · Decisions: docs/handoff/decisions.md · Phase notes: docs/handoff/phase-*.md
 
 ## Resume here
-- v0.1.0 released (all phases done). NOW Phase 11 (user request 2026-11-15): gateway integration + nav change → release v0.2.0. Spec: docs/gateway.md (on branch feat/gateway, merges with it).
-  - Android: branch feat/gateway-android (worktree ~/apk-projects/cinetor-dl), notes docs/handoff/gateway-android.md.
-  - Web+Desktop: branch feat/gateway (worktree ~/apk-projects/cinetor-web), notes docs/handoff/gateway-web.md.
-  - When both green: merge feat/gateway → main (PR), then feat/gateway-android → main (PR), CI green → auto releases; then create v0.2.0 release in cinetor-app with all assets (like v0.1.0), update README.
+- Antigravity/agy fallback REMOVED (user decision 2026-11-15 20:0x): fallback_providers=[], plugin disabled, env lines deleted. Do not re-add.
+- Phase 11 = gateway + hardening, target release v0.3.0. Specs: docs/gateway.md (incl. 'Gateway update' + 'Comics plan'), docs/requirements-hardening.md.
+  - Android: branch feat/gateway-android (worktree ~/apk-projects/cinetor-dl), HEAD 9ac8bdb = recovered WIP (gateway source/resolver/Me-spaces/mock-trim/tests, NEVER compiled) + web work + docs. Tasks: compile, adult crash fix, comics, hardening, resizable PiP, downloads UX, lag, smoke, PR to main.
+  - Web+Desktop: branch feat/gateway (worktree ~/apk-projects/cinetor-web), gateway part already CI-green at 9865571. Tasks: 26 curated home sections, short-tv, zee-bangla, comics, hardening, resizable mini/pop-out, downloads UX, PR to main.
+  - Gateway facts: /home now 26 curated sections; new /short-tv, /zee-bangla; /manga ONLY action=c2|chapter (browse 404 → use MangaDex direct); /api/v1/resolve still returns 0 sources.
+  - After both merge: v0.3.0 release on Ashrix404/cinetor-app with all assets + README update.
 
 ## Phase checklist
 ### Phase 0 — setup, brand, mock  [x]
@@ -35,6 +37,7 @@ Plan: docs/plans/2026-11-14-cinetor-master-plan.md · Decisions: docs/handoff/de
 - [ ] release.yml v0.1.0 · [ ] QA matrix · [ ] final report to user
 
 ## Log (newest first, one line each)
+- 2026-11-15 20:05 agy fallback dropped; Ph11 dispatched (android feat/gateway-android recovered from reflog after force-push, web feat/gateway).
 - 2026-11-15 13:25 Ph6+7 merged (PR #4, android-build-46 signed), Ph9 merged (PR #3, desktop-build-4), Ph10: v0.1.0 public release + README; old test releases deleted. DONE.
 - 2026-11-15 Ph6+7 done on wip/phase-6 (caa9aac..), runs 43678402983 (6.1) 43681409616 (6.2) 43682848369 (7.1) 43684811368 (7.2) green incl. phone + Android TV emulator smoke; merged to main 1d0c502 (PR #4), main run https://github.com/Ashrix404/cinetor/actions/runs/43687370076 green → https://github.com/Ashrix404/cinetor-app/releases/tag/android-build-46 (signed Cinetor-0.1.46-{arm64-v8a,armeabi-v7a,x86_64,universal}.apk). Per-ABI 16.8 MB. Handoff docs/handoff/phase-6-7.md.
 - 2026-11-15 00:40 Ph3 merged (android-build-30), web 8.3–8.5 merged; Ph4 started; packed for limit, auto-resume 04:45.
