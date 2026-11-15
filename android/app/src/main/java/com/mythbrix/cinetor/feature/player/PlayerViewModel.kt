@@ -123,7 +123,29 @@ class PlayerStateHolder(
     private val prepare: suspend (Item, String?, Boolean) -> Item = { item, _, _ -> item },
     /** Last resort after a failed re-resolve: the gateway proxy source. */
     private val fallbackFor: (Item, String?) -> Item? = { _, _ -> null },
+    /** Mini-player size per profile (docs/requirements-hardening.md §3). */
+    private val miniSizes: MiniSizeStore = InMemoryMiniSizeStore(),
 ) {
+    private val _miniFraction = MutableStateFlow(
+        com.mythbrix.cinetor.feature.player.MiniPlayerMath.clampFraction(miniSizes.get(profileId())),
+    )
+
+    /** Mini-player width as a fraction of screen width for the active profile (0.25–0.80). */
+    val miniFraction: StateFlow<Float> = _miniFraction.asStateFlow()
+
+    /** Persists the mini-player size for the active profile (clamped, 16:9 is kept by the UI). */
+    fun setMiniFraction(fraction: Float) {
+        val f = com.mythbrix.cinetor.feature.player.MiniPlayerMath.clampFraction(fraction)
+        if (f == _miniFraction.value) return
+        _miniFraction.value = f
+        miniSizes.set(profileId(), f)
+    }
+
+    /** Re-reads the stored size (call after a profile switch). */
+    fun reloadMiniFraction() {
+        _miniFraction.value = com.mythbrix.cinetor.feature.player.MiniPlayerMath.clampFraction(miniSizes.get(profileId()))
+    }
+
     private val _state = MutableStateFlow(PlayerScreenState())
     val state: StateFlow<PlayerScreenState> = _state.asStateFlow()
 

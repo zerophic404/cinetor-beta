@@ -284,6 +284,7 @@ class AppContainer(context: Context) {
             needsPrepare = { item -> streams.handles(item) },
             prepare = { item, ep, fresh -> streams.attach(item, ep, fresh) },
             fallbackFor = { item, ep -> streams.fallback(item, ep) },
+            miniSizes = com.mythbrix.cinetor.feature.player.PrefsMiniSizeStore(appContext),
         )
     }
 
