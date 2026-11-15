@@ -3,9 +3,11 @@ name: Desktop
 on:
   push:
     branches: [main]
-    tags: ['v*']
+    tags: ['v*', 'desktop-v*']
     paths:
       - 'desktop/**'
+      - 'web/**'
+      - 'shared/**'
       - '.github/workflows/desktop.yml'
   workflow_dispatch:
 
@@ -21,63 +23,102 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        platform: [windows-latest, ubuntu-22.04]
+        include:
+          - platform: windows-latest
+            name: windows
+          - platform: ubuntu-22.04
+            name: linux
     runs-on: ${{ matrix.platform }}
-    timeout-minutes: 45
+    timeout-minutes: 60
     steps:
       - uses: actions/checkout@v4
 
-      - name: Placeholder (desktop not yet created)
-        if: hashFiles('desktop/src-tauri/tauri.conf.json', 'desktop/src-tauri/Cargo.toml') == ''
-        shell: bash
-        run: echo 'desktop not yet created'
-
       - name: Install Linux dependencies
-        if: matrix.platform == 'ubuntu-22.04' && hashFiles('desktop/src-tauri/tauri.conf.json', 'desktop/src-tauri/Cargo.toml') != ''
+        if: matrix.name == 'linux'
         run: |
           sudo apt-get update
-          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf libfuse2 \
+            libgstreamer1.0-dev libgstreamer-plugins-base1.0-dev \
+            gstreamer1.0-plugins-base gstreamer1.0-plugins-good gstreamer1.0-plugins-bad gstreamer1.0-libav
 
       - uses: actions/setup-node@v4
-        if: hashFiles('desktop/src-tauri/tauri.conf.json', 'desktop/src-tauri/Cargo.toml') != ''
         with:
-          node-version: '20'
+          node-version: '22'
 
       - uses: dtolnay/rust-toolchain@stable
-        if: hashFiles('desktop/src-tauri/tauri.conf.json', 'desktop/src-tauri/Cargo.toml') != ''
 
       - uses: swatinem/rust-cache@v2
-        if: hashFiles('desktop/src-tauri/tauri.conf.json', 'desktop/src-tauri/Cargo.toml') != ''
         with:
           workspaces: 'desktop/src-tauri -> target'
 
-      - name: Install frontend dependencies
-        if: hashFiles('desktop/package.json') != ''
+      - name: Install web dependencies
+        working-directory: web
+        shell: bash
+        run: npm install --no-audit --no-fund || npm install --no-audit --no-fund --legacy-peer-deps
+
+      - name: Install desktop dependencies
         working-directory: desktop
         shell: bash
-        run: npm ci || npm install
+        run: npm install --no-audit --no-fund
 
-      - name: Build with Tauri
-        if: hashFiles('desktop/src-tauri/tauri.conf.json', 'desktop/src-tauri/Cargo.toml') != ''
-        uses: tauri-apps/tauri-action@v0
+      - name: Build installers (tauri build → web at root path)
+        working-directory: desktop
+        shell: bash
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          projectPath: desktop
-          tagName: ${{ startsWith(github.ref, 'refs/tags/v') && github.ref_name || '' }}
-          releaseName: ${{ startsWith(github.ref, 'refs/tags/v') && format('Cinetor {0}', github.ref_name) || '' }}
-          releaseDraft: false
-          prerelease: false
+          PUBLIC_TMDB_TOKEN: ${{ secrets.TMDB_TOKEN }}
+        run: npm run tauri -- build
 
-      - name: Upload bundles
-        if: hashFiles('desktop/src-tauri/tauri.conf.json', 'desktop/src-tauri/Cargo.toml') != ''
-        uses: actions/upload-artifact@v4
+      - name: Rust unit tests (download engine)
+        if: matrix.name == 'linux'
+        working-directory: desktop/src-tauri
+        run: cargo test --release --lib
+
+      - name: Collect installers
+        shell: bash
+        run: |
+          mkdir -p dist
+          B=desktop/src-tauri/target/release/bundle
+          find "$B" -maxdepth 2 -type f \( -name '*.exe' -o -name '*.msi' -o -name '*.deb' -o -name '*.AppImage' \) -exec cp {} dist/ \;
+          ls -la dist
+          if [ "${{ matrix.name }}" = windows ]; then ls dist/*.exe dist/*.msi; else ls dist/*.deb dist/*.AppImage; fi
+
+      - name: Check .deb dependencies
+        if: matrix.name == 'linux'
+        run: dpkg-deb -I dist/*.deb | grep -E 'Depends:.*gstreamer1.0-libav'
+
+      - uses: actions/upload-artifact@v4
         with:
-          name: desktop-${{ matrix.platform }}
-          path: |
-            desktop/src-tauri/target/release/bundle/**/*.exe
-            desktop/src-tauri/target/release/bundle/**/*.msi
-            desktop/src-tauri/target/release/bundle/**/*.deb
-            desktop/src-tauri/target/release/bundle/**/*.AppImage
-          if-no-files-found: ignore
+          name: desktop-${{ matrix.name }}
+          path: dist/*
+          if-no-files-found: error
           retention-days: 30
+
+  release:
+    needs: build
+    if: github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+
+      - name: List assets
+        run: ls -la dist && (cd dist && sha256sum *) | tee SHA256SUMS-desktop.txt
+
+      - name: Publish to public cinetor-app releases
+        uses: softprops/action-gh-release@v2
+        with:
+          repository: Ashrix404/cinetor-app
+          token: ${{ secrets.RELEASE_TOKEN }}
+          tag_name: desktop-build-${{ github.run_number }}
+          name: Cinetor Desktop build ${{ github.run_number }}
+          make_latest: false
+          body: |
+            Cinetor desktop (Tauri) — commit ${{ github.sha }}.
+            • Windows: `*-setup.exe` (NSIS, per-user) or `.msi`
+            • Linux: `.deb` (Debian/Ubuntu; pulls GStreamer for video) or `.AppImage` (chmod +x, run)
+            Native downloads are saved to Downloads/Cinetor.
+          files: |
+            dist/*
+            SHA256SUMS-desktop.txt
