@@ -5,7 +5,7 @@ Status: [x] done · [~] in progress / partial · [ ] not started
 Plan: docs/plans/2026-11-14-cinetor-master-plan.md · Decisions: docs/handoff/decisions.md · Phase notes: docs/handoff/phase-*.md
 
 ## Resume here
-- 2026-11-15 Android Ph0–7 DONE (main). Next: Phase 9 desktop (agent on worktree cinetor-web, branch desktop/phase-9) → Phase 10 (tag v0.1.0 → signed APKs + installers, QA matrix incl. macrobenchmark, final report).
+- 2026-11-15 Android Ph0–7 DONE (main). Desktop Phase 9 merged to main via PR #3 (see its handoff). Next: Phase 10 (tag v0.1.0 → signed APKs + installers, QA matrix incl. macrobenchmark, final report).
 - RULE (user): every green main build → publish installers to PUBLIC Ashrix404/cinetor-app releases. Desktop from Phase 9.
 - 2026-11-15 00:40 packed before usage limit (resets 04:40). Done: Ph0–3 (APK android-build-30), Web 8.1–8.5 (PR #1, live).
 - Phase 4 IN PROGRESS on two worktrees (agents may have died mid-task):
