@@ -28,7 +28,7 @@ mapping home/paged/genre/detail movie+tv/search/suggest, has_resource + dead fil
 
 ## CI
 - web.yml green: https://github.com/Ashrix404/cinetor/actions/runs/43711173909 (svelte-check 0 errors).
-- desktop.yml: see PROGRESS/report (run 43712006872).
+- desktop.yml green: https://github.com/Ashrix404/cinetor/actions/runs/43712006872 (linux + windows bundles, cargo tests 5 incl. headers/sidecar-key).
 
 ## Browser QA (CI artifact, local server)
 Real posters on Home/Anime/Drama; movie preloaded (readyState 4) → Play → 1080p proxy MP4 playing; Rick and Morty S1E1: 11 eps, quality 720p→480p switch reloads, English subtitles render via /subtitle proxy; search "inception" → 24 gateway results + remote suggestion; 18+: hidden in Me until enabled → PIN pad → gateway list (ad-gw ids) → Play streams; Inception download sheet → 1080p MP4 2.2 GB via proxy.
