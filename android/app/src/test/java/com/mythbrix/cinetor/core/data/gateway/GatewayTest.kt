@@ -103,15 +103,15 @@ class GatewayTest {
         assertEquals(listOf("gw:home-movies", "gw:home-series"), cats.map { it.id })
         val movies = cats.first()
         assertEquals(3, movies.heroIds.size) // Banner section (sample trimmed to 3) → hero carousel
-        assertTrue(movies.heroIds.all { it.startsWith("gw:") })
-        assertFalse(movies.rows.any { it.title == "Banner" })
+        assertTrue("heroes ${movies.heroIds}", movies.heroIds.all { it.startsWith("gw:") })
+        assertFalse("rows ${movies.rows.map { it.title }}", movies.rows.any { it.title == "Banner" })
         assertEquals("New Movies", movies.rows[2].title)
         assertEquals(RowStyle.TOP10, movies.rows[1].style)
         val popular = gw.row(movies.rows.first().id)
         assertEquals(3, popular.size)
         assertEquals(1, http.urls.count { it.endsWith("/home") }) // cached for the section row
         val newMovies = gw.rowPage(movies.rows[2].id, 1)
-        assertTrue(newMovies.hasMore)
+        assertTrue("page1 $newMovies urls=${http.urls}", newMovies.hasMore)
         val p2 = gw.rowPage(movies.rows[2].id, 2)
         assertTrue(http.urls.last(), http.urls.last().contains("movies?page=2"))
         assertEquals(2, p2.page)
