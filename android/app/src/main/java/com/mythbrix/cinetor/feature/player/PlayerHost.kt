@@ -49,6 +49,10 @@ fun PlayerHost(
     tvData: StateFlow<TvData?>? = null,
     gesturePrefs: com.mythbrix.cinetor.feature.player.gestures.GesturePrefs = com.mythbrix.cinetor.feature.player.gestures.GesturePrefs(),
     autoSkipIntro: Boolean = false,
+    /** Android TV: 10-foot remote player (no gestures) instead of the touch player. */
+    isTv: Boolean = false,
+    /** TV Down rail for movies: related titles. */
+    related: suspend (com.mythbrix.cinetor.core.data.Item) -> List<com.mythbrix.cinetor.core.data.Item> = { emptyList() },
 ) {
     val screen by holder.state.collectAsStateWithLifecycle()
     val player by holder.player.collectAsStateWithLifecycle()
@@ -95,6 +99,28 @@ fun PlayerHost(
     val positionNow: () -> Long = { player?.media3Player()?.currentPosition ?: ui.positionMs }
 
     Box(Modifier.fillMaxSize()) {
+        if (isTv) {
+            com.mythbrix.cinetor.tvui.TvPlayerScreen(
+                screen = screen,
+                cinetorPlayer = player,
+                ui = ui,
+                holder = holder,
+                // TV Back (controls hidden) leaves the player; position is saved on close.
+                onExit = { holder.close() },
+            layers = PlayerLayers(
+                overVideo = { SubtitleOverlay(subState.sideLoaded, subState.offsetMs, subState.style, positionNow) },
+                configureView = { v -> applySubtitleStyle(v, subState.style, hidden = subState.sideLoaded != null) },
+            ),
+            subtitleExtras = SubtitleExtras(
+                onLoadFile = { picker.launch(arrayOf("*/*")) },
+                onStyle = { showStyle = true },
+                onSync = { showSync = true },
+                sideLoadedLabel = subState.sideLoaded?.label,
+                onClearSideLoaded = { subtitles.clearSideLoaded() },
+            ),
+                related = related,
+            )
+        } else {
         PlayerScreen(
             screen = screen,
             cinetorPlayer = player,
@@ -122,6 +148,7 @@ fun PlayerHost(
                 }
             },
         )
+        }
         if (screen.live) {
             LiveOsd(screen, tv, guideNow)
             QuickChannelList(

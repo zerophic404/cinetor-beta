@@ -4,7 +4,9 @@
 set -uo pipefail
 APK_DIR="$1"; OUT="$2"; PKG=com.mythbrix.cinetor
 mkdir -p "$OUT"
-APK=$(ls "$APK_DIR"/*.apk | head -1)
+APK=$(ls "$APK_DIR"/*universal*.apk 2>/dev/null | head -1)
+[ -z "$APK" ] && APK=$(ls "$APK_DIR"/*.apk | head -1)
+echo "apk: $APK"
 adb wait-for-device
 adb shell settings put global window_animation_scale 0 || true
 adb install -r -g "$APK" || { echo "install failed"; exit 1; }

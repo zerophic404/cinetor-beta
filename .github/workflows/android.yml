@@ -8,7 +8,7 @@ on:
       - 'android/**'
       - 'shared/**'
       - '.github/workflows/android.yml'
-      - '.github/scripts/emulator-smoke.sh'
+      - '.github/scripts/**'
   workflow_dispatch:
 
 permissions:
@@ -30,6 +30,8 @@ jobs:
       CINETOR_KEYSTORE_PASS: ${{ secrets.CINETOR_KEYSTORE_PASS }}
       CINETOR_KEY_PASS: ${{ secrets.CINETOR_KEY_PASS }}
       CINETOR_KEY_ALIAS: ${{ secrets.CINETOR_KEY_ALIAS }}
+      # Tag builds (v1.2.3) use the tag as versionName; otherwise 0.1.<run>.
+      CINETOR_VERSION: ${{ startsWith(github.ref, 'refs/tags/v') && github.ref_name || '' }}
     steps:
       - uses: actions/checkout@v4
 
@@ -53,8 +55,8 @@ jobs:
             echo "no keystore secret; default debug signing"
           fi
 
-      - name: Build debug APK
-        run: gradle --no-daemon --stacktrace assembleDebug
+      - name: Build debug + release APKs
+        run: gradle --no-daemon --stacktrace assembleDebug assembleRelease
 
       - name: Unit tests
         run: gradle --no-daemon --stacktrace testDebugUnitTest
@@ -67,20 +69,73 @@ jobs:
           path: android/app/build/reports/tests
           retention-days: 7
 
-      - name: Rename APK
+      - name: Collect + verify APKs
         run: |
-          mkdir -p out
-          cp app/build/outputs/apk/debug/*.apk "out/cinetor-build${{ github.run_number }}-universal.apk"
-          ls -la out
+          V="${CINETOR_VERSION:-0.1.${{ github.run_number }}}"; V="${V#v}"
+          mkdir -p out out-debug
+          for f in app/build/outputs/apk/release/*.apk; do
+            n=$(basename "$f" .apk); n=${n#app-}; n=${n%-unsigned}; n=${n%-release}   # arm64-v8a | universal …
+            cp "$f" "out/Cinetor-$V-$n.apk"
+          done
+          cp app/build/outputs/apk/debug/*universal*.apk "out-debug/Cinetor-$V-debug-universal.apk"
+          ls -la out out-debug
+          U=$(ls out/*-universal.apk)
           # Mock catalog must be bundled from shared/mock (generated assets, not in git)
-          unzip -l out/*.apk | grep -q 'assets/mock/home.json'
-          unzip -l out/*.apk | grep -q 'assets/mock/images/posters/'
-          echo "mock assets: $(unzip -l out/*.apk | grep -c 'assets/mock/') files"
+          unzip -l "$U" | grep -q 'assets/mock/home.json'
+          unzip -l "$U" | grep -q 'assets/mock/images/posters/'
+          echo "mock assets: $(unzip -l "$U" | grep -c 'assets/mock/') files"
+          unzip -l "$U" | grep -q 'assets/dexopt/baseline.prof' && echo "baseline profile: bundled"
+          # TV packaging (Task 6.1): leanback launcher + banner, touch/leanback/PiP optional.
+          BT=$(ls -d "$ANDROID_HOME"/build-tools/* | sort -V | tail -1)
+          "$BT/aapt" dump badging "$U" > badging.txt
+          grep -E "package:|leanback-launchable-activity|uses-feature-not-required|native-code" badging.txt || true
+          grep -q "leanback-launchable-activity" badging.txt
+          grep -q "banner=" badging.txt
+          for f in android.hardware.touchscreen android.software.leanback android.software.picture_in_picture; do
+            grep -q "uses-feature-not-required: name='$f'" badging.txt || { echo "missing optional $f"; exit 1; }
+          done
+          # Releases (main / v* tags) must be signed with the Cinetor key.
+          if [ -z "${CINETOR_KEYSTORE_PATH:-}" ] && { [ "$GITHUB_REF" = refs/heads/main ] || [[ "$GITHUB_REF" == refs/tags/v* ]]; }; then
+            echo "::error::release build without signing keystore"; exit 1
+          fi
+          # Signed with the Cinetor release key (same cert for debug → updates install over).
+          if [ -n "${CINETOR_KEYSTORE_PATH:-}" ]; then
+            # Public cert fingerprint of ~/.config/cinetor/cinetor-release.p12 (CN=Cinetor, O=Mythbrix, C=BD).
+            EXP=7b0ef774a86ea4b160bee5356b71cced87d7cfcdc24bb7251b68be3a5a9ec44e
+            for a in out/*.apk out-debug/*.apk; do
+              certs=$("$BT/apksigner" verify --print-certs "$a")
+              echo "$certs" | grep -E "Signer #1 certificate (DN|SHA-256)" | sed "s|^|$(basename "$a"): |" || true
+              echo "$certs" | grep -q "$EXP" || { echo "::error::$(basename "$a") is not signed with the Cinetor key"; exit 1; }
+            done
+          fi
+          {
+            echo "### APKs ($V)"; echo '| file | size |'; echo '|---|---|'
+            for a in out/*.apk out-debug/*.apk; do echo "| $(basename "$a") | $(du -h "$a" | cut -f1) ($(stat -c %s "$a") B) |"; done
+          } >> "$GITHUB_STEP_SUMMARY"
+          # Per-ABI budget (mock images are bundled): warn > 20 MB.
+          for a in out/*-arm64-v8a.apk out/*-armeabi-v7a.apk out/*-x86_64.apk; do
+            s=$(stat -c %s "$a"); [ "$s" -gt 20971520 ] && echo "::warning::$(basename "$a") is $((s/1048576)) MB (> 20 MB)"
+          done
+          true
 
       - uses: actions/upload-artifact@v4
         with:
           name: apk
           path: android/out/*.apk
+          retention-days: 30
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: apk-debug
+          path: android/out-debug/*.apk
+          retention-days: 14
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: r8-mapping-and-compose-reports
+          path: |
+            android/app/build/outputs/mapping/release/mapping.txt
+            android/app/build/compose-reports
           retention-days: 30
 
   emulator-smoke:
@@ -120,8 +175,45 @@ jobs:
           path: shots
           retention-days: 14
 
+  tv-smoke:
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: apk
+          path: apk
+
+      - name: Enable KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+
+      - name: TV smoke on Android TV emulator (API 30, D-pad only)
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 30
+          arch: x86
+          target: android-tv
+          profile: tv_1080p
+          ram-size: 2048M
+          disable-animations: true
+          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
+          script: bash .github/scripts/tv-smoke.sh apk tv-shots
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: tv-screenshots
+          path: tv-shots
+          retention-days: 14
+
   release:
-    needs: [build, emulator-smoke]
+    needs: [build, emulator-smoke, tv-smoke]
     if: github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-latest
     steps:
@@ -130,17 +222,48 @@ jobs:
           name: apk
           path: apk
 
-      - name: Publish release (public cinetor-app)
+      - name: Release info
+        id: info
+        env:
+          HEAD_MSG: ${{ github.event.head_commit.message }}
+        run: |
+          ls -la apk
+          U=$(ls apk/*-universal.apk | head -1)
+          V=$(basename "$U" -universal.apk); V=${V#Cinetor-}
+          echo "version=$V" >> "$GITHUB_OUTPUT"
+          if [[ "$GITHUB_REF" == refs/tags/v* ]]; then
+            echo "tag=$GITHUB_REF_NAME" >> "$GITHUB_OUTPUT"
+          else
+            echo "tag=android-build-${{ github.run_number }}" >> "$GITHUB_OUTPUT"
+          fi
+          {
+            echo "Cinetor Android $V — phone + Android TV / Google TV / TV boxes (one APK)."
+            echo "Signed release APKs (R8-optimized), same signing key as earlier builds → installs as an update."
+            echo
+            echo "Which file?"
+            echo '- `arm64-v8a` → most phones and modern TV boxes (Shield, Chromecast with Google TV, Fire TV 4K)'
+            echo '- `armeabi-v7a` → older 32-bit phones, budget TV boxes, Fire TV Stick'
+            echo '- `x86_64` → emulators / Chromebooks'
+            echo '- `universal` → works everywhere (bigger)'
+            echo
+            echo "Files:"
+            for a in apk/*.apk; do echo "- $(basename "$a") — $(du -h "$a" | cut -f1)"; done
+            echo
+            echo "Commit: $GITHUB_SHA"
+            echo
+            echo "$HEAD_MSG"
+          } > notes.md
+          cat notes.md
+
+      - name: Publish signed release (public cinetor-app)
         uses: softprops/action-gh-release@v2
         with:
           repository: Ashrix404/cinetor-app
           token: ${{ secrets.RELEASE_TOKEN }}
-          tag_name: android-build-${{ github.run_number }}
+          tag_name: ${{ steps.info.outputs.tag }}
           target_commitish: main
-          name: Android build ${{ github.run_number }}
-          body: |
-            Cinetor Android build ${{ github.run_number }} (phone + TV, universal APK).
-            Commit: ${{ github.sha }}
-            ${{ github.event.head_commit.message }}
+          name: Cinetor ${{ steps.info.outputs.version }} (Android build ${{ github.run_number }})
+          body_path: notes.md
           files: apk/*.apk
+          fail_on_unmatched_files: true
           make_latest: true

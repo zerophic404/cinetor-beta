@@ -59,6 +59,12 @@ fun CinetorRoot(container: AppContainer) {
                 container.playback, container.subtitles, container.tv.data,
                 gesturePrefs = GesturePrefs(settings.doubleTapSec, settings.holdSpeed, settings.gestures),
                 autoSkipIntro = settings.skipIntroAuto,
+                isTv = container.deviceProfile.isTv,
+                related = { item ->
+                    val genre = item.genres.firstOrNull()
+                    if (genre == null) emptyList()
+                    else container.catalog.byGenre(item.space, genre).filter { it.id != item.id }.take(12)
+                },
             )
             // "Who's watching?" once per cold start when more than one profile exists (Task 5.1).
             if (!showIntro) StartupProfilePicker(container.profiles)

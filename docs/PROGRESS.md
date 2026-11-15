@@ -5,6 +5,7 @@ Status: [x] done · [~] in progress / partial · [ ] not started
 Plan: docs/plans/2026-11-14-cinetor-master-plan.md · Decisions: docs/handoff/decisions.md · Phase notes: docs/handoff/phase-*.md
 
 ## Resume here
+- 2026-11-15 Android Ph0–7 DONE (main). Desktop Phase 9 merged to main via PR #3 (see its handoff). Next: Phase 10 (tag v0.1.0 → signed APKs + installers, QA matrix incl. macrobenchmark, final report).
 - RULE (user): every green main build → publish installers to PUBLIC Ashrix404/cinetor-app releases. Desktop from Phase 9.
 - 2026-11-15 00:40 packed before usage limit (resets 04:40). Done: Ph0–3 (APK android-build-30), Web 8.1–8.5 (PR #1, live).
 - Phase 4 IN PROGRESS on two worktrees (agents may have died mid-task):
@@ -25,14 +26,14 @@ Plan: docs/plans/2026-11-14-cinetor-master-plan.md · Decisions: docs/handoff/de
 - [x] 2.0 TMDB source (HybridCatalog: TMDB video spaces, mock fallback/isolated) · [x] 2.1 SpaceScreen (hero carousel, tabs, chips, rows, tint) · [x] 2.2 Details + skeleton (warm hook, Play+Ready dot, Download placeholder) · [x] 2.3 Search (in-mem index, DataStore history/profile, TMDB merge, LRU100) · [x] CI emulator smoke + screenshots
 ### Phase 3 — Player + downloads  [x]
 - [x] 3.1 core · [x] 3.2 preloader/instant play · [x] 3.3 UI portrait/landscape · [x] 3.4 gestures · [x] 3.5 subtitles · [x] 3.6 floating/PiP/service · [x] 3.7 download engine + UI · [x] offline playback of downloads
-### Phase 4 — Isolated spaces  [ ]
-- [ ] 4.1 Live TV + Sports + EPG · [ ] 4.2 Music · [ ] 4.3 Comics reader · [ ] 4.4 Adult gate
-### Phase 5 — Profiles/Settings/About  [ ]
-- [ ] 5.1 profiles + library · [ ] 5.2 settings · [ ] 5.3 about (links + TMDB credit)
-### Phase 6 — Android TV  [ ]
-- [ ] 6.1 packaging · [ ] 6.2 TV UI + focus memory + TV player keys
-### Phase 7 — Perf + release  [ ]
-- [ ] 7.1 R8, ABI splits, baseline profile, benchmarks · [ ] 7.2 signed release CI (secrets ready)
+### Phase 4 — Isolated spaces  [x]
+- [x] 4.1 Live TV + Sports + EPG · [x] 4.2 Music · [x] 4.3 Comics reader · [x] 4.4 Adult gate (merged 78b4f2d)
+### Phase 5 — Profiles/Settings/About  [x]
+- [x] 5.1 profiles + library · [x] 5.2 settings · [x] 5.3 about (links + TMDB credit) (merged 78b4f2d)
+### Phase 6 — Android TV  [x]
+- [x] 6.1 packaging (badging asserted in CI) · [x] 6.2 TV UI (tvui: shell/side nav/hero/rows/cards) + FocusMemory + TV player keys + TV emulator smoke — notes docs/handoff/phase-6-7.md
+### Phase 7 — Perf + release  [x]
+- [x] 7.1 R8 full + shrink, ABI splits + universal, profileinstaller + hand-written baseline profile, Compose stability config (macrobenchmark NOT run → Ph10) · [x] 7.2 signed release APKs (per-ABI + universal) → cinetor-app releases
 ### Phase 8 — Web/PWA  [~]
 - [x] 8.1 foundation + shell + PWA basics · [~] 8.2 screens — Ph2-equivalent DONE on wip/phase-2 (TMDB source, SpaceView hero/tabs/chips/rows/tint, details+skeleton, worker search+local history); left: isolated-space specifics (EPG/reader/adult gate), profiles/settings/about, Playwright · [~] 8.3 player DONE on wip/phase-2 (shaka lazy chunk, persistent <video> moved park→player→mini, preload latest-wins + Ready dot, controls/settings/subs style+sync, gestures, keyboard, mini/PiP/Media Session, IDB resume, autoplay next); search worker done in 8.2; left: downloads (shaka offline + OPFS) · [ ] 8.4 TV mode · [ ] 8.5 full PWA + landing · [ ] 8.6 deploy → cinetor-app gh-pages
 ### Phase 9 — Desktop  [ ]
@@ -41,6 +42,7 @@ Plan: docs/plans/2026-11-14-cinetor-master-plan.md · Decisions: docs/handoff/de
 - [ ] release.yml v0.1.0 · [ ] QA matrix · [ ] final report to user
 
 ## Log (newest first, one line each)
+- 2026-11-15 Ph6+7 done on wip/phase-6 (caa9aac..), runs 43678402983 (6.1) 43681409616 (6.2) 43682848369 (7.1) 43684811368 (7.2) green incl. phone + Android TV emulator smoke; merged to main → signed Cinetor-<ver>-<abi>.apk in cinetor-app releases. Per-ABI 16.8 MB. Handoff docs/handoff/phase-6-7.md.
 - 2026-11-15 00:40 Ph3 merged (android-build-30), web 8.3–8.5 merged; Ph4 started; packed for limit, auto-resume 04:45.
 - 2026-11-15 00:20 Phase 3 merged to main 696e0ee (dl/phase-3 → wip/phase-3 f2c911a, offline playback 1f347fc: OfflineResolver local file / download cache, Downloads Play → player, OfflineResolverTest 5). CI wip https://github.com/Ashrix404/cinetor/actions/runs/43622939407 , main https://github.com/Ashrix404/cinetor/actions/runs/43624369659 green; APK https://github.com/Ashrix404/cinetor-app/releases/tag/android-build-30 .
 - 2026-11-14 20:10 Ph3 code complete on two branches, packed for limit; auto-resume cron scheduled.
