@@ -2,6 +2,7 @@ package com.mythbrix.cinetor.feature.adult
 
 import com.mythbrix.cinetor.core.data.Item
 import com.mythbrix.cinetor.core.data.Space
+import com.mythbrix.cinetor.core.data.gateway.GatewayLayout
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -14,6 +15,26 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import java.security.MessageDigest
 import java.security.SecureRandom
+
+/** Category/sort filter pills for the Adult space (`For You`, `Hottest`, `Latest`, `Top Rated`). */
+enum class AdultSortChip(val label: String, val sortParam: String?) {
+    FOR_YOU("For You", null),
+    HOTTEST("Hottest", "hottest"),
+    LATEST("Latest", "latest"),
+    TOP_RATED("Top Rated", "rating"),
+}
+
+/** Content kind tabs within Adult browse (`Movies`, `Series`). */
+enum class AdultKindFilter(val label: String, val kindParam: String) {
+    MOVIES("Movies", "movies"),
+    SERIES("Series", "tv-series"),
+}
+
+/** Builds a gateway-routed Adult catalog row id compatible with [GatewayLayout.parseRow]. */
+fun adultGatewayRowId(kind: AdultKindFilter, sort: AdultSortChip): String {
+    val sortKey = sort.sortParam ?: "latest"
+    return "${GatewayLayout.ROW_PREFIX}${Space.ADULT.name}:adult?kind=${kind.kindParam}&sort=$sortKey"
+}
 
 /** Salted SHA-256 PIN hashing. The PIN itself is never stored. */
 object PinHasher {
@@ -199,8 +220,18 @@ class AdultGate(
     }
 
     companion object {
-        /** Mock adult ids (`ad-001`…). */
+        /** Mock adult ids (`ad-001`…) and gateway adult ids (`ad-gw:…`). */
         fun isAdultId(id: String): Boolean = id.startsWith("ad-")
         fun isAdult(item: Item?): Boolean = item?.space == Space.ADULT
+
+        /** Hard safety screen ported from Cinetor Beta `AdultCatalog.safeName`. */
+        fun isSafeAdultTitle(name: String): Boolean {
+            val trimmed = name.trim()
+            return trimmed.isNotEmpty() && !BLOCKED_TITLE_TERMS.containsMatchIn(trimmed)
+        }
+
+        private val BLOCKED_TITLE_TERMS = Regex(
+            """(?i)\b(teen\w*|school\w*|college girl|student\w*|tuition|beti|bachi|underage|minors?|enjo|first (time|pain)|lolita|loli|shota|child\w*|kids?|young girls?|virgin|step[- ]?(daughter|son|sister|brother|mom|mother)|rape\w*|forced?|drugged|sleeping|unconscious|incest|dog|animal\w*|bestial\w*|anime|animation|hentai|cartoon|leak\w*|mms|hidden cam\w*|spy cam\w*)\b""",
+        )
     }
 }

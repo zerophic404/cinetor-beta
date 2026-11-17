@@ -27,6 +27,37 @@ enum class ReaderMode(val label: String) {
     val paged: Boolean get() = this != VERTICAL
 }
 
+/** Chapter list sort order on ComicDetails. */
+@Serializable
+enum class ChapterSort(val label: String) {
+    ASCENDING("Oldest first"),
+    DESCENDING("Newest first"),
+}
+
+/** Chapter list quick filter on ComicDetails. */
+@Serializable
+enum class ChapterFilter(val label: String) {
+    ALL("All"),
+    UNREAD("Unread"),
+    DOWNLOADED("Downloaded"),
+}
+
+/** Aggregated reading progress across a comic's chapters. */
+data class ComicReadSummary(
+    val readCount: Int,
+    val inProgressCount: Int,
+    val totalCount: Int,
+) {
+    val unreadCount: Int get() = (totalCount - readCount).coerceAtLeast(0)
+    val fraction: Float get() = if (totalCount > 0) (readCount.toFloat() / totalCount).coerceIn(0f, 1f) else 0f
+    val badgeLabel: String?
+        get() = when {
+            totalCount <= 0 || (readCount == 0 && inProgressCount == 0) -> null
+            readCount >= totalCount -> "Completed · $totalCount/$totalCount"
+            else -> "$readCount / $totalCount read"
+        }
+}
+
 object ComicIds {
     /** Mock comic ids (`co-ma-001`, `co-mw-…`, `co-mh-…`) and MangaDex ids (`cm:<uuid>`). */
     fun isComic(id: String): Boolean = id.startsWith("co-") || id.startsWith("cm:")
@@ -39,6 +70,61 @@ fun defaultReaderMode(item: Item): ReaderMode = when {
     item.readingDirection == ReadingDirection.LTR -> ReaderMode.LTR_PAGED
     item.categoryId.endsWith("manga") -> ReaderMode.RTL_PAGED
     else -> ReaderMode.VERTICAL
+}
+
+/** Summary of read / in-progress chapters for a title. */
+fun comicReadSummary(chapters: List<Chapter>, data: ComicsData, comicId: String): ComicReadSummary {
+    if (chapters.isEmpty()) return ComicReadSummary(0, 0, 0)
+    val byChapter = data.progress.asSequence()
+        .filter { it.comicId == comicId }
+        .associateBy { it.chapterId }
+    var read = 0
+    var inProgress = 0
+    for (ch in chapters) {
+        val p = byChapter[ch.id] ?: continue
+        if (p.read) read++ else inProgress++
+    }
+    return ComicReadSummary(read, inProgress, chapters.size)
+}
+
+/** Human-readable status badge for one chapter row. */
+fun chapterStatusBadge(chapter: Chapter, progress: ChapterProgress?): String = when {
+    progress == null -> if (chapter.pages.isNotEmpty()) "${chapter.pages.size} pages" else "Unread"
+    progress.read -> "Read"
+    else -> {
+        val pct = (progress.fraction * 100f).toInt().coerceIn(1, 99)
+        "Page ${progress.page + 1}/${progress.pageCount} · $pct%"
+    }
+}
+
+/** Pure chapter list filter + search + sort for ComicDetails. */
+fun filterAndSortChapters(
+    chapters: List<Chapter>,
+    data: ComicsData,
+    comicId: String,
+    downloadedIds: Set<String> = emptySet(),
+    query: String = "",
+    sort: ChapterSort = ChapterSort.ASCENDING,
+    filter: ChapterFilter = ChapterFilter.ALL,
+): List<Chapter> {
+    val byChapter = if (filter == ChapterFilter.UNREAD) {
+        data.progress.asSequence().filter { it.comicId == comicId }.associateBy { it.chapterId }
+    } else {
+        emptyMap()
+    }
+    val q = query.trim()
+    val filtered = chapters.filter { ch ->
+        val matchesFilter = when (filter) {
+            ChapterFilter.ALL -> true
+            ChapterFilter.UNREAD -> byChapter[ch.id]?.read != true
+            ChapterFilter.DOWNLOADED -> ch.id in downloadedIds
+        }
+        val matchesQuery = q.isEmpty() ||
+            ch.n.toString().contains(q, ignoreCase = true) ||
+            ch.title.contains(q, ignoreCase = true)
+        matchesFilter && matchesQuery
+    }
+    return if (sort == ChapterSort.DESCENDING) filtered.asReversed() else filtered
 }
 
 /**
@@ -154,6 +240,11 @@ class ComicsStore(
         }
     }
 
+    /** Clears saved progress for one comic (e.g. dismissing "Continue reading"). */
+    fun forgetComic(comicId: String) = mutate { d ->
+        d.copy(progress = d.progress.filterNot { it.comicId == comicId })
+    }
+
     fun isBookmarked(comicId: String): Boolean = comicId in _data.value.bookmarks
 
     fun toggleBookmark(comicId: String) = mutate { d ->
@@ -193,6 +284,12 @@ data class ReaderState(
     val loadingPages: Boolean = false,
     /** Set when a chapter has no pages anywhere — reader stays usable, user picks another chapter. */
     val unavailable: String? = null,
+    /** Compressed data-saver page stream enabled for slower connections / broken primary nodes. */
+    val dataSaverPages: Boolean = false,
+    /** True when the current chapter switched onto a backup host or alternate scanlation upload. */
+    val usingBackupServer: Boolean = false,
+    /** Bumped when re-resolving page links on the current chapter so image loaders bypass stale URLs. */
+    val reloadGeneration: Int = 0,
 ) {
     val chapters: List<Chapter> get() = comic.pages
     val chapter: Chapter get() = chapters[chapterIndex]
@@ -203,7 +300,7 @@ data class ReaderState(
 
 /**
  * Reader logic (Android-free, TestScope-drivable): chapter/page position, mode, progress saving per chapter,
- * next-chapter auto-load, preload list.
+ * next-chapter auto-load, preload list, and resilient data-saver / backup server retry.
  */
 class ReaderStateHolder(
     comic: Item,
@@ -214,6 +311,8 @@ class ReaderStateHolder(
     private val scope: CoroutineScope? = null,
     /** Resolves a chapter's page URLs on demand; throws when the chapter has none. */
     private val resolvePages: (suspend (Chapter) -> List<String>)? = null,
+    /** Optional fallback resolver `(chapter, dataSaver, preferBackup)` for host-switch & data-saver retry. */
+    private val resolveFallbackPages: (suspend (Chapter, Boolean, Boolean) -> List<String>)? = null,
 ) {
     private val _state: MutableStateFlow<ReaderState>
     val state: StateFlow<ReaderState>
@@ -239,22 +338,38 @@ class ReaderStateHolder(
      * Fills a chapter's pages when the catalog only knows its id (MangaDex). Never throws: a chapter
      * with no pages anywhere sets [ReaderState.unavailable] and leaves the rest of the reader working.
      */
-    private fun ensurePages(index: Int) {
+    private fun ensurePages(index: Int, forceReload: Boolean = false, preferDataSaver: Boolean = current.dataSaverPages, preferBackup: Boolean = false) {
         val s = current
         val chapter = s.chapters.getOrNull(index) ?: return
-        if (chapter.pages.isNotEmpty()) return
-        val resolve = resolvePages
+        if (chapter.pages.isNotEmpty() && !forceReload) return
+        val fallback = resolveFallbackPages
+        val primary = resolvePages
         val sc = scope
-        if (resolve == null || sc == null) {
-            _state.update { it.copy(unavailable = CHAPTER_UNAVAILABLE, loadingPages = false) }
+        if ((fallback == null && primary == null) || sc == null) {
+            if (chapter.pages.isEmpty()) {
+                _state.update { it.copy(unavailable = CHAPTER_UNAVAILABLE, loadingPages = false) }
+            }
             return
         }
-        _state.update { it.copy(loadingPages = true, unavailable = null) }
+        val keepExistingOnFailure = chapter.pages.isNotEmpty()
+        _state.update { it.copy(loadingPages = chapter.pages.isEmpty(), unavailable = null) }
         sc.launch {
-            val urls = runCatching { resolve(chapter) }.getOrDefault(emptyList())
+            val urls = runCatching {
+                when {
+                    (forceReload || preferDataSaver || preferBackup) && fallback != null ->
+                        fallback(chapter, preferDataSaver, preferBackup)
+                    primary != null -> primary(chapter)
+                    fallback != null -> fallback(chapter, preferDataSaver, preferBackup)
+                    else -> emptyList()
+                }
+            }.getOrDefault(emptyList())
             _state.update { st ->
                 if (urls.isEmpty()) {
-                    st.copy(loadingPages = false, unavailable = CHAPTER_UNAVAILABLE)
+                    if (keepExistingOnFailure) {
+                        st.copy(loadingPages = false, reloadGeneration = st.reloadGeneration + 1)
+                    } else {
+                        st.copy(loadingPages = false, unavailable = CHAPTER_UNAVAILABLE)
+                    }
                 } else {
                     val chapters = st.comic.pages.map { c -> if (c.id == chapter.id) c.copy(pages = urls) else c }
                     st.copy(
@@ -262,7 +377,10 @@ class ReaderStateHolder(
                         loadingPages = false,
                         unavailable = null,
                         page = st.page.coerceIn(0, (urls.size - 1).coerceAtLeast(0)),
-                        chapterGeneration = st.chapterGeneration + 1,
+                        dataSaverPages = preferDataSaver,
+                        usingBackupServer = preferBackup,
+                        chapterGeneration = if (keepExistingOnFailure) st.chapterGeneration else st.chapterGeneration + 1,
+                        reloadGeneration = st.reloadGeneration + 1,
                     )
                 }
             }
@@ -329,14 +447,47 @@ class ReaderStateHolder(
             else -> 0
         }
         _state.value = s.copy(
-            chapterIndex = i, page = page, endOfComic = false, unavailable = null,
+            chapterIndex = i,
+            page = page,
+            endOfComic = false,
+            unavailable = null,
+            usingBackupServer = false,
             chapterGeneration = s.chapterGeneration + 1,
         )
         if (pages.isEmpty()) ensurePages(i) else save()
     }
 
     /** User retried an unavailable chapter. */
-    fun retryChapter() = ensurePages(current.chapterIndex)
+    fun retryChapter() = ensurePages(
+        index = current.chapterIndex,
+        forceReload = true,
+        preferDataSaver = current.dataSaverPages,
+        preferBackup = resolveFallbackPages != null && current.unavailable != null,
+    )
+
+    /** Switches current chapter onto compressed data-saver / alternate host / backup scanlation upload. */
+    fun reloadChapterWithFallback(preferDataSaver: Boolean = true, preferBackup: Boolean = true) {
+        ensurePages(
+            index = current.chapterIndex,
+            forceReload = true,
+            preferDataSaver = preferDataSaver,
+            preferBackup = preferBackup,
+        )
+    }
+
+    /** Toggles data-saver compressed pages from ReaderSettings. */
+    fun setDataSaverPages(enabled: Boolean) {
+        if (current.dataSaverPages == enabled) return
+        _state.update { it.copy(dataSaverPages = enabled) }
+        if (resolveFallbackPages != null) {
+            ensurePages(
+                index = current.chapterIndex,
+                forceReload = true,
+                preferDataSaver = enabled,
+                preferBackup = current.usingBackupServer,
+            )
+        }
+    }
 
     fun setMode(mode: ReaderMode) {
         val s = current

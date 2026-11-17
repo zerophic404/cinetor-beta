@@ -10,6 +10,8 @@ import com.mythbrix.cinetor.core.data.AssetUris
 import com.mythbrix.cinetor.core.data.Chapter
 import com.mythbrix.cinetor.core.data.HistoryStorage
 import com.mythbrix.cinetor.core.data.Item
+import com.mythbrix.cinetor.core.data.comics.MangaDexCatalogSource
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -46,13 +48,15 @@ sealed interface ChapterDownload {
 
 /**
  * Chapter downloads: pages copied into app-private storage (`files/comics/<comic>/<chapter>/NNN.ext` + `.done`
- * marker). The reader prefers local pages, so downloaded chapters read offline. Pages come from bundled mock
- * assets ([openPath]); http pages would go through the same function.
+ * marker). The reader prefers local pages, so downloaded chapters read offline. Remote MangaDex chapters resolve
+ * their page URLs lazily via [resolvePages] and fall back to compressed `data-saver` URLs via [fallbackUrl].
  */
 class ComicDownloads(
     private val root: File,
     private val scope: CoroutineScope,
     private val openPath: (String) -> InputStream,
+    private val resolvePages: (suspend (Chapter) -> List<String>)? = null,
+    private val fallbackUrl: ((String) -> String?)? = null,
 ) {
     private val _states = MutableStateFlow<Map<String, ChapterDownload>>(emptyMap())
     val states: StateFlow<Map<String, ChapterDownload>> = _states.asStateFlow()
@@ -70,46 +74,77 @@ class ComicDownloads(
     private fun dir(comicId: String, chapterId: String) = File(File(root, safe(comicId)), safe(chapterId))
 
     private fun pageFile(comicId: String, chapterId: String, index: Int, path: String): File {
-        val ext = path.substringAfterLast('.', "img").take(5)
+        val cleanPath = path.substringBefore('?')
+        val ext = cleanPath.substringAfterLast('.', "img").take(5).ifBlank { "img" }
         return File(dir(comicId, chapterId), "%03d.%s".format(index, ext))
     }
 
     /** Local page file (only for fully downloaded chapters). */
     fun localPage(comicId: String, chapter: Chapter, index: Int): File? {
         if (_states.value[chapter.id] != ChapterDownload.Done) return null
-        val path = chapter.pages.getOrNull(index) ?: return null
-        return pageFile(comicId, chapter.id, index, path).takeIf { it.isFile }
+        val path = chapter.pages.getOrNull(index)
+        if (path != null) {
+            pageFile(comicId, chapter.id, index, path).takeIf { it.isFile && it.length() > 0L }?.let { return it }
+        }
+        val prefix = "%03d.".format(index)
+        return dir(comicId, chapter.id).listFiles()
+            ?.firstOrNull { it.isFile && it.name.startsWith(prefix) && !it.name.endsWith(".part") && it.length() > 0L }
     }
 
     /** Coil model for a page: local file when downloaded, else the asset/remote URI. */
     fun pageModel(comicId: String, chapter: Chapter, index: Int): Any =
-        localPage(comicId, chapter, index) ?: AssetUris.of(chapter.pages[index])
+        localPage(comicId, chapter, index) ?: chapter.pages.getOrNull(index)?.let(AssetUris::of).orEmpty()
+
+    /** Compressed data-saver backup URL for a primary page URL when known. */
+    fun backupPageUrl(url: String): String? = fallbackUrl?.invoke(url)
 
     fun download(comic: Item, chapter: Chapter) {
-        if (chapter.pages.isEmpty()) return // pages not resolved yet (MangaDex) → nothing to copy
+        if (chapter.pages.isEmpty() && resolvePages == null) return
         val st = _states.value[chapter.id]
         if (st is ChapterDownload.Running || st == ChapterDownload.Done) return
         _states.update { it + (chapter.id to ChapterDownload.Running(0, chapter.pages.size)) }
         jobs[chapter.id] = scope.launch(Dispatchers.IO) {
             val d = dir(comic.id, chapter.id)
             val result = runCatching {
-                d.mkdirs()
-                chapter.pages.forEachIndexed { i, path ->
-                    val out = pageFile(comic.id, chapter.id, i, path)
-                    if (!out.isFile || out.length() == 0L) {
-                        val tmp = File(out.path + ".part")
-                        openPath(path).use { input -> tmp.outputStream().use { input.copyTo(it) } }
-                        if (!tmp.renameTo(out)) error("rename failed")
-                    }
-                    _states.update { it + (chapter.id to ChapterDownload.Running(i + 1, chapter.pages.size)) }
+                val pages = if (chapter.pages.isNotEmpty()) {
+                    chapter.pages
+                } else {
+                    resolvePages?.invoke(chapter).orEmpty()
                 }
-                File(d, DONE).writeText(chapter.pages.size.toString())
+                if (pages.isEmpty()) error("Chapter unavailable")
+                _states.update { it + (chapter.id to ChapterDownload.Running(0, pages.size)) }
+                d.mkdirs()
+                pages.forEachIndexed { i, primaryPath ->
+                    val existingPrefix = "%03d.".format(i)
+                    val existing = d.listFiles()?.firstOrNull {
+                        it.isFile && it.name.startsWith(existingPrefix) && !it.name.endsWith(".part") && it.length() > 0L
+                    }
+                    if (existing == null) {
+                        val saved = trySavePage(comic.id, chapter.id, i, primaryPath) ||
+                            fallbackUrl?.invoke(primaryPath)?.let { alt -> trySavePage(comic.id, chapter.id, i, alt) } == true
+                        if (!saved) error("Page download failed")
+                    }
+                    _states.update { it + (chapter.id to ChapterDownload.Running(i + 1, pages.size)) }
+                }
+                File(d, DONE).writeText(pages.size.toString())
             }
+            if (result.exceptionOrNull() is CancellationException) return@launch
             _states.update {
-                it + (chapter.id to (result.exceptionOrNull()?.let { e -> ChapterDownload.Failed(e.message ?: "error") } ?: ChapterDownload.Done))
+                it + (chapter.id to (result.exceptionOrNull()?.let { ChapterDownload.Failed("Download failed") } ?: ChapterDownload.Done))
             }
         }
     }
+
+    private fun trySavePage(comicId: String, chapterId: String, index: Int, path: String): Boolean = runCatching {
+        val out = pageFile(comicId, chapterId, index, path)
+        val tmp = File(out.path + ".part")
+        openPath(path).use { input -> tmp.outputStream().use { input.copyTo(it) } }
+        if (!tmp.renameTo(out)) {
+            tmp.delete()
+            return false
+        }
+        true
+    }.getOrDefault(false)
 
     fun delete(comic: Item, chapter: Chapter) {
         jobs.remove(chapter.id)?.cancel()
@@ -137,11 +172,61 @@ class ComicsModule(
 ) {
     private val appContext = context.applicationContext
 
+    @Volatile
+    private var catalogRef: MangaDexCatalogSource? = null
+
+    @Volatile
+    private var dataSaverPref: () -> Boolean = { false }
+
     val store: ComicsStore = ComicsStore(ComicsDataStore(appContext), scope)
 
-    val downloads: ComicDownloads = ComicDownloads(File(appContext.filesDir, "comics"), scope) { path ->
-        if (AssetUris.isRemote(path)) java.net.URL(path).openStream() else appContext.assets.open("mock/$path")
+    /** Attaches [MangaDexCatalogSource] for data-saver page mirrors and alternate host/chapter fallback. */
+    fun attachCatalog(catalog: MangaDexCatalogSource, dataSaver: () -> Boolean = { false }) {
+        catalogRef = catalog
+        dataSaverPref = dataSaver
     }
+
+    fun isDefaultDataSaver(): Boolean = dataSaverPref()
+
+    fun fallbackUrlFor(url: String): String? = catalogRef?.fallbackUrlFor(url)
+
+    val fallbackPageResolver: (suspend (Chapter, Boolean, Boolean) -> List<String>)?
+        get() = { chapter, dataSaver, preferBackup ->
+            val cat = catalogRef
+            when {
+                cat != null && cat.isComicChapter(chapter.id) ->
+                    cat.pagesWithFallback(chapter.id, dataSaver = dataSaver, fresh = true, preferBackup = preferBackup)
+                pageResolver != null -> pageResolver.invoke(chapter)
+                else -> chapter.pages
+            }
+        }
+
+    val downloads: ComicDownloads = ComicDownloads(
+        root = File(appContext.filesDir, "comics"),
+        scope = scope,
+        openPath = { path ->
+            if (AssetUris.isRemote(path)) {
+                val conn = (java.net.URL(path).openConnection() as java.net.HttpURLConnection).apply {
+                    connectTimeout = 10_000
+                    readTimeout = 15_000
+                    setRequestProperty("User-Agent", "CinetorApp/1.0")
+                }
+                conn.inputStream
+            } else {
+                appContext.assets.open("mock/$path")
+            }
+        },
+        resolvePages = { chapter ->
+            val cat = catalogRef
+            when {
+                chapter.pages.isNotEmpty() -> chapter.pages
+                cat != null && cat.isComicChapter(chapter.id) -> cat.pages(chapter.id, dataSaver = dataSaverPref())
+                pageResolver != null -> pageResolver.invoke(chapter)
+                else -> emptyList()
+            }
+        },
+        fallbackUrl = { url -> fallbackUrlFor(url) },
+    )
 
     private val _reader = MutableStateFlow<ReaderRequest?>(null)
     val reader: StateFlow<ReaderRequest?> = _reader.asStateFlow()

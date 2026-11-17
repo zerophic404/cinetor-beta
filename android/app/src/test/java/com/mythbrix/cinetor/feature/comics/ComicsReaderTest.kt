@@ -228,4 +228,40 @@ class ComicsReaderTest {
         assertEquals(CHAPTER_UNAVAILABLE, h.current.unavailable)
         assertEquals(0, h.current.pageCount)
     }
+
+    @Test
+    fun readerFallbackReload_switchesToDataSaverOrBackupHost_andKeepsCurrentPage() = runTest {
+        val s = store()
+        s.ensureLoaded()
+        val c = remoteComic()
+        var fallbackCalls = 0
+        val h = ReaderStateHolder(
+            comic = c,
+            startChapterId = null,
+            store = s,
+            tier = PerformanceTier.MID,
+            scope = backgroundScope,
+            resolvePages = { listOf("https://primary/1.png", "https://primary/2.png", "https://primary/3.png") },
+            resolveFallbackPages = { _, dataSaver, preferBackup ->
+                fallbackCalls++
+                assertTrue(dataSaver)
+                assertTrue(preferBackup)
+                listOf("https://backup/data-saver/1.jpg", "https://backup/data-saver/2.jpg", "https://backup/data-saver/3.jpg")
+            },
+        )
+        runCurrent()
+        h.onPageChanged(2)
+        assertEquals(2, h.current.page)
+
+        val prevReloadGen = h.current.reloadGeneration
+        h.reloadChapterWithFallback(preferDataSaver = true, preferBackup = true)
+        runCurrent()
+
+        assertEquals(1, fallbackCalls)
+        assertEquals(2, h.current.page)
+        assertTrue(h.current.dataSaverPages)
+        assertTrue(h.current.usingBackupServer)
+        assertTrue(h.current.reloadGeneration > prevReloadGen)
+        assertEquals("https://backup/data-saver/3.jpg", h.current.chapter.pages[2])
+    }
 }

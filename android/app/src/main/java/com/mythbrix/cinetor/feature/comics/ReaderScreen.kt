@@ -14,12 +14,13 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
@@ -39,12 +40,14 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Slider
 import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -56,8 +59,8 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.key.KeyEventType
-import androidx.compose.ui.input.key.nativeKeyCode
 import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.nativeKeyCode
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.layout.ContentScale
@@ -67,13 +70,19 @@ import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
+import androidx.core.view.WindowCompat
+import androidx.core.view.WindowInsetsCompat
+import androidx.core.view.WindowInsetsControllerCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil3.compose.AsyncImage
 import coil3.imageLoader
+import coil3.request.CachePolicy
 import coil3.request.ImageRequest
-import com.mythbrix.cinetor.core.data.ComicFormat
+import com.mythbrix.cinetor.core.data.AssetUris
 import com.mythbrix.cinetor.design.Cinetor
 import com.mythbrix.cinetor.design.GlassLevel
 import com.mythbrix.cinetor.design.glass
@@ -94,7 +103,19 @@ fun ComicsReaderHost(comics: ComicsModule) {
     var holder by remember(r) { mutableStateOf<ReaderStateHolder?>(null) }
     LaunchedEffect(r) {
         comics.store.ensureLoaded()
-        holder = ReaderStateHolder(r.comic, r.chapterId, comics.store, tier, hostScope, comics.pageResolver)
+        val h = ReaderStateHolder(
+            comic = r.comic,
+            startChapterId = r.chapterId,
+            store = comics.store,
+            tier = tier,
+            scope = hostScope,
+            resolvePages = comics.pageResolver,
+            resolveFallbackPages = comics.fallbackPageResolver,
+        )
+        if (comics.isDefaultDataSaver()) {
+            h.setDataSaverPages(true)
+        }
+        holder = h
     }
     BackHandler { comics.closeReader() }
     Box(Modifier.fillMaxSize().background(Color.Black)) {
@@ -109,7 +130,8 @@ fun ComicsReaderHost(comics: ComicsModule) {
 
 /**
  * Comic reader: RTL/LTR paged (HorizontalPager) or vertical webtoon (LazyColumn), pinch/double-tap zoom, tap zones,
- * page slider, brightness, keep-screen-on, preload, next-chapter auto-load, D-pad page turns.
+ * page slider, brightness, keep-screen-on, preload, next-chapter auto-load, D-pad page turns, and data-saver / backup
+ * server auto-recovery.
  */
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
@@ -121,27 +143,47 @@ fun ReaderScreen(holder: ReaderStateHolder, downloads: ComicDownloads, onClose: 
     var settingsOpen by remember { mutableStateOf(false) }
     val focus = remember { FocusRequester() }
     val dlStates by downloads.states.collectAsStateWithLifecycle()
+    val tokens = Cinetor.tokens
 
-    // Keep screen on while reading; brightness override restored on exit.
-    val brightness = remember(context) { BrightnessController(context.findActivity()) }
-    DisposableEffect(view) {
+    // Keep screen on while reading; brightness & immersive system bars restored on exit.
+    val activity = remember(context) { context.findActivity() }
+    val brightness = remember(activity) { BrightnessController(activity) }
+    DisposableEffect(view, activity) {
         view.keepScreenOn = true
         onDispose {
             view.keepScreenOn = false
             brightness.restore()
+            runCatching {
+                activity?.window?.let { win ->
+                    WindowCompat.getInsetsController(win, win.decorView).show(WindowInsetsCompat.Type.systemBars())
+                }
+            }
         }
     }
     LaunchedEffect(state.brightness) {
         state.brightness?.let { brightness.set(it) } ?: brightness.restore()
     }
+    LaunchedEffect(state.uiVisible, activity) {
+        runCatching {
+            activity?.window?.let { win ->
+                val controller = WindowCompat.getInsetsController(win, win.decorView)
+                controller.systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+                if (state.uiVisible) {
+                    controller.show(WindowInsetsCompat.Type.systemBars())
+                } else {
+                    controller.hide(WindowInsetsCompat.Type.systemBars())
+                }
+            }
+        }
+    }
 
     // Preload next pages (3, LOW: 1) into Coil's caches.
-    LaunchedEffect(state.chapterIndex, state.page) {
+    LaunchedEffect(state.chapterIndex, state.page, state.reloadGeneration) {
         val loader = context.imageLoader
         holder.preload().forEach { path ->
             val ch = state.chapters.firstOrNull { path in it.pages }
             val model: Any = ch?.let { downloads.pageModel(state.comic.id, it, it.pages.indexOf(path)) }
-                ?: com.mythbrix.cinetor.core.data.AssetUris.of(path)
+                ?: AssetUris.of(path)
             loader.enqueue(ImageRequest.Builder(context).data(model).build())
         }
     }
@@ -154,7 +196,6 @@ fun ReaderScreen(holder: ReaderStateHolder, downloads: ComicDownloads, onClose: 
     }
     LaunchedEffect(Unit) { runCatching { focus.requestFocus() } }
 
-    val aspect = if (state.comic.format == ComicFormat.LONGSTRIP) 720f / 2000f else 720f / 1080f
     val onTap: (Float, Float) -> Unit = { x, w ->
         when (tapZone(x, w, state.mode)) {
             TapZone.TOGGLE -> holder.toggleUi()
@@ -164,6 +205,9 @@ fun ReaderScreen(holder: ReaderStateHolder, downloads: ComicDownloads, onClose: 
     }
     val listState = key(state.chapterGeneration) { rememberLazyListState(initialFirstVisibleItemIndex = state.page) }
     val screenHeightPx = with(androidx.compose.ui.platform.LocalDensity.current) { LocalConfiguration.current.screenHeightDp.dp.toPx() }
+
+    // Prevent runaway chapter-level fallback loops within one chapter open.
+    var autoFallbackUsed by remember(state.chapter.id) { mutableStateOf(false) }
 
     Box(
         Modifier
@@ -199,16 +243,40 @@ fun ReaderScreen(holder: ReaderStateHolder, downloads: ComicDownloads, onClose: 
         when {
             state.loadingPages -> CircularProgressIndicator(
                 Modifier.align(Alignment.Center),
-                color = Cinetor.tokens.accent,
+                color = tokens.accent,
             )
             state.pageCount == 0 -> ChapterEmptyState(
                 message = state.unavailable ?: CHAPTER_UNAVAILABLE,
                 canRetry = state.unavailable != null,
                 onRetry = holder::retryChapter,
+                onTryBackup = { holder.reloadChapterWithFallback(preferDataSaver = true, preferBackup = true) },
                 modifier = Modifier.align(Alignment.Center),
             )
-            state.mode.paged -> PagedReader(holder, state, downloads, aspect, onTap)
-            else -> VerticalReader(holder, state, downloads, aspect, listState, onTap)
+            state.mode.paged -> PagedReader(
+                holder = holder,
+                state = state,
+                downloads = downloads,
+                onTap = onTap,
+                onAutoFallback = {
+                    if (!autoFallbackUsed) {
+                        autoFallbackUsed = true
+                        holder.reloadChapterWithFallback(preferDataSaver = true, preferBackup = true)
+                    }
+                },
+            )
+            else -> VerticalReader(
+                holder = holder,
+                state = state,
+                downloads = downloads,
+                listState = listState,
+                onTap = onTap,
+                onAutoFallback = {
+                    if (!autoFallbackUsed) {
+                        autoFallbackUsed = true
+                        holder.reloadChapterWithFallback(preferDataSaver = true, preferBackup = true)
+                    }
+                },
+            )
         }
 
         ReaderBars(
@@ -224,7 +292,8 @@ fun ReaderScreen(holder: ReaderStateHolder, downloads: ComicDownloads, onClose: 
         if (state.endOfComic) {
             Text(
                 "You're all caught up",
-                color = Color.White,
+                color = tokens.textPrimary,
+                style = MaterialTheme.typography.labelLarge,
                 modifier = Modifier
                     .align(Alignment.Center)
                     .glass(RoundedCornerShape(16.dp), GlassLevel.SHEET)
@@ -236,25 +305,40 @@ fun ReaderScreen(holder: ReaderStateHolder, downloads: ComicDownloads, onClose: 
             state = state,
             onMode = holder::setMode,
             onBrightness = holder::setBrightness,
+            onDataSaverPages = holder::setDataSaverPages,
+            onSwitchServer = { holder.reloadChapterWithFallback(preferDataSaver = true, preferBackup = true) },
             onDismiss = { settingsOpen = false },
         )
     }
 }
 
-/** Chapter with no resolvable pages: generic message (no host/provider) + retry. */
+/** Chapter with no resolvable pages: generic message (no host/provider) + retry & backup server options. */
 @Composable
-private fun ChapterEmptyState(message: String, canRetry: Boolean, onRetry: () -> Unit, modifier: Modifier = Modifier) {
+private fun ChapterEmptyState(
+    message: String,
+    canRetry: Boolean,
+    onRetry: () -> Unit,
+    onTryBackup: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val tokens = Cinetor.tokens
     Column(
         modifier = modifier
-            .glass(RoundedCornerShape(16.dp), GlassLevel.SHEET)
+            .padding(24.dp)
+            .glass(RoundedCornerShape(20.dp), GlassLevel.SHEET)
             .padding(horizontal = 24.dp, vertical = 18.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
-        Text(message, color = Color.White, style = MaterialTheme.typography.bodyMedium)
+        Text(message, color = tokens.textPrimary, style = MaterialTheme.typography.bodyMedium)
         if (canRetry) {
-            androidx.compose.material3.TextButton(onClick = onRetry) {
-                Text("Retry", color = Cinetor.tokens.accent)
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                TextButton(onClick = onRetry) {
+                    Text("Retry", color = tokens.accent, fontWeight = FontWeight.SemiBold)
+                }
+                TextButton(onClick = onTryBackup) {
+                    Text("Try backup server", color = tokens.textSecondary)
+                }
             }
         }
     }
@@ -266,8 +350,8 @@ private fun PagedReader(
     holder: ReaderStateHolder,
     state: ReaderState,
     downloads: ComicDownloads,
-    aspect: Float,
     onTap: (Float, Float) -> Unit,
+    onAutoFallback: () -> Unit,
 ) {
     // One trailing slot = "next chapter" page; settling on it auto-loads the next chapter.
     val count = state.pageCount + if (state.hasNextChapter) 1 else 0
@@ -299,14 +383,15 @@ private fun PagedReader(
                     onTap = onTap,
                     onZoomChanged = { zoomed = it },
                 ) {
-                    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                        AsyncImage(
-                            model = downloads.pageModel(state.comic.id, state.chapter, index),
-                            contentDescription = "Page ${index + 1}",
-                            contentScale = ContentScale.Fit,
-                            modifier = Modifier.fillMaxWidth().aspectRatio(aspect),
-                        )
-                    }
+                    ComicPageImage(
+                        rawModel = downloads.pageModel(state.comic.id, state.chapter, index),
+                        pageIndex = index,
+                        reloadGeneration = state.reloadGeneration,
+                        fitScreen = true,
+                        downloads = downloads,
+                        onAutoFallback = onAutoFallback,
+                        onManualSwitchServer = { holder.reloadChapterWithFallback(preferDataSaver = true, preferBackup = true) },
+                    )
                 }
             }
         }
@@ -318,9 +403,9 @@ private fun VerticalReader(
     holder: ReaderStateHolder,
     state: ReaderState,
     downloads: ComicDownloads,
-    aspect: Float,
     listState: androidx.compose.foundation.lazy.LazyListState,
     onTap: (Float, Float) -> Unit,
+    onAutoFallback: () -> Unit,
 ) {
     LaunchedEffect(listState) {
         snapshotFlow { listState.firstVisibleItemIndex }.distinctUntilChanged().collect { i ->
@@ -340,7 +425,6 @@ private fun VerticalReader(
     }
     LaunchedEffect(state.page) {
         if (!listState.isScrollInProgress && listState.firstVisibleItemIndex != state.page) {
-            // Slider/D-pad jumps.
             listState.scrollToItem(state.page)
         }
     }
@@ -352,14 +436,140 @@ private fun VerticalReader(
     ) {
         LazyColumn(state = listState, modifier = Modifier.fillMaxSize()) {
             itemsIndexed(state.chapter.pages, key = { i, _ -> "p$i" }) { i, _ ->
-                AsyncImage(
-                    model = downloads.pageModel(state.comic.id, state.chapter, i),
-                    contentDescription = "Page ${i + 1}",
-                    contentScale = ContentScale.FillWidth,
-                    modifier = Modifier.fillMaxWidth().aspectRatio(aspect),
+                ComicPageImage(
+                    rawModel = downloads.pageModel(state.comic.id, state.chapter, i),
+                    pageIndex = i,
+                    reloadGeneration = state.reloadGeneration,
+                    fitScreen = false,
+                    downloads = downloads,
+                    onAutoFallback = onAutoFallback,
+                    onManualSwitchServer = { holder.reloadChapterWithFallback(preferDataSaver = true, preferBackup = true) },
                 )
             }
             item(key = "next") { NextChapterSlot(state, Modifier.height(220.dp)) }
+        }
+    }
+}
+
+private enum class PagePhase { LOADING, READY, FAILED }
+
+/**
+ * Single comic page with automatic cache-bypassing retry → data-saver mirror switch → chapter host fallback,
+ * and a zero-crash inline recovery card if every mirror is unreachable.
+ */
+@Composable
+private fun ComicPageImage(
+    rawModel: Any,
+    pageIndex: Int,
+    reloadGeneration: Int,
+    fitScreen: Boolean,
+    downloads: ComicDownloads,
+    onAutoFallback: () -> Unit,
+    onManualSwitchServer: () -> Unit,
+) {
+    val context = LocalContext.current
+    val tokens = Cinetor.tokens
+    var attempt by remember(rawModel, reloadGeneration) { mutableIntStateOf(0) }
+    var useDataSaverMirror by remember(rawModel, reloadGeneration) { mutableStateOf(false) }
+    var phase by remember(rawModel, reloadGeneration) { mutableStateOf(PagePhase.LOADING) }
+
+    val backupUrl = remember(rawModel) { (rawModel as? String)?.let(downloads::backupPageUrl) }
+    val activeModel: Any = if (useDataSaverMirror && backupUrl != null) backupUrl else rawModel
+
+    val request = remember(activeModel, attempt, reloadGeneration) {
+        ImageRequest.Builder(context)
+            .data(activeModel)
+            .apply {
+                if (attempt > 0) {
+                    memoryCachePolicy(CachePolicy.DISABLED)
+                    diskCachePolicy(CachePolicy.DISABLED)
+                }
+            }
+            .build()
+    }
+
+    LaunchedEffect(phase, attempt) {
+        if (phase == PagePhase.FAILED && attempt == 1) {
+            delay(650)
+            phase = PagePhase.LOADING
+            attempt = 2
+        }
+    }
+
+    val containerMod = if (fitScreen) {
+        Modifier.fillMaxSize()
+    } else {
+        Modifier
+            .fillMaxWidth()
+            .then(if (phase != PagePhase.READY) Modifier.heightIn(min = 360.dp) else Modifier)
+    }
+
+    Box(containerMod, contentAlignment = Alignment.Center) {
+        if (phase != PagePhase.FAILED || attempt == 1) {
+            AsyncImage(
+                model = request,
+                contentDescription = "Page ${pageIndex + 1}",
+                contentScale = if (fitScreen) ContentScale.Fit else ContentScale.FillWidth,
+                modifier = if (fitScreen) Modifier.fillMaxSize() else Modifier.fillMaxWidth(),
+                onLoading = { phase = PagePhase.LOADING },
+                onSuccess = { phase = PagePhase.READY },
+                onError = {
+                    when {
+                        attempt == 0 -> {
+                            phase = PagePhase.FAILED
+                            attempt = 1
+                        }
+                        !useDataSaverMirror && backupUrl != null -> {
+                            useDataSaverMirror = true
+                            phase = PagePhase.LOADING
+                            attempt = 2
+                        }
+                        attempt == 2 -> {
+                            attempt = 3
+                            phase = PagePhase.FAILED
+                            onAutoFallback()
+                        }
+                        else -> {
+                            phase = PagePhase.FAILED
+                        }
+                    }
+                },
+            )
+            if (phase == PagePhase.LOADING) {
+                CircularProgressIndicator(
+                    color = tokens.accent,
+                    strokeWidth = 2.dp,
+                    modifier = Modifier.size(28.dp),
+                )
+            }
+        } else {
+            Column(
+                Modifier
+                    .padding(20.dp)
+                    .glass(RoundedCornerShape(18.dp), GlassLevel.SHEET)
+                    .padding(horizontal = 20.dp, vertical = 16.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                Text(
+                    "Page ${pageIndex + 1} couldn't load",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = tokens.textPrimary,
+                )
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    TextButton(
+                        onClick = {
+                            phase = PagePhase.LOADING
+                            attempt += 1
+                        },
+                    ) {
+                        Text("Retry page", color = tokens.accent, fontWeight = FontWeight.SemiBold)
+                    }
+                    TextButton(onClick = onManualSwitchServer) {
+                        Text("Switch server", color = tokens.textSecondary)
+                    }
+                }
+            }
         }
     }
 }
@@ -409,12 +619,24 @@ private fun ReaderBars(
                     Icon(Icons.AutoMirrored.Rounded.ArrowBack, contentDescription = null, tint = tokens.textPrimary)
                 }
                 Column(Modifier.weight(1f)) {
-                    Text(state.comic.title, style = MaterialTheme.typography.titleSmall, color = tokens.textPrimary, maxLines = 1)
                     Text(
-                        "${state.chapter.title} · ${state.mode.label}",
+                        state.comic.title,
+                        style = MaterialTheme.typography.titleSmall,
+                        color = tokens.textPrimary,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                    Text(
+                        buildString {
+                            append(state.chapter.title)
+                            append(" · ")
+                            append(state.mode.label)
+                            if (state.dataSaverPages) append(" · Data saver")
+                        },
                         style = MaterialTheme.typography.bodySmall,
                         color = tokens.textSecondary,
                         maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
                     )
                 }
                 ChapterDownloadIcon(downloadState, onDownload)

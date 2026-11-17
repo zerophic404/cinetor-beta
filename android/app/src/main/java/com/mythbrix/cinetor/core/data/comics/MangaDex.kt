@@ -18,7 +18,11 @@ import com.mythbrix.cinetor.core.data.gateway.PagedCatalog
 import com.mythbrix.cinetor.core.data.gateway.RoutedCatalog
 import com.mythbrix.cinetor.core.data.gateway.RowPage
 import com.mythbrix.cinetor.core.data.tmdb.TmdbMapper
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
@@ -26,6 +30,7 @@ import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.contentOrNull
+import java.io.IOException
 import java.net.URLEncoder
 import java.util.concurrent.ConcurrentHashMap
 
@@ -35,10 +40,10 @@ import java.util.concurrent.ConcurrentHashMap
 /**
  * Comics kind = MangaDex `originalLanguage` (user rule: Manga / Manhwa / Manhua are separate tabs).
  */
-enum class ComicKind(val id: String, val title: String, val languages: List<String>) {
-    MANGA("cm:manga", "Manga", listOf("ja")),
-    MANHWA("cm:manhwa", "Manhwa", listOf("ko")),
-    MANHUA("cm:manhua", "Manhua", listOf("zh", "zh-hk"));
+enum class ComicKind(val id: String, val title: String, val subtitle: String, val languages: List<String>) {
+    MANGA("cm:manga", "Manga", "Japanese · RTL Paged", listOf("ja")),
+    MANHWA("cm:manhwa", "Manhwa", "Korean · Webtoon", listOf("ko")),
+    MANHUA("cm:manhua", "Manhua", "Chinese · Longstrip", listOf("zh", "zh-hk"));
 
     companion object {
         fun ofId(id: String): ComicKind? = entries.firstOrNull { it.id == id }
@@ -66,6 +71,7 @@ data class MdAttrs(
     val chapter: String? = null,
     val volume: String? = null,
     val pages: Int = 0,
+    val externalUrl: String? = null,
     val fileName: String? = null,
     val publishAt: String? = null,
 )
@@ -79,13 +85,31 @@ data class MdEntity(
 )
 
 @Serializable
-data class MdList(val result: String = "ok", val total: Int = 0, val limit: Int = 0, val offset: Int = 0, val data: List<MdEntity> = emptyList())
+data class MdList(
+    val result: String = "ok",
+    val total: Int = 0,
+    val limit: Int = 0,
+    val offset: Int = 0,
+    val data: List<MdEntity> = emptyList(),
+)
 
 @Serializable
-data class MdChapterData(val hash: String = "", val data: List<String> = emptyList(), val dataSaver: List<String> = emptyList())
+data class MdSingle(val result: String = "ok", val data: MdEntity? = null)
 
 @Serializable
-data class MdAtHome(val result: String = "ok", val baseUrl: String = "", val chapter: MdChapterData = MdChapterData())
+data class MdChapterData(
+    val hash: String = "",
+    val data: List<String> = emptyList(),
+    val dataSaver: List<String> = emptyList(),
+)
+
+@Serializable
+data class MdAtHome(
+    val result: String = "ok",
+    val baseUrl: String = "",
+    val chapter: MdChapterData = MdChapterData(),
+    val pages: List<String> = emptyList(),
+)
 
 // ------------------------------------------------------------------------------------- mapping
 
@@ -95,6 +119,13 @@ object MangaDexMapper {
     const val CHAPTER_PREFIX = "cmch:"
     const val COVERS = "https://uploads.mangadex.org/covers"
     const val ACCENT = "#E50914"
+
+    data class ChapterPageSet(val data: List<String>, val dataSaver: List<String>)
+
+    data class ParsedChapters(
+        val chapters: List<Chapter>,
+        val backups: Map<String, List<String>>,
+    )
 
     fun isComicId(id: String): Boolean = id.startsWith(ID_PREFIX)
     fun uuidOf(id: String): String? = id.removePrefix(ID_PREFIX).takeIf { it.isNotBlank() && it != id }
@@ -149,40 +180,65 @@ object MangaDexMapper {
         )
     }
 
-    /** `/manga/{id}/feed` → chapters, deduplicated per chapter number, in reading order. Pages resolve later. */
-    fun toChapters(list: MdList): List<Chapter> {
-        val seen = HashSet<String>()
-        return list.data.asSequence()
-            .filter { it.id.isNotBlank() && (it.attributes?.pages ?: 0) > 0 }
-            .mapNotNull { e ->
-                val a = e.attributes ?: return@mapNotNull null
-                val num = a.chapter?.trim().orEmpty()
-                val key = num.ifEmpty { e.id }
-                if (!seen.add(key)) return@mapNotNull null
-                val n = num.toDoubleOrNull()
-                val label = titleOf(e)
-                Chapter(
-                    id = CHAPTER_PREFIX + e.id,
-                    n = n?.toInt() ?: 0,
-                    title = buildString {
-                        append(if (num.isEmpty()) "Oneshot" else "Chapter $num")
-                        if (!label.isNullOrBlank()) append(" · ").append(label)
-                    },
-                    // Placeholder page slots: the real URLs are resolved per chapter (gateway → MangaDex).
-                    pages = emptyList(),
-                )
+    /**
+     * Parses feed entities into sorted chapters (numeric ascending) and records duplicate scanlation
+     * uploads under [ParsedChapters.backups] so the reader can retry another group if a chapter fails.
+     * Licensed external-only links and 0-page placeholders are dropped.
+     */
+    fun toChaptersWithBackups(entities: List<MdEntity>): ParsedChapters {
+        val primaryByKey = LinkedHashMap<String, Pair<Double, Chapter>>()
+        val backups = LinkedHashMap<String, MutableList<String>>()
+        for (e in entities) {
+            val a = e.attributes ?: continue
+            if (e.id.isBlank() || a.pages <= 0 || !a.externalUrl.isNullOrBlank()) continue
+            val num = a.chapter?.trim().orEmpty()
+            val key = num.ifEmpty { e.id }
+            val existing = primaryByKey[key]
+            if (existing != null) {
+                val primaryChapterId = existing.second.id
+                if (primaryChapterId != CHAPTER_PREFIX + e.id) {
+                    backups.getOrPut(primaryChapterId) { mutableListOf() }.add(e.id)
+                }
+                continue
             }
-            .toList()
+            val parsedNumber = num.toDoubleOrNull()
+            val orderKey = parsedNumber ?: Double.MAX_VALUE
+            val label = titleOf(e)
+            val chapter = Chapter(
+                id = CHAPTER_PREFIX + e.id,
+                n = parsedNumber?.toInt() ?: 0,
+                title = buildString {
+                    append(if (num.isEmpty()) "Oneshot" else "Chapter $num")
+                    if (!label.isNullOrBlank()) append(" · ").append(label)
+                },
+                pages = emptyList(),
+            )
+            primaryByKey[key] = orderKey to chapter
+        }
+        val sorted = primaryByKey.values.sortedBy { it.first }.map { it.second }
+        return ParsedChapters(sorted, backups)
     }
 
-    /** `at-home/server` response → ordered page URLs (`{baseUrl}/data/{hash}/{file}`). */
-    fun pageUrls(at: MdAtHome, dataSaver: Boolean = false): List<String> {
+    /** `/manga/{id}/feed` → chapters, deduplicated per chapter number, in reading order. Pages resolve later. */
+    fun toChapters(list: MdList): List<Chapter> = toChaptersWithBackups(list.data).chapters
+
+    /** Extracts both full-res (`data`) and compressed (`data-saver`) URL lists from `at-home/server` or gateway `c2`. */
+    fun pageUrlSet(at: MdAtHome): ChapterPageSet {
         val base = at.baseUrl.trimEnd('/')
         val hash = at.chapter.hash
-        if (base.isEmpty() || hash.isEmpty()) return emptyList()
-        val files = if (dataSaver && at.chapter.dataSaver.isNotEmpty()) at.chapter.dataSaver else at.chapter.data
-        val dir = if (dataSaver && at.chapter.dataSaver.isNotEmpty()) "data-saver" else "data"
-        return files.filter { it.isNotBlank() }.map { "$base/$dir/$hash/$it" }
+        if (base.isEmpty() || hash.isEmpty()) {
+            val direct = at.pages.map { it.trim() }.filter { it.startsWith("https://") || it.startsWith("http://") }
+            return ChapterPageSet(data = direct, dataSaver = direct)
+        }
+        val data = at.chapter.data.filter { it.isNotBlank() }.map { "$base/data/$hash/$it" }
+        val saver = at.chapter.dataSaver.filter { it.isNotBlank() }.map { "$base/data-saver/$hash/$it" }
+        return ChapterPageSet(data = data, dataSaver = saver)
+    }
+
+    /** `at-home/server` response → ordered page URLs, automatically falling back to `dataSaver` when `data` is empty. */
+    fun pageUrls(at: MdAtHome, dataSaver: Boolean = false): List<String> {
+        val set = pageUrlSet(at)
+        return if (dataSaver) set.dataSaver.ifEmpty { set.data } else set.data.ifEmpty { set.dataSaver }
     }
 }
 
@@ -205,7 +261,7 @@ class MangaDexApi(
         cache?.get(url)?.let { return@withContext it }
         val body = try {
             http.get(url, GatewayConfig.CATALOG_TIMEOUT_MS)
-        } catch (e: kotlinx.coroutines.CancellationException) {
+        } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
             return@withContext cache?.getStale(url) ?: throw e
@@ -231,43 +287,91 @@ class MangaDexApi(
             title?.takeIf { it.isNotBlank() }?.let { add("title" to it) }
         }
 
-    suspend fun browse(kind: ComicKind, limit: Int = 24, offset: Int = 0, order: Pair<String, String> = "followedCount" to "desc", title: String? = null): MdList =
-        withContext(Dispatchers.IO) {
-            json.decodeFromString(MdList.serializer(), cached("$apiBase/manga?" + q(browseParams(kind, limit, offset, title, order))))
-        }
+    suspend fun browse(
+        kind: ComicKind,
+        limit: Int = 24,
+        offset: Int = 0,
+        order: Pair<String, String> = "followedCount" to "desc",
+        title: String? = null,
+    ): MdList = withContext(Dispatchers.IO) {
+        json.decodeFromString(MdList.serializer(), cached("$apiBase/manga?" + q(browseParams(kind, limit, offset, title, order))))
+    }
 
-    suspend fun chapters(mangaUuid: String, limit: Int = 500): MdList = withContext(Dispatchers.IO) {
-        val url = "$apiBase/manga/$mangaUuid/feed?" + q(
-            listOf(
-                "translatedLanguage[]" to "en",
-                "order[chapter]" to "asc",
-                "limit" to limit.toString(),
-                "includeExternalUrl" to "0",
-                "contentRating[]" to "safe",
-                "contentRating[]" to "suggestive",
-            ),
-        )
-        json.decodeFromString(MdList.serializer(), cached(url))
+    suspend fun manga(mangaUuid: String): MdEntity? = withContext(Dispatchers.IO) {
+        val url = "$apiBase/manga/${enc(mangaUuid)}?" + q(listOf("includes[]" to "cover_art"))
+        json.decodeFromString(MdSingle.serializer(), cached(url)).data
+    }
+
+    suspend fun chapters(mangaUuid: String, limit: Int = 500): MdList = chaptersPage(mangaUuid, limit, offset = 0)
+
+    private suspend fun chaptersPage(mangaUuid: String, limit: Int, offset: Int): MdList = withContext(Dispatchers.IO) {
+        val params = buildList {
+            add("translatedLanguage[]" to "en")
+            add("order[chapter]" to "asc")
+            add("limit" to limit.toString())
+            if (offset > 0) add("offset" to offset.toString())
+            add("includeExternalUrl" to "0")
+            add("contentRating[]" to "safe")
+            add("contentRating[]" to "suggestive")
+        }
+        json.decodeFromString(MdList.serializer(), cached("$apiBase/manga/$mangaUuid/feed?" + q(params)))
+    }
+
+    /** Paginates long series up to [maxChapters] while keeping partial chapters if a later page fails. */
+    suspend fun allChapterEntities(mangaUuid: String, limit: Int = 500, maxChapters: Int = 2_000): List<MdEntity> {
+        val first = chapters(mangaUuid, limit)
+        if (first.data.size < limit || first.data.size >= first.total) return first.data
+        val all = ArrayList<MdEntity>(minOf(first.total, maxChapters))
+        all.addAll(first.data)
+        var offset = limit
+        val cap = minOf(first.total, maxChapters)
+        while (offset < cap) {
+            val next = try {
+                chaptersPage(mangaUuid, limit, offset)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (_: IOException) {
+                break
+            } catch (_: Exception) {
+                break
+            }
+            if (next.data.isEmpty()) break
+            all.addAll(next.data)
+            offset += limit
+            if (next.data.size < limit) break
+        }
+        return all
+    }
+
+    /**
+     * Resolves both `data` and `data-saver` page URLs. Tries gateway `action=c2` first (unless
+     * [preferDirect] is set for host-switch retry), then MangaDex `at-home/server` directly.
+     */
+    suspend fun pageSet(chapterUuid: String, preferDirect: Boolean = false): MangaDexMapper.ChapterPageSet = withContext(Dispatchers.IO) {
+        val gatewayUrl = GatewayConfig.normalize(gatewayBase()) + GatewayConfig.API + "/manga?action=c2&id=" + enc(chapterUuid)
+        val directUrl = "$apiBase/at-home/server/$chapterUuid"
+        val candidates = if (preferDirect) listOf(directUrl, gatewayUrl) else listOf(gatewayUrl, directUrl)
+        for (url in candidates) {
+            val set = try {
+                val at = json.decodeFromString(MdAtHome.serializer(), http.get(url, GatewayConfig.STREAM_TIMEOUT_MS))
+                MangaDexMapper.pageUrlSet(at)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (_: Exception) {
+                MangaDexMapper.ChapterPageSet(emptyList(), emptyList())
+            }
+            if (set.data.isNotEmpty() || set.dataSaver.isNotEmpty()) return@withContext set
+        }
+        throw ChapterUnavailableException(chapterUuid)
     }
 
     /**
      * Chapter pages: gateway proxy first (`action=c2`), then MangaDex `at-home/server` directly.
      * Both can come back empty (upstream bot challenge) → [ChapterUnavailableException], never a crash.
      */
-    suspend fun pages(chapterUuid: String, dataSaver: Boolean = false): List<String> = withContext(Dispatchers.IO) {
-        val gateway = GatewayConfig.normalize(gatewayBase()) + GatewayConfig.API + "/manga?action=c2&id=" + enc(chapterUuid)
-        val viaGateway = runCatching {
-            MangaDexMapper.pageUrls(json.decodeFromString(MdAtHome.serializer(), http.get(gateway, GatewayConfig.STREAM_TIMEOUT_MS)), dataSaver)
-        }.getOrDefault(emptyList())
-        if (viaGateway.isNotEmpty()) return@withContext viaGateway
-        val direct = runCatching {
-            MangaDexMapper.pageUrls(
-                json.decodeFromString(MdAtHome.serializer(), http.get("$apiBase/at-home/server/$chapterUuid", GatewayConfig.STREAM_TIMEOUT_MS)),
-                dataSaver,
-            )
-        }.getOrDefault(emptyList())
-        if (direct.isEmpty()) throw ChapterUnavailableException(chapterUuid)
-        direct
+    suspend fun pages(chapterUuid: String, dataSaver: Boolean = false): List<String> {
+        val set = pageSet(chapterUuid, preferDirect = false)
+        return if (dataSaver) set.dataSaver.ifEmpty { set.data } else set.data.ifEmpty { set.dataSaver }
     }
 
     companion object {
@@ -296,7 +400,9 @@ class MangaDexCatalogSource(
 
     private val summaries = ConcurrentHashMap<String, Item>()
     private val details = ConcurrentHashMap<String, Item>()
-    private val pagesCache = ConcurrentHashMap<String, List<String>>()
+    private val pagesCache = ConcurrentHashMap<String, MangaDexMapper.ChapterPageSet>()
+    private val dataSaverByUrl = ConcurrentHashMap<String, String>()
+    private val backupChapters = ConcurrentHashMap<String, List<String>>()
 
     override fun ownsItem(id: String): Boolean = MangaDexMapper.isComicId(id)
     override fun ownsRow(rowId: String): Boolean = rowId.startsWith(ROW_PREFIX)
@@ -324,9 +430,9 @@ class MangaDexCatalogSource(
 
     private fun rowsOf(kind: ComicKind) = listOf(
         Row(rowId(kind, "popular"), "Popular ${kind.title}", RowStyle.POSTER, emptyList()),
-        Row(rowId(kind, "latest"), "Recently Updated", RowStyle.LANDSCAPE, emptyList()),
-        Row(rowId(kind, "rating"), "Top Rated", RowStyle.TOP10, emptyList()),
-        Row(rowId(kind, "new"), "New Releases", RowStyle.POSTER, emptyList()),
+        Row(rowId(kind, "latest"), "Recently Updated ${kind.title}", RowStyle.LANDSCAPE, emptyList()),
+        Row(rowId(kind, "rating"), "Top Rated ${kind.title}", RowStyle.TOP10, emptyList()),
+        Row(rowId(kind, "new"), "New ${kind.title} Releases", RowStyle.POSTER, emptyList()),
     )
 
     override suspend fun categories(space: Space): List<Category> {
@@ -351,23 +457,80 @@ class MangaDexCatalogSource(
     override suspend fun item(id: String): Item {
         details[id]?.let { return it }
         val uuid = MangaDexMapper.uuidOf(id) ?: throw NotFoundException(id)
-        val summary = summaries[id]
-        val base = summary ?: api.browse(ComicKind.MANGA, 1, 0).data.firstOrNull { it.id == uuid }
-            ?.let { MangaDexMapper.toItem(it, ComicKind.MANGA, ComicKind.MANGA.id) }
+        val base = summaries[id]
+            ?: runCatching { api.manga(uuid) }.getOrNull()?.let { entity ->
+                val kind = ComicKind.ofLanguage(entity.attributes?.originalLanguage)
+                MangaDexMapper.toItem(entity, kind, kind.id)
+            }?.also { remember(listOf(it)) }
+            ?: runCatching {
+                api.browse(ComicKind.MANGA, 1, 0).data.firstOrNull { it.id == uuid }
+                    ?.let { MangaDexMapper.toItem(it, ComicKind.MANGA, ComicKind.MANGA.id) }
+            }.getOrNull()
             ?: throw NotFoundException(id)
-        val chapters = runCatching { MangaDexMapper.toChapters(api.chapters(uuid)) }.getOrDefault(emptyList())
-        val full = base.copy(pages = chapters)
+        val parsed = runCatching { MangaDexMapper.toChaptersWithBackups(api.allChapterEntities(uuid)) }.getOrNull()
+        parsed?.backups?.forEach { (chapterId, alts) ->
+            if (alts.isNotEmpty()) backupChapters[chapterId] = alts
+        }
+        val full = base.copy(pages = parsed?.chapters.orEmpty())
         details[id] = full
         return full
     }
 
+    fun hasBackupChapter(chapterId: String): Boolean = !backupChapters[chapterId].isNullOrEmpty()
+
+    /** Compressed `data-saver` mirror URL for a primary `data` page URL when available. */
+    fun fallbackUrlFor(pageUrl: String): String? = dataSaverByUrl[pageUrl]
+
+    private fun recordFallbacks(set: MangaDexMapper.ChapterPageSet) {
+        if (set.data.size == set.dataSaver.size) {
+            for (i in set.data.indices) {
+                val primary = set.data[i]
+                val saver = set.dataSaver[i]
+                if (primary != saver) dataSaverByUrl[primary] = saver
+            }
+        }
+    }
+
     /** Resolved page URLs for one chapter; empty list is never returned (throws instead). */
-    suspend fun pages(chapterId: String, dataSaver: Boolean = false): List<String> {
-        pagesCache[chapterId]?.let { return it }
+    suspend fun pages(chapterId: String, dataSaver: Boolean = false): List<String> =
+        pagesWithFallback(chapterId, dataSaver = dataSaver, fresh = false, preferBackup = false)
+
+    /**
+     * Resolves chapter page URLs with full fallback support:
+     * - [dataSaver]: prefers MangaDex `data-saver` compressed pages.
+     * - [fresh]: bypasses cached URLs and flips host priority (`at-home` direct vs gateway `c2`) to get a fresh node.
+     * - [preferBackup]: tries duplicate scanlation chapter uploads first when the primary upload is broken.
+     */
+    suspend fun pagesWithFallback(
+        chapterId: String,
+        dataSaver: Boolean = false,
+        fresh: Boolean = false,
+        preferBackup: Boolean = false,
+    ): List<String> {
+        if (!fresh && !preferBackup) {
+            pagesCache[chapterId]?.let { cached ->
+                return if (dataSaver) cached.dataSaver.ifEmpty { cached.data } else cached.data.ifEmpty { cached.dataSaver }
+            }
+        }
         val uuid = MangaDexMapper.chapterUuidOf(chapterId) ?: throw NotFoundException(chapterId)
-        val urls = api.pages(uuid, dataSaver)
-        pagesCache[chapterId] = urls
-        return urls
+        if (fresh) pagesCache.remove(chapterId)
+        val alts = backupChapters[chapterId].orEmpty()
+        val candidates = if (preferBackup && alts.isNotEmpty()) alts + uuid else listOf(uuid) + alts
+        for (candidateUuid in candidates) {
+            val set = try {
+                api.pageSet(candidateUuid, preferDirect = fresh && candidateUuid == uuid)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (_: Exception) {
+                null
+            }
+            if (set != null) {
+                recordFallbacks(set)
+                if (candidateUuid == uuid) pagesCache[chapterId] = set
+                return if (dataSaver) set.dataSaver.ifEmpty { set.data } else set.data.ifEmpty { set.dataSaver }
+            }
+        }
+        throw ChapterUnavailableException(uuid)
     }
 
     fun isComicChapter(chapterId: String): Boolean = chapterId.startsWith(MangaDexMapper.CHAPTER_PREFIX)
@@ -385,16 +548,23 @@ class MangaDexCatalogSource(
     }
 
     /** In-space comics search (never part of global search — isolation rule). */
-    suspend fun search(query: String): List<Item> {
-        if (query.isBlank()) return emptyList()
-        return ComicKind.entries.flatMap { kind ->
-            runCatching {
-                remember(
-                    api.browse(kind, 12, 0, "relevance" to "desc", query.trim()).data
-                        .mapNotNull { MangaDexMapper.toItem(it, kind, kind.id) },
-                )
-            }.getOrDefault(emptyList())
-        }.distinctBy { it.id }
+    suspend fun search(query: String): List<Item> = search(query, kind = null)
+
+    /** Live comics search optionally scoped to one [ComicKind] (`Manga`, `Manhwa`, `Manhua`). */
+    suspend fun search(query: String, kind: ComicKind?): List<Item> = coroutineScope {
+        val trimmed = query.trim()
+        if (trimmed.isEmpty()) return@coroutineScope emptyList()
+        val kinds = if (kind != null) listOf(kind) else ComicKind.entries
+        kinds.map { k ->
+            async {
+                runCatching {
+                    remember(
+                        api.browse(k, 16, 0, "relevance" to "desc", trimmed).data
+                            .mapNotNull { MangaDexMapper.toItem(it, k, k.id) },
+                    )
+                }.getOrDefault(emptyList())
+            }
+        }.awaitAll().flatten().distinctBy { it.id }
     }
 
     companion object {
