@@ -85,7 +85,15 @@ function source(routes: Record<string, unknown | ((u: URL) => unknown)>, calls: 
 const homeRoutes = {
   '/home': sample('home.json'),
   '/movies': sample('movies.json'),
-  '/tv-series': (u: URL) => (u.searchParams.get('country') === 'Korea' ? sample('tv-series_country_Korea.json') : sample('tv-series.json')),
+  '/tv-series': (u: URL) =>
+    u.searchParams.get('country') === 'Korea'
+      ? sample('tv-series_country_Korea.json')
+      : u.searchParams.get('genre') === 'Anime'
+        ? sample('tv-series.json')
+        : {
+            ...sample('tv-series_country_Korea.json'),
+            items: [...sample('tv-series_country_Korea.json').items, ...sample('tv-series.json').items]
+          },
   '/animation': sample('animation.json'),
   '/short-tv': sample('short-tv.json'),
   '/zee-bangla': sample('zee-bangla.json')

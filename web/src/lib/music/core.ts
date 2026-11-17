@@ -176,7 +176,7 @@ export class MusicCore {
       a.currentTime = Math.max(0, resumeSec);
       this.onChange();
       if (autoPlay) {
-        this.arbiter.claim('music');
+        if (this.arbiter.active !== 'music') this.arbiter.claim('music');
         try {
           await a.play();
         } catch {
