@@ -97,12 +97,44 @@ describe('no stream URL in share / clipboard / global scope (§2)', () => {
     expect(isLocalMediaUrl('asset://localhost/a.mp4')).toBe(true);
     expect(isLocalMediaUrl('http://asset.localhost/a.mp4')).toBe(true);
     expect(isLocalMediaUrl('http://127.0.0.1:8765/a.mp4')).toBe(true);
-    // Anything remote is NOT safe — it would expose the gateway or stream host.
+    // Anything remote (gateway, CDN, or chromeless YouTube embed) is NOT safe to hand out via href/share/clipboard.
     expect(isLocalMediaUrl('https://antiblock-gateway.vercel.app/api/x/play?url=y')).toBe(false);
     expect(isLocalMediaUrl('https://pbcdn.aoneroom.com/v.mp4')).toBe(false);
+    expect(isLocalMediaUrl('https://www.youtube-nocookie.com/embed/dQw4w9WgXcQ')).toBe(false);
+    expect(isLocalMediaUrl('https://www.youtube.com/watch?v=dQw4w9WgXcQ')).toBe(false);
+    expect(isLocalMediaUrl('https://youtu.be/dQw4w9WgXcQ')).toBe(false);
     expect(isLocalMediaUrl('')).toBe(false);
     expect(isLocalMediaUrl(undefined)).toBe(false);
     expect(isLocalMediaUrl(null)).toBe(false);
+  });
+
+  it('allows chromeless youtube-nocookie.com iframe embeds while forbidding gateway/stream URLs in <iframe>', () => {
+    const host = new URL(GATEWAY_DEFAULT).host;
+    const offenders: string[] = [];
+    for (const f of svelte) {
+      const t = template(readFileSync(f, 'utf8'));
+      for (const m of t.matchAll(/<iframe\b[^>]*>/gi)) {
+        const tag = m[0];
+        if (
+          tag.includes(host) ||
+          tag.includes('GATEWAY_DEFAULT') ||
+          /aoneroom|pbcdn|antiblock/i.test(tag) ||
+          /src=\{\s*(?:media\s*\??\.\s*)?(?:source|stream|variant)\s*\??\.\s*url\s*\}/i.test(tag)
+        ) {
+          offenders.push(`${f.slice(SRC.length)}: ${tag}`);
+        }
+        // Static http(s) iframe src literals must only target privacy-enhanced youtube-nocookie.com.
+        const lit = tag.match(/src=["'](https?:\/\/[^"']+)["']/i);
+        if (lit && !/^https:\/\/(?:www\.)?youtube-nocookie\.com\/embed\//i.test(lit[1])) {
+          offenders.push(`${f.slice(SRC.length)}: ${tag}`);
+        }
+      }
+    }
+    expect(offenders).toEqual([]);
+    // Sanity-check: privacy-enhanced YouTube embed URLs scrub cleanly if ever passed through error scrubbing,
+    // while YouTube IFrame API's global callback name never trips the window/globalThis leak guard.
+    expect(scrub('embed https://www.youtube-nocookie.com/embed/dQw4w9WgXcQ failed')).toBe('embed … failed');
+    expect(/url|gateway|stream|source|cinetor|engine|token|base/i.test('onYouTubeIframeAPIReady')).toBe(false);
   });
 
   it('no clipboard write or share call is fed a media/stream URL', () => {

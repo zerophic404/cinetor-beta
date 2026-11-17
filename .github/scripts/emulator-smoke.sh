@@ -172,8 +172,18 @@ fi
 [ -f "$(dirname "$0")/smoke-phase4b.sh" ] && source "$(dirname "$0")/smoke-phase4b.sh"
 [ -f "$(dirname "$0")/smoke-phase5.sh" ] && source "$(dirname "$0")/smoke-phase5.sh"
 adb logcat -d > "$OUT/logcat.txt" || true
-if grep -q "FATAL EXCEPTION" "$OUT/logcat.txt"; then
-  echo "::error::App crashed"; grep -A30 "FATAL EXCEPTION" "$OUT/logcat.txt" | head -60; exit 1
+if grep -A35 -E "FATAL EXCEPTION|E AndroidRuntime:" "$OUT/logcat.txt" | grep -q "$PKG" \
+   || grep -qE "F DEBUG.*$PKG|Fatal signal.*mythbrix\.cinetor" "$OUT/logcat.txt"; then
+  echo "::error::App crashed ($PKG FATAL EXCEPTION / AndroidRuntime / native crash)"
+  grep -A35 -E "FATAL EXCEPTION|E AndroidRuntime:|F DEBUG|Fatal signal" "$OUT/logcat.txt" | head -80
+  exit 1
+elif grep -q "FATAL EXCEPTION" "$OUT/logcat.txt"; then
+  echo "::warning::System process FATAL EXCEPTION in logcat (not $PKG):"
+  grep -A6 "FATAL EXCEPTION" "$OUT/logcat.txt" | head -24
 fi
-if ! alive; then echo "::error::App process not alive"; exit 1; fi
+if ! alive; then
+  echo "::error::App process not alive"
+  grep -A35 -E "FATAL EXCEPTION|E AndroidRuntime:|F DEBUG|ActivityManager.*$PKG" "$OUT/logcat.txt" | tail -60 || true
+  exit 1
+fi
 echo "smoke OK"

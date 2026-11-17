@@ -9,6 +9,12 @@ on:
       - 'web/**'
       - 'shared/**'
       - '.github/workflows/desktop.yml'
+  pull_request:
+    paths:
+      - 'desktop/**'
+      - 'web/**'
+      - 'shared/**'
+      - '.github/workflows/desktop.yml'
   workflow_dispatch:
 
 permissions:
@@ -60,6 +66,28 @@ jobs:
         shell: bash
         run: npm install --no-audit --no-fund
 
+      - name: Sync Tauri bundle version on release tags
+        if: startsWith(github.ref, 'refs/tags/')
+        shell: bash
+        env:
+          REF_NAME: ${{ github.ref_name }}
+        run: |
+          VER="${REF_NAME#desktop-}"
+          VER="${VER#v}"
+          if [[ "$VER" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            export VER
+            node -e '
+              const fs = require("fs");
+              const p = "desktop/src-tauri/tauri.conf.json";
+              const cfg = JSON.parse(fs.readFileSync(p, "utf8"));
+              cfg.version = process.env.VER;
+              fs.writeFileSync(p, JSON.stringify(cfg, null, 2) + "\n");
+            '
+            echo "Synced Tauri bundle version to $VER"
+          else
+            echo "Tag $REF_NAME is not strict X.Y.Z semver; keeping tauri.conf.json version"
+          fi
+
       - name: Build installers (tauri build → web at root path)
         working-directory: desktop
         shell: bash
@@ -94,30 +122,66 @@ jobs:
 
   release:
     needs: build
-    if: github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/')
+    if: (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/')) && github.event_name != 'pull_request'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/download-artifact@v4
         with:
+          pattern: desktop-*
           path: dist
           merge-multiple: true
 
-      - name: List assets
-        run: ls -la dist && (cd dist && sha256sum *) | tee SHA256SUMS-desktop.txt
+      - name: Release info + checksums
+        id: info
+        env:
+          REF: ${{ github.ref }}
+          REF_NAME: ${{ github.ref_name }}
+          RUN_NUM: ${{ github.run_number }}
+          SHA: ${{ github.sha }}
+        run: |
+          ls -la dist
+          ls dist/*.exe dist/*.msi dist/*.deb dist/*.AppImage
+          (cd dist && sha256sum *) | tee SHA256SUMS-desktop.txt
+          if [[ "$REF" == refs/tags/v* ]]; then
+            echo "tag=$REF_NAME" >> "$GITHUB_OUTPUT"
+            echo "name=Cinetor $REF_NAME" >> "$GITHUB_OUTPUT"
+            echo "latest=true" >> "$GITHUB_OUTPUT"
+            echo "append=true" >> "$GITHUB_OUTPUT"
+          elif [[ "$REF" == refs/tags/desktop-v* ]]; then
+            echo "tag=$REF_NAME" >> "$GITHUB_OUTPUT"
+            echo "name=Cinetor Desktop $REF_NAME" >> "$GITHUB_OUTPUT"
+            echo "latest=false" >> "$GITHUB_OUTPUT"
+            echo "append=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "tag=desktop-build-$RUN_NUM" >> "$GITHUB_OUTPUT"
+            echo "name=Cinetor Desktop build $RUN_NUM" >> "$GITHUB_OUTPUT"
+            echo "latest=false" >> "$GITHUB_OUTPUT"
+            echo "append=false" >> "$GITHUB_OUTPUT"
+          fi
+          {
+            echo "### Windows & Linux Desktop"
+            echo "Cinetor desktop (Tauri) — commit $SHA."
+            echo '- **Windows:** `*-setup.exe` (NSIS, per-user) or `*.msi`'
+            echo '- **Linux:** `*.deb` (Debian/Ubuntu; pulls GStreamer for video) or `*.AppImage` (`chmod +x`, run)'
+            echo "Native downloads are saved to Downloads/Cinetor."
+            echo
+            echo "Desktop files:"
+            for f in dist/*; do echo "- $(basename "$f") — $(du -h "$f" | cut -f1)"; done
+          } > desktop-notes.md
+          cat desktop-notes.md
 
       - name: Publish to public cinetor-app releases
         uses: softprops/action-gh-release@v2
         with:
           repository: Ashrix404/cinetor-app
           token: ${{ secrets.RELEASE_TOKEN }}
-          tag_name: desktop-build-${{ github.run_number }}
-          name: Cinetor Desktop build ${{ github.run_number }}
-          make_latest: false
-          body: |
-            Cinetor desktop (Tauri) — commit ${{ github.sha }}.
-            • Windows: `*-setup.exe` (NSIS, per-user) or `.msi`
-            • Linux: `.deb` (Debian/Ubuntu; pulls GStreamer for video) or `.AppImage` (chmod +x, run)
-            Native downloads are saved to Downloads/Cinetor.
+          tag_name: ${{ steps.info.outputs.tag }}
+          target_commitish: main
+          name: ${{ steps.info.outputs.name }}
+          make_latest: ${{ steps.info.outputs.latest }}
+          append_body: ${{ steps.info.outputs.append }}
+          body_path: desktop-notes.md
+          fail_on_unmatched_files: true
           files: |
             dist/*
             SHA256SUMS-desktop.txt

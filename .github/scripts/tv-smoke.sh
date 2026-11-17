@@ -14,14 +14,19 @@ adb shell getprop ro.build.characteristics || true
 adb shell pm list features | grep -E 'leanback|touchscreen' || true
 adb install -r -g "$APK" || { echo "install failed"; exit 1; }
 adb logcat -c || true
+adb logcat -G 16M >/dev/null 2>&1 || true   # preserve full run logcat for crash assertions
 
 shot() { sleep "${2:-3}"; adb exec-out screencap -p > "$OUT/$1.png"; echo "shot $1"; }
 key() { for k in "$@"; do adb shell input keyevent "$k"; sleep 0.7; done; }
 alive() { adb shell pidof "$PKG" >/dev/null 2>&1; }
 check() {
-  if ! alive; then
-    echo "APP DIED at $1"
-    adb logcat -d | grep -A 30 'FATAL EXCEPTION' | head -60
+  local lc
+  lc=$(adb logcat -d 2>/dev/null || true)
+  if ! alive || echo "$lc" | grep -A35 -E 'FATAL EXCEPTION|E AndroidRuntime:' | grep -q "$PKG" \
+     || echo "$lc" | grep -qE "F DEBUG.*$PKG|Fatal signal.*mythbrix\.cinetor"; then
+    echo "::error::TV app crashed or died at $1"
+    echo "$lc" > "$OUT/logcat.txt" || true
+    echo "$lc" | grep -A35 -E 'FATAL EXCEPTION|E AndroidRuntime:|F DEBUG|Fatal signal' | head -80 || true
     exit 1
   fi
 }
@@ -91,6 +96,15 @@ adb shell input keyevent KEYCODE_DPAD_DOWN KEYCODE_DPAD_DOWN KEYCODE_DPAD_DOWN K
 shot 40-tv-sidenav-profile-group 1
 key KEYCODE_DPAD_CENTER; shot 41-tv-live-tv 6
 anr; check live-tv
-adb logcat -d | grep -E 'FATAL EXCEPTION|AndroidRuntime' | head -20 || true
 adb logcat -d > "$OUT/logcat.txt" || true
+if grep -A35 -E 'FATAL EXCEPTION|E AndroidRuntime:' "$OUT/logcat.txt" | grep -q "$PKG" \
+   || grep -qE "F DEBUG.*$PKG|Fatal signal.*mythbrix\.cinetor" "$OUT/logcat.txt"; then
+  echo "::error::TV app crashed ($PKG FATAL EXCEPTION / AndroidRuntime / native crash)"
+  grep -A35 -E 'FATAL EXCEPTION|E AndroidRuntime:|F DEBUG|Fatal signal' "$OUT/logcat.txt" | head -80
+  exit 1
+elif grep -q 'FATAL EXCEPTION' "$OUT/logcat.txt"; then
+  echo "::warning::System process FATAL EXCEPTION in TV logcat (not $PKG):"
+  grep -A6 'FATAL EXCEPTION' "$OUT/logcat.txt" | head -24
+fi
+if ! alive; then echo "::error::TV app process not alive at end of smoke"; exit 1; fi
 echo "TV smoke OK"

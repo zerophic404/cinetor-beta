@@ -3,14 +3,18 @@ name: Web
 on:
   push:
     branches: [main]
+    tags: ['v*']
     paths:
       - 'web/**'
       - 'shared/**'
+      - 'desktop/src-tauri/src/dl.rs'
       - '.github/workflows/web.yml'
   pull_request:
     paths:
       - 'web/**'
       - 'shared/**'
+      - 'desktop/src-tauri/src/dl.rs'
+      - '.github/workflows/web.yml'
   workflow_dispatch:
 
 permissions:
@@ -72,6 +76,15 @@ jobs:
         working-directory: web
         run: npm run check --if-present
 
+      - name: Verify production bundle hygiene (no source maps)
+        if: hashFiles('web/package.json') != ''
+        run: |
+          if find web/build -name '*.map' | grep -q .; then
+            echo "::error::Source map files found in production web/build"
+            find web/build -name '*.map'
+            exit 1
+          fi
+
       - name: Upload web build artifact
         if: hashFiles('web/package.json') != ''
         uses: actions/upload-artifact@v4
@@ -81,7 +94,7 @@ jobs:
           retention-days: 14
 
       - name: Deploy to public cinetor-app gh-pages
-        if: hashFiles('web/package.json') != '' && github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+        if: hashFiles('web/package.json') != '' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v')) && github.event_name != 'pull_request'
         uses: peaceiris/actions-gh-pages@v4
         with:
           deploy_key: ${{ secrets.PAGES_DEPLOY_KEY }}
