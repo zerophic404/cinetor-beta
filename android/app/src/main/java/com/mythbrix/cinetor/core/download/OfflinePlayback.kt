@@ -67,14 +67,16 @@ object OfflineResolver {
         val source = Source(url = r.url, kind = sourceKind(r), headers = r.headerMap)
         val space = runCatching { Space.valueOf(r.space) }.getOrDefault(Space.HOME)
         val dur = r.durationSec ?: 0
+        val cleanTitle = r.title.replace(Regex("""\s*·\s*S\d+:?E\d+$""", RegexOption.IGNORE_CASE), "").ifBlank { r.title }
         val base = Item(
             id = r.itemId, space = space, categoryId = "downloads",
             type = if (r.episodeId != null) ItemType.SERIES else ItemType.MOVIE,
-            title = r.title, year = 0, rating = 0.0, maturity = "", genres = emptyList(), synopsis = "",
+            title = cleanTitle, year = 0, rating = 0.0, maturity = "", genres = emptyList(), synopsis = "",
             poster = r.poster, backdrop = r.poster, dominantColor = "#000000", accentColor = "#E50914",
         )
         val epId = r.episodeId ?: return base.copy(durationSec = r.durationSec, sources = listOf(source))
-        val m = Regex("""S(\d+):E(\d+)""").find(r.subtitle.orEmpty())
+        val epCodeRegex = Regex("""S0*(\d+):?E0*(\d+)""", RegexOption.IGNORE_CASE)
+        val m = epCodeRegex.find(r.subtitle.orEmpty()) ?: epCodeRegex.find(r.title)
         val season = m?.groupValues?.get(1)?.toIntOrNull() ?: 1
         val n = m?.groupValues?.get(2)?.toIntOrNull() ?: 1
         val epTitle = r.subtitle?.substringAfter("· ", "")?.takeIf { it.isNotBlank() } ?: "Episode $n"

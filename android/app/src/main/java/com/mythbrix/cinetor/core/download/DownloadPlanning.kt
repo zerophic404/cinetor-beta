@@ -94,6 +94,14 @@ fun extensionOf(kind: SourceKind): String = when (kind) {
     else -> "mp4"
 }
 
+/** Canonical zero-padded episode tag (`S01E02`). */
+fun formatEpisodeCode(seasonNumber: Int, episodeNumber: Int): String =
+    "S%02dE%02d".format(java.util.Locale.US, seasonNumber.coerceAtLeast(0), episodeNumber.coerceAtLeast(1))
+
+/** Canonical batch/episode display label (`Title · S01E02`). */
+fun formatBatchEpisodeLabel(seriesTitle: String, seasonNumber: Int, episodeNumber: Int): String =
+    "${seriesTitle.trim()} · ${formatEpisodeCode(seasonNumber, episodeNumber)}"
+
 /**
  * Creates the persisted record for [item] (or [episode]). [fileFor] maps (id, adult, ext) to the target path
  * (adult downloads land in their own private folder).
@@ -112,12 +120,19 @@ fun buildRecord(
     val subs = (episode?.subtitles ?: item.subtitles)
     val chosenSubs = subs.filter { it.label in choice.subtitles || it.lang in choice.subtitles }
     val path = if (q.kind == DownloadKind.PROGRESSIVE) fileFor(id, adult, extensionOf(q.source.kind)) else mediaCacheDir
+    val se = seasonNumber ?: 1
+    val recordTitle = if (episode != null) formatBatchEpisodeLabel(item.title, se, episode.n) else item.title
+    val recordSubtitle = episode?.let {
+        val code = formatEpisodeCode(se, it.n)
+        val epName = it.title.trim().ifEmpty { "Episode ${it.n}" }
+        "$code · $epName"
+    }
     return DownloadRecord(
         id = id,
         itemId = item.id,
         episodeId = episode?.id,
-        title = item.title,
-        subtitle = episode?.let { "S${seasonNumber ?: 1}:E${it.n} · ${it.title}" },
+        title = recordTitle,
+        subtitle = recordSubtitle,
         poster = episode?.still ?: item.poster,
         space = item.space.name,
         adult = adult,
