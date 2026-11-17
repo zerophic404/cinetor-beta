@@ -59,25 +59,59 @@ fun PlayerHost(
     val ui by (player?.state ?: idleState).collectAsStateWithLifecycle()
     val subState by subtitles.state.collectAsStateWithLifecycle()
 
+    val activeYoutubeId = if (screen.mode == HostMode.HIDDEN || screen.item == null) {
+        null
+    } else {
+        ui.youtubeVideoId ?: screen.sources.getOrNull(screen.sourceIndex)?.url?.let(::extractYouTubeVideoId)
+    }
+    val youtubeHolder = rememberYouTubeWebViewHolder(
+        activeVideoId = activeYoutubeId,
+        cinetorPlayer = player,
+    )
+
     // Background / PiP close handling lives in MainActivity (Background play setting + PiP state).
     // New title → side-loaded subs + offset reset.
     LaunchedEffect(screen.generation) { subtitles.reset() }
 
     if (screen.mode == HostMode.HIDDEN || screen.item == null) return
 
+    val positionNow: () -> Long = {
+        if (activeYoutubeId != null) ui.positionMs else (player?.media3Player()?.currentPosition ?: ui.positionMs)
+    }
+
     // System PiP window: video only, no controls.
     if (screen.inPip) {
         Box(Modifier.fillMaxSize().background(Color.Black)) {
             VideoSurface(
-                player?.media3Player(), screen.aspect, Modifier.fillMaxSize(),
+                player = player?.media3Player(),
+                aspect = screen.aspect,
+                modifier = Modifier.fillMaxSize(),
                 configure = { v -> applySubtitleStyle(v, subState.style, hidden = subState.sideLoaded != null) },
+                youtubeVideoId = activeYoutubeId,
+                youtubeSessionKey = ui.key,
+                youtubeHolder = youtubeHolder,
+                cinetorPlayer = player,
+                startPositionMs = ui.positionMs,
+                playWhenReady = ui.playWhenReady,
             )
-            SubtitleOverlay(subState.sideLoaded, subState.offsetMs, subState.style, { player?.media3Player()?.currentPosition ?: ui.positionMs })
+            SubtitleOverlay(subState.sideLoaded, subState.offsetMs, subState.style, positionNow)
         }
         return
     }
     if (screen.mode == HostMode.MINI) {
-        MiniPlayer(screen, ui, holder) { m -> VideoSurface(player?.media3Player(), AspectMode.FIT, m) }
+        MiniPlayer(screen, ui, holder) { m ->
+            VideoSurface(
+                player = player?.media3Player(),
+                aspect = AspectMode.FIT,
+                modifier = m,
+                youtubeVideoId = activeYoutubeId,
+                youtubeSessionKey = ui.key,
+                youtubeHolder = youtubeHolder,
+                cinetorPlayer = player,
+                startPositionMs = ui.positionMs,
+                playWhenReady = ui.playWhenReady,
+            )
+        }
         return
     }
 
@@ -96,7 +130,6 @@ fun PlayerHost(
         }
     }
     val known = knownSubFor(ui.tracks.text.firstOrNull { it.selected }, screen.subs)
-    val positionNow: () -> Long = { player?.media3Player()?.currentPosition ?: ui.positionMs }
 
     Box(Modifier.fillMaxSize()) {
         if (isTv) {
@@ -110,6 +143,7 @@ fun PlayerHost(
             layers = PlayerLayers(
                 overVideo = { SubtitleOverlay(subState.sideLoaded, subState.offsetMs, subState.style, positionNow) },
                 configureView = { v -> applySubtitleStyle(v, subState.style, hidden = subState.sideLoaded != null) },
+                youtubeHolder = youtubeHolder,
             ),
             subtitleExtras = SubtitleExtras(
                 onLoadFile = { picker.launch(arrayOf("*/*")) },
@@ -134,6 +168,7 @@ fun PlayerHost(
                 },
                 overVideo = { SubtitleOverlay(subState.sideLoaded, subState.offsetMs, subState.style, positionNow) },
                 configureView = { v -> applySubtitleStyle(v, subState.style, hidden = subState.sideLoaded != null) },
+                youtubeHolder = youtubeHolder,
             ),
             subtitleExtras = SubtitleExtras(
                 onLoadFile = { picker.launch(arrayOf("*/*")) },

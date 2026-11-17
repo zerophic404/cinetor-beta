@@ -78,8 +78,7 @@ export class PlayerUI {
   armHide(): void {
     clearTimeout(this.hideTimer);
     this.hideTimer = setTimeout(() => {
-      const v = this.video;
-      if (v && !v.paused && !this.settings && !this.scrubbing) this.visible = false;
+      if (!engine.isPaused && !this.settings && !this.scrubbing) this.visible = false;
       else this.armHide();
     }, 3000);
   }
@@ -93,54 +92,40 @@ export class PlayerUI {
 
   // ---- playback ----
   togglePlay(): void {
-    const v = this.video;
-    if (!v) return;
-    if (v.paused || v.ended) v.play().catch(() => {});
-    else v.pause();
+    engine.togglePlay();
     this.show();
   }
   seekTo(t: number): void {
-    const v = this.video;
-    if (!v) return;
-    v.currentTime = clamp(t, 0, Number.isFinite(v.duration) ? v.duration : t);
+    const dur = engine.duration;
+    engine.seekTo(clamp(t, 0, dur > 0 ? dur : Math.max(0, t)));
   }
   seek(by: number): void {
-    const v = this.video;
-    if (!v) return;
-    this.seekTo(seekBy(v.currentTime, by, v.duration || 0));
+    this.seekTo(seekBy(engine.currentTime, by, engine.duration));
   }
   setRate(r: number): void {
-    const v = this.video;
-    if (v) v.playbackRate = r;
+    engine.setPlaybackRate(r);
   }
   stepRate(dir: -1 | 1): void {
-    const v = this.video;
-    if (!v) return;
-    v.playbackRate = stepSpeed(v.playbackRate, dir);
-    this.flash(`${v.playbackRate}×`);
+    const next = stepSpeed(engine.playbackRate, dir);
+    engine.setPlaybackRate(next);
+    this.flash(`${next}×`);
   }
   setVolume(x: number): void {
-    const v = this.video;
-    if (!v) return;
-    v.volume = clamp(x, 0, 1);
-    v.muted = v.volume === 0;
+    engine.setVolume(clamp(x, 0, 1));
   }
   toggleMute(): void {
-    const v = this.video;
-    if (v) v.muted = !v.muted;
+    engine.setMuted(!engine.muted);
   }
 
   // ---- gesture feedback ----
   holdStart(): void {
-    const v = this.video;
-    if (!v || v.paused) return;
-    v.playbackRate = this.hold.start(v.playbackRate, settings.s.holdSpeed);
+    if (engine.isPaused) return;
+    engine.setPlaybackRate(this.hold.start(engine.playbackRate, settings.s.holdSpeed));
     this.holding = true;
   }
   holdEnd(): void {
     const prev = this.hold.end();
-    const v = this.video;
-    if (v && prev !== null) v.playbackRate = v.playbackRate === this.hold.rate ? prev : v.playbackRate;
+    if (prev !== null && engine.playbackRate === this.hold.rate) engine.setPlaybackRate(prev);
     this.holding = false;
   }
   doubleTap(side: 'left' | 'right', total: number, step: number): void {

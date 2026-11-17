@@ -17,8 +17,8 @@
     let raf = 0;
     let last = '';
     const loop = () => {
-      const v = engine.video;
-      const out = v ? activeCues(cues, v.currentTime, offset).map((c) => cueHtml(c.text)).join('<br>') : '';
+      const hasMedia = engine.youtubeActive || !!engine.video;
+      const out = hasMedia ? activeCues(cues, engine.currentTime, offset).map((c) => cueHtml(c.text)).join('<br>') : '';
       if (out !== last) html = last = out;
       raf = requestAnimationFrame(loop);
     };

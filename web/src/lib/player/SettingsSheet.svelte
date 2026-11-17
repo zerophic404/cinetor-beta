@@ -51,7 +51,7 @@
         {#each $tracks.qualities as q (q.height)}
           <li>
             <button aria-pressed={!$tracks.auto && $tracks.activeHeight === q.height} onclick={() => engine.selectQuality(q.height)}>
-              <span>{q.height}p</span><em>{(q.bandwidth / 1e6).toFixed(1)} Mbps</em>
+              <span>{q.height}p</span>{#if q.bandwidth > 0}<em>{(q.bandwidth / 1e6).toFixed(1)} Mbps</em>{/if}
             </button>
           </li>
         {/each}
@@ -66,7 +66,7 @@
     {:else if pane === 'audio'}
       <ul class="list">
         {#each $tracks.audios as a (a.language)}
-          <li><button aria-pressed={$tracks.audio === a.language} onclick={() => engine.selectAudio(a.language)}><span>{a.label}</span><em>{a.language}</em></button></li>
+          <li><button aria-pressed={$tracks.audio === a.language} onclick={() => engine.selectAudio(a.language)}><span>{a.label}</span><em>{a.language.startsWith('dub:') ? 'Dub' : a.language}</em></button></li>
         {:else}
           <li class="muted">Only one audio track</li>
         {/each}

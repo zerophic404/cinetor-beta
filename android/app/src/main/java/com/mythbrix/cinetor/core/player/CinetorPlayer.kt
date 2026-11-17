@@ -74,6 +74,15 @@ interface CinetorPlayer {
 
     /** Surface hook for PlayerView / PiP; null for fakes. */
     fun media3Player(): Player? = null
+
+    /** Attaches or detaches the chromeless YouTube WebView JS evaluator (main thread). */
+    fun attachYouTubeExecutor(executor: ((String) -> Unit)?) {}
+
+    /** Chromeless YouTube bridge callbacks (main thread). */
+    fun onYouTubeReady(durationSec: Double) {}
+    fun onYouTubeProgress(currentSec: Double, durationSec: Double, ytState: Int) {}
+    fun onYouTubeStateChange(ytState: Int) {}
+    fun onYouTubeError(errorCode: Int) {}
 }
 
 /** [CinetorPlayer] over the shared [ExoPlayer]. Main thread only. */
@@ -97,23 +106,33 @@ class ExoCinetorPlayer(
     private var lastTracks: Tracks = Tracks.EMPTY
     private var forcedHeight: Int? = null
     private var textEnabled = true
+    private var activeYouTubeId: String? = null
+    private var ytSpeed: Float = 1f
+    private var ytExecutor: ((String) -> Unit)? = null
+    private var ytReadyEmittedForKey: String? = null
 
     private val listener = object : Player.Listener {
-        override fun onEvents(player: Player, events: Player.Events) = refresh()
+        override fun onEvents(player: Player, events: Player.Events) {
+            if (activeYouTubeId == null) refresh()
+        }
         override fun onTracksChanged(tracks: Tracks) {
+            if (activeYouTubeId != null) return
             lastTracks = tracks
             refresh()
         }
         override fun onPlayerError(error: PlaybackException) {
+            if (activeYouTubeId != null) return
             com.mythbrix.cinetor.core.legal.DebugLog.log(TAG) { "playback error ${error.errorCodeName}: ${error.message}" }
             _state.update { it.copy(error = error.errorCodeName.removePrefix("ERROR_CODE_").lowercase().replace('_', ' ')) }
         }
-        override fun onVideoSizeChanged(videoSize: VideoSize) = refresh()
+        override fun onVideoSizeChanged(videoSize: VideoSize) {
+            if (activeYouTubeId == null) refresh()
+        }
     }
 
     private val analytics = object : AnalyticsListener {
         override fun onRenderedFirstFrame(eventTime: AnalyticsListener.EventTime, output: Any, renderTimeMs: Long) {
-            currentKey?.let { _firstFrames.tryEmit(it) }
+            if (activeYouTubeId == null) currentKey?.let { _firstFrames.tryEmit(it) }
         }
     }
 
@@ -122,19 +141,21 @@ class ExoCinetorPlayer(
         exo.addAnalyticsListener(analytics)
         scope.launch {
             while (isActive) {
-                if (currentKey != null) refresh()
+                if (currentKey != null && activeYouTubeId == null) refresh()
                 delay(if (exo.isPlaying) 250 else 500)
             }
         }
     }
 
     private fun refresh() {
+        if (activeYouTubeId != null) return
         val key = currentKey
         val vs = exo.videoSize
         val raw = rawTracks(lastTracks)
         _state.update { s ->
             s.copy(
                 key = key,
+                youtubeVideoId = null,
                 positionMs = exo.currentPosition.coerceAtLeast(0),
                 bufferedMs = exo.bufferedPosition.coerceAtLeast(0),
                 durationMs = exo.duration.takeIf { it != C.TIME_UNSET }?.coerceAtLeast(0) ?: 0,
@@ -158,6 +179,36 @@ class ExoCinetorPlayer(
     }
 
     override fun load(request: PlaybackRequest, startPositionMs: Long, playWhenReady: Boolean) {
+        val ytId = extractYouTubeVideoId(request.plan.url)
+        if (ytId != null) {
+            currentKey = request.key
+            activeYouTubeId = ytId
+            forcedHeight = null
+            lastTracks = Tracks.EMPTY
+            ytReadyEmittedForKey = null
+            exo.pause()
+            exo.stop()
+            exo.clearMediaItems()
+            val startMs = startPositionMs.coerceAtLeast(0)
+            val durMs = (request.durationSec ?: 0).coerceAtLeast(0) * 1000L
+            _state.value = PlayerUiState(
+                key = request.key,
+                youtubeVideoId = ytId,
+                positionMs = startMs,
+                bufferedMs = startMs,
+                durationMs = durMs,
+                isPlaying = false,
+                playWhenReady = playWhenReady,
+                phase = if (playWhenReady) PlaybackPhase.BUFFERING else PlaybackPhase.READY,
+                speed = ytSpeed,
+                videoWidth = 1920,
+                videoHeight = 1080,
+                seekable = true,
+            )
+            return
+        }
+        activeYouTubeId = null
+        ytReadyEmittedForKey = null
         currentKey = request.key
         forcedHeight = null
         lastTracks = Tracks.EMPTY
@@ -189,30 +240,71 @@ class ExoCinetorPlayer(
     }
 
     override fun play() {
+        if (activeYouTubeId != null) {
+            val s = _state.value
+            val restart = s.phase == PlaybackPhase.ENDED
+            if (restart) {
+                _state.update { it.copy(positionMs = 0, playWhenReady = true, phase = PlaybackPhase.BUFFERING) }
+                ytExecutor?.invoke("if(window.ytPlayer&&ytPlayer.seekTo){ytPlayer.seekTo(0,true);ytPlayer.playVideo();}")
+            } else {
+                val nextPhase = if (ytReadyEmittedForKey == currentKey) PlaybackPhase.READY else PlaybackPhase.BUFFERING
+                _state.update { it.copy(playWhenReady = true, phase = nextPhase) }
+                ytExecutor?.invoke("if(window.ytPlayer&&ytPlayer.playVideo)ytPlayer.playVideo();")
+            }
+            return
+        }
         if (exo.playbackState == Player.STATE_ENDED) exo.seekTo(0)
         if (exo.playbackState == Player.STATE_IDLE && currentKey != null) exo.prepare()
         exo.play()
     }
 
-    override fun pause() = exo.pause()
+    override fun pause() {
+        if (activeYouTubeId != null) {
+            _state.update { it.copy(playWhenReady = false, isPlaying = false) }
+            ytExecutor?.invoke("if(window.ytPlayer&&ytPlayer.pauseVideo)ytPlayer.pauseVideo();")
+            return
+        }
+        exo.pause()
+    }
 
     override fun goLive() {
+        if (activeYouTubeId != null) {
+            super.goLive()
+            return
+        }
         if (exo.isCurrentMediaItemLive) exo.seekToDefaultPosition() else super.goLive()
         exo.play()
         refresh()
     }
 
     override fun seekTo(positionMs: Long) {
-        exo.seekTo(positionMs.coerceAtLeast(0))
+        val pos = positionMs.coerceAtLeast(0)
+        if (activeYouTubeId != null) {
+            val max = _state.value.durationMs.takeIf { it > 0 } ?: Long.MAX_VALUE
+            val clamped = pos.coerceAtMost(max)
+            _state.update { it.copy(positionMs = clamped, bufferedMs = maxOf(it.bufferedMs, clamped)) }
+            val sec = clamped / 1000.0
+            ytExecutor?.invoke("if(window.ytPlayer&&ytPlayer.seekTo)ytPlayer.seekTo($sec, true);")
+            return
+        }
+        exo.seekTo(pos)
         refresh()
     }
 
     override fun setSpeed(speed: Float) {
-        exo.playbackParameters = PlaybackParameters(clampSpeed(speed))
+        val clamped = clampSpeed(speed)
+        if (activeYouTubeId != null) {
+            ytSpeed = clamped
+            _state.update { it.copy(speed = clamped) }
+            ytExecutor?.invoke("if(window.ytPlayer&&ytPlayer.setPlaybackRate)ytPlayer.setPlaybackRate($clamped);")
+            return
+        }
+        exo.playbackParameters = PlaybackParameters(clamped)
         refresh()
     }
 
     override fun selectQuality(height: Int?) {
+        if (activeYouTubeId != null) return
         val ref = qualityOverrideFor(_state.value.tracks, height)
         val builder = exo.trackSelectionParameters.buildUpon()
         val group = ref?.let { lastTracks.groups.getOrNull(it.group) }
@@ -228,6 +320,7 @@ class ExoCinetorPlayer(
     }
 
     override fun selectAudio(trackId: String) {
+        if (activeYouTubeId != null) return
         val ref = TrackRef.parse(trackId) ?: return
         val group = lastTracks.groups.getOrNull(ref.group) ?: return
         exo.trackSelectionParameters = exo.trackSelectionParameters.buildUpon()
@@ -237,6 +330,10 @@ class ExoCinetorPlayer(
     }
 
     override fun selectText(trackId: String?) {
+        if (activeYouTubeId != null) {
+            textEnabled = trackId != null
+            return
+        }
         val builder = exo.trackSelectionParameters.buildUpon()
         if (trackId == null) {
             textEnabled = false
@@ -253,12 +350,62 @@ class ExoCinetorPlayer(
     }
 
     override fun stop() {
+        val wasYt = activeYouTubeId != null
         currentKey = null
+        activeYouTubeId = null
+        ytReadyEmittedForKey = null
         forcedHeight = null
         lastTracks = Tracks.EMPTY
+        if (wasYt) {
+            ytExecutor?.invoke("if(window.ytPlayer&&ytPlayer.stopVideo)ytPlayer.stopVideo();")
+        }
         exo.stop()
         exo.clearMediaItems()
-        _state.value = PlayerUiState(speed = exo.playbackParameters.speed)
+        _state.value = PlayerUiState(speed = if (wasYt) ytSpeed else exo.playbackParameters.speed)
+    }
+
+    override fun attachYouTubeExecutor(executor: ((String) -> Unit)?) {
+        ytExecutor = executor
+    }
+
+    override fun onYouTubeReady(durationSec: Double) {
+        if (activeYouTubeId == null) return
+        _state.update { applyYouTubeReady(it, durationSec) }
+        val cur = _state.value
+        if (ytSpeed != 1f) {
+            ytExecutor?.invoke("if(window.ytPlayer&&ytPlayer.setPlaybackRate)ytPlayer.setPlaybackRate($ytSpeed);")
+        }
+        if (cur.positionMs > 1_000L) {
+            val sec = cur.positionMs / 1000.0
+            ytExecutor?.invoke("if(window.ytPlayer&&ytPlayer.seekTo)ytPlayer.seekTo($sec, true);")
+        }
+        if (cur.playWhenReady) {
+            ytExecutor?.invoke("if(window.ytPlayer&&ytPlayer.playVideo)ytPlayer.playVideo();")
+        } else {
+            ytExecutor?.invoke("if(window.ytPlayer&&ytPlayer.pauseVideo)ytPlayer.pauseVideo();")
+        }
+        currentKey?.let { key ->
+            if (ytReadyEmittedForKey != key) {
+                ytReadyEmittedForKey = key
+                _firstFrames.tryEmit(key)
+            }
+        }
+    }
+
+    override fun onYouTubeProgress(currentSec: Double, durationSec: Double, ytState: Int) {
+        if (activeYouTubeId == null) return
+        _state.update { applyYouTubeProgress(it, currentSec, durationSec, ytState) }
+    }
+
+    override fun onYouTubeStateChange(ytState: Int) {
+        if (activeYouTubeId == null) return
+        _state.update { applyYouTubeStateChange(it, ytState) }
+    }
+
+    override fun onYouTubeError(errorCode: Int) {
+        if (activeYouTubeId == null) return
+        com.mythbrix.cinetor.core.legal.DebugLog.log(TAG) { "youtube playback error $errorCode" }
+        _state.update { it.copy(isPlaying = false, phase = PlaybackPhase.IDLE, error = "stream unavailable ($errorCode)") }
     }
 
     override fun media3Player(): Player = exo

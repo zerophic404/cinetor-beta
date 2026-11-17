@@ -11,6 +11,7 @@
   import { imgFor } from '$lib/ui/img';
   import { nextUp, prepareMedia, session } from '$lib/player/controller';
   import { nextEpisode, type Media } from '$lib/player/sources';
+  import { dubOfSource } from '$lib/player/youtube';
   import Player from '$lib/player/Player.svelte';
   import { downloads } from '$lib/download/manager.svelte';
   import { repo, img } from '$lib/data/repo';
@@ -124,7 +125,18 @@
   }
 
   const current = $derived(seasons.find((s) => s.n === seasonN));
+  const activeDub = $derived(dubOfSource(media?.source));
   const fmt = (sec?: number) => (sec ? `${Math.round(sec / 60)}m` : '');
+
+  async function pickSeason(n: number) {
+    if (!item || seasonN === n) return;
+    seasonN = n;
+    if (!seasons.some((s) => s.n === n)) {
+      const eps = await episodesOf(item, n);
+      const meta = item.seasons?.find((s) => s.n === n);
+      if (meta) seasons = [...seasons, { ...meta, episodes: eps }].sort((a, b) => a.n - b.n);
+    }
+  }
 </script>
 
 <svelte:head><title>{media?.title ?? item?.title ?? 'Play'} · Cinetor</title></svelte:head>
@@ -148,7 +160,9 @@
   <div class="below">
     {#if item && media}
       <h1>{item.title}</h1>
-      {#if media.subtitle}<p class="sub">{media.subtitle}</p>{/if}
+      {#if media.subtitle || activeDub}
+        <p class="sub">{[media.subtitle, activeDub].filter(Boolean).join(' · ')}</p>
+      {/if}
       {#if !item.live}
         <div class="links">
           <a class="btn btn-ghost" href={detailsHref(item)}>Details</a>
@@ -169,6 +183,22 @@
             </li>
           {/each}
         </ul>
+      {/if}
+      {#if item.seasons && item.seasons.length > 1}
+        <div class="season-tabs" role="tablist" aria-label="Seasons">
+          {#each item.seasons as s (s.n)}
+            <button
+              type="button"
+              role="tab"
+              class="season-pill glass-pill"
+              aria-selected={seasonN === s.n}
+              class:active={seasonN === s.n}
+              onclick={() => pickSeason(s.n)}
+            >
+              Season {s.n}
+            </button>
+          {/each}
+        </div>
       {/if}
       {#if current?.episodes.length}
         <h2 class="section-title">Season {current.n}</h2>
@@ -246,6 +276,29 @@
   }
   .links {
     margin: 12px 0 4px;
+  }
+  .season-tabs {
+    display: flex;
+    gap: 8px;
+    overflow-x: auto;
+    padding: 8px 0 4px;
+    scrollbar-width: none;
+  }
+  .season-pill {
+    flex: none;
+    padding: 6px 14px;
+    border-radius: 99px;
+    border: 1px solid rgb(255 255 255 / 0.14);
+    background: var(--glass-fill, rgb(255 255 255 / 0.06));
+    color: var(--text-primary);
+    font-size: 0.82rem;
+    font-weight: 700;
+    cursor: pointer;
+  }
+  .season-pill.active {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: var(--on-accent, #fff);
   }
   .eps {
     list-style: none;

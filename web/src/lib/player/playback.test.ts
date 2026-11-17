@@ -4,6 +4,16 @@ import { Preloader } from './Preloader';
 import { Session } from './session';
 import { ResumeStore, memoryKV, resumable, shouldSave, type ResumeEntry } from './resume';
 import { buildMedia, nextEpisode, pickSource, playbackOf, externalPlayerHref, type Media } from './sources';
+import {
+  buildYouTubePlayerVars,
+  dubOfSource,
+  extractYouTubeVideoId,
+  isYouTubeSource,
+  mapYouTubeStateToClock,
+  pickAlternateSource,
+  pickPreferredSource,
+  YOUTUBE_CLOCK0
+} from './youtube';
 import type { EngineLike, LoadOpts } from './types';
 import type { Item } from '../data/types';
 
@@ -231,5 +241,109 @@ describe('resume store', () => {
     await r.save('p', { itemId: 'B', episodeId: 'b1', space: 'ANIME', pos: 60, dur: 1000 });
     const cw = await r.continueWatching('p');
     expect(cw.map((e) => e.itemId)).toEqual(['B', 'A']);
+  });
+});
+
+describe('chromeless YouTube contract, state transitions, fallback & dub persistence', () => {
+  it('extractYouTubeVideoId parses watch, short, embed, nocookie, shorts, live and yt:// URLs', () => {
+    expect(extractYouTubeVideoId('https://www.youtube.com/watch?v=dQw4w9WgXcQ')).toBe('dQw4w9WgXcQ');
+    expect(extractYouTubeVideoId('https://youtube.com/watch?feature=share&v=dQw4w9WgXcQ&t=42s')).toBe('dQw4w9WgXcQ');
+    expect(extractYouTubeVideoId('https://m.youtube.com/watch?v=dQw4w9WgXcQ')).toBe('dQw4w9WgXcQ');
+    expect(extractYouTubeVideoId('https://music.youtube.com/watch?v=dQw4w9WgXcQ&list=RD1')).toBe('dQw4w9WgXcQ');
+    expect(extractYouTubeVideoId('https://youtu.be/dQw4w9WgXcQ?si=abc_123')).toBe('dQw4w9WgXcQ');
+    expect(extractYouTubeVideoId('https://www.youtube-nocookie.com/embed/dQw4w9WgXcQ?autoplay=1')).toBe('dQw4w9WgXcQ');
+    expect(extractYouTubeVideoId('https://youtube-nocookie.com/embed/dQw4w9WgXcQ')).toBe('dQw4w9WgXcQ');
+    expect(extractYouTubeVideoId('https://www.youtube.com/embed/dQw4w9WgXcQ')).toBe('dQw4w9WgXcQ');
+    expect(extractYouTubeVideoId('https://www.youtube.com/shorts/dQw4w9WgXcQ')).toBe('dQw4w9WgXcQ');
+    expect(extractYouTubeVideoId('https://www.youtube.com/live/dQw4w9WgXcQ?feature=share')).toBe('dQw4w9WgXcQ');
+    expect(extractYouTubeVideoId('yt://dQw4w9WgXcQ')).toBe('dQw4w9WgXcQ');
+    expect(extractYouTubeVideoId('yt://dQw4w9WgXcQ?t=15')).toBe('dQw4w9WgXcQ');
+    expect(extractYouTubeVideoId('yt:vid_123-XYZ')).toBe('vid_123-XYZ');
+  });
+
+  it('extractYouTubeVideoId rejects non-YouTube hosts and malformed/unsafe inputs', () => {
+    expect(extractYouTubeVideoId(null)).toBeNull();
+    expect(extractYouTubeVideoId(undefined)).toBeNull();
+    expect(extractYouTubeVideoId('')).toBeNull();
+    expect(extractYouTubeVideoId('https://cdn.example.com/watch?v=dQw4w9WgXcQ')).toBeNull();
+    expect(extractYouTubeVideoId('https://evil-youtube.com/watch?v=dQw4w9WgXcQ')).toBeNull();
+    expect(extractYouTubeVideoId('https://www.youtube.com/watch?list=PL1234567890')).toBeNull();
+    expect(extractYouTubeVideoId('https://www.youtube-nocookie.com/embed/ab"onload="alert(1)')).toBeNull();
+    expect(extractYouTubeVideoId('gw-stream:123?detail_path=abc')).toBeNull();
+  });
+
+  it('marks YouTube sources playable with playback mode youtube', () => {
+    const ytSrc = { kind: 'MP4' as const, url: 'https://www.youtube-nocookie.com/embed/dQw4w9WgXcQ', label: 'YouTube · HD' };
+    expect(isYouTubeSource(ytSrc)).toBe(true);
+    expect(playbackOf(ytSrc, () => false)).toBe('youtube');
+    const picked = pickSource([ytSrc], () => false);
+    expect(picked.playable).toBe(true);
+    expect(picked.source?.url).toBe(ytSrc.url);
+    const m = buildMedia(item('YT1', { sources: [ytSrc] }), undefined, () => false, (p) => p);
+    expect(m.playable).toBe(true);
+  });
+
+  it('builds chromeless playerVars and omits custom scheme origins like tauri:// on Linux desktop', () => {
+    const webVars = buildYouTubePlayerVars({ autoplay: true, startSec: 45.8, origin: 'https://ashrix404.github.io' });
+    expect(webVars).toMatchObject({
+      autoplay: 1,
+      controls: 0,
+      modestbranding: 1,
+      rel: 0,
+      iv_load_policy: 3,
+      playsinline: 1,
+      disablekb: 1,
+      fs: 0,
+      enablejsapi: 1,
+      start: 45,
+      origin: 'https://ashrix404.github.io'
+    });
+    const linuxTauriVars = buildYouTubePlayerVars({ autoplay: false, startSec: 0, origin: 'tauri://localhost' });
+    expect(linuxTauriVars.autoplay).toBe(0);
+    expect('origin' in linuxTauriVars).toBe(false);
+    expect('start' in linuxTauriVars).toBe(false);
+  });
+
+  it('maps YouTube IFrame API states to Cinetor clock transitions including ended=0', () => {
+    let st = { ...YOUTUBE_CLOCK0 };
+    st = mapYouTubeStateToClock(st, { ytState: 1, t: 12.5, dur: 180, rate: 1.25, volume0to100: 80, muted: false });
+    expect(st).toMatchObject({ t: 12.5, dur: 180, paused: false, waiting: false, ended: false, rate: 1.25, volume: 0.8, muted: false });
+
+    st = mapYouTubeStateToClock(st, { ytState: 3 });
+    expect(st.waiting).toBe(true);
+    expect(st.ended).toBe(false);
+
+    st = mapYouTubeStateToClock(st, { ytState: 2, t: 40 });
+    expect(st).toMatchObject({ t: 40, paused: true, waiting: false, ended: false });
+
+    st = mapYouTubeStateToClock(st, { ytState: 0, t: 180 });
+    expect(st).toMatchObject({ t: 180, paused: true, waiting: false, ended: true });
+  });
+
+  it('falls back to alternate non-failed gateway stream when YouTube errors', () => {
+    const yt = { kind: 'MP4' as const, url: 'https://www.youtube-nocookie.com/embed/dQw4w9WgXcQ', label: 'YouTube · HD' };
+    const alt1 = { kind: 'MP4' as const, url: 'https://cdn.test/720.mp4', label: '720p · MP4', height: 720 };
+    const alt2 = { kind: 'MP4' as const, url: 'https://cdn.test/480.mp4', label: '480p · MP4', height: 480 };
+    const failed = new Set([yt.url]);
+    expect(pickAlternateSource([yt, alt1, alt2], failed)?.url).toBe(alt1.url);
+    failed.add(alt1.url);
+    expect(pickAlternateSource([yt, alt1, alt2], failed)?.url).toBe(alt2.url);
+    failed.add(alt2.url);
+    expect(pickAlternateSource([yt, alt1, alt2], failed)).toBeUndefined();
+  });
+
+  it('persists dub and closest quality preference across episodes', () => {
+    expect(dubOfSource({ kind: 'MP4', url: 'a', label: '1080p · Hindi', height: 1080 })).toBe('Hindi');
+    expect(dubOfSource({ kind: 'MP4', url: 'b', label: '720p · MP4 · Bengali · 1.1 GB', height: 720 })).toBe('Bengali');
+    expect(dubOfSource({ kind: 'MP4', url: 'c', label: 'YouTube · [Tamil]' })).toBe('Tamil');
+    expect(dubOfSource({ kind: 'MP4', url: 'd', label: '1080p · MP4 · 2.0 GB', height: 1080 })).toBeNull();
+
+    const ep2Sources = [
+      { kind: 'MP4' as const, url: 'en-1080', label: '1080p · English', height: 1080 },
+      { kind: 'MP4' as const, url: 'hi-1080', label: '1080p · Hindi', height: 1080 },
+      { kind: 'MP4' as const, url: 'hi-480', label: '480p · Hindi', height: 480 }
+    ];
+    expect(pickPreferredSource(ep2Sources, { dub: 'Hindi', height: 720 })?.url).toBe('hi-480');
+    expect(pickPreferredSource(ep2Sources, { dub: 'Hindi', height: 1080 })?.url).toBe('hi-1080');
   });
 });

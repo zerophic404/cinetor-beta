@@ -92,9 +92,13 @@ fun SettingsSheet(
                     val subLabel = extras.sideLoadedLabel
                         ?: ui.tracks.text.firstOrNull { it.selected }?.label
                         ?: "Off"
+                    val activeDub = screen.sources.getOrNull(screen.sourceIndex)?.let(::dubOfSource)
+                    val audioSummary = activeDub
+                        ?: ui.tracks.audio.firstOrNull { it.selected }?.label
+                        ?: "Default"
                     SheetRow(Icons.Rounded.HighQuality, "Quality", qualityLabel(ui, screen)) { page = SettingsPage.QUALITY }
                     SheetRow(Icons.Rounded.Speed, "Playback speed", speedLabel(ui.speed)) { page = SettingsPage.SPEED }
-                    SheetRow(Icons.Rounded.Audiotrack, "Audio", ui.tracks.audio.firstOrNull { it.selected }?.label ?: "Default") {
+                    SheetRow(Icons.Rounded.Audiotrack, "Audio", audioSummary) {
                         page = SettingsPage.AUDIO
                     }
                     SheetRow(Icons.Rounded.ClosedCaption, "Subtitles", subLabel) { page = SettingsPage.SUBTITLES }
@@ -126,7 +130,23 @@ fun SettingsSheet(
                     }
                 }
                 SettingsPage.AUDIO -> SubPage("Audio", { page = SettingsPage.MAIN }) {
-                    if (ui.tracks.audio.isEmpty()) item { Choice("Default", true) { page = SettingsPage.MAIN } }
+                    val dubs = screen.sources.mapNotNull(::dubOfSource).distinct()
+                    val activeDub = screen.sources.getOrNull(screen.sourceIndex)?.let(::dubOfSource)
+                    if (dubs.size > 1) {
+                        item { Text("Language / Dub", color = Color.White.copy(alpha = 0.6f), modifier = Modifier.padding(horizontal = 20.dp, vertical = 4.dp)) }
+                        items(dubs, key = { "dub:$it" }) { dub ->
+                            Choice(dub, dub.equals(activeDub, ignoreCase = true)) {
+                                holder.selectDub(dub)
+                                page = SettingsPage.MAIN
+                            }
+                        }
+                        if (ui.tracks.audio.isNotEmpty()) {
+                            item { Text("Stream audio tracks", color = Color.White.copy(alpha = 0.6f), modifier = Modifier.padding(horizontal = 20.dp, vertical = 4.dp)) }
+                        }
+                    }
+                    if (dubs.size <= 1 && ui.tracks.audio.isEmpty()) {
+                        item { Choice(activeDub ?: "Default", true) { page = SettingsPage.MAIN } }
+                    }
                     items(ui.tracks.audio, key = { it.id }) { a ->
                         Choice(a.label, a.selected) { holder.selectAudio(a.id); page = SettingsPage.MAIN }
                     }

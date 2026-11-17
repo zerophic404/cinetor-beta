@@ -68,8 +68,8 @@ class InMemoryMiniSizeStore : MiniSizeStore {
     }
 }
 
-/** App-private SharedPreferences (`mini_size.<profileId>`). */
-class PrefsMiniSizeStore(context: android.content.Context) : MiniSizeStore {
+/** App-private SharedPreferences (`mini_size.<profileId>` + dub/quality prefs per profile). */
+class PrefsMiniSizeStore(context: android.content.Context) : MiniSizeStore, PlaybackPreferenceStore {
     private val prefs = context.applicationContext
         .getSharedPreferences("cinetor_mini_player", android.content.Context.MODE_PRIVATE)
 
@@ -77,6 +77,34 @@ class PrefsMiniSizeStore(context: android.content.Context) : MiniSizeStore {
 
     override fun set(profileId: String, fraction: Float) {
         prefs.edit().putFloat(key(profileId), fraction).apply()
+    }
+
+    override fun getTitlePref(profileId: String, seriesOrTitleId: String): PlaybackPref? {
+        val base = seriesBaseId(seriesOrTitleId)
+        val dub = prefs.getString("pref_dub.$profileId.$base", null)?.takeIf { it.isNotBlank() }
+        val h = prefs.getInt("pref_h.$profileId.$base", -1).takeIf { it > 0 }
+        return if (dub == null && h == null) null else PlaybackPref(dub = dub, height = h)
+    }
+
+    override fun setTitlePref(profileId: String, seriesOrTitleId: String, pref: PlaybackPref) {
+        val base = seriesBaseId(seriesOrTitleId)
+        prefs.edit().apply {
+            if (pref.dub != null) putString("pref_dub.$profileId.$base", pref.dub) else remove("pref_dub.$profileId.$base")
+            if (pref.height != null) putInt("pref_h.$profileId.$base", pref.height) else remove("pref_h.$profileId.$base")
+        }.apply()
+    }
+
+    override fun getGlobalPref(profileId: String): PlaybackPref? {
+        val dub = prefs.getString("global_dub.$profileId", null)?.takeIf { it.isNotBlank() }
+        val h = prefs.getInt("global_h.$profileId", -1).takeIf { it > 0 }
+        return if (dub == null && h == null) null else PlaybackPref(dub = dub, height = h)
+    }
+
+    override fun setGlobalPref(profileId: String, pref: PlaybackPref) {
+        prefs.edit().apply {
+            if (pref.dub != null) putString("global_dub.$profileId", pref.dub) else remove("global_dub.$profileId")
+            if (pref.height != null) putInt("global_h.$profileId", pref.height) else remove("global_h.$profileId")
+        }.apply()
     }
 
     private fun key(profileId: String) = "mini_size.$profileId"

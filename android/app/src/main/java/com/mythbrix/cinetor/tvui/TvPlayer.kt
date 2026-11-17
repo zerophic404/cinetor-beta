@@ -71,6 +71,7 @@ import com.mythbrix.cinetor.feature.player.PlayerStateHolder
 import com.mythbrix.cinetor.feature.player.SettingsSheet
 import com.mythbrix.cinetor.feature.player.SubtitleExtras
 import com.mythbrix.cinetor.feature.player.VideoSurface
+import com.mythbrix.cinetor.feature.player.extractYouTubeVideoId
 import com.mythbrix.cinetor.feature.player.formatTime
 import kotlinx.coroutines.delay
 
@@ -199,7 +200,20 @@ fun TvPlayerScreen(
                 }
             },
     ) {
-        VideoSurface(cinetorPlayer?.media3Player(), screen.aspect, Modifier.fillMaxSize(), layers.zoom, layers.configureView)
+        val activeYoutubeId = ui.youtubeVideoId ?: screen.sources.getOrNull(screen.sourceIndex)?.url?.let(::extractYouTubeVideoId)
+        VideoSurface(
+            player = cinetorPlayer?.media3Player(),
+            aspect = screen.aspect,
+            modifier = Modifier.fillMaxSize(),
+            zoom = layers.zoom,
+            configure = layers.configureView,
+            youtubeVideoId = activeYoutubeId,
+            youtubeSessionKey = ui.key,
+            youtubeHolder = layers.youtubeHolder,
+            cinetorPlayer = cinetorPlayer,
+            startPositionMs = ui.positionMs,
+            playWhenReady = ui.playWhenReady,
+        )
         layers.overVideo()
         // Invisible key catcher: holds focus while no overlay is shown.
         Box(Modifier.fillMaxSize().focusRequester(catcher).focusable().semantics { contentDescription = "Player" })

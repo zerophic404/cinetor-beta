@@ -79,8 +79,8 @@
       doubleTapSeek: (side, total, step) => side !== 'center' && ui.doubleTap(side, total, step),
       holdStart: () => ui.holdStart(),
       holdEnd: () => ui.holdEnd(),
-      time: () => engine.video?.currentTime ?? 0,
-      duration: () => engine.video?.duration || 0,
+      time: () => engine.currentTime,
+      duration: () => engine.duration,
       seekPreview: (target, delta) => {
         ui.drag = { target, delta };
       },
@@ -88,7 +88,7 @@
         ui.drag = null;
         ui.seekTo(target);
       },
-      levelGet: (k: LevelKind) => (k === 'brightness' ? ui.brightness : (engine.video?.volume ?? 1)),
+      levelGet: (k: LevelKind) => (k === 'brightness' ? ui.brightness : engine.volume),
       levelSet: (k: LevelKind, v: number) => {
         if (k === 'brightness') ui.setBrightness(v);
         else if (iosVolume) ui.flash('Use the device volume buttons', 1600);
@@ -209,11 +209,11 @@
         ui.seek(a.by);
         return ui.show();
       case 'seekPct':
-        if (engine.video?.duration) ui.seekTo((engine.video.duration * a.pct) / 100);
+        if (engine.duration > 0) ui.seekTo((engine.duration * a.pct) / 100);
         return;
       case 'volume': {
         if (iosVolume) return ui.flash('Use the device volume buttons');
-        const v = Math.min(1, Math.max(0, (engine.video?.volume ?? 1) + a.by));
+        const v = Math.min(1, Math.max(0, engine.volume + a.by));
         ui.setVolume(v);
         return ui.showHud('volume', v);
       }
@@ -221,7 +221,7 @@
         return void ui.toggleFullscreen();
       case 'mute':
         ui.toggleMute();
-        return ui.flash(engine.video?.muted ? 'Muted' : 'Sound on');
+        return ui.flash(engine.muted ? 'Muted' : 'Sound on');
       case 'captions':
         return ui.toggleCaptions(media.subtitles);
       case 'speed':
@@ -318,7 +318,7 @@
     <div class="msg glass" data-no-gesture role="alert">
       <strong>Playback problem</strong>
       <p>{errorMsg}</p>
-      <div class="acts"><button class="btn btn-primary" onclick={() => session.play(media, { start: engine.video?.currentTime ?? 0 })}>Retry</button></div>
+      <div class="acts"><button class="btn btn-primary" onclick={() => session.play(media, { start: engine.currentTime })}>Retry</button></div>
     </div>
   {:else if $sess.error === 'gesture'}
     <button
@@ -433,6 +433,16 @@
   }
   .stage[data-aspect='fill'] .host :global(video) {
     object-fit: fill;
+  }
+  .host :global(.cinetor-yt-wrap) {
+    filter: brightness(var(--bright, 1));
+    pointer-events: none;
+  }
+  .stage[data-aspect='zoom'] .host :global(.cinetor-yt-slot) {
+    transform: scale(1.34);
+  }
+  .stage[data-aspect='fill'] .host :global(.cinetor-yt-slot) {
+    transform: scale(1.18, 1);
   }
   /* Embedded (in-stream) text tracks rendered natively: same style settings. */
   .host :global(video::cue) {

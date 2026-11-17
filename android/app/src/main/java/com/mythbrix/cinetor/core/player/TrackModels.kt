@@ -82,10 +82,86 @@ data class PlayerUiState(
     val seekable: Boolean = true,
     /** Distance behind the live edge; −1 = unknown / not live. */
     val liveOffsetMs: Long = -1,
+    /** Active YouTube video ID when playing chromelessly via WebView; null for ExoPlayer streams. */
+    val youtubeVideoId: String? = null,
 ) {
     val buffering: Boolean get() = phase == PlaybackPhase.BUFFERING
     val ended: Boolean get() = phase == PlaybackPhase.ENDED
     val isVertical: Boolean get() = videoHeight > videoWidth && videoWidth > 0
+}
+
+private val YT_SCHEME_REGEX = Regex("""^yt:(?://)?([A-Za-z0-9_-]{6,20})(?=[/?&#]|$)""", RegexOption.IGNORE_CASE)
+private val YT_SHORT_HOST_REGEX = Regex("""^https?://(?:www\.)?youtu\.be/([A-Za-z0-9_-]{6,20})(?=[/?&#]|$)""", RegexOption.IGNORE_CASE)
+private val YT_PATH_ID_REGEX = Regex(
+    """^https?://(?:(?:www|m|music)\.)?youtube(?:-nocookie)?\.com/(?:embed|shorts|live|v)/([A-Za-z0-9_-]{6,20})(?=[/?&#]|$)""",
+    RegexOption.IGNORE_CASE,
+)
+private val YT_WATCH_HOST_REGEX = Regex(
+    """^https?://(?:(?:www|m|music)\.)?youtube(?:-nocookie)?\.com/watch\?(.+)$""",
+    RegexOption.IGNORE_CASE,
+)
+private val YT_VALID_ID_REGEX = Regex("""^[A-Za-z0-9_-]{6,20}$""")
+
+/**
+ * Pure YouTube video ID extractor across `youtube.com/watch?v=...`, `youtu.be/...`,
+ * `youtube-nocookie.com/embed/...`, `youtube.com/shorts|live|v/...`, and `yt://<videoId>`.
+ */
+fun extractYouTubeVideoId(url: String?): String? {
+    val raw = url?.trim()?.takeIf { it.isNotEmpty() } ?: return null
+    YT_SCHEME_REGEX.find(raw)?.groupValues?.getOrNull(1)?.let { return it }
+    YT_SHORT_HOST_REGEX.find(raw)?.groupValues?.getOrNull(1)?.let { return it }
+    YT_PATH_ID_REGEX.find(raw)?.groupValues?.getOrNull(1)?.let { return it }
+    val query = YT_WATCH_HOST_REGEX.find(raw)?.groupValues?.getOrNull(1)?.substringBefore('#') ?: return null
+    for (param in query.split('&')) {
+        val eq = param.indexOf('=')
+        if (eq <= 0) continue
+        if (param.substring(0, eq) == "v") {
+            val candidate = param.substring(eq + 1)
+            return if (YT_VALID_ID_REGEX.matches(candidate)) candidate else null
+        }
+    }
+    return null
+}
+
+/** Pure state transition when the chromeless YouTube IFrame API reports `onReady`. */
+fun applyYouTubeReady(state: PlayerUiState, durationSec: Double): PlayerUiState {
+    val durMs = if (durationSec.isFinite() && durationSec > 0.0) (durationSec * 1000.0).toLong() else state.durationMs
+    val nextPhase = if (state.phase == PlaybackPhase.ENDED) PlaybackPhase.ENDED else PlaybackPhase.READY
+    return state.copy(durationMs = durMs, phase = nextPhase, error = null)
+}
+
+/** Pure state transition for periodic 250 ms YouTube bridge progress ticks. */
+fun applyYouTubeProgress(
+    state: PlayerUiState,
+    currentSec: Double,
+    durationSec: Double,
+    ytState: Int,
+): PlayerUiState {
+    val posMs = if (currentSec.isFinite() && currentSec >= 0.0) (currentSec * 1000.0).toLong() else state.positionMs
+    val durMs = if (durationSec.isFinite() && durationSec > 0.0) (durationSec * 1000.0).toLong() else state.durationMs
+    val phase = when (ytState) {
+        0 -> PlaybackPhase.ENDED
+        3 -> PlaybackPhase.BUFFERING
+        1, 2, 5 -> PlaybackPhase.READY
+        else -> state.phase
+    }
+    return state.copy(
+        positionMs = posMs,
+        bufferedMs = maxOf(state.bufferedMs, posMs),
+        durationMs = durMs,
+        isPlaying = ytState == 1,
+        phase = phase,
+    )
+}
+
+/** Pure state transition for YouTube `onStateChange` (`-1` unstarted, `0` ended, `1` playing, `2` paused, `3` buffering, `5` cued). */
+fun applyYouTubeStateChange(state: PlayerUiState, ytState: Int): PlayerUiState = when (ytState) {
+    1 -> state.copy(isPlaying = true, playWhenReady = true, phase = PlaybackPhase.READY, error = null)
+    2 -> state.copy(isPlaying = false, playWhenReady = false, phase = PlaybackPhase.READY)
+    3 -> state.copy(isPlaying = false, phase = PlaybackPhase.BUFFERING)
+    0 -> state.copy(isPlaying = false, phase = PlaybackPhase.ENDED)
+    5 -> state.copy(isPlaying = false, phase = PlaybackPhase.READY)
+    else -> state
 }
 
 /** Pure: raw tracks → UI track lists (qualities deduped by height, best bitrate kept). */
