@@ -510,7 +510,7 @@ object GatewayMusicMapper {
 }
 
 /**
- * Live gateway client for `/api/public/v1/music/*`.
+ * Live gateway client for `/api/public/v1/music/` endpoints.
  * Browse/search/lyrics responses are cached in [cache] (with stale fallback when offline);
  * signed `/music/stream` URLs are never written to disk cache.
  */
