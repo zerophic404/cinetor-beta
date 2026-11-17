@@ -1,8 +1,12 @@
-// Music playback core (pure, DOM-free): queue + one audio element + media arbitration.
+// This app is the complete property of Mythbrix. Do not touch, retrieve, reverse-engineer,
+// scrape or hack anything without Mythbrix's explicit permission.
+// Music playback core (pure, DOM-free): queue + lazy gateway stream resolution + quality switch + media arbitration.
 // The Svelte store (player.svelte.ts) mirrors its state; tests drive it with a fake audio element.
 import type { Item } from '../data/types';
 import type { MediaArbiter } from '../media/arbiter';
 import { nextIndex, nextRepeat, prevIndex, reorder, reorderQueue, shuffleOrder, type QueueState, type Repeat } from './queue';
+
+export type AudioQuality = 'flac' | '320kbps';
 
 export interface AudioLike {
   src: string;
@@ -15,33 +19,58 @@ export interface AudioLike {
 
 export interface Track {
   id: string;
+  rawId?: string;
   title: string;
   artist: string;
   album: string;
   albumId?: string;
+  year?: string;
   art: string;
   color: string;
   accent: string;
   url: string;
   durationSec: number;
+  durationLabel?: string;
+  quality?: string;
+  format?: string;
+  hasFlac?: boolean;
 }
+
+export interface ResolvedTrackStream {
+  url: string;
+  qualityLabel?: string;
+  format?: string;
+}
+
+export type TrackStreamResolver = (
+  track: Track,
+  quality: AudioQuality,
+  signal: AbortSignal
+) => Promise<ResolvedTrackStream | null>;
+
+export const TRACK_UNAVAILABLE_MSG = 'Track unavailable right now. Try another song.';
 
 export function trackOf(i: Item, asset: (p: string) => string = (p) => p): Track | null {
   const src = i.sources?.find((s) => s.kind === 'MP3') ?? i.sources?.[0];
   if (i.type !== 'TRACK' || !src) return null;
   return {
     id: i.id,
+    rawId: i.id,
     title: i.title,
     artist: i.artist ?? '',
     album: i.album ?? '',
     albumId: i.albumId,
+    year: i.year ? String(i.year) : undefined,
     art: asset(i.poster),
     color: i.dominantColor,
     accent: i.accentColor,
-    url: src.url,
-    durationSec: i.durationSec ?? 0
+    url: asset(src.url),
+    durationSec: i.durationSec ?? 0,
+    hasFlac: false
   };
 }
+
+const isLazyUrl = (url: string): boolean => !url || url.startsWith('mu-stream:');
 
 export class MusicCore {
   tracks: Track[] = [];
@@ -49,7 +78,15 @@ export class MusicCore {
   shuffle = false;
   repeat: Repeat = 'off';
   order: number[] = [];
+  quality: AudioQuality = 'flac';
+  loading = false;
+  error: string | null = null;
+  streamQualityLabel = 'FLAC Lossless';
+
   private audio: AudioLike | null;
+  private resolver: TrackStreamResolver | null = null;
+  private abort: AbortController | null = null;
+  private seq = 0;
 
   constructor(
     audio: AudioLike | null,
@@ -63,6 +100,10 @@ export class MusicCore {
 
   setAudio(a: AudioLike | null): void {
     this.audio = a;
+  }
+
+  setResolver(resolver: TrackStreamResolver | null): void {
+    this.resolver = resolver;
   }
 
   get current(): Track | null {
@@ -84,28 +125,90 @@ export class MusicCore {
     await this.playIndex(start);
   }
 
-  async playIndex(i: number): Promise<void> {
+  async playIndex(i: number, resumeSec = 0, autoPlay = true): Promise<void> {
     const t = this.tracks[i];
     if (!t) return;
+    this.abort?.abort();
+    const ctl = new AbortController();
+    this.abort = ctl;
+    const seq = ++this.seq;
+
     this.index = i;
-    const a = this.audio;
-    this.arbiter.claim('music');
-    if (a) {
-      if (a.src !== t.url) a.src = t.url;
-      a.currentTime = 0;
+    this.error = null;
+    if (autoPlay) this.arbiter.claim('music');
+
+    const effectiveQuality: AudioQuality = this.quality === 'flac' && t.hasFlac === false ? '320kbps' : this.quality;
+    let playUrl = t.url;
+
+    if (isLazyUrl(t.url)) {
+      if (!this.resolver) {
+        this.loading = false;
+        this.error = TRACK_UNAVAILABLE_MSG;
+        this.onChange();
+        return;
+      }
+      this.loading = true;
       this.onChange();
+      let resolved: ResolvedTrackStream | null = null;
       try {
-        await a.play();
+        resolved = await this.resolver(t, effectiveQuality, ctl.signal);
       } catch {
-        /* autoplay blocked / network: UI shows paused */
+        resolved = null;
+      }
+      if (seq !== this.seq || ctl.signal.aborted) return;
+      this.loading = false;
+      if (!resolved || !resolved.url) {
+        if (this.audio && !this.audio.paused) this.audio.pause();
+        this.error = TRACK_UNAVAILABLE_MSG;
+        this.onChange();
+        return;
+      }
+      playUrl = resolved.url;
+      this.streamQualityLabel = resolved.qualityLabel ?? (effectiveQuality === 'flac' ? 'FLAC Lossless' : '320kbps Studio Master');
+    } else {
+      this.loading = false;
+      this.streamQualityLabel = t.quality ?? (effectiveQuality === 'flac' ? 'FLAC Lossless' : '320kbps Studio Master');
+    }
+
+    const a = this.audio;
+    if (a) {
+      if (a.src !== playUrl) a.src = playUrl;
+      a.currentTime = Math.max(0, resumeSec);
+      this.onChange();
+      if (autoPlay) {
+        this.arbiter.claim('music');
+        try {
+          await a.play();
+        } catch {
+          /* autoplay blocked / network: UI shows paused */
+        }
       }
     }
     this.onChange();
   }
 
+  async setQuality(quality: AudioQuality): Promise<void> {
+    if (this.quality === quality) return;
+    this.quality = quality;
+    const cur = this.current;
+    if (cur && isLazyUrl(cur.url) && this.resolver) {
+      const pos = this.audio?.currentTime ?? 0;
+      const shouldPlay = this.playing || !this.audio?.src;
+      await this.playIndex(this.index, pos, shouldPlay);
+      return;
+    }
+    this.streamQualityLabel = quality === 'flac' && cur?.hasFlac !== false ? 'FLAC Lossless' : '320kbps Studio Master';
+    this.onChange();
+  }
+
   async toggle(): Promise<void> {
     const a = this.audio;
-    if (!a || this.index < 0) return;
+    const cur = this.current;
+    if (!a || this.index < 0 || !cur) return;
+    if (isLazyUrl(cur.url) && (!a.src || this.error)) {
+      await this.playIndex(this.index);
+      return;
+    }
     if (a.paused) {
       this.arbiter.claim('music');
       try {
@@ -113,7 +216,9 @@ export class MusicCore {
       } catch {
         /* ignore */
       }
-    } else a.pause();
+    } else {
+      a.pause();
+    }
     this.onChange();
   }
 
@@ -189,6 +294,9 @@ export class MusicCore {
   }
 
   stop(): void {
+    this.abort?.abort();
+    this.loading = false;
+    this.error = null;
     this.audio?.pause();
     this.tracks = [];
     this.index = -1;

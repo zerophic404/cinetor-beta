@@ -1,98 +1,354 @@
 <script lang="ts">
+  // This app is the complete property of Mythbrix. Do not touch, retrieve, reverse-engineer,
+  // scrape or hack anything without Mythbrix's explicit permission.
+  import { base } from '$app/paths';
   import { page } from '$app/state';
-  import { repo, img } from '$lib/data/repo';
-  import type { Item } from '$lib/data/types';
-  import { SkeletonChapterList, SkeletonBox } from '$lib/design/skeleton';
-  import { myList } from '$lib/data/library.svelte';
-  import { music } from '$lib/music/player.svelte';
-  import { trackOf, type Track } from '$lib/music/core';
+  import { SkeletonBox, SkeletonChapterList } from '$lib/design/skeleton';
+  import { isTauriEnv, locationInfo, saveCopySupported } from '$lib/desktop/env';
+  import { music, musicApi, toPlayerTrack } from '$lib/music/player.svelte';
+  import { qualityShortLabel, rawMusicId } from '$lib/music/gateway-music';
+  import type { Track } from '$lib/music/core';
   import { fmtDur } from '$lib/music/queue';
   import TrackList from '$lib/music/TrackList.svelte';
 
-  const id = $derived(page.url.searchParams.get('id') ?? '');
-  const trackId = $derived(page.url.searchParams.get('track'));
+  interface CollectionView {
+    id: string;
+    kind: 'album' | 'playlist';
+    title: string;
+    artist: string;
+    year: string | null;
+    artwork: string;
+    tracks: Track[];
+  }
 
-  let album = $state.raw<Item | null>(null);
-  let tracks = $state.raw<Item[]>([]);
-  let status = $state<'loading' | 'ready' | 'missing'>('loading');
+  const id = $derived(page.url.searchParams.get('id') ?? '');
+  const kindParam = $derived(page.url.searchParams.get('kind'));
+  const trackParam = $derived(page.url.searchParams.get('track'));
+
+  let collection = $state.raw<CollectionView | null>(null);
+  let loadStatus = $state<'loading' | 'ready' | 'missing'>('loading');
+  let selectionMode = $state(false);
+  let selectedIds = $state<string[]>([]);
+  let batchBusy = $state(false);
   let autoPlayed = '';
 
+  const destInfo = $derived(
+    locationInfo({
+      tauri: isTauriEnv(),
+      saveCopy: saveCopySupported()
+    })
+  );
+
   $effect(() => {
-    const want = id;
-    const tr = trackId;
-    let alive = true;
-    status = 'loading';
-    repo.file('MUSIC').then(
-      (f) => {
-        if (!alive) return;
-        const byId = new Map(f.items.map((i) => [i.id, i] as const));
-        const al = byId.get(want);
-        if (!al || al.type !== 'ALBUM') {
-          status = 'missing';
+    const wantId = id.trim();
+    const wantKind = kindParam;
+    const deepTrack = trackParam;
+    if (!wantId) {
+      collection = null;
+      loadStatus = 'missing';
+      return;
+    }
+
+    const ctl = new AbortController();
+    loadStatus = 'loading';
+    selectionMode = false;
+    selectedIds = [];
+
+    (async () => {
+      if (wantKind === 'playlist') {
+        const pl = await musicApi.playlist(wantId, ctl.signal);
+        if (pl && pl.tracks.length) {
+          return {
+            id: pl.id,
+            kind: 'playlist' as const,
+            title: pl.title,
+            artist: pl.artist ?? 'Curated Playlist',
+            year: null,
+            artwork: pl.artwork,
+            tracks: pl.tracks.map(toPlayerTrack)
+          };
+        }
+        const alFallback = await musicApi.album(wantId, ctl.signal);
+        if (alFallback && alFallback.tracks.length) {
+          return {
+            id: alFallback.id,
+            kind: 'album' as const,
+            title: alFallback.title,
+            artist: alFallback.artist,
+            year: alFallback.year,
+            artwork: alFallback.artwork,
+            tracks: alFallback.tracks.map(toPlayerTrack)
+          };
+        }
+        return null;
+      }
+
+      const al = await musicApi.album(wantId, ctl.signal);
+      if (al && al.tracks.length) {
+        return {
+          id: al.id,
+          kind: 'album' as const,
+          title: al.title,
+          artist: al.artist,
+          year: al.year,
+          artwork: al.artwork,
+          tracks: al.tracks.map(toPlayerTrack)
+        };
+      }
+      const plFallback = await musicApi.playlist(wantId, ctl.signal);
+      if (plFallback && plFallback.tracks.length) {
+        return {
+          id: plFallback.id,
+          kind: 'playlist' as const,
+          title: plFallback.title,
+          artist: plFallback.artist ?? 'Curated Playlist',
+          year: null,
+          artwork: plFallback.artwork,
+          tracks: plFallback.tracks.map(toPlayerTrack)
+        };
+      }
+      return null;
+    })()
+      .then((res) => {
+        if (ctl.signal.aborted) return;
+        if (!res) {
+          collection = null;
+          loadStatus = 'missing';
           return;
         }
-        album = al;
-        tracks = (al.trackIds ?? []).map((t) => byId.get(t)).filter((t): t is Item => !!t);
-        status = 'ready';
-        // Deep link from a track card → play it (the click that navigated here is the user gesture).
-        if (tr && autoPlayed !== tr) {
-          autoPlayed = tr;
-          const list = tracks.map((t) => trackOf(t, img)).filter((t): t is Track => !!t);
-          const i = list.findIndex((t) => t.id === tr);
-          if (i >= 0 && music.current?.id !== tr) music.playQueue(list, i);
+        collection = res;
+        loadStatus = 'ready';
+        if (deepTrack && autoPlayed !== deepTrack) {
+          autoPlayed = deepTrack;
+          const wantRaw = rawMusicId(deepTrack);
+          const idx = res.tracks.findIndex((t) => t.id === deepTrack || t.rawId === wantRaw);
+          if (idx >= 0 && music.current?.id !== res.tracks[idx].id) {
+            music.playQueue(res.tracks, idx);
+          }
         }
-      },
-      () => alive && (status = 'missing')
-    );
-    return () => {
-      alive = false;
-    };
+      })
+      .catch(() => {
+        if (!ctl.signal.aborted) {
+          collection = null;
+          loadStatus = 'missing';
+        }
+      });
+
+    return () => ctl.abort();
   });
 
-  const total = $derived(tracks.reduce((n, t) => n + (t.durationSec ?? 0), 0));
+  const tracks = $derived(collection?.tracks ?? []);
+  const totalSec = $derived(tracks.reduce((sum, t) => sum + (t.durationSec || 0), 0));
+
   function playAll(shuffle: boolean) {
-    const list = tracks.map((t) => trackOf(t, img)).filter((t): t is Track => !!t);
-    if (!list.length) return;
+    if (!tracks.length) return;
     music.setShuffle(shuffle);
-    music.playQueue(list, shuffle ? Math.floor(Math.random() * list.length) : 0);
+    music.playQueue(tracks, shuffle ? Math.floor(Math.random() * tracks.length) : 0);
+  }
+
+  function toggleSelect(trackId: string) {
+    if (selectedIds.includes(trackId)) {
+      selectedIds = selectedIds.filter((x) => x !== trackId);
+    } else {
+      selectedIds = [...selectedIds, trackId];
+    }
+  }
+
+  function toggleSelectAll() {
+    if (selectedIds.length === tracks.length) {
+      selectedIds = [];
+    } else {
+      selectedIds = tracks.map((t) => t.id);
+    }
+  }
+
+  async function downloadAll() {
+    if (!tracks.length || batchBusy) return;
+    batchBusy = true;
+    try {
+      await music.downloadBatch(tracks, music.quality);
+    } finally {
+      batchBusy = false;
+    }
+  }
+
+  async function downloadSelected() {
+    if (!selectedIds.length || batchBusy) return;
+    const chosen = tracks.filter((t) => selectedIds.includes(t.id));
+    batchBusy = true;
+    try {
+      await music.downloadBatch(chosen, music.quality);
+      selectionMode = false;
+      selectedIds = [];
+    } finally {
+      batchBusy = false;
+    }
   }
 </script>
 
-<svelte:head><title>{album?.title ?? 'Album'} · Music · Cinetor</title></svelte:head>
+<svelte:head>
+  <title>{collection?.title ?? (kindParam === 'playlist' ? 'Playlist' : 'Album')} · Music · Cinetor</title>
+</svelte:head>
 
-{#if status === 'loading'}
-  <div class="head sk" aria-busy="true">
-    <SkeletonBox width="200px" height="200px" radius="18px" />
-    <div class="sk-txt"><SkeletonBox width="60%" height="28px" /><SkeletonBox width="40%" height="16px" /></div>
+<div class="album-page">
+  <div class="top-nav">
+    <a class="back-btn glass" href="{base}/app/music" aria-label="Back to Music">‹ Music</a>
+
+    <div class="q-switch glass" role="group" aria-label="Audio quality">
+      <button
+        type="button"
+        class:active={music.quality === 'flac'}
+        aria-pressed={music.quality === 'flac'}
+        onclick={() => music.setQuality('flac')}
+      >
+        FLAC
+      </button>
+      <button
+        type="button"
+        class:active={music.quality === '320kbps'}
+        aria-pressed={music.quality === '320kbps'}
+        onclick={() => music.setQuality('320kbps')}
+      >
+        320kbps
+      </button>
+    </div>
   </div>
-  <SkeletonChapterList count={6} />
-{:else if status === 'missing' || !album}
-  <p class="state">Album not found.</p>
-{:else}
-  <section class="head" style:--c={album.dominantColor} style:--a={album.accentColor}>
-    <div class="bg" style:background-image="url({img(album.poster)})" aria-hidden="true"></div>
-    <img class="art" src={img(album.poster)} alt="{album.title} artwork" width="220" height="220" />
-    <div class="txt">
-      <span class="kicker">Album</span>
-      <h1>{album.title}</h1>
-      <p>{album.artist} · {album.year} · {tracks.length} tracks · {fmtDur(total)}</p>
-      <div class="genres">{album.genres.join(' · ')}</div>
-      <div class="acts">
-        <button class="btn btn-primary" onclick={() => playAll(false)}>▶ Play</button>
-        <button class="btn btn-ghost" onclick={() => playAll(true)}>⤮ Shuffle</button>
-        <button class="btn btn-ghost" aria-pressed={myList.has(album)} onclick={() => album && myList.toggle(album)}>{myList.has(album) ? '✓ Saved' : '+ Save'}</button>
+
+  {#if loadStatus === 'loading'}
+    <div class="head sk" aria-busy="true" aria-label="Loading tracklist">
+      <SkeletonBox width="200px" height="200px" radius="18px" />
+      <div class="sk-txt">
+        <SkeletonBox width="60%" height="28px" />
+        <SkeletonBox width="40%" height="16px" />
       </div>
     </div>
-  </section>
-  <p class="syn">{album.synopsis}</p>
-  <TrackList items={tracks} art={false} />
-{/if}
+    <SkeletonChapterList count={6} />
+  {:else if loadStatus === 'missing' || !collection}
+    <div class="empty-box">
+      <p>{kindParam === 'playlist' ? 'Playlist not found.' : 'Album not found.'}</p>
+      <a class="btn btn-ghost" href="{base}/app/music">Back to Music</a>
+    </div>
+  {:else}
+    <section class="head glass" style:--c={tracks[0]?.color ?? 'var(--accent)'}>
+      {#if collection.artwork}
+        <div class="bg" style:background-image="url({collection.artwork})" aria-hidden="true"></div>
+        <img class="art" src={collection.artwork} alt="{collection.title} artwork" width="210" height="210" decoding="async" />
+      {:else}
+        <div class="art art-ph" aria-hidden="true">♪</div>
+      {/if}
+
+      <div class="txt">
+        <span class="kicker">
+          {collection.kind === 'playlist' ? 'PLAYLIST' : 'ALBUM'} · {qualityShortLabel(music.quality).toUpperCase()}
+        </span>
+        <h1>{collection.title}</h1>
+        <p>
+          {collection.artist}{collection.year ? ` · ${collection.year}` : ''} · {tracks.length}
+          {tracks.length === 1 ? 'track' : 'tracks'}{totalSec > 0 ? ` · ${fmtDur(totalSec)}` : ''}
+        </p>
+        <p class="dest-note">Save destination: <b>{destInfo.label}</b></p>
+
+        <div class="acts">
+          <button type="button" class="btn btn-primary" onclick={() => playAll(false)}>▶ Play All</button>
+          <button type="button" class="btn btn-ghost" onclick={() => playAll(true)}>⤮ Shuffle</button>
+          <button
+            type="button"
+            class="btn btn-ghost"
+            disabled={batchBusy}
+            onclick={downloadAll}
+          >
+            {batchBusy && !selectionMode ? 'Queueing…' : `⬇ Download All (${qualityShortLabel(music.quality)})`}
+          </button>
+          <button
+            type="button"
+            class="btn btn-ghost"
+            aria-pressed={selectionMode}
+            onclick={() => {
+              selectionMode = !selectionMode;
+              if (!selectionMode) selectedIds = [];
+            }}
+          >
+            {selectionMode ? 'Cancel' : 'Select'}
+          </button>
+        </div>
+      </div>
+    </section>
+
+    {#if selectionMode}
+      <div class="sel-bar glass" role="region" aria-label="Batch download selection">
+        <button type="button" class="chip" onclick={toggleSelectAll}>
+          {selectedIds.length === tracks.length ? 'Deselect All' : 'Select All'}
+        </button>
+        <button
+          type="button"
+          class="btn btn-primary sm-btn"
+          disabled={!selectedIds.length || batchBusy}
+          onclick={downloadSelected}
+        >
+          {batchBusy ? 'Queueing…' : `⬇ Download ${selectedIds.length} (${qualityShortLabel(music.quality)})`}
+        </button>
+      </div>
+    {/if}
+
+    <div class="list-wrap">
+      <TrackList
+        {tracks}
+        art={collection.kind === 'playlist'}
+        selectable={selectionMode}
+        {selectedIds}
+        onToggleSelect={toggleSelect}
+      />
+    </div>
+  {/if}
+</div>
 
 <style>
-  .state {
+  .album-page {
+    padding-bottom: 18px;
+  }
+  .top-nav {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 0 16px 12px;
+  }
+  .back-btn {
+    display: inline-flex;
+    align-items: center;
+    min-height: 36px;
+    padding: 0 14px;
+    border-radius: var(--radius-pill, 999px);
+    text-decoration: none;
+    font-size: 0.88rem;
+    font-weight: 650;
+  }
+  .q-switch {
+    display: inline-flex;
+    padding: 3px;
+    border-radius: var(--radius-pill, 999px);
+  }
+  .q-switch button {
+    padding: 5px 12px;
+    border: 0;
+    border-radius: var(--radius-pill, 999px);
+    background: none;
+    color: var(--text-secondary);
+    font-size: 0.76rem;
+    font-weight: 700;
+    cursor: pointer;
+  }
+  .q-switch button.active {
+    background: linear-gradient(135deg, var(--accent), var(--accent-end));
+    color: var(--on-accent);
+  }
+  .empty-box {
     padding: 48px 16px;
     text-align: center;
     color: var(--text-secondary);
+    display: grid;
+    justify-items: center;
+    gap: 12px;
   }
   .head {
     position: relative;
@@ -102,10 +358,11 @@
     align-items: flex-end;
     margin: 0 16px;
     padding: 24px;
-    border-radius: 28px;
+    border-radius: 26px;
     overflow: hidden;
-    isolation: isolate;
-    background: linear-gradient(180deg, color-mix(in srgb, var(--c, #222) 90%, #000), #000);
+    background:
+      linear-gradient(155deg, color-mix(in srgb, var(--c) 24%, transparent), transparent 72%),
+      var(--glass-fill);
   }
   .head.sk {
     background: none;
@@ -121,43 +378,55 @@
     z-index: -1;
     background-size: cover;
     background-position: center;
-    filter: blur(50px) saturate(1.3);
-    opacity: 0.5;
+    filter: blur(48px) saturate(1.3);
+    opacity: 0.25;
   }
   :global([data-tier='low']) .bg {
     display: none;
   }
   .art {
-    width: clamp(140px, 40vw, 220px);
+    width: clamp(136px, 36vw, 210px);
     height: auto;
     aspect-ratio: 1;
     object-fit: cover;
     border-radius: 18px;
-    box-shadow: 0 24px 50px -18px rgb(0 0 0 / 0.85);
+    box-shadow: 0 22px 46px -18px rgb(0 0 0 / 0.65);
+    background: var(--surface-elevated);
+  }
+  .art-ph {
+    display: grid;
+    place-items: center;
+    font-size: 3rem;
+    color: var(--text-tertiary);
   }
   .txt {
     flex: 1;
     min-width: 220px;
   }
   .kicker {
-    font-size: 0.72rem;
+    font-size: 0.7rem;
     font-weight: 800;
     letter-spacing: 0.1em;
     text-transform: uppercase;
-    color: var(--a);
+    color: var(--accent);
   }
   h1 {
-    margin: 4px 0;
-    font-size: clamp(1.5rem, 5vw, 2.6rem);
+    margin: 4px 0 6px;
+    font-size: clamp(1.45rem, 4.4vw, 2.4rem);
+    line-height: 1.12;
   }
   .txt p {
     margin: 0;
     color: var(--text-secondary);
+    font-size: 0.9rem;
   }
-  .genres {
-    margin-top: 4px;
-    font-size: 0.8rem;
-    color: var(--text-tertiary);
+  .dest-note {
+    margin-top: 6px !important;
+    font-size: 0.78rem !important;
+    color: var(--text-tertiary) !important;
+  }
+  .dest-note b {
+    color: var(--text-secondary);
   }
   .acts {
     display: flex;
@@ -165,9 +434,21 @@
     flex-wrap: wrap;
     margin-top: 14px;
   }
-  .syn {
-    margin: 16px 24px 8px;
-    color: var(--text-secondary);
-    font-size: 0.9rem;
+  .sel-bar {
+    margin: 12px 16px 4px;
+    padding: 10px 14px;
+    border-radius: 16px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+  }
+  .sm-btn {
+    min-height: 38px;
+    padding: 0 16px;
+    font-size: 0.86rem;
+  }
+  .list-wrap {
+    margin-top: 12px;
   }
 </style>
