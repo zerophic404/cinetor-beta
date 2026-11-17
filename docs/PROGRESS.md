@@ -5,12 +5,13 @@ Status: [x] done · [~] in progress / partial · [ ] not started
 Plan: docs/plans/2026-11-14-cinetor-master-plan.md · Decisions: docs/handoff/decisions.md · Phase notes: docs/handoff/phase-*.md
 
 ## Resume here
-- Antigravity/agy fallback REMOVED (user decision 2026-11-15 20:0x): fallback_providers=[], plugin disabled, env lines deleted. Do not re-add.
-- Phase 11 = gateway + hardening, target release v0.3.0. Specs: docs/gateway.md (incl. 'Gateway update' + 'Comics plan'), docs/requirements-hardening.md.
-  - Android: branch feat/gateway-android (worktree ~/apk-projects/cinetor-dl), HEAD 9ac8bdb = recovered WIP (gateway source/resolver/Me-spaces/mock-trim/tests, NEVER compiled) + web work + docs. Tasks: compile, adult crash fix, comics, hardening, resizable PiP, downloads UX, lag, smoke, PR to main.
-  - Web+Desktop: branch feat/gateway (worktree ~/apk-projects/cinetor-web), gateway part already CI-green at 9865571. Tasks: 26 curated home sections, short-tv, zee-bangla, comics, hardening, resizable mini/pop-out, downloads UX, PR to main.
-  - Gateway facts: /home now 26 curated sections; new /short-tv, /zee-bangla; /manga ONLY action=c2|chapter (browse 404 → use MangaDex direct); /api/v1/resolve still returns 0 sources.
-  - After both merge: v0.3.0 release on Ashrix404/cinetor-app with all assets + README update.
+- Active private repository: `Ashrix404/cinetor-v2` (`main`), publishing signed Android/TV APKs, Windows (`.exe`/`.msi`) & Linux (`.deb`/`.AppImage`) desktop installers, and `gh-pages` PWA to public `Ashrix404/cinetor-app`.
+- Phase 12 (`v2.0.0` Cinetor Beta Parity & Liquid Glass Upgrade) in progress across 16 parallel branches (`agent/01-tokens-themes` .. `agent/16-qa-security-ci`):
+  - 8-theme Liquid Glass design system (`Glass`, `Matte`, `Material`, `Aura`, `Pearl` light mode, `Noir`, `Obsidian`, `Ember`) + zero-recomposition shimmer & Aura capsule navigation across Android, Android TV, Web PWA & Desktop.
+  - Full Cinetor Beta gateway shelf parity (Home Top-10 ranked charts, Short TV, Bengali/Indian TV, K/C/J/Pakistani Drama, Anime/Cartoons, gated 18+ Adult), network-aware Wi-Fi/mobile stream ranking, and poster rating/dub badges.
+  - Live gateway Music space (charts, search, albums/playlists, time-synced LRC lyrics, FLAC/320kbps playback & downloads) + resilient Manga/Manhwa/Manhua Comics reader.
+  - Chromeless in-app YouTube player (`youtube-nocookie.com` IFrame bridge) + multi-season/multi-episode batch series downloader on Android, Web & Desktop.
+  - R8 full-mode `@JavascriptInterface` / `@Serializable` / Media3 / Haze keep rules, unified `v*` tag release pipeline (`android.yml`, `desktop.yml`, `web.yml`), crash-hardened phone & TV emulator smoke scripts, and leak/persistence regression tests ready on `agent/16-qa-security-ci`.
 
 ## Phase checklist
 ### Phase 0 — setup, brand, mock  [x]
@@ -28,16 +29,21 @@ Plan: docs/plans/2026-11-14-cinetor-master-plan.md · Decisions: docs/handoff/de
 ### Phase 6 — Android TV  [x]
 - [x] 6.1 packaging (badging asserted in CI) · [x] 6.2 TV UI (tvui: shell/side nav/hero/rows/cards) + FocusMemory + TV player keys + TV emulator smoke — notes docs/handoff/phase-6-7.md
 ### Phase 7 — Perf + release  [x]
-- [x] 7.1 R8 full + shrink, ABI splits + universal, profileinstaller + hand-written baseline profile, Compose stability config (macrobenchmark NOT run → Ph10) · [x] 7.2 signed release APKs (per-ABI + universal) → cinetor-app releases
-### Phase 8 — Web/PWA  [~]
-- [x] 8.1 foundation + shell + PWA basics · [~] 8.2 screens — Ph2-equivalent DONE on wip/phase-2 (TMDB source, SpaceView hero/tabs/chips/rows/tint, details+skeleton, worker search+local history); left: isolated-space specifics (EPG/reader/adult gate), profiles/settings/about, Playwright · [~] 8.3 player DONE on wip/phase-2 (shaka lazy chunk, persistent <video> moved park→player→mini, preload latest-wins + Ready dot, controls/settings/subs style+sync, gestures, keyboard, mini/PiP/Media Session, IDB resume, autoplay next); search worker done in 8.2; left: downloads (shaka offline + OPFS) · [ ] 8.4 TV mode · [ ] 8.5 full PWA + landing · [ ] 8.6 deploy → cinetor-app gh-pages
-### Phase 9 — Desktop  [ ]
-- [ ] 9.1 Tauri shell + native downloader · [ ] 9.2 exe/msi/deb/AppImage CI
-### Phase 10 — Release  [ ]
-- [ ] release.yml v0.1.0 · [ ] QA matrix · [ ] final report to user
+- [x] 7.1 R8 full + shrink, ABI splits + universal, profileinstaller + hand-written baseline profile, Compose stability config · [x] 7.2 signed release APKs (per-ABI + universal) → cinetor-app releases
+### Phase 8 — Web/PWA  [x]
+- [x] 8.1 foundation + shell + PWA basics · [x] 8.2 screens · [x] 8.3 player (shaka + native fallback, persistent `<video>`, gestures, subs, resizable mini/PiP) · [x] 8.4 TV spatial mode · [x] 8.5 full PWA + OPFS downloads · [x] 8.6 deploy → cinetor-app gh-pages
+### Phase 9 — Desktop  [x]
+- [x] 9.1 Tauri 2 shell + native multi-connection/HLS downloader + resizable pop-out mini window · [x] 9.2 Windows (`.exe`/`.msi`) + Linux (`.deb`/`.AppImage`) CI
+### Phase 10 — Release  [x]
+- [x] v0.1.0 public release + README + QA matrix
+### Phase 11 — Gateway, Comics, Hardening & Downloads UX  [x]
+- [x] 11.1 26 curated gateway home sections + short-tv + zee-bangla + gated 18+ · [x] 11.2 MangaDex + gateway c2 comics · [x] 11.3 Hardening §1–§4 (ownership notice, zero URL leaks, resizable PiP/mini, deduped downloads + SAF/native folder picker) (merged c4670b9, 447c11e, a8a8f16)
+### Phase 12 — v2.0.0 Cinetor Beta Parity & Liquid Glass Upgrade  [~]
+- [~] 12.1 8-theme tokens & Liquid Glass UI (Android, TV, Web, Desktop) · [~] 12.2 Gateway Beta shelves, dub/rating badges & network-aware stream ranking · [~] 12.3 Live Gateway Music (LRC synced lyrics + FLAC/320kbps) & Spaces hub · [~] 12.4 Chromeless in-app YouTube player & multi-season batch series downloader · [x] 12.5 R8 `@JavascriptInterface`/serialization/Haze keep rules, unified `v*` CI release workflows & hardening/smoke guards
 
 ## Log (newest first, one line each)
-- 2026-11-15 20:05 agy fallback dropped; Ph11 dispatched (android feat/gateway-android recovered from reflog after force-push, web feat/gateway).
+- 2026-11-18 Phase 12 QA/Security/CI (`agent/16-qa-security-ci`): added R8 keep rules for WebView `@JavascriptInterface` (`AndroidBridge`), `kotlinx.serialization`, Media3/FFmpeg/FLAC, and Haze/RenderEffect; unified `v*` tag release publishing in `android.yml` + `desktop.yml` + `web.yml` to `Ashrix404/cinetor-app`; hardened `emulator-smoke.sh` + `tv-smoke.sh` logcat crash gates and `hardening.test.ts` `youtube-nocookie.com` iframe guards.
+- 2026-11-16 Phase 11 merged on `main` (`447c11e`, `c4670b9`, `a8a8f16`): gateway 26 home sections + comics + hardening §1–§4 + web decoder fallback & PWA cache heal.
 - 2026-11-15 13:25 Ph6+7 merged (PR #4, android-build-46 signed), Ph9 merged (PR #3, desktop-build-4), Ph10: v0.1.0 public release + README; old test releases deleted. DONE.
 - 2026-11-15 Ph6+7 done on wip/phase-6 (caa9aac..), runs 43678402983 (6.1) 43681409616 (6.2) 43682848369 (7.1) 43684811368 (7.2) green incl. phone + Android TV emulator smoke; merged to main 1d0c502 (PR #4), main run https://github.com/Ashrix404/cinetor/actions/runs/43687370076 green → https://github.com/Ashrix404/cinetor-app/releases/tag/android-build-46 (signed Cinetor-0.1.46-{arm64-v8a,armeabi-v7a,x86_64,universal}.apk). Per-ABI 16.8 MB. Handoff docs/handoff/phase-6-7.md.
 - 2026-11-15 00:40 Ph3 merged (android-build-30), web 8.3–8.5 merged; Ph4 started; packed for limit, auto-resume 04:45.
