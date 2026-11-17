@@ -3,10 +3,12 @@ import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import { CatalogRepository, NO_LATENCY } from './catalog';
 import {
+  DUB_LANGUAGES,
   DeadTitles,
   GatewayCatalogSource,
   GatewayClient,
   classifyGw,
+  extractDubLanguages,
   gatewayBase,
   gatewayPlan,
   gwItemId,
@@ -14,28 +16,39 @@ import {
   mapGwDetail,
   mapGwItem,
   normalizeBase,
+  safeName,
+  sectionMore,
   subjectIdOf,
   type GwDetail,
   type GwFetcher,
   type GwListItem
 } from './gateway';
 import {
+  LinkHealth,
   StreamResolver,
   applyResolved,
   captionsToSubs,
+  cleanStreamLabel,
+  detectNetworkKind,
   directPlayUrl,
+  extractYouTubeVideoId,
   findPlaceholder,
+  isDualAudio,
+  isImageLink,
   isLazySource,
   matchSearch,
   parseFindRef,
   parseStreamRef,
   pickVariant,
   proxyUrl,
+  rankSources,
   streamToSources,
+  streamTrailerSource,
   subtitleProxy,
+  toYouTubeEmbedUrl,
   type GwStream
 } from './gateway-play';
-import { gwImgUrl, imgAttrs } from './images';
+import { gwImgUrl, imgAttrs, ossWidthFor, thumbnailUrl, tmdbBucketFor } from './images';
 import { ComicsSource } from '../comics/mangadex';
 import { Catalog } from './source';
 import { fileFetcher } from './test-utils';
@@ -100,7 +113,7 @@ describe('gateway config + ids', () => {
 });
 
 describe('gateway mapping', () => {
-  it('home: all 26 curated sections in order + Movies/Series/Short TV/Zee Bangla, Banner hero', async () => {
+  it('home: curated /home sections (top chart TOP10, anime & adult filtered) + Beta pageable shelves & /zee-bangla', async () => {
     const calls: string[] = [];
     const src = source(homeRoutes, calls);
     const f = await src.file('HOME');
@@ -109,20 +122,49 @@ describe('gateway mapping', () => {
     const banner = home.sections[0].items.map((i: GwListItem) => `gw:${i.subject_id}`);
     const forYou = f.categories[0];
     expect(forYou.heroIds.every((id) => banner.includes(id))).toBe(true);
-    // Every non-Banner section becomes a row, in gateway order, with its emoji title intact.
-    const wanted = home.sections.slice(1).map((s) => s.section);
-    expect(forYou.rows.map((r) => r.title)).toEqual(wanted);
-    expect(wanted.length).toBe(25);
-    expect(forYou.rows.some((r) => /🔥Hot Short TV/.test(r.title))).toBe(true);
+
+    // Top chart row right under Hero is styled TOP10, and Popular Series / Popular Movie stay TOP10.
+    expect(forYou.rows[0].style).toBe('TOP10');
     expect(forYou.rows.find((r) => r.title === 'Popular Series')?.style).toBe('TOP10');
-    // Short TV / Zee Bangla categories use the new paged endpoints.
+    expect(forYou.rows.find((r) => r.title === 'Popular Movie')?.style).toBe('TOP10');
+
+    // Anime sections (e.g. Anime[English Dubbed], Adult Animation) and anime items are excluded from HOME.
+    expect(forYou.rows.some((r) => /anime/i.test(r.title))).toBe(false);
+    expect(f.items.some((i) => i.genres.some((g) => /^anime$/i.test(g)))).toBe(false);
+
+    // Beta pageable shelves on HOME:
+    const rowTitles = forYou.rows.map((r) => r.title);
+    for (const expected of [
+      '🔥 Hot Short TV',
+      'Zee Bangla Serials',
+      'Zee Bangla Shows',
+      'Star Jalsha Shows',
+      'Sony AATH Series',
+      'Indian Dramas',
+      'Latest Movies',
+      'Latest Series',
+      'Hollywood',
+      'Action',
+      'Comedy',
+      'Horror',
+      'Thriller',
+      'Crime Series'
+    ]) {
+      expect(rowTitles).toContain(expected);
+    }
+
+    // Curated POSTER sections get sectionMore cursors for endless rowPage pagination.
+    const western = forYou.rows.find((r) => r.title === 'Original Western TV')!;
+    expect(western.more).toMatchObject({ path: '/tv-series', params: { sort: 'hottest', country: 'United States' }, page: 0, hasMore: true });
+
+    // Short TV / Zee Bangla categories use the paged endpoints.
     const short = f.categories.find((c) => c.id === 'gw-short-tv')!;
     expect(short.rows[0].more).toEqual({ path: '/short-tv', params: {}, page: 1, hasMore: true });
     const zee = f.categories.find((c) => c.id === 'gw-zee-bangla')!;
     expect(zee.rows[0].more?.path).toBe('/zee-bangla');
     const latest = f.categories[1].rows[0];
     expect(latest.id).toBe('gw-movies-latest');
-    expect(latest.more).toEqual({ path: '/movies', params: {}, page: 1, hasMore: true });
+    expect(latest.more).toEqual({ path: '/movies', params: { sort: 'latest' }, page: 1, hasMore: true });
     expect(f.items.every((i) => i.id.startsWith('gw:') && /^https:\/\//.test(i.poster) && !!i.slug)).toBe(true);
     const movie = f.items.find((i) => i.type === 'MOVIE')!;
     expect(isLazySource(movie.sources?.[0])).toBe(true);
@@ -130,35 +172,151 @@ describe('gateway mapping', () => {
     expect(calls.some((u) => u.includes('/adult'))).toBe(false);
   });
 
-  it('adult plan passes kind + sort params', () => {
+  it('adult plan passes kind + sort + regional shelves and filters unsafe names via safeName', async () => {
     const p = JSON.stringify(gatewayPlan('ADULT'));
     expect(p).toContain('"kind":"movies"');
     expect(p).toContain('"sort":"latest"');
+    expect(p).toContain('"sort":"hottest"');
+    expect(p).toContain('"sort":"rating"');
+    expect(gatewayPlan('ADULT').map((c) => c.id)).toEqual(['ad-featured', 'ad-series', 'ad-popular', 'ad-top-rated']);
+
+    expect(safeName('Labas pasok')).toBe(true);
+    expect(safeName('Romantic Evening')).toBe(true);
+    for (const blocked of [
+      'Schoolgirl Secret',
+      'Teen Party',
+      'College Girl Diary',
+      'Underage Scandal',
+      'Step-Sister Story',
+      'Hidden Cam Room',
+      'Spy Cam Footage',
+      'Leaked MMS Clip',
+      'Hentai OVA',
+      'Forced Entry',
+      'Loli Idol'
+    ]) {
+      expect(safeName(blocked)).toBe(false);
+    }
+
+    const src = source({
+      '/adult': {
+        page: 1,
+        has_more: true,
+        items: [
+          { name: 'Midnight Desire', poster_url: 'https://p/ok.jpg', slug: 'ok-1', subject_id: '101', genre: 'Adult,Erotic', type: 'movie', has_resource: true },
+          { name: 'Hidden Cam Leak', poster_url: 'https://p/bad1.jpg', slug: 'bad-1', subject_id: '102', genre: 'Adult,Erotic', type: 'movie', has_resource: true },
+          { name: 'Schoolgirl Crush', poster_url: 'https://p/bad2.jpg', slug: 'bad-2', subject_id: '103', genre: 'Adult,Erotic', type: 'movie', has_resource: true }
+        ]
+      }
+    });
+    const f = await src.file('ADULT');
+    expect(f.items.map((i) => i.id)).toEqual(['ad-gw:101']);
+    expect(f.items[0].maturity).toBe('18+');
   });
 
-  it('paged rows: next page + genre param', async () => {
+  it('paged rows: next page, endless rowPage for curated sections, and genre chip filterPage', async () => {
     const calls: string[] = [];
-    const src = source({ '/movies': (u: URL) => ({ ...sample('movies.json'), page: Number(u.searchParams.get('page')), has_more: false }) }, calls);
+    const src = source(
+      {
+        '/movies': (u: URL) => ({ ...sample('movies.json'), page: Number(u.searchParams.get('page')), has_more: false }),
+        '/tv-series': (u: URL) => ({ ...sample('tv-series.json'), page: Number(u.searchParams.get('page')), has_more: true }),
+        '/short-tv': (u: URL) => ({ ...sample('short-tv.json'), page: Number(u.searchParams.get('page')), has_more: false })
+      },
+      calls
+    );
     const r = await src.morePage('HOME', { path: '/movies', params: {}, page: 1, hasMore: true }, 'gw-movies');
     expect(new URL(calls[0]).searchParams.get('page')).toBe('2');
     expect(r.more).toMatchObject({ page: 2, hasMore: false });
     expect(r.items.length).toBeGreaterThan(0);
+
     const g = await src.genrePage('HOME', 'gw-movies', 'Action');
     expect(new URL(calls[1]).searchParams.get('genre')).toBe('Action');
     expect(g?.items.length).toBeGreaterThan(0);
+
+    // Curated section row without explicit list spec pages endlessly via sectionMore / rowPage:
+    expect(sectionMore('🔥Hot Short TV').path).toBe('/short-tv');
+    expect(sectionMore('Zee Bangla Shows')).toMatchObject({ path: '/tv-series', params: { sort: 'latest', genre: 'Zee Bangla', country: 'India' } });
+    const secPage = await src.rowPage('HOME', { id: 'gw-home-sec-short', title: '🔥Hot Short TV' });
+    expect(secPage.items.length).toBeGreaterThan(0);
+    expect(secPage.more.page).toBe(1);
+
+    // Drama country chip filter:
+    const pk = await src.genrePage('DRAMA', 'gw-drama-all', 'Pakistani Drama');
+    expect(pk?.more.params.country).toBe('Pakistan');
   });
 
-  it('drama: K/C/J use country=, anime uses /animation', () => {
+  it('drama: full Beta tabs (All, K-Drama, C-Drama, J-Drama, Pakistani Drama, Indian Drama, Others) & shelves', () => {
     const d = gatewayPlan('DRAMA');
-    expect(d.map((c) => c.title)).toEqual(['K-Drama', 'C-Drama', 'J-Drama']);
-    expect(JSON.stringify(d[0].rows)).toContain('"country":"Korea"');
-    expect(JSON.stringify(gatewayPlan('ANIME'))).toContain('/animation');
-    expect(JSON.stringify(gatewayPlan('ADULT'))).toContain('/adult');
+    expect(d.map((c) => c.title)).toEqual(['All', 'K-Drama', 'C-Drama', 'J-Drama', 'Pakistani Drama', 'Indian Drama', 'Others']);
+    const allRowTitles = d[0].rows.filter((r) => r.kind === 'list').map((r) => r.title);
+    for (const shelf of [
+      'Trending K-Drama',
+      'Latest K-Drama',
+      'Top Rated K-Drama',
+      'Korean Romance',
+      'Korean Movies',
+      'Trending C-Drama',
+      'Latest C-Drama',
+      'Top Rated C-Drama',
+      'Costume & Historical',
+      'Chinese Romance',
+      'Chinese Movies',
+      'Trending J-Drama',
+      'Latest J-Drama',
+      'Japanese Movies',
+      'Trending Pakistani Drama',
+      'All-Time Best Pakistani Drama',
+      'Indian Dramas',
+      'Thai Dramas',
+      'Taiwanese Dramas',
+      'Other Asian Dramas'
+    ]) {
+      expect(allRowTitles).toContain(shelf);
+    }
   });
 
-  it('only playable (has_resource) + not-dead titles are listed', () => {
+  it('anime: Trending, Latest, Top Rated, Animated Movies, and separate Cartoons (/animation) shelf', () => {
+    const a = gatewayPlan('ANIME');
+    const allTitles = a[0].rows.filter((r) => r.kind === 'list').map((r) => r.title);
+    expect(allTitles).toEqual(['Trending Anime', 'Latest Anime', 'Top Rated Anime', 'Animated Movies', 'Cartoons']);
+    const cartoons = a[0].rows.find((r) => r.kind === 'list' && r.title === 'Cartoons');
+    expect(cartoons && cartoons.kind === 'list' ? cartoons.path : '').toBe('/animation');
+  });
+
+  it('extracts dub languages (Hindi, Bengali, Tamil, Telugu, English) onto item genres without false positives', () => {
+    expect(DUB_LANGUAGES).toEqual(['Hindi', 'Bengali', 'Tamil', 'Telugu', 'English']);
+    expect(extractDubLanguages({ name: 'Where is Home [Bengali]' })).toEqual(['Bengali']);
+    expect(extractDubLanguages({ name: 'Neem Phuler Modhu', badge: 'Zee Bangla' })).toEqual(['Bengali']);
+    expect(extractDubLanguages({ name: 'Pushpa 2 (Hindi Dubbed)', dubs: [{ language_name: 'Telugu' }, { language_name: 'Tamil' }] })).toEqual([
+      'Telugu',
+      'Tamil',
+      'Hindi'
+    ]);
+    expect(extractDubLanguages({ name: 'Solo Leveling [English Dubbed]' })).toEqual(['English']);
+    // Plain title words like "Johnny English" must not trigger a false English dub badge.
+    expect(extractDubLanguages({ name: 'Johnny English Strikes Again' })).toEqual([]);
+
+    const mapped = mapGwItem(
+      {
+        name: 'Jawan [Hindi]',
+        poster_url: 'https://p/j.jpg',
+        slug: 'jawan-1',
+        subject_id: '55',
+        genre: 'Action,Thriller',
+        type: 'movie',
+        has_resource: true,
+        dubs: [{ subject_id: '56', slug: 'jawan-bn', language_name: 'Bengali' }]
+      },
+      'HOME'
+    )!;
+    expect(mapped.genres).toEqual(['Action', 'Thriller', 'Bengali', 'Hindi']);
+  });
+
+  it('only playable (has_resource === true) + not-dead titles are listed', () => {
     const raw: GwListItem = { name: 'X', poster_url: 'https://p/x.jpg', slug: 'x-1', subject_id: '1', type: 'movie', has_resource: false };
     expect(mapGwItem(raw, 'HOME')).toBeNull();
+    expect(mapGwItem({ ...raw, has_resource: undefined }, 'HOME')).toBeNull();
+    expect(mapGwItem({ ...raw, has_resource: null }, 'HOME')).toBeNull();
     expect(mapGwItem({ ...raw, has_resource: true }, 'HOME')?.id).toBe('gw:1');
     expect(mapGwItem({ ...raw, has_resource: true, genre: 'Adult,Erotic' }, 'HOME')).toBeNull();
     expect(mapGwItem({ ...raw, has_resource: true, genre: 'Adult,Erotic' }, 'ADULT')?.maturity).toBe('18+');
@@ -241,6 +399,47 @@ describe('gateway mapping', () => {
   });
 });
 
+describe('thumbnail sizing (OSS + TMDB DPR & low-perf tier)', () => {
+  it('selects TMDB width buckets (w342, w500, w780, w1280) based on CSS width, DPR, and LOW tier', () => {
+    expect(tmdbBucketFor(160, 'MID', 1)).toBe('w342');
+    expect(tmdbBucketFor(220, 'MID', 2)).toBe('w500');
+    expect(tmdbBucketFor(360, 'HIGH', 2)).toBe('w780');
+    expect(tmdbBucketFor(640, 'HIGH', 2)).toBe('w1280');
+    // LOW tier caps DPR amplification so 2 GB RAM devices never decode oversized bitmaps.
+    expect(tmdbBucketFor(220, 'LOW', 3)).toBe('w342');
+    expect(tmdbBucketFor(900, 'LOW', 3)).toBe('w780');
+  });
+
+  it('computes OSS resize widths and replaces existing x-oss-process cleanly', () => {
+    const raw = 'https://pbcdn.aoneroom.com/image/2026/poster.jpg';
+    const already = 'https://pbcdn.aoneroom.com/image/2026/poster.jpg?x-oss-process=image/resize,w_1000&sig=1';
+    expect(ossWidthFor(160, 'MID', 1)).toBe(342);
+    expect(ossWidthFor(220, 'HIGH', 2)).toBe(500);
+    expect(ossWidthFor(220, 'LOW', 3)).toBe(342);
+    expect(gwImgUrl(raw, 500)).toBe(`${raw}?x-oss-process=image/resize,w_500`);
+    expect(gwImgUrl(already, 342)).toBe('https://pbcdn.aoneroom.com/image/2026/poster.jpg?x-oss-process=image/resize,w_342&sig=1');
+  });
+
+  it('normalizes both tmdb:/ and full image.tmdb.org URLs and respects DPR in imgAttrs & thumbnailUrl', () => {
+    const fullTmdb = 'https://image.tmdb.org/t/p/original/abc.jpg';
+    const hiAttrs = imgAttrs(fullTmdb, 'poster', 'HIGH', (p) => p, 2);
+    expect(hiAttrs.src).toBe('https://image.tmdb.org/t/p/w500/abc.jpg');
+    expect(hiAttrs.srcset).toContain('w342/abc.jpg 342w');
+    expect(hiAttrs.srcset).toContain('w500/abc.jpg 500w');
+    expect(hiAttrs.srcset).toContain('w780/abc.jpg 780w');
+
+    const lowAttrs = imgAttrs(fullTmdb, 'poster', 'LOW', (p) => p, 3);
+    expect(lowAttrs.src).toBe('https://image.tmdb.org/t/p/w342/abc.jpg');
+    expect(lowAttrs.srcset).not.toContain('w500');
+    expect(lowAttrs.srcset).not.toContain('w780');
+
+    const oss = 'https://pbcdnw.aoneroom.com/image/a.jpg';
+    expect(thumbnailUrl(oss, 220, 'HIGH', 2)).toBe(`${oss}?x-oss-process=image/resize,w_500`);
+    expect(thumbnailUrl(oss, 220, 'LOW', 3)).toBe(`${oss}?x-oss-process=image/resize,w_342`);
+    expect(thumbnailUrl('tmdb:/z.jpg', 360, 'HIGH', 2)).toBe('https://image.tmdb.org/t/p/w780/z.jpg');
+  });
+});
+
 describe('gateway playback URLs', () => {
   const st: GwStream = {
     direct_play_url: '/api/public/v1/stream/5/play?detail_path=s&se=0&ep=0',
@@ -319,6 +518,114 @@ describe('gateway playback URLs', () => {
     ];
     expect(matchSearch(hits, { title: 'Breaking Bad', year: 2008, type: 'tv' })?.subject_id).toBe('3');
     expect(matchSearch(hits, { title: 'Nothing Here', year: 2008, type: 'tv' })).toBeUndefined();
+  });
+
+  it('normalizes YouTube stream & trailer URLs into https://www.youtube-nocookie.com/embed/<videoId> with kind MP4', () => {
+    const vid = 'dQw4w9WgXcQ';
+    for (const raw of [
+      `https://www.youtube.com/watch?v=${vid}&feature=share`,
+      `https://m.youtube.com/watch?app=desktop&v=${vid}`,
+      `https://youtu.be/${vid}?si=123`,
+      `https://www.youtube.com/shorts/${vid}`,
+      `https://www.youtube.com/embed/${vid}?autoplay=1`,
+      `https://www.youtube-nocookie.com/embed/${vid}`,
+      `yt://${vid}`
+    ]) {
+      expect(extractYouTubeVideoId(raw)).toBe(vid);
+      expect(toYouTubeEmbedUrl(raw)).toBe(`https://www.youtube-nocookie.com/embed/${vid}`);
+    }
+    expect(extractYouTubeVideoId('https://cdn.example/video.mp4')).toBeNull();
+
+    const ytStream: GwStream = {
+      trailer_url: 'https://youtu.be/abcDEF123_-',
+      sources: [
+        { source: 'Zee Bangla', format: 'YOUTUBE', resolution: '720p', url: `https://www.youtube.com/watch?v=${vid}` },
+        { format: 'MP4', resolution: '1080p', url: 'https://cdn.example/ep1.mp4' }
+      ]
+    };
+    const out = streamToSources(BASE, '88', ytStream);
+    const ytSrc = out.find((x) => x.url.includes('youtube-nocookie.com'))!;
+    expect(ytSrc).toMatchObject({
+      url: `https://www.youtube-nocookie.com/embed/${vid}`,
+      kind: 'MP4',
+      label: 'YouTube · HD'
+    });
+    const trailer = streamTrailerSource(ytStream);
+    expect(trailer).toMatchObject({
+      url: 'https://www.youtube-nocookie.com/embed/abcDEF123_-',
+      kind: 'MP4',
+      label: 'YouTube · HD'
+    });
+  });
+
+  it('produces clean provider-free quality & dual-audio labels', () => {
+    expect(cleanStreamLabel({ height: 2160 })).toBe('4K UHD');
+    expect(cleanStreamLabel({ height: 1080, dual: true, size: 1610612736 })).toBe('1080p FHD · Dual Audio · 1.5 GB');
+    expect(cleanStreamLabel({ height: 720, language: 'Bengali' })).toBe('720p HD · Bengali');
+    expect(cleanStreamLabel({ height: 720, youtube: true })).toBe('YouTube · HD');
+    expect(isDualAudio({ label: '1080p', url: 'https://cdn.example/Movie.2026.Hindi-Eng.1080p.mp4' })).toBe(true);
+    expect(isDualAudio({ label: '1080p', url: 'https://cdn.example/Movie.2026.1080p.mp4' })).toBe(false);
+  });
+
+  it('ranks BDIX first on Wi-Fi (unmetered) and Gateway Proxy MP4 first on mobile/cellular', () => {
+    expect(detectNetworkKind({ type: 'wifi' })).toBe('wifi');
+    expect(detectNetworkKind({ type: 'cellular' })).toBe('mobile');
+    expect(detectNetworkKind({ type: 'wifi', saveData: true })).toBe('mobile');
+
+    const mixed: GwStream = {
+      sources: [
+        { source: 'YouTube', format: 'YOUTUBE', resolution: '720p', url: 'https://youtu.be/dQw4w9WgXcQ' },
+        { format: 'MP4', resolution: '720p', url: 'https://cdn.example/720.mp4' },
+        { format: 'MP4', resolution: '1080p', url: 'https://cdn.example/1080.mp4' },
+        { source: 'BDIX', isBdix: true, format: 'MP4', resolution: '1080p', url: 'http://bdix.local/movie-1080.mp4' }
+      ]
+    };
+
+    const wifiRanked = streamToSources(BASE, '9', mixed, { network: 'wifi' });
+    expect(wifiRanked[0].url).toBe('http://bdix.local/movie-1080.mp4');
+    expect(wifiRanked[1].url).toContain('/api/public/v1/stream/9/play?');
+    expect(wifiRanked[1].height).toBe(1080);
+    expect(wifiRanked[wifiRanked.length - 1].url).toBe('https://www.youtube-nocookie.com/embed/dQw4w9WgXcQ');
+
+    const mobileRanked = streamToSources(BASE, '9', mixed, { network: 'mobile' });
+    // Mobile: gateway proxy MP4 first (720p mobileFit ahead of 1080p), BDIX last!
+    expect(mobileRanked[0].url).toContain('/api/public/v1/stream/9/play?');
+    expect(mobileRanked[0].height).toBe(720);
+    expect(mobileRanked[1].url).toContain('/api/public/v1/stream/9/play?');
+    expect(mobileRanked[1].height).toBe(1080);
+    expect(mobileRanked[mobileRanked.length - 1].url).toBe('http://bdix.local/movie-1080.mp4');
+  });
+
+  it('tracks failed hosts & URLs in LinkHealth without poisoning the gateway proxy host itself', () => {
+    let clock = 1_000;
+    const health = new LinkHealth(() => clock);
+    const badProxy = proxyUrl(BASE, '5', 'https://dead-cdn.example/a.mp4', '1080p');
+    const siblingOnBadHost = proxyUrl(BASE, '5', 'https://dead-cdn.example/b.mp4', '720p');
+    const healthyProxy = proxyUrl(BASE, '5', 'https://good-cdn.example/a.mp4', '720p');
+
+    // 403 on proxied dead-cdn marks dead-cdn.example refused, leaving good-cdn.example on the same gateway healthy!
+    health.failed(badProxy, 403);
+    expect(health.refused(badProxy)).toBe(true);
+    expect(health.refused(siblingOnBadHost)).toBe(true);
+    expect(health.refused(healthyProxy)).toBe(false);
+
+    // Ranking skips refused links, drops image links, and promotes dual-audio when preferred.
+    expect(isImageLink('https://image.tmdb.org/t/p/w500/p.jpg')).toBe(true);
+    health.preferDualAudio = true;
+    const ranked = rankSources(
+      [
+        { url: 'https://cdn.example/poster.jpg', kind: 'MP4', height: 1080, label: '1080p FHD' },
+        { url: badProxy, kind: 'MP4', height: 1080, label: '1080p FHD' },
+        { url: healthyProxy, kind: 'MP4', height: 720, label: '720p HD' },
+        { url: proxyUrl(BASE, '5', 'https://good-cdn.example/dual.mp4', '720p'), kind: 'MP4', height: 720, label: '720p HD · Dual Audio' }
+      ],
+      { health, network: 'wifi' }
+    );
+    expect(ranked.map((s) => s.label)).toEqual(['720p HD · Dual Audio', '720p HD']);
+
+    // After 6 hours + 1ms, the cooldown expires.
+    clock += 6 * 60 * 60_000 + 1;
+    expect(health.refused(badProxy)).toBe(false);
   });
 });
 
