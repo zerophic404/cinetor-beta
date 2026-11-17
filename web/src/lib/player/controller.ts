@@ -9,6 +9,7 @@ import { Preloader } from './Preloader';
 import { ResumeStore, idbKV, memoryKV, shouldSave, type ResumeEntry } from './resume';
 import { Session } from './session';
 import { buildMedia, type Media } from './sources';
+import { pickPreferredSource, seriesBaseId, type PlaybackPref } from './youtube';
 import { streams } from '$lib/data/app-catalog';
 import { applyResolved, isLazySource } from '$lib/data/gateway-play';
 import { downloads } from '$lib/download/manager.svelte';
@@ -46,14 +47,14 @@ export function dataSaver(): boolean {
 }
 
 function saveResume(m: Media): void {
-  const v = engine.video;
-  if (!v || engine.loadedKey !== m.key || !Number.isFinite(v.duration)) return;
+  const dur = engine.duration;
+  if (engine.loadedKey !== m.key || !Number.isFinite(dur) || dur <= 0) return;
   void resume.save(activeProfileId(), {
     itemId: m.item.id,
     episodeId: m.episode?.id,
     space: m.item.space,
-    pos: v.currentTime,
-    dur: v.duration,
+    pos: engine.currentTime,
+    dur,
     title: m.title
   });
 }
@@ -61,17 +62,47 @@ function saveResume(m: Media): void {
 export const preloader = new Preloader({ engine, startFor, dataSaver: () => dataSaver(), sessionBusy: () => session.busy });
 export const session: Session = new Session({ engine, preloader, startFor, onLeave: saveResume });
 
-export const mediaFor = (item: Item, ep?: Episode): Media =>
-  buildMedia(
-    item,
-    ep,
-    (mime) => engine.canPlay(mime),
-    (p) => repo.asset(p)
-  );
-
 export const QUALITY_KEY = 'cinetor.gwQuality';
-/** Preferred gateway variant height (last manual quality pick; default 1080). */
-export function preferredHeight(): number {
+export const DUB_KEY = 'cinetor.gwDub';
+
+function titlePrefKey(itemId: string): string {
+  return `cinetor.pref.${activeProfileId()}.${seriesBaseId(itemId)}`;
+}
+
+function readTitlePref(itemId?: string): PlaybackPref | null {
+  if (!itemId) return null;
+  try {
+    const raw = localStorage.getItem(titlePrefKey(itemId));
+    return raw ? (JSON.parse(raw) as PlaybackPref) : null;
+  } catch {
+    return null;
+  }
+}
+
+function writeTitlePref(itemId: string | undefined, patch: PlaybackPref): void {
+  if (!itemId) return;
+  try {
+    const cur = readTitlePref(itemId) ?? {};
+    localStorage.setItem(titlePrefKey(itemId), JSON.stringify({ ...cur, ...patch }));
+  } catch {
+    /* ignore */
+  }
+}
+
+function readGlobalPref(): PlaybackPref {
+  try {
+    const h = Number(localStorage.getItem(QUALITY_KEY)) || null;
+    const dub = localStorage.getItem(DUB_KEY) || null;
+    return { dub, height: h };
+  } catch {
+    return {};
+  }
+}
+
+/** Preferred gateway variant height (per-series pick first, else last global pick; default 1080). */
+export function preferredHeight(itemId?: string): number {
+  const t = readTitlePref(itemId);
+  if (t?.height && t.height > 0) return t.height;
   try {
     return Number(localStorage.getItem(QUALITY_KEY)) || 1080;
   } catch {
@@ -79,11 +110,38 @@ export function preferredHeight(): number {
   }
 }
 
-/** Gateway placeholder → proxy MP4 variants + captions (noSource when nothing playable). */
+export function preferredDub(itemId?: string): string | null {
+  const t = readTitlePref(itemId);
+  if (t?.dub) return t.dub;
+  try {
+    return localStorage.getItem(DUB_KEY) || null;
+  } catch {
+    return null;
+  }
+}
+
+export const mediaFor = (item: Item, ep?: Episode): Media =>
+  buildMedia(
+    item,
+    ep,
+    (mime) => engine.canPlay(mime),
+    (p) => repo.asset(p),
+    readTitlePref(item.id),
+    readGlobalPref()
+  );
+
+/** Gateway placeholder → proxy MP4 / YouTube variants + captions (noSource when nothing playable). */
 export async function resolveMedia(m: Media, signal?: AbortSignal): Promise<Media> {
   if (!isLazySource(m.source)) return m;
+  const prefH = preferredHeight(m.item.id);
   const r = await streams.resolve(m.source!, signal).catch(() => ({ sources: [], subtitles: [] }));
-  return applyResolved(m, r, preferredHeight());
+  const resolved = applyResolved(m, r, prefH);
+  const prefDub = preferredDub(m.item.id);
+  if (prefDub && resolved.variants && resolved.variants.length > 1) {
+    const chosen = pickPreferredSource(resolved.variants, { dub: prefDub, height: prefH });
+    if (chosen) return { ...resolved, source: chosen };
+  }
+  return resolved;
 }
 
 /** Play/preload target: offline copy when downloaded, else the resolved gateway stream. */
@@ -102,10 +160,19 @@ export async function reResolve(m: Media): Promise<Media | null> {
 }
 
 engine.recover = reResolve;
-engine.onQualityPick = (h) => {
+engine.onQualityPick = (h, itemId) => {
+  writeTitlePref(itemId, { height: h });
   try {
     if (h) localStorage.setItem(QUALITY_KEY, String(h));
     else localStorage.removeItem(QUALITY_KEY);
+  } catch {
+    /* ignore */
+  }
+};
+engine.onDubPick = (dub, itemId) => {
+  writeTitlePref(itemId, { dub });
+  try {
+    if (dub) localStorage.setItem(DUB_KEY, dub);
   } catch {
     /* ignore */
   }
@@ -143,8 +210,11 @@ export function wirePlayer(): void {
     else engine.pause();
   });
   engine.onVideo((v) => {
-    v.addEventListener('play', () => arbiter.claim('video'));
+    v.addEventListener('play', () => {
+      if (!engine.youtubeActive) arbiter.claim('video');
+    });
     const sync = () => {
+      if (engine.youtubeActive) return;
       const b: [number, number][] = [];
       for (let i = 0; i < v.buffered.length; i++) b.push([v.buffered.start(i), v.buffered.end(i)]);
       clock.set({
@@ -160,9 +230,14 @@ export function wirePlayer(): void {
       });
     };
     for (const ev of ['timeupdate', 'progress', 'durationchange', 'play', 'pause', 'ratechange', 'volumechange', 'ended', 'loadedmetadata', 'seeked', 'emptied']) v.addEventListener(ev, sync);
-    v.addEventListener('waiting', () => clock.update((c) => ({ ...c, waiting: true })));
-    v.addEventListener('playing', () => clock.update((c) => ({ ...c, waiting: false, paused: false, ended: false })));
+    v.addEventListener('waiting', () => {
+      if (!engine.youtubeActive) clock.update((c) => ({ ...c, waiting: true }));
+    });
+    v.addEventListener('playing', () => {
+      if (!engine.youtubeActive) clock.update((c) => ({ ...c, waiting: false, paused: false, ended: false }));
+    });
     v.addEventListener('timeupdate', () => {
+      if (engine.youtubeActive) return;
       const m = session.snapshot.media;
       const now = Date.now();
       if (m && !v.paused && shouldSave(now, lastSave)) {
@@ -171,16 +246,47 @@ export function wirePlayer(): void {
       }
       if (now - lastPos > 1000) {
         lastPos = now;
-        positionState(v);
+        positionState(v.currentTime, v.duration, v.playbackRate);
       }
     });
     v.addEventListener('pause', () => {
+      if (engine.youtubeActive) return;
       const m = session.snapshot.media;
       if (m) saveResume(m);
     });
     v.addEventListener('ended', () => {
+      if (engine.youtubeActive) return;
       if (get(sleep).mode === 'end') setSleep(null);
     });
+  });
+  engine.onYouTubeClock((yc, ev) => {
+    clock.set({
+      t: yc.t,
+      dur: yc.dur,
+      buffered: yc.dur > 0 && yc.t > 0 ? [[0, yc.t]] : [],
+      paused: yc.paused,
+      waiting: yc.waiting,
+      ended: yc.ended,
+      rate: yc.rate,
+      volume: yc.volume,
+      muted: yc.muted
+    });
+    const m = session.snapshot.media;
+    const now = Date.now();
+    if (ev === 'play') arbiter.claim('video');
+    if (m && !yc.paused && shouldSave(now, lastSave)) {
+      lastSave = now;
+      saveResume(m);
+    }
+    if (now - lastPos > 1000 && yc.dur > 0) {
+      lastPos = now;
+      positionState(yc.t, yc.dur, yc.rate);
+    }
+    if (ev === 'pause' && m) saveResume(m);
+    if (ev === 'ended') {
+      if (m) saveResume(m);
+      if (get(sleep).mode === 'end') setSleep(null);
+    }
   });
   const flush = () => {
     const m = session.snapshot.media;
@@ -197,11 +303,11 @@ export function wirePlayer(): void {
   });
 }
 
-function positionState(v: HTMLVideoElement): void {
+function positionState(pos: number, dur: number, rate: number): void {
   const ms = navigator.mediaSession;
-  if (!ms?.setPositionState || !Number.isFinite(v.duration) || v.duration <= 0) return;
+  if (!ms?.setPositionState || !Number.isFinite(dur) || dur <= 0) return;
   try {
-    ms.setPositionState({ duration: v.duration, position: Math.min(v.currentTime, v.duration), playbackRate: v.playbackRate || 1 });
+    ms.setPositionState({ duration: dur, position: Math.min(pos, dur), playbackRate: rate || 1 });
   } catch {
     /* ignore */
   }
@@ -217,21 +323,18 @@ function wireMediaSession(): void {
       /* unsupported action */
     }
   };
-  const v = () => engine.video;
-  set('play', () => void v()?.play().catch(() => {}));
-  set('pause', () => v()?.pause());
+  set('play', () => void engine.play().catch(() => {}));
+  set('pause', () => engine.pause());
   set('stop', () => void session.stop());
   set('seekbackward', (d) => {
-    const el = v();
-    if (el) el.currentTime = Math.max(0, el.currentTime - (d.seekOffset ?? 10));
+    engine.seekTo(Math.max(0, engine.currentTime - (d.seekOffset ?? 10)));
   });
   set('seekforward', (d) => {
-    const el = v();
-    if (el) el.currentTime = Math.min(el.duration || Infinity, el.currentTime + (d.seekOffset ?? 10));
+    const dur = engine.duration || Infinity;
+    engine.seekTo(Math.min(dur, engine.currentTime + (d.seekOffset ?? 10)));
   });
   set('seekto', (d) => {
-    const el = v();
-    if (el && d.seekTime !== undefined) el.currentTime = d.seekTime;
+    if (d.seekTime !== undefined) engine.seekTo(d.seekTime);
   });
   nextUp.subscribe((n) => set('nexttrack', n ? () => n.go() : null));
   let lastKey: string | null = null;
@@ -259,6 +362,7 @@ function wireMediaSession(): void {
 
 // ---- small helpers used by UI ----
 export async function togglePiP(): Promise<void> {
+  if (engine.youtubeActive) return;
   const v = engine.video as (HTMLVideoElement & { webkitSetPresentationMode?: (m: string) => void; webkitPresentationMode?: string }) | null;
   if (!v) return;
   try {
@@ -271,4 +375,6 @@ export async function togglePiP(): Promise<void> {
 }
 
 export const pipSupported = (): boolean =>
-  typeof document !== 'undefined' && (!!document.pictureInPictureEnabled || 'webkitSetPresentationMode' in HTMLVideoElement.prototype);
+  typeof document !== 'undefined' &&
+  !engine.youtubeActive &&
+  (!!document.pictureInPictureEnabled || 'webkitSetPresentationMode' in HTMLVideoElement.prototype);

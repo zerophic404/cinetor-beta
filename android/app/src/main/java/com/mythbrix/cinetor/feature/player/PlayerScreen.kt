@@ -89,7 +89,7 @@ fun resizeModeFor(mode: AspectMode): Int = when (mode) {
     AspectMode.STRETCH -> AspectRatioFrameLayout.RESIZE_MODE_FILL
 }
 
-/** Media3 surface only (no Media3 controller). Kept at a stable spot in the tree so it survives mode changes. */
+/** Media3 surface (or chromeless YouTube WebView when [youtubeVideoId] is non-null). */
 @OptIn(UnstableApi::class)
 @Composable
 fun VideoSurface(
@@ -98,7 +98,32 @@ fun VideoSurface(
     modifier: Modifier = Modifier,
     zoom: Float = 1f,
     configure: (PlayerView) -> Unit = {},
+    youtubeVideoId: String? = null,
+    youtubeSessionKey: String? = null,
+    youtubeHolder: YouTubeWebViewHolder? = null,
+    cinetorPlayer: CinetorPlayer? = null,
+    startPositionMs: Long = 0L,
+    playWhenReady: Boolean = true,
 ) {
+    if (youtubeVideoId != null) {
+        val activeHolder = youtubeHolder ?: rememberYouTubeWebViewHolder(
+            activeVideoId = youtubeVideoId,
+            cinetorPlayer = cinetorPlayer,
+        )
+        if (activeHolder != null) {
+            ChromelessYouTubeSurface(
+                youtubeHolder = activeHolder,
+                sessionKey = youtubeSessionKey,
+                videoId = youtubeVideoId,
+                startPositionMs = startPositionMs,
+                playWhenReady = playWhenReady,
+                aspect = aspect,
+                modifier = modifier,
+                zoom = zoom,
+            )
+        }
+        return
+    }
     AndroidView(
         factory = { ctx ->
             PlayerView(ctx).apply {
@@ -132,6 +157,7 @@ class PlayerLayers(
     val overVideo: @Composable () -> Unit = {},
     val configureView: (PlayerView) -> Unit = {},
     val zoom: Float = 1f,
+    val youtubeHolder: YouTubeWebViewHolder? = null,
 )
 
 /**
@@ -218,7 +244,20 @@ fun PlayerScreen(
             Modifier.windowInsetsPadding(WindowInsets.statusBars).fillMaxWidth().aspectRatio(16f / 9f)
         }
         Box(videoModifier.background(Color.Black)) {
-            VideoSurface(cinetorPlayer?.media3Player(), screen.aspect, Modifier.fillMaxSize(), layers.zoom, layers.configureView)
+            val activeYoutubeId = ui.youtubeVideoId ?: screen.sources.getOrNull(screen.sourceIndex)?.url?.let(::extractYouTubeVideoId)
+            VideoSurface(
+                player = cinetorPlayer?.media3Player(),
+                aspect = screen.aspect,
+                modifier = Modifier.fillMaxSize(),
+                zoom = layers.zoom,
+                configure = layers.configureView,
+                youtubeVideoId = activeYoutubeId,
+                youtubeSessionKey = ui.key,
+                youtubeHolder = layers.youtubeHolder,
+                cinetorPlayer = cinetorPlayer,
+                startPositionMs = ui.positionMs,
+                playWhenReady = ui.playWhenReady,
+            )
             layers.overVideo()
             layers.gestures(Modifier.fillMaxSize(), toggle)
             if (screen.notice == null && (cinetorPlayer == null || (ui.buffering && !controlsVisible && ui.playWhenReady))) {

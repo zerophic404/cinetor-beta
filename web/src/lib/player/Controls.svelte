@@ -1,6 +1,7 @@
 <script lang="ts">
   // Glass controls overlay (auto-hide 3 s): top bar, center transport, seek bar, bottom actions.
   import { clock, pipSupported } from './controller';
+  import { engine } from './engine';
   import { fmtTime } from './gesture-math';
   import { ASPECT_LABEL, type PlayerUI } from './ui.svelte';
   import SettingsSheet from './SettingsSheet.svelte';
@@ -29,6 +30,7 @@
   let hoverX = $state(0);
   let scrubT = $state<number | null>(null);
 
+  const ytMode = engine.isYouTube;
   const dur = $derived($clock.dur);
   const shownT = $derived(scrubT ?? ui.drag?.target ?? $clock.t);
   const pct = (t: number) => (dur > 0 ? Math.min(100, Math.max(0, (t / dur) * 100)) : 0);
@@ -87,7 +89,7 @@
         <strong>{title}</strong>
         {#if subtitle}<span>{subtitle}</span>{/if}
       </div>
-      {#if pipSupported()}
+      {#if !$ytMode && pipSupported()}
         <button class="ib" onclick={() => ui.pip()} aria-label="Picture in picture">
           <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2" /><rect x="12" y="12" width="7" height="5" rx="1" fill="currentColor" /></svg>
         </button>

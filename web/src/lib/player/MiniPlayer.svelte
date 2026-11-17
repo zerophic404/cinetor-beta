@@ -13,6 +13,7 @@
 
   let { hidden = false }: { hidden?: boolean } = $props();
   const sess = session.state;
+  const ytMode = engine.isYouTube;
 
   let corner = $state<Corner>('br');
   let vw = $state(typeof window !== 'undefined' ? window.innerWidth : 400);
@@ -88,10 +89,7 @@
     goto(watchHref(m.item.id, m.episode?.id));
   }
   function toggle() {
-    const v = engine.video;
-    if (!v) return;
-    if (v.paused) v.play().catch(() => {});
-    else v.pause();
+    engine.togglePlay();
   }
 
   // ---- corner resize handle (pointer events; 16:9 kept, size persisted) ----
@@ -156,7 +154,7 @@
           <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path fill="currentColor" d="M7 5h3.5v14H7zM13.5 5H17v14h-3.5z" /></svg>
         {/if}
       </button>
-      {#if pipSupported()}
+      {#if !$ytMode && pipSupported()}
         <button onclick={() => togglePiP()} aria-label="Picture in picture">
           <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2" /><rect x="12" y="12" width="7" height="5" rx="1" fill="currentColor" /></svg>
         </button>
@@ -247,6 +245,9 @@
     height: 100%;
     display: block;
     object-fit: cover;
+    pointer-events: none;
+  }
+  .host :global(.cinetor-yt-wrap) {
     pointer-events: none;
   }
   .bar {

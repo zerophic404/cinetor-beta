@@ -125,6 +125,8 @@ class PlayerStateHolder(
     private val fallbackFor: (Item, String?) -> Item? = { _, _ -> null },
     /** Mini-player size per profile (docs/requirements-hardening.md §3). */
     private val miniSizes: MiniSizeStore = InMemoryMiniSizeStore(),
+    /** Per-series/profile dub & quality choice persistence across episodes. */
+    private val playbackPrefs: PlaybackPreferenceStore = (miniSizes as? PlaybackPreferenceStore) ?: InMemoryPlaybackPreferenceStore(),
 ) {
     private val _miniFraction = MutableStateFlow(
         com.mythbrix.cinetor.feature.player.MiniPlayerMath.clampFraction(miniSizes.get(profileId())),
@@ -228,7 +230,17 @@ class PlayerStateHolder(
     private fun sourcesOf(item: Item, episodeId: String?): List<Source> {
         val ep = SourceResolver.episodes(item).let { eps -> eps.firstOrNull { it.id == episodeId } ?: if (episodeId == null) eps.firstOrNull() else null }
         val list = ep?.sources?.ifEmpty { null } ?: item.sources
-        return if (list.any { it.height != null }) list else emptyList()
+        return if (list.any { it.height != null || isYouTubeUrl(it.url) } || (list.size > 1 && list.any { it.label != null })) list else emptyList()
+    }
+
+    private fun preferredIndexFor(item: Item, sources: List<Source>): Int {
+        if (isLiveItem(item) || sources.size < 2) return 0
+        val prof = profileId()
+        return preferredSourceIndex(
+            sources = sources,
+            titlePref = playbackPrefs.getTitlePref(prof, item.id),
+            globalPref = playbackPrefs.getGlobalPref(prof),
+        )
     }
 
     private fun startNow(item: Item, episodeId: String?) {
@@ -299,6 +311,7 @@ class PlayerStateHolder(
         watchJob = scope.launch {
             var lastKey: String? = null
             var endedHandled = false
+            val failedUrls = mutableSetOf<String>()
             p.state.collect { st ->
                 val key = st.key ?: return@collect
                 if (!keyBelongs(key, item.id)) return@collect
@@ -306,9 +319,12 @@ class PlayerStateHolder(
                     lastKey = key
                     endedHandled = false
                     recoverAttempts = 0
+                    failedUrls.clear()
                     val epId = key.substringAfter('#', "").ifEmpty { null }
                     val current = _state.value.item?.takeIf { it.id == item.id } ?: item
                     val req = SourceResolver.request(current, epId)
+                    val sources = sourcesOf(current, epId)
+                    val prefIdx = preferredIndexFor(current, sources)
                     _state.update {
                         it.copy(
                             episodeId = epId,
@@ -317,25 +333,54 @@ class PlayerStateHolder(
                             introEndMs = req?.introEndSec?.let { s -> s * 1000L },
                             nextEpisode = SourceResolver.nextEpisode(current, epId),
                             subs = req?.plan?.subtitles.orEmpty(),
-                            sources = sourcesOf(current, epId),
-                            sourceIndex = 0,
+                            sources = sources,
+                            sourceIndex = prefIdx,
                         )
                     }
+                    if (prefIdx > 0 && req != null) {
+                        sources.getOrNull(prefIdx)?.let { chosen ->
+                            if (chosen.url != req.plan.url) {
+                                val plan = SourceResolver.plan(chosen, emptyList()).copy(subtitles = req.plan.subtitles)
+                                p.load(req.copy(plan = plan), st.positionMs, playWhenReady = st.playWhenReady)
+                            }
+                        }
+                    }
                     // Resume picked another episode than the one prepared: fetch its sources/subs for the menus.
-                    if (needsPrepare(current) && epId != null && sourcesOf(current, epId).isEmpty()) {
+                    if (needsPrepare(current) && epId != null && sources.isEmpty()) {
                         scope.launch {
                             val fresh = runCatching { prepare(current, epId, false) }.getOrNull() ?: return@launch
                             val r = SourceResolver.request(fresh, epId)
+                            val freshSources = sourcesOf(fresh, epId)
+                            val freshIdx = preferredIndexFor(fresh, freshSources)
                             _state.update { s ->
                                 if (s.item?.id != fresh.id || s.episodeId != epId) s
-                                else s.copy(item = fresh, subs = r?.plan?.subtitles.orEmpty(), sources = sourcesOf(fresh, epId))
+                                else s.copy(item = fresh, subs = r?.plan?.subtitles.orEmpty(), sources = freshSources, sourceIndex = freshIdx)
+                            }
+                            if (freshIdx > 0 && r != null && _player.value === p && _state.value.item?.id == fresh.id && _state.value.episodeId == epId) {
+                                freshSources.getOrNull(freshIdx)?.let { chosen ->
+                                    val plan = SourceResolver.plan(chosen, emptyList()).copy(subtitles = r.plan.subtitles)
+                                    val curSt = p.state.value
+                                    p.load(r.copy(plan = plan), curSt.positionMs, playWhenReady = curSt.playWhenReady)
+                                }
                             }
                         }
                     }
                 }
                 if (st.phase == PlaybackPhase.READY) recoverAttempts = 0
-                if (st.error != null && recoverJob?.isActive != true && recoverAttempts < 2 && needsPrepare(item)) {
-                    recover(p, key, st.positionMs)
+                if (st.error != null && recoverJob?.isActive != true) {
+                    val curState = _state.value
+                    val curSrc = curState.sources.getOrNull(curState.sourceIndex)
+                    val tryLocalAlt = st.youtubeVideoId != null || isYouTubeUrl(curSrc?.url) || !needsPrepare(item)
+                    val switchedLocal = if (tryLocalAlt && curState.sources.size > 1) {
+                        curSrc?.url?.let { failedUrls += it }
+                        switchAlternateSource(p, curState, st.positionMs, failedUrls)
+                    } else {
+                        false
+                    }
+                    if (!switchedLocal && recoverAttempts < 2 && needsPrepare(item)) {
+                        curSrc?.url?.let { failedUrls += it }
+                        recover(p, key, st.positionMs, failedUrls)
+                    }
                 }
                 if (st.phase == PlaybackPhase.ENDED && !endedHandled) {
                     endedHandled = true
@@ -351,6 +396,24 @@ class PlayerStateHolder(
                 if (p.state.value.isPlaying) saveNow()
             }
         }
+    }
+
+    private fun switchAlternateSource(
+        p: CinetorPlayer,
+        curState: PlayerScreenState,
+        positionMs: Long,
+        failedUrls: Set<String>,
+    ): Boolean {
+        val item = curState.item ?: return false
+        val altIdx = curState.sources.indexOfFirst { it.url !in failedUrls }
+        if (altIdx < 0) return false
+        val chosen = curState.sources[altIdx]
+        val req = SourceResolver.request(item, curState.episodeId) ?: return false
+        val plan = SourceResolver.plan(chosen, emptyList()).copy(subtitles = req.plan.subtitles)
+        recoveries++
+        p.load(req.copy(plan = plan), positionMs, playWhenReady = true)
+        _state.update { it.copy(sourceIndex = altIdx) }
+        return true
     }
 
     private fun onEnded(key: String) {
@@ -459,8 +522,33 @@ class PlayerStateHolder(
     fun seekBy(deltaMs: Long) = _player.value?.seekBy(deltaMs)
     fun seekTo(positionMs: Long) = _player.value?.seekTo(positionMs)
     fun setSpeed(speed: Float) = _player.value?.setSpeed(speed)
-    fun selectQuality(height: Int?) = _player.value?.selectQuality(height)
+    fun selectQuality(height: Int?) {
+        _player.value?.selectQuality(height)
+        val item = _state.value.item
+        if (item != null && !isLiveItem(item)) {
+            val prof = profileId()
+            val prevTitle = playbackPrefs.getTitlePref(prof, item.id) ?: PlaybackPref()
+            val prevGlobal = playbackPrefs.getGlobalPref(prof) ?: PlaybackPref()
+            playbackPrefs.setTitlePref(prof, item.id, prevTitle.copy(height = height))
+            playbackPrefs.setGlobalPref(prof, prevGlobal.copy(height = height))
+        }
+    }
+
     fun selectAudio(trackId: String) = _player.value?.selectAudio(trackId)
+
+    /** Audio menu: switch dubbed source stream while keeping preferred resolution & playback position. */
+    fun selectDub(dub: String) {
+        val s = _state.value
+        val curHeight = s.sources.getOrNull(s.sourceIndex)?.height
+        val idx = preferredSourceIndex(
+            sources = s.sources,
+            titlePref = PlaybackPref(dub = dub, height = curHeight),
+            globalPref = null,
+        )
+        if (s.sources.getOrNull(idx)?.let(::dubOfSource)?.equals(dub, ignoreCase = true) == true) {
+            selectSource(idx)
+        }
+    }
 
     /** Quality menu: switch to provider source [index] (gateway resolution), keeping the position. */
     fun selectSource(index: Int) {
@@ -473,13 +561,22 @@ class PlayerStateHolder(
         val pos = p.state.value.positionMs
         p.load(req.copy(plan = plan), pos, playWhenReady = true)
         _state.update { it.copy(sourceIndex = index) }
+        if (!isLiveItem(item)) {
+            val prof = profileId()
+            val prevTitle = playbackPrefs.getTitlePref(prof, item.id) ?: PlaybackPref()
+            val prevGlobal = playbackPrefs.getGlobalPref(prof) ?: PlaybackPref()
+            val pickedDub = dubOfSource(src) ?: prevTitle.dub
+            val pickedHeight = src.height ?: prevTitle.height
+            playbackPrefs.setTitlePref(prof, item.id, PlaybackPref(dub = pickedDub, height = pickedHeight))
+            playbackPrefs.setGlobalPref(prof, PlaybackPref(dub = pickedDub ?: prevGlobal.dub, height = pickedHeight ?: prevGlobal.height))
+        }
     }
 
     /**
      * Playback error (expired link / 403 …) on a resolved title: 1st → re-resolve fresh and reload at the
      * same position (same resolution when offered), 2nd → gateway proxy (`direct_play_url`), then give up.
      */
-    private fun recover(p: CinetorPlayer, key: String, positionMs: Long) {
+    private fun recover(p: CinetorPlayer, key: String, positionMs: Long, failedUrls: Set<String> = emptySet()) {
         val s = _state.value
         val item = s.item ?: return
         val epId = key.substringAfter('#', "").ifEmpty { null }
@@ -496,7 +593,9 @@ class PlayerStateHolder(
             next ?: return@launch
             val req = SourceResolver.request(next, epId) ?: return@launch
             val sources = sourcesOf(next, epId)
-            val idx = sources.indexOfFirst { wantHeight != null && it.height == wantHeight }.coerceAtLeast(0)
+            val idx = sources.indexOfFirst { it.url !in failedUrls && wantHeight != null && it.height == wantHeight }
+                .takeIf { it >= 0 }
+                ?: sources.indexOfFirst { it.url !in failedUrls }.coerceAtLeast(0)
             val chosen = sources.getOrNull(idx)
             val plan = chosen?.let { SourceResolver.plan(it, emptyList()).copy(subtitles = req.plan.subtitles) } ?: req.plan
             if (_player.value !== p || _state.value.item?.id != item.id) return@launch
