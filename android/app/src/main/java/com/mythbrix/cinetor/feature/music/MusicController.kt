@@ -578,7 +578,7 @@ class MusicRepository(
         }
         val d = runCatching { load() }.getOrNull()
         val mockAlbum = d?.albums?.firstOrNull { it.id == id } ?: d?.charts?.firstOrNull { it.id == id }
-        if (mockAlbum != null) {
+        if (d != null && mockAlbum != null) {
             val tracks = d.tracksOf(mockAlbum)
             return MusicCollection(mockAlbum, tracks, isPlaylist = GatewayMusicMapper.isGatewayPlaylistId(id)).also {
                 if (tracks.isNotEmpty()) knownCollections[id] = it
