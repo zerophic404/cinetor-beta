@@ -1,10 +1,12 @@
 package com.mythbrix.cinetor.tvui
 
-import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.focusGroup
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -13,7 +15,6 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -49,24 +50,33 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import com.mythbrix.cinetor.core.perf.PerformanceTier
 import com.mythbrix.cinetor.design.Cinetor
 import com.mythbrix.cinetor.design.CinetorMark
+import com.mythbrix.cinetor.design.CinetorTokens
 import com.mythbrix.cinetor.design.GlassLevel
+import com.mythbrix.cinetor.design.WordmarkStyle
 import com.mythbrix.cinetor.design.glass
 
 val TvNavCollapsed: Dp = 72.dp
-val TvNavExpanded: Dp = 232.dp
+val TvNavExpanded: Dp = 252.dp
 
 fun tvDestIcon(dest: TvDest): ImageVector = when (dest) {
     TvDest.SEARCH -> Icons.Rounded.Search
@@ -83,9 +93,20 @@ fun tvDestIcon(dest: TvDest): ImageVector = when (dest) {
     TvDest.SETTINGS -> Icons.Rounded.Settings
 }
 
+/** Group header label inside the expanded TV side-nav (`null` for top primary video items). */
+fun tvNavGroupLabel(group: TvNavGroup): String? = when (group) {
+    TvNavGroup.VIDEO -> null
+    TvNavGroup.PROFILE -> "PROFILE · SPACES"
+    TvNavGroup.SYSTEM -> "MORE"
+}
+
 /**
- * Glass left side nav: collapsed to icons; expands (labels + group headers) while focus is inside.
- * Entering from the content lands on the selected destination (not the top item).
+ * Liquid Glass left side-nav dock:
+ * - Collapsed to icons (`72.dp`); smoothly expands (`252.dp`) over content while focused.
+ * - Houses primary items (`Search`, `Home`, `Anime`, `Drama`), `Profile · Spaces`
+ *   (`Profiles`, `Live TV & Sports`, `Music`, `Comics`, `18+` when enabled), and `More`
+ *   (`Downloads`, `Library`, `Settings`).
+ * - Entering from content lands directly on [selected].
  */
 @OptIn(ExperimentalComposeUiApi::class)
 @Composable
@@ -95,38 +116,90 @@ fun TvSideNav(
     onPick: (TvDest) -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    val tokens = Cinetor.tokens
+    val tier = Cinetor.tier
+    val prefs = Cinetor.prefs
     var expanded by remember { mutableStateOf(false) }
-    val width by animateDpAsState(if (expanded) TvNavExpanded else TvNavCollapsed, label = "tvNavWidth")
+    val animMs = if (prefs.reduceMotion) 0 else tier.scaled(CinetorTokens.Motion.mediumMs)
+    val width by animateDpAsState(
+        targetValue = if (expanded) TvNavExpanded else TvNavCollapsed,
+        animationSpec = tween(animMs, easing = CinetorTokens.Motion.emphasized),
+        label = "tvNavWidth",
+    )
     val requesters = remember(entries) { entries.associate { it.dest to FocusRequester() } }
     val target = selected?.let { requesters[it] } ?: requesters.values.firstOrNull()
+    val railShape = RoundedCornerShape(24.dp)
+
     Column(
         modifier
             .fillMaxHeight()
             .width(width)
-            .glass(RoundedCornerShape(24.dp), GlassLevel.BAR)
+            .shadow(
+                elevation = if (expanded && tier != PerformanceTier.LOW) 22.dp else 0.dp,
+                shape = railShape,
+                clip = false,
+                ambientColor = Color.Black,
+                spotColor = tokens.accent.copy(alpha = 0.35f),
+            )
+            .glass(railShape, GlassLevel.BAR)
             .onFocusChanged { expanded = it.hasFocus }
             .focusProperties { if (target != null) enter = { target } }
             .focusGroup()
             .verticalScroll(rememberScrollState())
-            .padding(vertical = 16.dp, horizontal = 12.dp),
+            .padding(vertical = 14.dp, horizontal = 10.dp),
         verticalArrangement = Arrangement.spacedBy(4.dp),
     ) {
-        Box(Modifier.padding(start = 6.dp, bottom = 12.dp)) { CinetorMark(Modifier.size(36.dp)) }
+        Row(
+            Modifier
+                .fillMaxWidth()
+                .padding(start = 8.dp, end = 8.dp, bottom = 10.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            CinetorMark(Modifier.size(34.dp))
+            androidx.compose.animation.AnimatedVisibility(
+                visible = expanded,
+                enter = fadeIn(tween(animMs)),
+                exit = fadeOut(tween(animMs / 2)),
+            ) {
+                Text(
+                    text = "CINETOR",
+                    style = WordmarkStyle.copy(fontSize = 14.sp),
+                    color = tokens.textPrimary,
+                    maxLines = 1,
+                )
+            }
+        }
+
         var lastGroup: TvNavGroup? = null
         entries.forEach { e ->
             if (lastGroup != null && e.group != lastGroup) {
-                Spacer(Modifier.height(10.dp))
-                AnimatedVisibility(expanded, enter = fadeIn(), exit = fadeOut()) {
-                    Text(
-                        when (e.group) {
-                            TvNavGroup.PROFILE -> "PROFILE"
-                            TvNavGroup.SYSTEM -> "MORE"
-                            TvNavGroup.VIDEO -> "VIDEO"
-                        },
-                        style = MaterialTheme.typography.labelSmall,
-                        color = Cinetor.tokens.textSecondary,
-                        modifier = Modifier.padding(start = 10.dp, bottom = 4.dp),
-                    )
+                Box(
+                    Modifier
+                        .padding(horizontal = 8.dp, vertical = 5.dp)
+                        .fillMaxWidth()
+                        .height(1.dp)
+                        .background(tokens.divider),
+                )
+                val header = tvNavGroupLabel(e.group)
+                if (header != null) {
+                    androidx.compose.animation.AnimatedVisibility(
+                        visible = expanded,
+                        enter = fadeIn(tween(animMs)),
+                        exit = fadeOut(tween(animMs / 2)),
+                    ) {
+                        Text(
+                            text = header,
+                            style = MaterialTheme.typography.labelSmall.copy(
+                                fontSize = 10.5.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                letterSpacing = 1.1.sp,
+                            ),
+                            color = tokens.textTertiary,
+                            maxLines = 1,
+                            modifier = Modifier.padding(start = 10.dp, bottom = 3.dp),
+                        )
+                    }
                 }
             }
             lastGroup = e.group
@@ -142,43 +215,96 @@ fun TvSideNav(
 }
 
 @Composable
-private fun TvNavItem(entry: TvNavEntry, selected: Boolean, expanded: Boolean, onClick: () -> Unit, modifier: Modifier) {
+private fun TvNavItem(
+    entry: TvNavEntry,
+    selected: Boolean,
+    expanded: Boolean,
+    onClick: () -> Unit,
+    modifier: Modifier,
+) {
     val tokens = Cinetor.tokens
+    val prefs = Cinetor.prefs
     val interaction = remember { MutableInteractionSource() }
     val focused by interaction.collectIsFocusedAsState()
+    val scale by animateFloatAsState(
+        targetValue = if (focused && !prefs.reduceMotion) 1.03f else 1f,
+        label = "tvNavItemScale",
+    )
     val sound = rememberFocusSound()
     LaunchedEffect(focused) { if (focused) sound() }
+
     val shape = RoundedCornerShape(14.dp)
+    val isLight = tokens.bg.luminance() > 0.5f
+    val spotlightRing = if (isLight) Color(0xFF141416) else Color.White
+
+    val bgModifier = when {
+        focused -> Modifier.background(Brush.linearGradient(listOf(tokens.accentEnd, tokens.accent)))
+        selected -> Modifier.background(
+            Brush.linearGradient(
+                listOf(tokens.accent.copy(alpha = 0.20f), tokens.glassFill),
+            ),
+        )
+        else -> Modifier
+    }
+    val borderModifier = when {
+        focused -> Modifier.border(2.dp, spotlightRing.copy(alpha = 0.92f), shape)
+        selected -> Modifier.border(1.dp, tokens.accent.copy(alpha = 0.50f), shape)
+        else -> Modifier
+    }
+    val iconTint = when {
+        focused -> tokens.onAccent
+        selected -> tokens.accent
+        else -> tokens.textSecondary
+    }
+    val labelColor = when {
+        focused -> tokens.onAccent
+        selected -> tokens.textPrimary
+        else -> tokens.textSecondary
+    }
+
     Row(
         modifier
             .fillMaxWidth()
+            .graphicsLayer { scaleX = scale; scaleY = scale }
             .clip(shape)
-            .background(
-                when {
-                    focused -> tokens.accent
-                    selected -> tokens.accent.copy(alpha = 0.22f)
-                    else -> Color.Transparent
-                },
-            )
+            .then(bgModifier)
+            .then(borderModifier)
             .clickable(interactionSource = interaction, indication = null, onClick = onClick)
             .semantics { contentDescription = entry.label }
-            .padding(horizontal = 12.dp, vertical = 10.dp),
+            .padding(horizontal = 14.dp, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(14.dp),
     ) {
         Icon(
-            tvDestIcon(entry.dest), contentDescription = null,
-            tint = if (focused || selected) Color.White else tokens.textSecondary,
+            imageVector = tvDestIcon(entry.dest),
+            contentDescription = null,
+            tint = iconTint,
             modifier = Modifier.size(24.dp),
         )
         if (expanded) {
             Text(
-                entry.label,
-                color = if (focused || selected) Color.White else tokens.textSecondary,
+                text = entry.label,
+                color = labelColor,
                 style = MaterialTheme.typography.titleSmall,
-                fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal,
+                fontWeight = if (selected || focused) FontWeight.Bold else FontWeight.Medium,
                 maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.weight(1f),
             )
+            if (entry.dest == TvDest.ADULT) {
+                Box(
+                    Modifier
+                        .clip(RoundedCornerShape(5.dp))
+                        .background(if (focused) Color.Black.copy(alpha = 0.28f) else tokens.accent.copy(alpha = 0.16f))
+                        .padding(horizontal = 5.dp, vertical = 1.dp),
+                ) {
+                    Text(
+                        "PIN",
+                        style = MaterialTheme.typography.labelSmall.copy(fontSize = 9.sp, fontWeight = FontWeight.Bold),
+                        color = if (focused) tokens.onAccent else tokens.accent,
+                    )
+                }
+            }
         }
     }
 }

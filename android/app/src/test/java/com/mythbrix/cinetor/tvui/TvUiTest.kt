@@ -1,6 +1,13 @@
 package com.mythbrix.cinetor.tvui
 
+import com.mythbrix.cinetor.core.data.Item
+import com.mythbrix.cinetor.core.data.ItemType
+import com.mythbrix.cinetor.core.data.RowStyle
+import com.mythbrix.cinetor.core.data.Source
+import com.mythbrix.cinetor.core.data.SourceKind
 import com.mythbrix.cinetor.core.data.Space
+import com.mythbrix.cinetor.core.player.ResumeEntry
+import com.mythbrix.cinetor.feature.home.RowUi
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
@@ -8,6 +15,211 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class TvUiTest {
+
+    private fun sampleItem(
+        id: String = "gw:1",
+        title: String = "Night Train",
+        altTitle: String? = null,
+        type: ItemType = ItemType.MOVIE,
+        year: Int = 2025,
+        rating: Double = 7.8,
+        genres: List<String> = listOf("Action", "Thriller"),
+        sources: List<Source> = emptyList(),
+    ): Item = Item(
+        id = id,
+        space = Space.HOME,
+        categoryId = "home",
+        type = type,
+        title = title,
+        altTitle = altTitle,
+        year = year,
+        rating = rating,
+        maturity = "PG-13",
+        genres = genres,
+        synopsis = "A midnight express across the border.",
+        poster = "https://img.example/p.jpg",
+        backdrop = "https://img.example/b.jpg",
+        dominantColor = "#2A0A10",
+        accentColor = "#E11D2E",
+        sources = sources,
+    )
+
+    // ------------------------------------------------------------ Card scale + poster/hero badges
+
+    @Test
+    fun focusScale_matchesBeta106f() {
+        assertEquals(1.06f, TV_FOCUS_SCALE, 0.0001f)
+    }
+
+    @Test
+    fun posterBadges_extractRatingDubAnd4k() {
+        assertEquals("7.8", tvRatingBadge(7.84))
+        assertEquals("9.0", tvRatingBadge(9.0))
+        assertNull(tvRatingBadge(0.0))
+        assertNull(tvRatingBadge(-2.0))
+        assertNull(tvRatingBadge(Double.NaN))
+
+        assertEquals("Hindi", tvDubBadge(sampleItem(title = "Pushpa 2 [Hindi]")))
+        assertEquals("Bengali", tvDubBadge(sampleItem(genres = listOf("Drama", "Bengali"))))
+        assertEquals("Bengali", tvDubBadge(sampleItem(title = "Byomkesh [Bangla]")))
+        assertEquals("Tamil", tvDubBadge(sampleItem(altTitle = "Vikram [Tamil]")))
+        assertEquals("Telugu", tvDubBadge(sampleItem(genres = listOf("Action", "[Telugu]"))))
+        assertEquals("English", tvDubBadge(sampleItem(title = "Dark Matter [English]")))
+        assertNull(tvDubBadge(sampleItem(title = "Plain Title", genres = listOf("Action", "Sci-Fi"))))
+
+        assertTrue(tvIs4k(sampleItem(sources = listOf(Source("https://cdn.example/v.mp4", SourceKind.MP4, height = 2160)))))
+        assertTrue(tvIs4k(sampleItem(sources = listOf(Source("https://cdn.example/v.mp4", SourceKind.MP4, label = "4K UHD")))))
+        assertTrue(tvIs4k(sampleItem(genres = listOf("Sci-Fi", "4K UHD"))))
+        assertFalse(tvIs4k(sampleItem(sources = listOf(Source("https://cdn.example/v.mp4", SourceKind.MP4, height = 1080, label = "1080p")))))
+    }
+
+    @Test
+    fun watchProgressAndSubtitle_handleEdgeBoundaries() {
+        val movie = sampleItem(id = "gw:42", year = 2024, genres = listOf("Sci-Fi", "Drama"))
+        assertEquals("2024 · Sci-Fi", tvCardSubtitle(movie))
+        assertEquals("2024", tvCardSubtitle(movie.copy(genres = emptyList())))
+        assertEquals("Sci-Fi", tvCardSubtitle(movie.copy(year = 0)))
+        assertEquals("", tvCardSubtitle(movie.copy(year = 0, genres = emptyList())))
+
+        assertNull(tvWatchProgress(movie, explicitProgress = null, resumeProgress = mapOf("gw:42" to 0.01f)))
+        assertNull(tvWatchProgress(movie, explicitProgress = null, resumeProgress = mapOf("gw:42" to 0.98f)))
+        assertEquals(0.45f, tvWatchProgress(movie, explicitProgress = null, resumeProgress = mapOf("gw:42" to 0.45f))!!, 0.0001f)
+        assertEquals(0.72f, tvWatchProgress(movie, explicitProgress = 0.72f, resumeProgress = emptyMap())!!, 0.0001f)
+    }
+
+    // ------------------------------------------------------------ Widescreen Hero sizing + pills
+
+    @Test
+    fun heroHeight_keepsFirstContentRowPeekingOn1080pTv() {
+        // 1080p TV = 540dp tall; minus 5% top & bottom overscan = 486dp viewport height.
+        val viewport1080p = 486f
+        val withTabs = tvHeroHeightDp(viewport1080p, showTabs = true)
+        val withoutTabs = tvHeroHeightDp(viewport1080p, showTabs = false)
+
+        // Hero stays widescreen and leaves >= 160dp below (tabs + first row header + cards peek).
+        assertTrue(withTabs in 208f..268f)
+        assertTrue(viewport1080p - withTabs - 56f >= 160f)
+        assertTrue(withoutTabs in 220f..288f)
+        assertTrue(viewport1080p - withoutTabs - 18f >= 190f)
+
+        // Clamped safely on compact and ultra-tall viewports.
+        assertEquals(208f, tvHeroHeightDp(340f, showTabs = true), 0.01f)
+        assertEquals(288f, tvHeroHeightDp(800f, showTabs = false), 0.01f)
+    }
+
+    @Test
+    fun heroMetaPills_include4kRatingDubAndYear() {
+        val featured = sampleItem(
+            title = "Kalki 2898 AD [Hindi]",
+            year = 2024,
+            rating = 8.4,
+            genres = listOf("Sci-Fi", "Action", "Hindi"),
+            sources = listOf(Source("https://cdn.example/4k.mp4", SourceKind.MP4, height = 2160)),
+        )
+        val pills = tvHeroMetaPills(featured)
+        assertEquals(
+            listOf(
+                TvHeroPill("4K UHD", TvPillKind.ACCENT_4K),
+                TvHeroPill("★ 8.4", TvPillKind.RATING),
+                TvHeroPill("Hindi", TvPillKind.DUB),
+                TvHeroPill("2024", TvPillKind.NEUTRAL),
+                TvHeroPill("PG-13", TvPillKind.NEUTRAL),
+            ),
+            pills,
+        )
+        assertEquals("Sci-Fi • Action", tvHeroGenreLine(featured))
+    }
+
+    // ------------------------------------------------------------ Top-10 charts + endless row paging
+
+    @Test
+    fun top10AndContinueRows_deduplicateAndCapRankedChartAtTen() {
+        val twelve = (1..12).map { sampleItem(id = "gw:$it", title = "Title $it") }
+        val withDup = listOf(twelve[0]) + twelve
+        val top10 = RowUi("r-top", "Top 10 Today", RowStyle.TOP10, withDup)
+        val ranked = tvRowItems(top10)
+        assertEquals(10, ranked.size)
+        assertEquals((1..10).map { "gw:$it" }, ranked.map { it.id })
+
+        val resume = listOf(
+            ResumeEntry(
+                profileId = "default",
+                itemId = "gw:99",
+                positionMs = 300_000,
+                durationMs = 1_000_000,
+                updatedAt = 10L,
+                space = Space.HOME,
+                title = "Resumed Film",
+            ),
+        )
+        val contRow = RowUi("r-cont", "Continue Watching", RowStyle.CONTINUE, listOf(twelve[0]))
+        assertEquals(listOf("gw:99", "gw:1"), tvRowItems(contRow, resume).map { it.id })
+    }
+
+    @Test
+    fun endlessRowPaging_triggersNearRowEndOnlyForPageableStyles() {
+        assertFalse(tvShouldLoadMore(index = 4, totalCount = 12, style = RowStyle.POSTER))
+        assertTrue(tvShouldLoadMore(index = 8, totalCount = 12, style = RowStyle.POSTER))
+        assertTrue(tvShouldLoadMore(index = 9, totalCount = 12, style = RowStyle.LANDSCAPE))
+        // Top 10 charts, Continue Watching, Live channels, and tiny rows never page infinitely.
+        assertFalse(tvShouldLoadMore(index = 9, totalCount = 10, style = RowStyle.TOP10))
+        assertFalse(tvShouldLoadMore(index = 8, totalCount = 10, style = RowStyle.CONTINUE))
+        assertFalse(tvShouldLoadMore(index = 8, totalCount = 10, style = RowStyle.CHANNEL))
+        assertFalse(tvShouldLoadMore(index = 3, totalCount = 5, style = RowStyle.POSTER))
+    }
+
+    // ------------------------------------------------------------ Side-nav groups + FocusMemory restore stability
+
+    @Test
+    fun sideNavGroupHeaders_distinguishProfileSpacesAndMore() {
+        assertNull(tvNavGroupLabel(TvNavGroup.VIDEO))
+        assertEquals("PROFILE · SPACES", tvNavGroupLabel(TvNavGroup.PROFILE))
+        assertEquals("MORE", tvNavGroupLabel(TvNavGroup.SYSTEM))
+    }
+
+    @Test
+    fun focusRestoreGate_skipsScrollJumpDuringInPlaceRowPagination() {
+        // Fresh screen mount or back from Details (previousRowIds == null) → restore FocusMemory.
+        assertTrue(
+            tvShouldRestoreFocusOnRowsChange(
+                previousRowIds = null,
+                currentRowIds = "r1,r2",
+                hasActiveRowFocus = false,
+                previousRefocus = 0,
+                currentRefocus = 0,
+            ),
+        )
+        // PagedCatalog appends page 2 to r1 while card in r1 is actively focused → keep scroll steady.
+        assertFalse(
+            tvShouldRestoreFocusOnRowsChange(
+                previousRowIds = "r1,r2",
+                currentRowIds = "r1,r2",
+                hasActiveRowFocus = true,
+                previousRefocus = 1,
+                currentRefocus = 1,
+            ),
+        )
+        // Category tab switch replaces row IDs → restore focus to new tab.
+        assertTrue(
+            tvShouldRestoreFocusOnRowsChange(
+                previousRowIds = "r1,r2",
+                currentRowIds = "s1,s2",
+                hasActiveRowFocus = true,
+                previousRefocus = 1,
+                currentRefocus = 1,
+            ),
+        )
+        // Fullscreen TV player closed (refocus tick bumped) → restore remembered FocusMemory position.
+        assertTrue(
+            tvShouldRestoreFocusOnRowsChange(
+                previousRowIds = "r1,r2",
+                currentRowIds = "r1,r2",
+                hasActiveRowFocus = false,
+                previousRefocus = 1,
+                currentRefocus = 2,
+            ),
+        )
+    }
 
     // ------------------------------------------------------------ D-pad grid + side nav
 
