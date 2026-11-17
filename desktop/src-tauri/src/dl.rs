@@ -22,6 +22,8 @@ use tokio::io::{AsyncSeekExt, AsyncWriteExt};
 use url::Url;
 
 pub const MAX_CONNECTIONS: usize = 16;
+pub const MAX_CONCURRENT_JOBS: usize = 5;
+const MAX_CACHED_CLIENTS: usize = 8;
 const MIN_CHUNK: u64 = 1024 * 1024;
 const UNKNOWN: u64 = u64::MAX;
 const RESUME_REWIND: u64 = 64 * 1024;
@@ -31,6 +33,8 @@ pub struct DlState {
     jobs: Mutex<HashMap<String, (u64, JoinHandle<()>)>>,
     gen: AtomicU64,
     client: reqwest::Client,
+    header_clients: Mutex<HashMap<String, reqwest::Client>>,
+    sem: Arc<tokio::sync::Semaphore>,
 }
 
 impl DlState {
@@ -39,10 +43,49 @@ impl DlState {
             .user_agent(concat!("Cinetor/", env!("CARGO_PKG_VERSION")))
             .connect_timeout(Duration::from_secs(20))
             .read_timeout(Duration::from_secs(40))
+            .pool_max_idle_per_host(8)
+            .tcp_keepalive(Duration::from_secs(30))
             .build()
             .unwrap_or_default();
-        Self { jobs: Mutex::new(HashMap::new()), gen: AtomicU64::new(1), client }
+        Self {
+            jobs: Mutex::new(HashMap::new()),
+            gen: AtomicU64::new(1),
+            client,
+            header_clients: Mutex::new(HashMap::new()),
+            sem: Arc::new(tokio::sync::Semaphore::new(MAX_CONCURRENT_JOBS)),
+        }
     }
+
+    fn client_for_headers(&self, headers: &HashMap<String, String>) -> Option<reqwest::Client> {
+        let key = header_cache_key(headers);
+        if let Ok(cache) = self.header_clients.lock() {
+            if let Some(existing) = cache.get(&key) {
+                return Some(existing.clone());
+            }
+        }
+        let built = client_with_headers(headers)?;
+        if let Ok(mut cache) = self.header_clients.lock() {
+            if cache.len() >= MAX_CACHED_CLIENTS {
+                cache.clear();
+            }
+            cache.insert(key, built.clone());
+        }
+        Some(built)
+    }
+}
+
+/// Canonical cache key for a header set so batch episode downloads reuse warm TLS connection pools.
+pub fn header_cache_key(headers: &HashMap<String, String>) -> String {
+    let mut pairs: Vec<(&str, &str)> = headers.iter().map(|(k, v)| (k.as_str(), v.as_str())).collect();
+    pairs.sort_unstable_by(|a, b| a.0.cmp(b.0).then_with(|| a.1.cmp(b.1)));
+    let mut out = String::new();
+    for (k, v) in pairs {
+        out.push_str(&k.to_ascii_lowercase());
+        out.push(':');
+        out.push_str(v);
+        out.push('\n');
+    }
+    url_fingerprint(&out)
 }
 
 #[derive(Deserialize, Clone)]
@@ -81,16 +124,15 @@ pub fn client_with_headers(headers: &HashMap<String, String>) -> Option<reqwest:
         .default_headers(map)
         .connect_timeout(Duration::from_secs(20))
         .read_timeout(Duration::from_secs(40))
+        .pool_max_idle_per_host(8)
+        .tcp_keepalive(Duration::from_secs(30))
         .build()
         .ok()
 }
 
 /// Direct CDN URL with headers when it answers, else the fallback (proxy) with the plain client.
-async fn pick_route(plain: &reqwest::Client, req: &StartReq) -> (reqwest::Client, StartReq) {
-    let Some(h) = req.headers.as_ref().filter(|h| !h.is_empty()) else {
-        return (plain.clone(), req.clone());
-    };
-    let Some(direct) = client_with_headers(h) else {
+async fn pick_route(plain: &reqwest::Client, direct: Option<reqwest::Client>, req: &StartReq) -> (reqwest::Client, StartReq) {
+    let Some(direct) = direct else {
         return (plain.clone(), req.clone());
     };
     let Some(fb) = req.fallback_url.clone() else {
@@ -149,11 +191,14 @@ struct Failed {
 pub async fn dl_start(app: AppHandle, state: State<'_, DlState>, req: StartReq) -> Result<(), String> {
     stop_job(&state, &req.id).await;
     let plain = state.client.clone();
+    let direct = req.headers.as_ref().filter(|h| !h.is_empty()).and_then(|h| state.client_for_headers(h));
+    let sem = state.sem.clone();
     let id = req.id.clone();
     let gen = state.gen.fetch_add(1, Ordering::SeqCst);
     let app2 = app.clone();
     let handle = tauri::async_runtime::spawn(async move {
-        let (client, req) = pick_route(&plain, &req).await;
+        let _permit = sem.acquire().await;
+        let (client, req) = pick_route(&plain, direct, &req).await;
         let res = if req.kind == "hls" {
             run_hls(&app2, &client, &req).await
         } else {
@@ -344,6 +389,16 @@ fn out_dir(app: &AppHandle) -> Result<PathBuf, String> {
     Ok(dir)
 }
 
+fn is_windows_reserved_stem(stem: &str) -> bool {
+    let up = stem.trim().trim_end_matches('.').to_ascii_uppercase();
+    matches!(
+        up.as_str(),
+        "CON" | "PRN" | "AUX" | "NUL"
+            | "COM1" | "COM2" | "COM3" | "COM4" | "COM5" | "COM6" | "COM7" | "COM8" | "COM9"
+            | "LPT1" | "LPT2" | "LPT3" | "LPT4" | "LPT5" | "LPT6" | "LPT7" | "LPT8" | "LPT9"
+    )
+}
+
 pub fn sanitize(name: &str) -> String {
     let mut s: String = name
         .chars()
@@ -353,9 +408,13 @@ pub fn sanitize(name: &str) -> String {
     if s.is_empty() {
         s = "download".into();
     }
+    if is_windows_reserved_stem(&stem_of(&s)) {
+        s.insert(0, '_');
+    }
     if s.chars().count() > 120 {
         let ext = Path::new(&s).extension().map(|e| e.to_string_lossy().into_owned());
         let mut cut: String = s.chars().take(110).collect();
+        cut = cut.trim_end_matches(&[' ', '.'][..]).to_string();
         if let Some(e) = ext {
             cut.push('.');
             cut.push_str(&e);
@@ -386,8 +445,25 @@ fn unique_path(dir: &Path, name: &str) -> PathBuf {
     first
 }
 
+/// Scrub URLs from error strings so `dl://error` never leaks a stream or gateway host (§2).
+pub fn scrub_error_message(raw: &str) -> String {
+    let mut out = String::with_capacity(raw.len());
+    let mut rest = raw;
+    while let Some(pos) = rest.find("http://").or_else(|| rest.find("https://")) {
+        out.push_str(&rest[..pos]);
+        out.push('…');
+        let after = &rest[pos..];
+        let end = after
+            .find(|c: char| c.is_whitespace() || matches!(c, ')' | '"' | '\'' | '>' | ']'))
+            .unwrap_or(after.len());
+        rest = &after[end..];
+    }
+    out.push_str(rest);
+    out
+}
+
 fn err<E: std::fmt::Display>(e: E) -> String {
-    e.to_string()
+    scrub_error_message(&e.to_string())
 }
 
 /// Split `[0, total)` into ≤ `n` inclusive ranges of ≥ 1 MiB.
@@ -831,6 +907,10 @@ async fn fetch_to_file(client: &reqwest::Client, url: &str, dest: &Path, counter
     }
 }
 
+pub fn hls_sidecar_json(url: &str, segments: usize) -> String {
+    serde_json::json!({ "u": url_fingerprint(url), "kind": "hls", "segments": segments }).to_string()
+}
+
 async fn run_hls(app: &AppHandle, client: &reqwest::Client, req: &StartReq) -> Result<Done, String> {
     let dir = out_dir(app)?;
     let mut base = Url::parse(&req.url).map_err(err)?;
@@ -847,7 +927,7 @@ async fn run_hls(app: &AppHandle, client: &reqwest::Client, req: &StartReq) -> R
     let seg_dir = dir.join(format!("{stem}.cinetor-hls"));
     tokio::fs::create_dir_all(&seg_dir).await.map_err(err)?;
     let side_path = dir.join(format!("{stem}.cinetor-part"));
-    let _ = tokio::fs::write(&side_path, serde_json::json!({ "url": req.url, "kind": "hls", "segments": pl.segments.len() }).to_string()).await;
+    let _ = tokio::fs::write(&side_path, hls_sidecar_json(&req.url, pl.segments.len())).await;
 
     // (index, url, file) — init segment (fMP4) first.
     let mut items: Vec<(usize, String, PathBuf)> = Vec::new();
@@ -1094,5 +1174,38 @@ mod tests {
         assert!(!removable_path(dir, Path::new("/home/u/taxes.pdf"), "a.mp4"));
         // Names are sanitized before comparing, so traversal attempts do not match.
         assert!(!removable_path(dir, Path::new("/home/u/b.mp4"), "a.mp4"));
+    }
+
+    #[test]
+    fn sanitize_guards_windows_reserved_device_stems() {
+        assert_eq!(sanitize("CON.mp4"), "_CON.mp4");
+        assert_eq!(sanitize("nul.ts"), "_nul.ts");
+        assert_eq!(sanitize("com1.mp4"), "_com1.mp4");
+        assert_eq!(sanitize("Con Air - S01E01.mp4"), "Con Air - S01E01.mp4");
+    }
+
+    #[test]
+    fn hls_sidecar_and_error_scrubber_never_leak_urls() {
+        let hls = hls_sidecar_json("https://cdn.example.org/secret/master.m3u8?sig=xyz", 42);
+        assert!(!hls.contains("http"));
+        assert!(!hls.contains("cdn.example.org"));
+        assert!(!hls.contains("sig=xyz"));
+        assert!(hls.contains("\"segments\":42"));
+
+        let scrubbed = scrub_error_message("error sending request for url (https://cdn.example.org/secret/ep1.mp4?t=99): connection reset");
+        assert!(!scrubbed.contains("https://"));
+        assert!(!scrubbed.contains("cdn.example.org"));
+        assert!(scrubbed.contains("connection reset"));
+    }
+
+    #[test]
+    fn header_cache_key_is_order_independent_and_case_insensitive_for_names() {
+        let mut a = HashMap::new();
+        a.insert("Referer".to_string(), "https://example.org/".to_string());
+        a.insert("Origin".to_string(), "https://example.org".to_string());
+        let mut b = HashMap::new();
+        b.insert("origin".to_string(), "https://example.org".to_string());
+        b.insert("referer".to_string(), "https://example.org/".to_string());
+        assert_eq!(header_cache_key(&a), header_cache_key(&b));
     }
 }

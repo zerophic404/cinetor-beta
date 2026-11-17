@@ -6,6 +6,7 @@ import type { Media } from '../player/sources';
 import { streams } from '../data/app-catalog';
 import { pickVariant } from '../data/gateway-play';
 import { removeAdaptive, storeAdaptive } from './adaptive';
+import { isYouTubeStreamUrl, safeSeriesFileRecord } from './batch';
 import { backoffMs, clampConnections, eta, SpeedMeter } from './math';
 import { assemble, removePieces, runProgressive, type PieceStore, type ProgressiveState } from './progressive';
 import { DEFAULT_MAX_CONCURRENT, DownloadQueue, type QueueStatus } from './queue';
@@ -37,8 +38,11 @@ export interface StartRequest {
   lazyUrl?: string;
 }
 
+export const safeNativeFileName = (r: { title: string; subtitle?: string; container: string; tracks?: { quality?: string } }): string =>
+  nativeFileName(safeSeriesFileRecord(r));
+
 export const downloadKindOf = (src: Source | undefined): DownloadKind | null => {
-  if (!src) return null;
+  if (!src || isYouTubeStreamUrl(src.url)) return null;
   if (src.kind === 'HLS' || src.kind === 'DASH') return 'adaptive';
   if (src.kind === 'MP4' || src.kind === 'WEBM' || src.kind === 'MP3' || src.kind === 'MKV') return 'progressive';
   return null;
@@ -221,6 +225,22 @@ class Downloads {
     this.queue.cancel(id);
   }
 
+  pauseMany(ids: readonly string[]): void {
+    for (const id of ids) this.pause(id);
+  }
+
+  resumeMany(ids: readonly string[]): void {
+    for (const id of ids) this.resume(id);
+  }
+
+  async cancelMany(ids: readonly string[]): Promise<void> {
+    for (const id of ids) await this.cancel(id);
+  }
+
+  async removeMany(ids: readonly string[], opts: { deleteFile?: boolean } = {}): Promise<void> {
+    for (const id of ids) await this.remove(id, opts);
+  }
+
   async remove(id: string, opts: { deleteFile?: boolean } = {}): Promise<void> {
     this.clearRetry(id);
     this.queue.cancel(id);
@@ -378,7 +398,7 @@ class Downloads {
     if (r.backend === 'native') {
       if (opts.keepFile) return;
       const { removeNative } = await import('../desktop/native-dl');
-      await removeNative(r.id, nativeFileName(r), r.nativePath).catch(() => {});
+      await removeNative(r.id, safeNativeFileName(r), r.nativePath).catch(() => {});
       this.patch(r.id, { chunks: [], doneBytes: 0, nativePath: undefined, nativePlaylist: undefined, fraction: 0, segmentsDone: 0 });
       return;
     }
@@ -529,7 +549,7 @@ class Downloads {
         resumeKey: r.lazyUrl ? `${r.id}|${r.tracks.height ?? 0}` : undefined,
         kind: r.kind === 'progressive' ? 'progressive' : 'hls',
         connections: r.kind === 'progressive' ? r.connections : clampConnections(this.defaultConnections),
-        fileName: nativeFileName(r),
+        fileName: safeNativeFileName(r),
         bandwidth: r.tracks.bandwidth,
         height: r.tracks.height
       },

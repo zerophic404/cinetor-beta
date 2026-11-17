@@ -3,10 +3,10 @@
   import Sheet from '$lib/components/Sheet.svelte';
   import { imgFor } from '$lib/ui/img';
   import { watchHref } from '$lib/ui/handoff';
-  import { downloads } from './manager.svelte';
+  import { downloads, safeNativeFileName } from './manager.svelte';
   import { GENERIC, userMessage } from '$lib/errors';
   import { toasts } from '$lib/ui/toast.svelte';
-  import { isTauriEnv, nativeFileName, saveCopySupported } from '$lib/desktop/env';
+  import { isTauriEnv, saveCopySupported } from '$lib/desktop/env';
   import DeleteDownloadDialog from './DeleteDownloadDialog.svelte';
   import { chunkBytes, chunkDone, chunkSize, formatBytes, formatDuration, formatSpeed, percent } from './math';
 
@@ -59,7 +59,7 @@
   async function saveCopy() {
     if (!r) return;
     saving = true;
-    const name = nativeFileName(r);
+    const name = safeNativeFileName(r);
     const res = await downloads.saveCopy(id, name);
     saving = false;
     if (res === 'saved') toasts.show('Saved a copy to the folder you chose');
