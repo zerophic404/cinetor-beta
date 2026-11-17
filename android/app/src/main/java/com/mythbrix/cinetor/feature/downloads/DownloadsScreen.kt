@@ -299,7 +299,13 @@ private fun DownloadRow(info: DownloadInfo, selected: Boolean, modifier: Modifie
         }
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
             Text(r.title, color = t.textPrimary, style = MaterialTheme.typography.titleSmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
-            r.subtitle?.let { Text(it, color = t.textSecondary, style = MaterialTheme.typography.bodySmall, maxLines = 1, overflow = TextOverflow.Ellipsis) }
+            r.subtitle?.let { rawSub ->
+                val epTag = r.title.substringAfterLast(" · ", "")
+                val cleanSub = if (epTag.isNotEmpty() && rawSub.startsWith("$epTag · ")) rawSub.removePrefix("$epTag · ") else rawSub
+                if (cleanSub.isNotBlank()) {
+                    Text(cleanSub, color = t.textSecondary, style = MaterialTheme.typography.bodySmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                }
+            }
             val line = when (r.status) {
                 DownloadStatus.DOWNLOADING -> {
                     val l = info.live

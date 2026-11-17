@@ -1,7 +1,10 @@
 package com.mythbrix.cinetor.feature.downloads
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsFocusedAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
@@ -23,6 +26,8 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -70,37 +75,57 @@ private fun lookOf(state: DownloadButtonState, info: DownloadInfo?): Look {
     }
 }
 
-/** Full-size button next to Play on Details. NONE → options sheet; anything else → details sheet. */
+/** Full-size button next to Play on Details. NONE → options/batch sheet; anything else → details sheet. */
 @Composable
-fun DownloadButton(info: DownloadInfo?, onClick: () -> Unit, modifier: Modifier = Modifier) {
+fun DownloadButton(
+    info: DownloadInfo?,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    overrideLabel: String? = null,
+) {
+    val tokens = Cinetor.tokens
     val state = buttonStateOf(info)
     val look = lookOf(state, info)
+    val shape = RoundedCornerShape(CinetorTokens.Shape.pill)
+    val interaction = remember { MutableInteractionSource() }
+    val focused by interaction.collectIsFocusedAsState()
     Row(
         modifier
             .height(50.dp)
-            .glass(RoundedCornerShape(CinetorTokens.Shape.md), GlassLevel.SURFACE)
-            .clickable(onClick = onClick)
+            .glass(shape, GlassLevel.SURFACE)
+            .then(if (focused) Modifier.border(2.dp, tokens.focusRing, shape) else Modifier)
+            .clickable(interactionSource = interaction, indication = null, onClick = onClick)
             .semantics { contentDescription = "Download" }
             .padding(horizontal = 16.dp),
         horizontalArrangement = Arrangement.Center,
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        StateIcon(state, info, look, 22)
+        StateIcon(state, info, look, 20)
         Spacer(Modifier.width(6.dp))
-        Text(look.label, color = look.tint, style = MaterialTheme.typography.labelLarge, maxLines = 1)
+        Text(
+            overrideLabel ?: look.label,
+            color = look.tint,
+            style = MaterialTheme.typography.labelLarge,
+            fontWeight = FontWeight.SemiBold,
+            maxLines = 1,
+        )
     }
 }
 
 /** Compact icon button for episode rows. */
 @Composable
 fun EpisodeDownloadButton(info: DownloadInfo?, onClick: () -> Unit, modifier: Modifier = Modifier) {
+    val tokens = Cinetor.tokens
     val state = buttonStateOf(info)
     val look = lookOf(state, info)
+    val interaction = remember { MutableInteractionSource() }
+    val focused by interaction.collectIsFocusedAsState()
     Box(
         modifier
             .size(40.dp)
             .clip(CircleShape)
-            .clickable(onClick = onClick)
+            .then(if (focused) Modifier.border(2.dp, tokens.focusRing, CircleShape) else Modifier)
+            .clickable(interactionSource = interaction, indication = null, onClick = onClick)
             .semantics { contentDescription = "Download episode: ${look.label}" },
         contentAlignment = Alignment.Center,
     ) {

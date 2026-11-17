@@ -69,7 +69,7 @@ import kotlinx.coroutines.launch
  * manifests there need signed cookies the Media3 downloader cannot probe.
  */
 fun downloadableSources(sources: List<Source>): List<Source> {
-    val ok = sources.filter { downloadKindOf(it.kind) != null }
+    val ok = sources.filter { downloadKindOf(it.kind) != null && !isNonDownloadableUrl(it.url) }
     val tagged = ok.any { it.height != null }
     val files = ok.filter { it.kind == com.mythbrix.cinetor.core.data.SourceKind.MP4 }
     return if (tagged && files.isNotEmpty()) files.distinctBy { it.height } else ok
