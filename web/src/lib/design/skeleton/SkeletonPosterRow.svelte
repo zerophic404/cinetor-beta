@@ -9,7 +9,15 @@
 </script>
 
 <div class="row" aria-hidden="true">
-  {#if title}<div class="t"><SkeletonBox width="160px" height="18px" radius="6px" /></div>{/if}
+  {#if title}
+    <div class="head">
+      <div class="t">
+        <span class="bar"></span>
+        <SkeletonBox width="156px" height="18px" radius="6px" />
+      </div>
+      <SkeletonBox width="52px" height="14px" radius="6px" />
+    </div>
+  {/if}
   <div class="h-scroll">
     {#each Array(count) as _, i (i)}
       <div class="card" class:landscape>
@@ -20,8 +28,23 @@
 </div>
 
 <style>
-  .t {
+  .head {
     margin: 18px 16px 10px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+  }
+  .t {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .bar {
+    width: 3px;
+    height: 16px;
+    border-radius: 99px;
+    background: color-mix(in srgb, var(--accent) 55%, var(--skeleton-highlight));
   }
   .h-scroll {
     overflow: hidden;

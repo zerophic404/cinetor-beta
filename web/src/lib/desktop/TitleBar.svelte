@@ -1,28 +1,35 @@
 <script lang="ts">
-  // Custom glass title bar for the frameless desktop window (Tauri). Drag anywhere on the bar,
-  // double-click to maximize (native drag-region behaviour), min / max / close on the right.
+  // Custom Liquid Glass title bar for the frameless desktop window (Tauri on Windows & Linux).
+  // Drag anywhere on the bar, double-click to maximize, min / max / close on the right.
   import { base } from '$app/paths';
+  import { theme } from '$lib/design/theme.svelte';
   import { desktop } from './desktop.svelte';
 </script>
 
-<header class="titlebar" data-tauri-drag-region>
+<header class="titlebar" data-theme-light={theme.isLight ? '1' : undefined} data-tauri-drag-region>
   <div class="brand" data-tauri-drag-region>
     <img src="{base}/favicon.svg" alt="" width="16" height="16" data-tauri-drag-region />
-    <span data-tauri-drag-region>Cinetor</span>
+    <span class="wordmark" data-tauri-drag-region>Cinetor</span>
   </div>
   <div class="ctl">
-    <button class="btn" onclick={() => desktop.minimize()} aria-label="Minimize" title="Minimize">
-      <svg viewBox="0 0 12 12" width="12" height="12" aria-hidden="true"><path d="M2 6.5h8" stroke="currentColor" stroke-width="1.2" /></svg>
+    <button class="win-btn" type="button" onclick={() => desktop.minimize()} aria-label="Minimize" title="Minimize">
+      <svg viewBox="0 0 12 12" width="12" height="12" aria-hidden="true"><path d="M2 6.5h8" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" /></svg>
     </button>
-    <button class="btn" onclick={() => desktop.toggleMaximize()} aria-label={desktop.maximized ? 'Restore' : 'Maximize'} title={desktop.maximized ? 'Restore' : 'Maximize'}>
+    <button
+      class="win-btn"
+      type="button"
+      onclick={() => desktop.toggleMaximize()}
+      aria-label={desktop.maximized ? 'Restore' : 'Maximize'}
+      title={desktop.maximized ? 'Restore' : 'Maximize'}
+    >
       {#if desktop.maximized}
         <svg viewBox="0 0 12 12" width="12" height="12" fill="none" stroke="currentColor" stroke-width="1.1" aria-hidden="true"><rect x="2" y="3.6" width="6.4" height="6.4" rx="1" /><path d="M4 3.6V2.6a.8.8 0 0 1 .8-.8h4.6a.8.8 0 0 1 .8.8v4.6a.8.8 0 0 1-.8.8h-1" /></svg>
       {:else}
         <svg viewBox="0 0 12 12" width="12" height="12" fill="none" stroke="currentColor" stroke-width="1.1" aria-hidden="true"><rect x="2" y="2" width="8" height="8" rx="1.2" /></svg>
       {/if}
     </button>
-    <button class="btn close" onclick={() => desktop.close()} aria-label="Close" title="Close">
-      <svg viewBox="0 0 12 12" width="12" height="12" aria-hidden="true"><path d="M2.5 2.5l7 7M9.5 2.5l-7 7" stroke="currentColor" stroke-width="1.2" /></svg>
+    <button class="win-btn close" type="button" onclick={() => desktop.close()} aria-label="Close" title="Close">
+      <svg viewBox="0 0 12 12" width="12" height="12" aria-hidden="true"><path d="M2.5 2.5l7 7M9.5 2.5l-7 7" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" /></svg>
     </button>
   </div>
 </header>
@@ -38,17 +45,62 @@
     justify-content: space-between;
     user-select: none;
     -webkit-user-select: none;
-    background: linear-gradient(180deg, rgb(0 0 0 / 0.55), rgb(0 0 0 / 0.3));
-    -webkit-backdrop-filter: blur(18px) saturate(1.4);
-    backdrop-filter: blur(18px) saturate(1.4);
-    border-bottom: 1px solid rgb(255 255 255 / 0.06);
+    color: var(--text-primary);
+    background:
+      linear-gradient(180deg, rgb(255 255 255 / 0.06), transparent 65%),
+      linear-gradient(90deg, color-mix(in srgb, var(--tint, var(--accent)) 12%, transparent), transparent 46%),
+      color-mix(in srgb, var(--surface) 74%, transparent);
+    -webkit-backdrop-filter: blur(var(--blur, 20px)) saturate(165%);
+    backdrop-filter: blur(var(--blur, 20px)) saturate(165%);
+    box-shadow:
+      inset 0 1px 0 rgb(255 255 255 / 0.16),
+      0 6px 20px -10px rgb(0 0 0 / 0.55);
+    border-bottom: 1px solid var(--glass-stroke);
   }
-  :global(html.tauri-linux) .titlebar {
-    /* WebKitGTK: backdrop blur is expensive → near-opaque glass tint. */
+
+  /* Windows 11 Mica / Acrylic lets native OS vibrancy breathe through lighter glass. */
+  :global(html.tauri-glass) .titlebar {
+    background:
+      linear-gradient(180deg, rgb(255 255 255 / 0.07), transparent 65%),
+      linear-gradient(90deg, color-mix(in srgb, var(--tint, var(--accent)) 10%, transparent), transparent 46%),
+      color-mix(in srgb, var(--surface) 48%, transparent);
+  }
+
+  /* Matte: crisp solid chrome with zero specular glare or blur. */
+  :global([data-theme='matte']) .titlebar {
     -webkit-backdrop-filter: none;
     backdrop-filter: none;
-    background: rgb(10 10 12 / 0.94);
+    background: var(--surface);
+    box-shadow: none;
+    border-bottom: 1px solid var(--divider);
   }
+
+  /* Pearl: warm daylight frosted chrome with crisp dark controls (≥ 14:1 contrast). */
+  :global([data-theme='pearl']) .titlebar {
+    background:
+      linear-gradient(180deg, rgb(255 255 255 / 0.86), rgb(255 255 255 / 0.42)),
+      linear-gradient(90deg, color-mix(in srgb, var(--tint, var(--accent)) 7%, transparent), transparent 46%),
+      color-mix(in srgb, var(--surface) 84%, transparent);
+    box-shadow:
+      inset 0 1px 0 rgb(255 255 255 / 0.92),
+      0 4px 14px -8px rgb(28 22 18 / 0.12);
+    border-bottom: 1px solid rgb(20 20 22 / 0.1);
+  }
+
+  /* WebKitGTK on Linux & LOW performance tier: avoid expensive live blur, keep rich theme tint. */
+  :global(html.tauri-linux) .titlebar,
+  :global([data-blur='none']) .titlebar {
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+    background:
+      linear-gradient(90deg, color-mix(in srgb, var(--tint, var(--accent)) 10%, transparent), transparent 46%),
+      color-mix(in srgb, var(--surface) 95%, var(--bg));
+  }
+  :global(html.tauri-linux[data-theme='pearl']) .titlebar,
+  :global([data-blur='none'][data-theme='pearl']) .titlebar {
+    background: color-mix(in srgb, var(--surface) 96%, var(--bg));
+  }
+
   .brand {
     display: flex;
     align-items: center;
@@ -56,40 +108,59 @@
     padding-left: 12px;
     height: 100%;
     flex: 1;
-    font-size: 12.5px;
-    font-weight: 600;
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
-    color: rgb(255 255 255 / 0.82);
+    min-width: 0;
   }
   .brand img {
     display: block;
+    flex: none;
     pointer-events: none;
+  }
+  .wordmark {
+    font-size: 12px;
+    font-weight: 650;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: color-mix(in srgb, var(--text-primary) 88%, var(--text-secondary));
   }
   .ctl {
     display: flex;
     height: 100%;
+    flex: none;
   }
-  .btn {
+  .win-btn {
     width: 46px;
     height: 100%;
+    min-height: 0;
+    padding: 0;
+    border-radius: 0;
     display: grid;
     place-items: center;
     border: 0;
     background: transparent;
-    color: rgb(255 255 255 / 0.85);
+    color: color-mix(in srgb, var(--text-primary) 88%, var(--text-secondary));
     cursor: default;
-    transition: background 120ms ease;
+    transition:
+      background 120ms ease,
+      color 120ms ease;
   }
-  .btn:hover {
-    background: rgb(255 255 255 / 0.1);
+  .win-btn:hover {
+    background: color-mix(in srgb, var(--text-primary) 10%, transparent);
+    color: var(--text-primary);
   }
-  .btn.close:hover {
-    background: #e50914;
-    color: #fff;
+  .win-btn:active {
+    background: color-mix(in srgb, var(--text-primary) 16%, transparent);
   }
-  .btn:focus-visible {
-    outline: 2px solid var(--accent, #e50914);
+  .win-btn.close:hover {
+    background: #e11d2e;
+    color: #ffffff;
+  }
+  .win-btn.close:active {
+    background: #b00610;
+    color: #ffffff;
+  }
+  .win-btn:focus-visible {
+    outline: 2px solid var(--accent, #e11d2e);
     outline-offset: -2px;
+    border-radius: 0;
   }
 </style>

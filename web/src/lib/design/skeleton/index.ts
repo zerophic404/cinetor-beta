@@ -1,3 +1,5 @@
+export const SHIMMER_DURATION_MS = 1300;
+
 export { default as SkeletonBox } from './SkeletonBox.svelte';
 export { default as SkeletonText } from './SkeletonText.svelte';
 export { default as SkeletonPosterRow } from './SkeletonPosterRow.svelte';
