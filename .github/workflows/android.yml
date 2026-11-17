@@ -147,7 +147,7 @@ jobs:
 
   emulator-smoke:
     needs: build
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
@@ -168,11 +168,12 @@ jobs:
         with:
           api-level: 30
           arch: x86_64
-          target: google_apis
+          target: default
           profile: pixel_3a
-          ram-size: 2048M
+          cores: 4
+          ram-size: 4096M
           disable-animations: true
-          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
+          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none -no-snapshot -no-metrics -dns-server 8.8.8.8,1.1.1.1
           script: bash .github/scripts/emulator-smoke.sh apk shots
 
       - uses: actions/upload-artifact@v4
@@ -184,7 +185,7 @@ jobs:
 
   tv-smoke:
     needs: build
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
@@ -207,9 +208,10 @@ jobs:
           arch: x86
           target: android-tv
           profile: tv_1080p
-          ram-size: 2048M
+          cores: 4
+          ram-size: 3072M
           disable-animations: true
-          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
+          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none -no-snapshot -no-metrics -dns-server 8.8.8.8,1.1.1.1
           script: bash .github/scripts/tv-smoke.sh apk tv-shots
 
       - uses: actions/upload-artifact@v4

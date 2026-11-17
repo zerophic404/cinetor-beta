@@ -12,9 +12,21 @@ adb shell settings put global window_animation_scale 0 || true
 adb install -r -g "$APK" || { echo "install failed"; exit 1; }
 adb logcat -c || true
 adb logcat -G 16M >/dev/null 2>&1 || true   # big buffer: a crash stack must survive the whole run
+adb logcat -v threadtime > "$OUT/logcat-live.txt" 2>&1 &
+LOGCAT_PID=$!
+trap 'kill ${LOGCAT_PID:-} 2>/dev/null || true' EXIT
 
-shot() { sleep "${2:-3}"; adb exec-out screencap -p > "$OUT/$1.png"; echo "shot $1"; }
-alive() { adb shell pidof "$PKG" >/dev/null 2>&1; }
+shot() {
+  sleep "${2:-3}"
+  if [ "$(adb get-state 2>/dev/null || true)" != "device" ]; then
+    echo "::error::Emulator offline at shot $1"
+    cp "$OUT/logcat-live.txt" "$OUT/logcat.txt" 2>/dev/null || true
+    exit 1
+  fi
+  timeout 20 adb exec-out screencap -p > "$OUT/$1.png"
+  echo "shot $1"
+}
+alive() { [ "$(adb get-state 2>/dev/null || true)" = "device" ] && adb shell pidof "$PKG" >/dev/null 2>&1; }
 
 adb shell am start -W -n "$PKG/.MainActivity"
 shot 01-splash 1
@@ -171,7 +183,7 @@ fi
 # Phase 4b: comics reader + adult gate (separate file to keep merges with phase 4a small)
 [ -f "$(dirname "$0")/smoke-phase4b.sh" ] && source "$(dirname "$0")/smoke-phase4b.sh"
 [ -f "$(dirname "$0")/smoke-phase5.sh" ] && source "$(dirname "$0")/smoke-phase5.sh"
-adb logcat -d > "$OUT/logcat.txt" || true
+timeout 15 adb logcat -d > "$OUT/logcat.txt" || cp "$OUT/logcat-live.txt" "$OUT/logcat.txt" 2>/dev/null || true
 if grep -A35 -E "FATAL EXCEPTION|E AndroidRuntime:" "$OUT/logcat.txt" | grep -q "$PKG" \
    || grep -qE "F DEBUG.*$PKG|Fatal signal.*mythbrix\.cinetor" "$OUT/logcat.txt"; then
   echo "::error::App crashed ($PKG FATAL EXCEPTION / AndroidRuntime / native crash)"

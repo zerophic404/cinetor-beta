@@ -15,10 +15,22 @@ adb shell pm list features | grep -E 'leanback|touchscreen' || true
 adb install -r -g "$APK" || { echo "install failed"; exit 1; }
 adb logcat -c || true
 adb logcat -G 16M >/dev/null 2>&1 || true   # preserve full run logcat for crash assertions
+adb logcat -v threadtime > "$OUT/logcat-live.txt" 2>&1 &
+LOGCAT_PID=$!
+trap 'kill ${LOGCAT_PID:-} 2>/dev/null || true' EXIT
 
-shot() { sleep "${2:-3}"; adb exec-out screencap -p > "$OUT/$1.png"; echo "shot $1"; }
+shot() {
+  sleep "${2:-3}"
+  if [ "$(adb get-state 2>/dev/null || true)" != "device" ]; then
+    echo "::error::TV emulator offline at shot $1"
+    cp "$OUT/logcat-live.txt" "$OUT/logcat.txt" 2>/dev/null || true
+    exit 1
+  fi
+  timeout 20 adb exec-out screencap -p > "$OUT/$1.png"
+  echo "shot $1"
+}
 key() { for k in "$@"; do adb shell input keyevent "$k"; sleep 0.7; done; }
-alive() { adb shell pidof "$PKG" >/dev/null 2>&1; }
+alive() { [ "$(adb get-state 2>/dev/null || true)" = "device" ] && adb shell pidof "$PKG" >/dev/null 2>&1; }
 check() {
   local lc
   lc=$(adb logcat -d 2>/dev/null || true)
@@ -96,7 +108,7 @@ adb shell input keyevent KEYCODE_DPAD_DOWN KEYCODE_DPAD_DOWN KEYCODE_DPAD_DOWN K
 shot 40-tv-sidenav-profile-group 1
 key KEYCODE_DPAD_CENTER; shot 41-tv-live-tv 6
 anr; check live-tv
-adb logcat -d > "$OUT/logcat.txt" || true
+timeout 15 adb logcat -d > "$OUT/logcat.txt" || cp "$OUT/logcat-live.txt" "$OUT/logcat.txt" 2>/dev/null || true
 if grep -A35 -E 'FATAL EXCEPTION|E AndroidRuntime:' "$OUT/logcat.txt" | grep -q "$PKG" \
    || grep -qE "F DEBUG.*$PKG|Fatal signal.*mythbrix\.cinetor" "$OUT/logcat.txt"; then
   echo "::error::TV app crashed ($PKG FATAL EXCEPTION / AndroidRuntime / native crash)"
