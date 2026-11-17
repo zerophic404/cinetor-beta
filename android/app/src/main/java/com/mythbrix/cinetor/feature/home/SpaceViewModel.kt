@@ -9,6 +9,8 @@ import com.mythbrix.cinetor.core.data.Item
 import com.mythbrix.cinetor.core.data.ItemType
 import com.mythbrix.cinetor.core.data.RowStyle
 import com.mythbrix.cinetor.core.data.Space
+import com.mythbrix.cinetor.core.data.gateway.PagedCatalog
+import com.mythbrix.cinetor.core.legal.UserErrors
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
@@ -19,7 +21,6 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
-import com.mythbrix.cinetor.core.legal.UserErrors
 
 /** One category tab. [type] narrows items (Music: Albums | Tracks over every music category). */
 @Immutable
@@ -52,9 +53,16 @@ data class SpaceUi(
     val rows: List<RowUi>,
     /** A tab switch is fetching; previous content stays visible. */
     val tabLoading: Boolean = false,
+    /** Row id currently opened in the full-grid "See all" sheet, if any. */
+    val seeAllRowId: String? = null,
+    /** Row ids currently fetching their next page from [PagedCatalog]. */
+    val loadingRows: Set<String> = emptySet(),
 ) {
     /** Category tabs only make sense with 2+ entries (Anime/Adult are genre-led). */
     val showTabs: Boolean get() = tabs.size > 1
+
+    /** Resolved row for the active "See all" grid sheet, or null when closed. */
+    val seeAllRow: RowUi? get() = seeAllRowId?.let { id -> rows.firstOrNull { it.id == id } }
 }
 
 sealed interface SpaceUiState {
@@ -118,6 +126,8 @@ class SpaceStateHolder(
     private val cache = HashMap<String, TabContent>()
     private var selected = 0
     private var genre: String? = null
+    private var seeAllRowId: String? = null
+    private val loadingRows = HashSet<String>()
     private var job: Job? = null
 
     /** Next page to fetch per row id; absent = page 2; -1 = no more. */
@@ -126,22 +136,51 @@ class SpaceStateHolder(
 
     /** Row scrolled near its end: fetch the next gateway page and append (no-op for non-paged rows). */
     fun loadMore(rowId: String) {
-        val paged = catalog as? com.mythbrix.cinetor.core.data.gateway.PagedCatalog ?: return
+        val paged = catalog as? PagedCatalog ?: return
         val page = nextPage[rowId] ?: 2
         if (page < 0 || pageJobs[rowId]?.isActive == true) return
         val tabId = tabs.getOrNull(selected)?.id ?: return
+        loadingRows += rowId
+        emitCachedIfReady(tabId)
         pageJobs[rowId] = scope.launch {
-            val result = orNull { paged.rowPage(rowId, page) } ?: return@launch
-            nextPage[rowId] = if (result.hasMore && result.items.isNotEmpty()) page + 1 else -1
-            val content = cache[tabId] ?: return@launch
-            val rows = content.rows.map { r ->
-                if (r.id != rowId) r else r.copy(items = (r.items + result.items).distinctBy { it.id })
+            try {
+                val result = orNull { paged.rowPage(rowId, page) }
+                if (result == null) return@launch
+                nextPage[rowId] = if (result.hasMore && result.items.isNotEmpty()) page + 1 else -1
+                val content = cache[tabId] ?: return@launch
+                val rows = content.rows.map { r ->
+                    if (r.id != rowId) r else r.copy(items = (r.items + result.items).distinctBy { it.id })
+                }
+                cache[tabId] = TabContent(content.heroes, rows)
+            } finally {
+                loadingRows -= rowId
+                emitCachedIfReady(tabId)
             }
-            val updated = TabContent(content.heroes, rows)
-            cache[tabId] = updated
-            if (tabs.getOrNull(selected)?.id == tabId && _state.value is SpaceUiState.Ready) {
-                _state.value = SpaceUiState.Ready(ui(updated))
-            }
+        }
+    }
+
+    /** Opens the full-grid "See all" view for [rowId]. */
+    fun openSeeAll(rowId: String) {
+        val tabId = tabs.getOrNull(selected)?.id ?: return
+        val content = cache[tabId] ?: return
+        if (content.rows.none { it.id == rowId }) return
+        seeAllRowId = rowId
+        _state.value = SpaceUiState.Ready(ui(content))
+    }
+
+    /** Closes the "See all" grid view and returns to the hub scroll position. */
+    fun closeSeeAll() {
+        if (seeAllRowId == null) return
+        seeAllRowId = null
+        val tabId = tabs.getOrNull(selected)?.id ?: return
+        val content = cache[tabId] ?: return
+        _state.value = SpaceUiState.Ready(ui(content))
+    }
+
+    private fun emitCachedIfReady(tabId: String) {
+        if (tabs.getOrNull(selected)?.id == tabId && _state.value is SpaceUiState.Ready) {
+            val content = cache[tabId] ?: return
+            _state.value = SpaceUiState.Ready(ui(content))
         }
     }
 
@@ -172,6 +211,7 @@ class SpaceStateHolder(
         if (index == selected || index !in tabs.indices) return
         selected = index
         genre = null
+        seeAllRowId = null
         val tab = tabs[index]
         val cached = cache[tab.id]
         job?.cancel()
@@ -181,7 +221,9 @@ class SpaceStateHolder(
         }
         val current = (_state.value as? SpaceUiState.Ready)?.ui
         if (current != null) {
-            _state.value = SpaceUiState.Ready(current.copy(selectedTab = index, selectedGenre = null, tabLoading = true))
+            _state.value = SpaceUiState.Ready(
+                current.copy(selectedTab = index, selectedGenre = null, seeAllRowId = null, tabLoading = true),
+            )
         }
         job = scope.launch {
             val content = try {
@@ -199,12 +241,14 @@ class SpaceStateHolder(
     /** Tap a chip: select it; tap the selected chip again (or null) to clear. */
     fun selectGenre(g: String?) {
         genre = if (g == null || g == genre) null else g
+        seeAllRowId = null
         val content = tabs.getOrNull(selected)?.let { cache[it.id] } ?: return
         _state.value = SpaceUiState.Ready(ui(content))
     }
 
     private fun ui(content: TabContent): SpaceUi {
         val filtered = applyGenre(content, genre)
+        val activeSeeAll = seeAllRowId?.takeIf { id -> filtered.rows.any { it.id == id } }
         return SpaceUi(
             tabs = tabs,
             selectedTab = selected,
@@ -212,6 +256,8 @@ class SpaceStateHolder(
             genres = genres,
             selectedGenre = genre,
             rows = filtered.rows,
+            seeAllRowId = activeSeeAll,
+            loadingRows = loadingRows.toSet(),
         )
     }
 
@@ -255,4 +301,6 @@ class SpaceViewModel(space: Space, catalog: CatalogRepository) : ViewModel() {
     fun selectTab(index: Int) = holder.selectTab(index)
     fun selectGenre(genre: String?) = holder.selectGenre(genre)
     fun loadMore(rowId: String) = holder.loadMore(rowId)
+    fun openSeeAll(rowId: String) = holder.openSeeAll(rowId)
+    fun closeSeeAll() = holder.closeSeeAll()
 }

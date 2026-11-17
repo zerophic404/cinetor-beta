@@ -7,20 +7,22 @@ import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 
 /** Why the hero carousel is not advancing. Any active reason pauses it. */
-enum class HeroPause { DRAG, TOUCH, OFFSCREEN, LIFECYCLE, SINGLE_PAGE, SETTING, FOCUS }
+enum class HeroPause { DRAG, TOUCH, OFFSCREEN, LIFECYCLE, SINGLE_PAGE, SETTING, FOCUS, LOW_TIER }
 
 /**
  * Auto-advance clock for the hero carousel (pure, virtual-time testable).
- * Every [intervalMs] while running and not paused → [onAdvance]. Resuming restarts the full
- * interval so the banner never jumps right after the user lets go.
+ * Advances every [intervalMs] (`5s`) while running and unpaused; after user touch or drag,
+ * waits [postTouchDelayMs] (`6s`) before resuming the `5s` cadence so cards never jump under a finger.
  */
 class HeroAutoAdvance(
     private val scope: CoroutineScope,
     private val intervalMs: Long = DEFAULT_INTERVAL_MS,
+    private val postTouchDelayMs: Long = DEFAULT_POST_TOUCH_DELAY_MS,
     private val onAdvance: suspend () -> Unit,
 ) {
     private val reasons = HashSet<HeroPause>()
     private var running = false
+    private var touchCooldownPending = false
     private var job: Job? = null
 
     val isPaused: Boolean get() = reasons.isNotEmpty()
@@ -33,11 +35,15 @@ class HeroAutoAdvance(
 
     fun stop() {
         running = false
+        touchCooldownPending = false
         job?.cancel()
         job = null
     }
 
     fun pause(reason: HeroPause) {
+        if (reason == HeroPause.DRAG || reason == HeroPause.TOUCH) {
+            touchCooldownPending = true
+        }
         if (reasons.add(reason)) {
             job?.cancel()
             job = null
@@ -50,13 +56,27 @@ class HeroAutoAdvance(
 
     fun setPaused(reason: HeroPause, paused: Boolean) = if (paused) pause(reason) else resume(reason)
 
+    /** Marks a user-initiated card tap/swipe and restarts with the post-touch delay. */
+    fun notifyUserInteraction() {
+        touchCooldownPending = true
+        restart()
+    }
+
     private fun restart() {
         job?.cancel()
         job = null
         if (!running || reasons.isNotEmpty()) return
         job = scope.launch {
+            var firstTickAfterTouch = touchCooldownPending
             while (isActive) {
-                delay(intervalMs)
+                val waitMs = if (firstTickAfterTouch) {
+                    touchCooldownPending = false
+                    firstTickAfterTouch = false
+                    maxOf(intervalMs, postTouchDelayMs)
+                } else {
+                    intervalMs
+                }
+                delay(waitMs)
                 onAdvance()
             }
         }
@@ -64,5 +84,6 @@ class HeroAutoAdvance(
 
     companion object {
         const val DEFAULT_INTERVAL_MS = 5_000L
+        const val DEFAULT_POST_TOUCH_DELAY_MS = 6_000L
     }
 }
