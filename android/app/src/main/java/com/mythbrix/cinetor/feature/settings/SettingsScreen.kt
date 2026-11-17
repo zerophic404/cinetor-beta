@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -22,6 +23,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowRight
+import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
@@ -43,8 +45,13 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.mythbrix.cinetor.core.data.AppContainer
@@ -59,6 +66,7 @@ import com.mythbrix.cinetor.design.Cinetor
 import com.mythbrix.cinetor.design.CinetorTokens
 import com.mythbrix.cinetor.design.GlassLevel
 import com.mythbrix.cinetor.design.glass
+import com.mythbrix.cinetor.design.themeUsesSpecularShine
 import com.mythbrix.cinetor.feature.adult.AdultGate
 import com.mythbrix.cinetor.feature.adult.AdultSettingsBlock
 import com.mythbrix.cinetor.feature.adult.EnableResult
@@ -66,6 +74,40 @@ import com.mythbrix.cinetor.feature.adult.UnlockResult
 import com.mythbrix.cinetor.feature.profile.ProfileAvatar
 import com.mythbrix.cinetor.feature.profile.ProfilePinDialog
 import kotlinx.coroutines.launch
+
+/** Curated display order: Cinetor Beta's 5 material themes first, followed by the 3 classic dark palettes. */
+internal val ThemeDisplayOrder: List<AppTheme> = listOf(
+    AppTheme.GLASS,
+    AppTheme.MATTE,
+    AppTheme.MATERIAL,
+    AppTheme.AURA,
+    AppTheme.PEARL,
+    AppTheme.NOIR,
+    AppTheme.OBSIDIAN,
+    AppTheme.EMBER,
+)
+
+internal fun themeBadge(theme: AppTheme): String = when (theme) {
+    AppTheme.GLASS -> "Liquid Glass"
+    AppTheme.MATTE -> "Flat solid"
+    AppTheme.MATERIAL -> "Rounder shapes"
+    AppTheme.AURA -> "Adaptive aura"
+    AppTheme.PEARL -> "Daylight"
+    AppTheme.NOIR -> "OLED black"
+    AppTheme.OBSIDIAN -> "Slate glass"
+    AppTheme.EMBER -> "Warm glow"
+}
+
+internal fun themeDescription(theme: AppTheme): String = when (theme) {
+    AppTheme.GLASS -> "Clear dark cinema glass with frosted blur and refractive edges"
+    AppTheme.MATTE -> "Flat solid charcoal panels with zero blur or specular shine"
+    AppTheme.MATERIAL -> "Soft layered neutral surfaces with 28dp cards and pill buttons"
+    AppTheme.AURA -> "Deep adaptive canvas washed in the color of the artwork on screen"
+    AppTheme.PEARL -> "Warm daylight paper and frosted white glass for bright rooms"
+    AppTheme.NOIR -> "Pure OLED black canvas with high-contrast cinema red accents"
+    AppTheme.OBSIDIAN -> "Cool slate-black glass paired with deep crimson highlights"
+    AppTheme.EMBER -> "Dark mahogany glass with warm vermilion rim light"
+}
 
 /**
  * Settings (Task 5.2): Appearance · Playback · Subtitles & audio · Data & storage · Content · Profiles · TV ·
@@ -101,11 +143,8 @@ fun SettingsScreen(
 
         Group("Appearance") {
             Label("Theme · ${profile.name}")
-            Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
-                AppTheme.entries.forEach { t ->
-                    ThemePreviewCard(t, selected = t == theme, modifier = Modifier.weight(1f)) { holder.setTheme(t) }
-                }
-            }
+            ThemeGridPicker(selected = theme, onSelect = holder::setTheme)
+            ActiveThemeSummary(theme = theme)
             Choice("Effects quality", EffectsQuality.entries, s.effects, { it.name.lowercase().replaceFirstChar { c -> c.uppercase() } }) { v ->
                 set { it.copy(effects = v) }
             }
@@ -257,29 +296,219 @@ private fun langLabel(code: String): String = SettingsOptions.LANGUAGES.firstOrN
 private fun speedLabel(speed: Float): String =
     (if (speed % 1f == 0f) speed.toInt().toString() else speed.toString()) + "×"
 
-/** Mini mock of the theme (bg, glass card, accent button) — tap applies immediately. */
+/**
+ * Multi-column grid of all 8 themes (`Glass`, `Matte`, `Material`, `Aura`, `Pearl`, `Noir`, `Obsidian`, `Ember`)
+ * so every theme card is visible on-screen simultaneously without horizontal scrolling.
+ */
 @Composable
-private fun ThemePreviewCard(theme: AppTheme, selected: Boolean, modifier: Modifier = Modifier, onClick: () -> Unit) {
+private fun ThemeGridPicker(
+    selected: AppTheme,
+    onSelect: (AppTheme) -> Unit,
+) {
+    val widthDp = LocalConfiguration.current.screenWidthDp
+    val columns = if (widthDp < 340) 2 else 4
+    val ordered = remember {
+        ThemeDisplayOrder + AppTheme.entries.filterNot { it in ThemeDisplayOrder }
+    }
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+        ordered.chunked(columns).forEach { rowThemes ->
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                rowThemes.forEach { t ->
+                    ThemePreviewCard(
+                        theme = t,
+                        selected = t == selected,
+                        modifier = Modifier.weight(1f),
+                        onClick = { onSelect(t) },
+                    )
+                }
+                repeat(columns - rowThemes.size) {
+                    Spacer(Modifier.weight(1f))
+                }
+            }
+        }
+    }
+}
+
+/** Mini material + color swatch card of a theme — tap applies immediately without activity restart. */
+@Composable
+private fun ThemePreviewCard(
+    theme: AppTheme,
+    selected: Boolean,
+    modifier: Modifier = Modifier,
+    onClick: () -> Unit,
+) {
     val t = CinetorTokens.of(theme)
     val current = Cinetor.tokens
-    val shape = RoundedCornerShape(16.dp)
+    val isMaterial = theme == AppTheme.MATERIAL
+    val specular = themeUsesSpecularShine(theme)
+    val outerShape = RoundedCornerShape(if (isMaterial) 18.dp else 14.dp)
+    val innerCardShape = RoundedCornerShape(if (isMaterial) 10.dp else 7.dp)
+    val buttonShape = if (isMaterial) CircleShape else RoundedCornerShape(4.dp)
+
+    val idleBorder = if (t.isLight == current.isLight) {
+        t.glassStroke.copy(alpha = t.glassStroke.alpha.coerceAtLeast(0.18f))
+    } else {
+        current.divider
+    }
+    val canvasBrush = if (specular && t.tintStrength > 0f) {
+        Brush.verticalGradient(
+            listOf(
+                t.accent.copy(alpha = if (t.isLight) 0.12f else 0.24f),
+                t.bg,
+                t.bg,
+            ),
+        )
+    } else {
+        Brush.verticalGradient(listOf(t.bg, t.bg))
+    }
+
     Column(
         modifier
-            .clip(shape)
+            .clip(outerShape)
             .background(t.bg)
-            .border(if (selected) 2.dp else 1.dp, if (selected) current.accent else t.glassStroke, shape)
+            .background(canvasBrush)
+            .border(
+                width = if (selected) 2.dp else 1.dp,
+                color = if (selected) current.accent else idleBorder,
+                shape = outerShape,
+            )
             .clickable(onClick = onClick)
             .semantics { contentDescription = "Theme ${t.name}" }
-            .padding(10.dp),
+            .padding(horizontal = 7.dp, vertical = 8.dp),
+        verticalArrangement = Arrangement.spacedBy(5.dp),
+    ) {
+        Box(
+            Modifier
+                .fillMaxWidth()
+                .height(30.dp)
+                .clip(innerCardShape)
+                .background(t.surfaceElevated)
+                .then(
+                    if (specular) {
+                        Modifier.border(1.dp, t.glassStroke, innerCardShape)
+                    } else {
+                        Modifier
+                    },
+                )
+                .padding(5.dp),
+        ) {
+            Column(
+                Modifier.align(Alignment.TopStart),
+                verticalArrangement = Arrangement.spacedBy(3.dp),
+            ) {
+                Box(Modifier.width(26.dp).height(4.dp).clip(CircleShape).background(t.textPrimary.copy(alpha = 0.85f)))
+                Box(Modifier.width(18.dp).height(3.dp).clip(CircleShape).background(t.textSecondary.copy(alpha = 0.65f)))
+            }
+            Box(
+                Modifier
+                    .align(Alignment.BottomEnd)
+                    .size(width = 18.dp, height = 7.dp)
+                    .clip(buttonShape)
+                    .background(t.accent),
+            )
+        }
+
+        Row(
+            horizontalArrangement = Arrangement.spacedBy(3.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            SwatchDot(t.bg, t.divider)
+            SwatchDot(t.surfaceElevated, t.divider)
+            SwatchDot(t.accent, Color.Transparent)
+            SwatchDot(t.textPrimary, t.divider)
+        }
+
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(3.dp),
+            modifier = Modifier.fillMaxWidth(),
+        ) {
+            if (selected) {
+                Icon(
+                    imageVector = Icons.Rounded.Check,
+                    contentDescription = null,
+                    tint = t.accent,
+                    modifier = Modifier.size(12.dp),
+                )
+            }
+            Text(
+                text = t.name,
+                color = t.textPrimary,
+                style = MaterialTheme.typography.labelSmall.copy(
+                    fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
+                ),
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
+    }
+}
+
+@Composable
+private fun SwatchDot(color: Color, ring: Color, sizeDp: Int = 8) {
+    Box(
+        Modifier
+            .size(sizeDp.dp)
+            .clip(CircleShape)
+            .background(color)
+            .then(if (ring != Color.Transparent) Modifier.border(1.dp, ring, CircleShape) else Modifier),
+    )
+}
+
+/** Shows the active theme's clear material description and labeled palette swatches right below the grid. */
+@Composable
+private fun ActiveThemeSummary(theme: AppTheme) {
+    val tokens = Cinetor.tokens
+    val pillShape = RoundedCornerShape(percent = 50)
+    val cardShape = RoundedCornerShape(14.dp)
+
+    Column(
+        Modifier
+            .fillMaxWidth()
+            .clip(cardShape)
+            .background(tokens.surfaceElevated.copy(alpha = if (tokens.isLight) 0.85f else 0.65f))
+            .border(1.dp, tokens.divider, cardShape)
+            .padding(horizontal = 12.dp, vertical = 10.dp),
         verticalArrangement = Arrangement.spacedBy(6.dp),
     ) {
-        Box(Modifier.fillMaxWidth().height(34.dp).clip(RoundedCornerShape(8.dp)).background(t.surfaceElevated)) {
-            Box(Modifier.padding(6.dp).size(14.dp).clip(CircleShape).background(t.accent))
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            modifier = Modifier.fillMaxWidth(),
+        ) {
+            Text(
+                text = tokens.name,
+                style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.SemiBold),
+                color = tokens.textPrimary,
+            )
+            Box(
+                Modifier
+                    .clip(pillShape)
+                    .background(tokens.accent.copy(alpha = if (tokens.isLight) 0.12f else 0.18f))
+                    .padding(horizontal = 8.dp, vertical = 2.dp),
+            ) {
+                Text(
+                    text = themeBadge(theme),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = if (tokens.isLight) tokens.accent else tokens.textPrimary,
+                )
+            }
+            Spacer(Modifier.weight(1f))
+            Row(horizontalArrangement = Arrangement.spacedBy(5.dp), verticalAlignment = Alignment.CenterVertically) {
+                SwatchDot(tokens.bg, tokens.glassStroke, sizeDp = 11)
+                SwatchDot(tokens.surfaceElevated, tokens.glassStroke, sizeDp = 11)
+                SwatchDot(tokens.accent, Color.Transparent, sizeDp = 11)
+                SwatchDot(tokens.textPrimary, tokens.glassStroke, sizeDp = 11)
+            }
         }
-        Box(Modifier.width(48.dp).height(6.dp).clip(CircleShape).background(t.textPrimary.copy(alpha = 0.8f)))
-        Box(Modifier.width(32.dp).height(6.dp).clip(CircleShape).background(t.textSecondary.copy(alpha = 0.6f)))
-        Box(Modifier.fillMaxWidth().height(14.dp).clip(CircleShape).background(t.accent))
-        Text(t.name, color = t.textPrimary, style = MaterialTheme.typography.labelLarge)
+        Text(
+            text = themeDescription(theme),
+            style = MaterialTheme.typography.bodySmall,
+            color = tokens.textSecondary,
+        )
     }
 }
 
@@ -354,7 +583,7 @@ private suspend fun changePinStep(
 @Composable
 private fun Group(title: String?, content: @Composable ColumnScope.() -> Unit) {
     Column(
-        Modifier.fillMaxWidth().glass(RoundedCornerShape(20.dp), GlassLevel.SURFACE).padding(14.dp),
+        Modifier.fillMaxWidth().glass(Cinetor.cardShape, GlassLevel.SURFACE).padding(14.dp),
         verticalArrangement = Arrangement.spacedBy(10.dp),
     ) {
         if (title != null) Text(title, style = MaterialTheme.typography.titleMedium, color = Cinetor.tokens.textPrimary)
