@@ -12,6 +12,7 @@ import com.mythbrix.cinetor.core.data.RowStyle
 import com.mythbrix.cinetor.core.data.Season
 import com.mythbrix.cinetor.core.data.Space
 import com.mythbrix.cinetor.core.data.tmdb.TmdbMapper
+import kotlinx.serialization.json.JsonElement
 import java.net.URLDecoder
 import java.net.URLEncoder
 import java.util.concurrent.ConcurrentHashMap
@@ -62,11 +63,43 @@ object NoDominantColors : DominantColors {
 /** Pure gateway JSON → [Item] mapping. */
 object GatewayMapper {
     const val ID_PREFIX = "gw:"
+
     /** Adult items keep the `ad-` prefix the adult gate routes on. */
     const val ADULT_PREFIX = "ad-gw:"
     const val ACCENT = "#E50914"
+
     private val ADULT_GENRES = setOf("adult", "erotic", "erotica", "porn")
-    private val DRAMA_COUNTRIES = setOf("korea", "south korea", "china", "japan", "taiwan", "hong kong")
+    private val DRAMA_COUNTRIES = setOf(
+        "korea", "south korea", "china", "japan", "taiwan", "hong kong",
+        "pakistan", "thailand", "philippines", "turkey",
+    )
+
+    /**
+     * Cinetor Beta `AdultCatalog.safeName`: rejects any title hinting at minors, non-consent,
+     * leaks, incest, animals, or cartoons/hentai regardless of source tags.
+     */
+    private val ADULT_BLOCKED = Regex(
+        """(?i)\b(teen\w*|school\w*|college girl|student\w*|tuition|beti|bachi|underage|minors?|enjo|first (time|pain)|lolita|loli|shota|child\w*|kids?|young girls?|virgin|step[- ]?(daughter|son|sister|brother|mom|mother)|rape\w*|forced?|drugged|sleeping|unconscious|incest|dog|animal\w*|bestial\w*|anime|animation|hentai|cartoon|leak\w*|mms|hidden cam\w*|spy cam\w*)\b""",
+    )
+
+    private val CANONICAL_DUBS = listOf(
+        "Hindi" to Regex("""(?i)(\[hindi]|\bhindi\b|हिन्दी)"""),
+        "Bengali" to Regex("""(?i)(\[bengali]|\[bangla]|\bbengali\b|\bbangla\b|বাংলা|zee\s*bangla|star\s*jalsha|sony\s*aath)"""),
+        "Tamil" to Regex("""(?i)(\[tamil]|\btamil\b)"""),
+        "Telugu" to Regex("""(?i)(\[telugu]|\btelugu\b)"""),
+        "English" to Regex("""(?i)(\[english]|\benglish(?:\s+dub(?:bed)?)?\b)"""),
+    )
+
+    private val TITLE_BRACKET_DUBS = listOf(
+        "Hindi" to "[Hindi]",
+        "Bengali" to "[Bengali]",
+        "Bengali" to "[Bangla]",
+        "Tamil" to "[Tamil]",
+        "Telugu" to "[Telugu]",
+        "English" to "[English]",
+    )
+
+    fun safeName(name: String): Boolean = !ADULT_BLOCKED.containsMatchIn(name)
 
     fun isGatewayId(id: String): Boolean = id.startsWith(ID_PREFIX) || id.startsWith(ADULT_PREFIX)
 
@@ -81,32 +114,95 @@ object GatewayMapper {
     fun genresOf(raw: String?): List<String> =
         raw?.split(',')?.map { it.trim() }?.filter { it.isNotEmpty() }.orEmpty()
 
-    fun isAdult(genres: List<String>): Boolean = genres.any { it.lowercase() in ADULT_GENRES }
+    fun isAdult(genres: List<String>, badge: String? = null): Boolean =
+        genres.any { it.lowercase() in ADULT_GENRES } || badge?.contains("18+", ignoreCase = true) == true
+
+    fun isAnime(genres: List<String>): Boolean =
+        genres.any { it.equals("Anime", ignoreCase = true) || it.equals("Animation", ignoreCase = true) }
+
+    /** Extracts canonical dub languages (`Hindi`, `Bengali`, `Tamil`, `Telugu`, `English`) from card metadata. */
+    fun dubLanguagesOf(
+        name: String?,
+        badge: String?,
+        slug: String?,
+        dubs: JsonElement?,
+    ): List<String> {
+        val found = LinkedHashSet<String>()
+        val n = name.orEmpty()
+        for ((canonical, token) in TITLE_BRACKET_DUBS) {
+            if (n.contains(token, ignoreCase = true)) found += canonical
+        }
+        val extraSignals = buildList {
+            badge?.takeIf { it.isNotBlank() }?.let { add(it) }
+            addAll(dubs.stringList())
+            slug?.takeIf { it.isNotBlank() }?.let { s ->
+                if (Regex("""(?i)(^|-)bengali(-|$)|zee-bangla""").containsMatchIn(s)) add("Bengali")
+                if (Regex("""(?i)(^|-)hindi(-|$)""").containsMatchIn(s)) add("Hindi")
+                if (Regex("""(?i)(^|-)tamil(-|$)""").containsMatchIn(s)) add("Tamil")
+                if (Regex("""(?i)(^|-)telugu(-|$)""").containsMatchIn(s)) add("Telugu")
+            }
+        }
+        for (signal in extraSignals) {
+            for ((canonical, regex) in CANONICAL_DUBS) {
+                if (regex.containsMatchIn(signal)) found += canonical
+            }
+        }
+        return found.toList()
+    }
+
+    /** Primary dub badge for poster cards (`Hindi`, `Bengali`, `Tamil`, `Telugu`, `English`), or null. */
+    fun extractDubBadge(item: Item): String? {
+        for ((canonical, token) in TITLE_BRACKET_DUBS) {
+            if (item.title.contains(token, ignoreCase = true)) return canonical
+        }
+        val canonicalNames = listOf("Hindi", "Bengali", "Tamil", "Telugu", "English")
+        return canonicalNames.firstOrNull { lang -> item.genres.any { it.equals(lang, ignoreCase = true) } }
+    }
+
+    private fun mergeGenresAndDubs(genres: List<String>, dubs: List<String>): List<String> {
+        if (dubs.isEmpty()) return genres
+        val out = ArrayList<String>(genres.size + dubs.size)
+        out.addAll(genres)
+        for (dub in dubs) {
+            if (out.none { it.equals(dub, ignoreCase = true) }) out += dub
+        }
+        return out
+    }
 
     /** Where a search / detail result belongs when no row told us. */
-    fun inferSpace(genres: List<String>, type: String?, country: String?): Space {
-        if (isAdult(genres)) return Space.ADULT
-        if (genres.any { it.equals("Anime", true) || it.equals("Animation", true) }) return Space.ANIME
-        if (type == "tv" && country?.lowercase() in DRAMA_COUNTRIES) return Space.DRAMA
+    fun inferSpace(genres: List<String>, type: String?, country: String?, badge: String? = null): Space {
+        if (isAdult(genres, badge)) return Space.ADULT
+        if (isAnime(genres)) return Space.ANIME
+        val isTv = type.equals("tv", ignoreCase = true) || type == "7" || type == "2"
+        if (isTv && country?.trim()?.lowercase() in DRAMA_COUNTRIES) return Space.DRAMA
         return Space.HOME
     }
 
     private fun year(y: String?, date: String?): Int = y?.take(4)?.toIntOrNull() ?: date?.take(4)?.toIntOrNull() ?: 0
+
+    private fun isSeriesItem(g: GwItem): Boolean {
+        val t = g.type?.trim()?.lowercase().orEmpty()
+        return t == "tv" || t == "7" || t == "2" || g.subjectType == 2 || g.subjectType == 7
+    }
 
     fun toItem(g: GwItem, space: Space?, categoryId: String, colors: DominantColors = NoDominantColors): Item? {
         // Every visible title must be playable: the gateway says up front which ones have no stream.
         if (!g.hasResource) return null
         val sid = g.subjectId?.takeIf { it.isNotBlank() } ?: return null
         val title = g.name?.trim()?.takeIf { it.isNotEmpty() } ?: return null
-        val genres = genresOf(g.genre)
-        val sp = space ?: inferSpace(genres, g.type, g.country)
+        val baseGenres = genresOf(g.genre)
+        val isTv = isSeriesItem(g)
+        val sp = space ?: inferSpace(baseGenres, if (isTv) "tv" else "movie", g.country, g.badge)
+        if (sp == Space.ADULT && !safeName(title)) return null
+        val dubs = dubLanguagesOf(title, g.badge, g.slug, g.dubs)
+        val genres = mergeGenresAndDubs(baseGenres, dubs)
         val poster = g.posterUrl.orEmpty()
         val id = idOf(sid, sp)
         return Item(
             id = id,
             space = sp,
             categoryId = categoryId,
-            type = if (g.type == "tv") ItemType.SERIES else ItemType.MOVIE,
+            type = if (isTv) ItemType.SERIES else ItemType.MOVIE,
             title = title,
             year = year(g.year, g.releaseDate),
             rating = g.rating?.toDoubleOrNull() ?: 0.0,
@@ -134,22 +230,48 @@ object GatewayMapper {
     fun detailToItem(d: GwDetailData, slug: String, summary: Item?, colors: DominantColors = NoDominantColors): Item? {
         val s = d.subject ?: return null
         val sid = s.subjectId.takeIf { it.isNotBlank() } ?: return null
-        val genres = genresOf(s.genre).ifEmpty { summary?.genres.orEmpty() }
-        val isTv = s.subjectType == 2 || summary?.type == ItemType.SERIES
-        val space = summary?.space ?: inferSpace(genres, if (isTv) "tv" else "movie", s.countryName)
+        val baseGenres = genresOf(s.genre).ifEmpty { summary?.genres.orEmpty() }
+        val rawSeasons = d.resource?.seasons.orEmpty()
+        val isTv = s.subjectType == 2 || s.subjectType == 7 || summary?.type == ItemType.SERIES ||
+            rawSeasons.any { (it.season ?: it.se) > 0 && (it.maxEp > 0 || it.episodes.isNotEmpty() || !it.allEp.isNullOrBlank()) }
+        val space = summary?.space ?: inferSpace(baseGenres, if (isTv) "tv" else "movie", s.countryName, s.corner)
+        val resolvedTitle = s.title.ifBlank { summary?.title.orEmpty() }
+        if (space == Space.ADULT && !safeName(resolvedTitle)) return null
+        val detailDubs = dubLanguagesOf(resolvedTitle, s.corner, s.detailPath ?: slug, s.dubs)
+        val summaryDubs = summary?.let { listOfNotNull(extractDubBadge(it)) }.orEmpty()
+        val genres = mergeGenresAndDubs(baseGenres, (detailDubs + summaryDubs).distinct())
         val id = idOf(sid, space)
         val poster = s.cover?.url?.takeIf { it.isNotBlank() } ?: summary?.poster.orEmpty()
+        val backdrop = s.stills?.url?.takeIf { it.isNotBlank() } ?: summary?.backdrop?.takeIf { it.isNotBlank() } ?: poster
         val epDuration = s.duration?.takeIf { it > 0 } ?: 0
         val seasons = if (isTv) {
-            d.resource?.seasons.orEmpty().filter { it.maxEp > 0 }.sortedBy { it.se }.map { r ->
+            rawSeasons.mapNotNull { r ->
+                val seasonNum = (r.season ?: r.se).takeIf { it > 0 } ?: return@mapNotNull null
+                val epMap = r.episodes.mapNotNull { e -> e.episode?.let { n -> n to e } }.toMap()
+                val listed = r.allEp.orEmpty().split(',').mapNotNull { it.trim().toIntOrNull() }.filter { it > 0 }
+                val nums = when {
+                    epMap.isNotEmpty() -> epMap.keys.sorted()
+                    listed.isNotEmpty() -> listed.distinct().sorted()
+                    r.maxEp > 0 -> (1..r.maxEp).toList()
+                    else -> emptyList()
+                }
+                if (nums.isEmpty()) return@mapNotNull null
                 Season(
-                    n = r.se,
-                    title = "Season ${r.se}",
-                    episodes = (1..r.maxEp).map { n ->
-                        Episode(id = episodeId(r.se, n), n = n, title = "Episode $n", durationSec = epDuration, still = poster, sources = emptyList())
+                    n = seasonNum,
+                    title = "Season $seasonNum",
+                    episodes = nums.map { n ->
+                        val epDetail = epMap[n]
+                        Episode(
+                            id = episodeId(seasonNum, n),
+                            n = n,
+                            title = epDetail?.name?.takeIf { it.isNotBlank() } ?: "Episode $n",
+                            durationSec = epDuration,
+                            still = epDetail?.resolvedStill ?: poster,
+                            sources = emptyList(),
+                        )
                     },
                 )
-            }
+            }.sortedBy { it.n }
         } else {
             emptyList()
         }
@@ -161,14 +283,14 @@ object GatewayMapper {
             space = space,
             categoryId = summary?.categoryId ?: "gw:detail",
             type = if (isTv) ItemType.SERIES else ItemType.MOVIE,
-            title = s.title.ifBlank { summary?.title.orEmpty() },
+            title = resolvedTitle,
             year = year(null, s.releaseDate).takeIf { it > 0 } ?: summary?.year ?: 0,
             rating = s.imdbRatingValue?.toDoubleOrNull() ?: summary?.rating ?: 0.0,
             maturity = if (space == Space.ADULT) "18+" else "NR",
             genres = genres,
             synopsis = s.description.orEmpty().ifBlank { summary?.synopsis.orEmpty() },
             poster = poster,
-            backdrop = poster,
+            backdrop = backdrop,
             dominantColor = color,
             accentColor = ACCENT,
             durationSec = if (isTv) null else epDuration.takeIf { it > 0 },
@@ -180,11 +302,14 @@ object GatewayMapper {
     }
 }
 
-/** Static gateway layout per space. Row ids encode the query: `gwrow:<SPACE>:<path>?<query>`. */
+/** Static + dynamic Cinetor Beta gateway shelf layout per space. Row ids encode the query: `gwrow:<SPACE>:<path>?<query>`. */
 object GatewayLayout {
     const val ROW_PREFIX = "gwrow:"
     const val CAT_PREFIX = "gw:"
     const val HOME_SECTION = "home"
+    const val BANNER = "Banner"
+
+    private val HOME_SKIP = Regex("""(?i)\b(anime|live|football|sport)\b""")
 
     data class RowSpec(val space: Space, val path: String, val params: Map<String, String>, val title: String, val style: RowStyle) {
         val id: String
@@ -207,107 +332,331 @@ object GatewayLayout {
     }
 
     private fun row(space: Space, path: String, title: String, style: RowStyle = RowStyle.POSTER, vararg p: Pair<String, String>) =
-        RowSpec(space, path, mapOf(*p), title, style)
+        RowSpec(space, path, linkedMapOf(*p), title, style)
 
-    val HOME_SERIES_GENRES = listOf("Action", "Comedy", "Crime", "Drama", "Romance", "Sci-Fi", "Horror")
-    val ANIME_GENRES = listOf("Action", "Adventure", "Comedy", "Fantasy", "Sci-Fi", "Family")
-    val DRAMA_GENRES = listOf("Romance", "Comedy", "Crime", "Thriller", "Fantasy")
-    val DRAMA_COUNTRIES = listOf("gw:drama-k" to ("K-Drama" to "Korea"), "gw:drama-c" to ("C-Drama" to "China"), "gw:drama-j" to ("J-Drama" to "Japan"))
+    val HOME_SERIES_GENRES = listOf("Action", "Comedy", "Crime", "Drama", "Romance", "Sci-Fi", "Horror", "Thriller")
+    val ANIME_GENRES = listOf("Action", "Adventure", "Fantasy", "Comedy", "Romance", "Horror", "Sci-Fi", "Family")
+    val DRAMA_GENRES = listOf("Romance", "Drama", "Comedy", "History", "Crime", "Thriller", "Fantasy", "Action")
 
     fun genres(space: Space): List<String> = when (space) {
-        Space.HOME -> listOf("Action", "Comedy", "Drama", "Thriller", "Horror", "Romance", "Sci-Fi", "Adventure", "Crime", "Fantasy", "Animation")
+        Space.HOME -> listOf("Action", "Comedy", "Horror", "Romance", "Thriller", "Crime", "Sci-Fi", "Drama", "Adventure", "Fantasy")
         Space.ANIME -> ANIME_GENRES
-        Space.DRAMA -> listOf("Romance", "Drama", "Comedy", "Crime", "Thriller", "Fantasy", "Action")
+        Space.DRAMA -> DRAMA_GENRES
+        Space.ADULT -> emptyList()
         else -> emptyList()
     }
 
-    const val BANNER = "Banner"
-
-    /**
-     * Home "For You" tab: EVERY curated `/home` section, in gateway order, as its own row.
-     * `Banner` is excluded — it is the hero carousel. Section titles keep their emoji verbatim.
-     */
-    fun homeFeatured(sections: List<GwSection>): CatSpec {
+    /** Cinetor Beta pageable extra shelves on Home (`For You`). */
+    fun homeExtraShelves(): List<RowSpec> {
         val s = Space.HOME
-        val rows = sections.filter { !it.section.equals(BANNER, true) && it.items.isNotEmpty() }.mapIndexed { i, sec ->
-            val style = when {
-                sec.section.contains("Coming Soon", true) -> RowStyle.LANDSCAPE
-                i == 0 -> RowStyle.TOP10
-                else -> RowStyle.POSTER
-            }
-            row(s, HOME_SECTION, sec.section, style, "section" to sec.section)
-        }
-        return CatSpec("gw:home-featured", "For You", rows)
-    }
-
-    /** Home Movies tab: the paged `/movies` list, latest first, then per genre. */
-    fun homeMovies(): CatSpec {
-        val s = Space.HOME
-        return CatSpec(
-            "gw:home-movies", "Movies",
-            listOf(row(s, "movies", "New Movies", RowStyle.LANDSCAPE)) +
-                genres(Space.HOME).map { g -> row(s, "movies", "$g Movies", RowStyle.POSTER, "genre" to g) },
+        return listOf(
+            row(s, "short-tv", "🔥 Hot Short TV", RowStyle.POSTER, "sort" to "hottest"),
+            row(s, "zee-bangla", "Zee Bangla Serials", RowStyle.POSTER),
+            row(s, "tv-series", "Zee Bangla Shows", RowStyle.POSTER, "genre" to "Zee Bangla", "country" to "India", "sort" to "latest"),
+            row(s, "tv-series", "Star Jalsha Shows", RowStyle.POSTER, "genre" to "Star Jalsha", "country" to "India", "sort" to "latest"),
+            row(s, "tv-series", "Sony AATH Series", RowStyle.POSTER, "genre" to "Sony AATH", "country" to "India", "sort" to "latest"),
+            row(s, "tv-series", "Indian Dramas", RowStyle.POSTER, "country" to "India", "sort" to "hottest"),
+            row(s, "movies", "Latest Movies", RowStyle.POSTER, "sort" to "latest"),
+            row(s, "tv-series", "Latest Series", RowStyle.POSTER, "sort" to "latest"),
+            row(s, "movies", "Hollywood", RowStyle.POSTER, "country" to "United States", "sort" to "hottest"),
+            row(s, "movies", "Action", RowStyle.POSTER, "genre" to "Action", "sort" to "hottest"),
+            row(s, "movies", "Comedy", RowStyle.POSTER, "genre" to "Comedy", "sort" to "hottest"),
+            row(s, "movies", "Horror", RowStyle.POSTER, "genre" to "Horror", "sort" to "hottest"),
+            row(s, "movies", "Thriller", RowStyle.POSTER, "genre" to "Thriller", "sort" to "hottest"),
+            row(s, "tv-series", "Crime Series", RowStyle.POSTER, "genre" to "Crime", "sort" to "hottest"),
         )
     }
 
-    /** `/short-tv` micro-dramas (+ the two curated short sections when present). */
+    /**
+     * Closest pageable gateway list for a curated `/home` section so `rowPage(rowId, page >= 2)`
+     * continues paging endlessly just like Cinetor Beta's `MovieBoxCatalog.sectionShelf`.
+     */
+    fun sectionFallback(heading: String): RowSpec {
+        val h = heading.lowercase()
+        val s = Space.HOME
+        return when {
+            "short tv" in h || "short drama" in h -> row(s, "short-tv", heading, RowStyle.POSTER, "sort" to "hottest")
+            "zee bangla" in h -> row(s, "zee-bangla", heading, RowStyle.POSTER)
+            "star jalsha" in h || "star jalsa" in h -> row(s, "tv-series", heading, RowStyle.POSTER, "genre" to "Star Jalsha", "country" to "India", "sort" to "latest")
+            "sony aath" in h || "sony ath" in h -> row(s, "tv-series", heading, RowStyle.POSTER, "genre" to "Sony AATH", "country" to "India", "sort" to "latest")
+            "pakistan" in h -> row(s, "tv-series", heading, RowStyle.POSTER, "country" to "Pakistan", "sort" to "hottest")
+            "indian drama" in h -> row(s, "tv-series", heading, RowStyle.POSTER, "country" to "India", "sort" to "hottest")
+            "bollywood" in h || ("indian" in h && "drama" !in h) || "south" in h -> row(s, "movies", heading, RowStyle.POSTER, "country" to "India", "sort" to "hottest")
+            "hollywood" in h -> row(s, "movies", heading, RowStyle.POSTER, "country" to "United States", "sort" to "hottest")
+            "k-drama" in h || "korean" in h -> row(s, "tv-series", heading, RowStyle.POSTER, "country" to "Korea", "sort" to "hottest")
+            "c-drama" in h || "chinese" in h -> row(s, "tv-series", heading, RowStyle.POSTER, "country" to "China", "sort" to "hottest")
+            "western" in h -> row(s, "tv-series", heading, RowStyle.POSTER, "country" to "United States", "sort" to "hottest")
+            "action" in h && "movie" in h -> row(s, "movies", heading, RowStyle.POSTER, "genre" to "Action", "sort" to "hottest")
+            "horror" in h -> row(s, "movies", heading, RowStyle.POSTER, "genre" to "Horror", "sort" to "hottest")
+            "comedy" in h -> row(s, "movies", heading, RowStyle.POSTER, "genre" to "Comedy", "sort" to "hottest")
+            "romance" in h -> row(s, "movies", heading, RowStyle.POSTER, "genre" to "Romance", "sort" to "hottest")
+            "series" in h || "shows" in h || " tv" in h -> row(s, "tv-series", heading, RowStyle.POSTER, "sort" to "hottest")
+            "coming" in h || "new" in h || "latest" in h -> row(s, "movies", heading, RowStyle.POSTER, "sort" to "latest")
+            else -> row(s, "movies", heading, RowStyle.POSTER, "sort" to "hottest")
+        }
+    }
+
+    private fun hasPlayableHomeCard(sec: GwSection): Boolean = sec.items.any { item ->
+        if (!item.hasResource || item.name.isNullOrBlank()) return@any false
+        val g = GatewayMapper.genresOf(item.genre)
+        !GatewayMapper.isAdult(g, item.badge) && !GatewayMapper.isAnime(g)
+    }
+
+    /**
+     * Home "For You" tab: curated `/home` sections (excluding `Banner`, anime/sport sections, and
+     * sections with no non-anime/non-adult playable cards), with index 0 (first curated row / `/home`
+     * index 1) styled as [RowStyle.TOP10] and poster shelves as [RowStyle.POSTER], followed by
+     * Cinetor Beta's pageable extra shelves.
+     */
+    fun homeFeatured(sections: List<GwSection>): CatSpec {
+        val s = Space.HOME
+        val curated = sections
+            .filter { !it.section.equals(BANNER, ignoreCase = true) && !HOME_SKIP.containsMatchIn(it.section) && hasPlayableHomeCard(it) }
+            .mapIndexed { i, sec ->
+                val style = if (i == 0) RowStyle.TOP10 else RowStyle.POSTER
+                row(s, HOME_SECTION, sec.section, style, "section" to sec.section)
+            }
+        return CatSpec("gw:home-featured", "For You", curated + homeExtraShelves())
+    }
+
+    /** Home Movies tab: paged `/movies` shelves, latest/popular/top-rated first, then per genre. */
+    fun homeMovies(): CatSpec {
+        val s = Space.HOME
+        return CatSpec(
+            "gw:home-movies",
+            "Movies",
+            listOf(
+                row(s, "movies", "New Movies", RowStyle.POSTER),
+                row(s, "movies", "Popular Movies", RowStyle.POSTER, "sort" to "hottest"),
+                row(s, "movies", "Top Rated Movies", RowStyle.POSTER, "sort" to "rating"),
+                row(s, "movies", "Hollywood", RowStyle.POSTER, "country" to "United States", "sort" to "hottest"),
+            ) + genres(Space.HOME).map { g -> row(s, "movies", "$g Movies", RowStyle.POSTER, "genre" to g) },
+        )
+    }
+
+    /** `/short-tv` micro-dramas (+ curated short sections when present). */
     fun shortTv(sections: List<GwSection>): CatSpec {
         val s = Space.HOME
         val curated = sections.filter { sec ->
-            sec.items.isNotEmpty() && (sec.section.contains("Short Drama", true) || sec.section.contains("Short TV", true))
-        }.map { sec -> row(s, HOME_SECTION, sec.section, RowStyle.LANDSCAPE, "section" to sec.section) }
-        return CatSpec("gw:short-tv", "Short TV", listOf(row(s, "short-tv", "Latest Short TV", RowStyle.POSTER)) + curated)
+            hasPlayableHomeCard(sec) && (sec.section.contains("Short Drama", true) || sec.section.contains("Short TV", true))
+        }.map { sec -> row(s, HOME_SECTION, sec.section, RowStyle.POSTER, "section" to sec.section) }
+        return CatSpec(
+            "gw:short-tv",
+            "Short TV",
+            listOf(
+                row(s, "short-tv", "Latest Short TV", RowStyle.POSTER),
+                row(s, "short-tv", "🔥 Hot Short TV", RowStyle.POSTER, "sort" to "hottest"),
+            ) + curated,
+        )
     }
 
-    /** `/zee-bangla` Bengali serials (+ the curated Zee Bangla section when present). */
+    /** `/zee-bangla` Bengali 59-show TV integration + Zee Bangla, Star Jalsha & Sony AATH shelves. */
     fun zeeBangla(sections: List<GwSection>): CatSpec {
         val s = Space.HOME
-        val curated = sections.filter { it.items.isNotEmpty() && it.section.contains("Zee Bangla", true) }
-            .map { sec -> row(s, HOME_SECTION, sec.section, RowStyle.LANDSCAPE, "section" to sec.section) }
-        return CatSpec("gw:zee-bangla", "Zee Bangla", listOf(row(s, "zee-bangla", "Zee Bangla Serials", RowStyle.POSTER)) + curated)
+        val curated = sections.filter { hasPlayableHomeCard(it) && it.section.contains("Zee Bangla", true) }
+            .map { sec -> row(s, HOME_SECTION, sec.section, RowStyle.POSTER, "section" to sec.section) }
+        return CatSpec(
+            "gw:zee-bangla",
+            "Zee Bangla",
+            listOf(
+                row(s, "zee-bangla", "Zee Bangla Serials", RowStyle.POSTER),
+                row(s, "tv-series", "Zee Bangla Shows", RowStyle.POSTER, "genre" to "Zee Bangla", "country" to "India", "sort" to "latest"),
+                row(s, "tv-series", "Star Jalsha Shows", RowStyle.POSTER, "genre" to "Star Jalsha", "country" to "India", "sort" to "latest"),
+                row(s, "tv-series", "Sony AATH Series", RowStyle.POSTER, "genre" to "Sony AATH", "country" to "India", "sort" to "latest"),
+            ) + curated,
+        )
     }
 
     fun homeSeries(): CatSpec {
         val s = Space.HOME
         return CatSpec(
-            "gw:home-series", "Series",
-            listOf(row(s, "tv-series", "Latest Series")) +
-                HOME_SERIES_GENRES.map { g -> row(s, "tv-series", "$g Series", RowStyle.POSTER, "genre" to g) },
+            "gw:home-series",
+            "Series",
+            listOf(
+                row(s, "tv-series", "Latest Series", RowStyle.POSTER),
+                row(s, "tv-series", "Popular Series", RowStyle.POSTER, "sort" to "hottest"),
+                row(s, "zee-bangla", "Zee Bangla Serials", RowStyle.POSTER),
+                row(s, "tv-series", "Zee Bangla Shows", RowStyle.POSTER, "genre" to "Zee Bangla", "country" to "India", "sort" to "latest"),
+                row(s, "tv-series", "Star Jalsha Shows", RowStyle.POSTER, "genre" to "Star Jalsha", "country" to "India", "sort" to "latest"),
+                row(s, "tv-series", "Sony AATH Series", RowStyle.POSTER, "genre" to "Sony AATH", "country" to "India", "sort" to "latest"),
+                row(s, "tv-series", "Indian Dramas", RowStyle.POSTER, "country" to "India", "sort" to "hottest"),
+            ) + HOME_SERIES_GENRES.map { g -> row(s, "tv-series", "$g Series", RowStyle.POSTER, "genre" to g) },
         )
     }
 
+    /** Anime space: Cinetor Beta's 5 core shelves (with separate `Cartoons` `/animation` shelf) + genre shelves. */
     fun anime(): List<CatSpec> {
         val s = Space.ANIME
         return listOf(
             CatSpec(
-                "gw:anime", "Anime",
-                listOf(row(s, "animation", "Trending Now"), row(s, "tv-series", "Japanese Anime", RowStyle.LANDSCAPE, "genre" to "Anime")) +
-                    ANIME_GENRES.map { g -> row(s, "animation", g, RowStyle.POSTER, "genre" to g) },
+                "gw:anime",
+                "Anime",
+                listOf(
+                    row(s, "tv-series", "Trending Anime", RowStyle.POSTER, "genre" to "Anime", "sort" to "hottest"),
+                    row(s, "tv-series", "Latest Anime", RowStyle.POSTER, "genre" to "Anime", "sort" to "latest"),
+                    row(s, "tv-series", "Top Rated Anime", RowStyle.POSTER, "genre" to "Anime", "sort" to "rating"),
+                    row(s, "movies", "Animated Movies", RowStyle.POSTER, "genre" to "Animation", "sort" to "hottest"),
+                    row(s, "animation", "Cartoons", RowStyle.POSTER, "sort" to "hottest"),
+                ) + ANIME_GENRES.map { g -> row(s, "animation", "$g Anime", RowStyle.POSTER, "genre" to g) },
             ),
         )
     }
 
-    fun drama(): List<CatSpec> = DRAMA_COUNTRIES.map { (id, tc) ->
-        val (title, country) = tc
+    /** Drama space: Cinetor Beta's 7 filter tabs (`All`, `K-Drama`, `C-Drama`, `J-Drama`, `Pakistani Drama`, `Indian Drama`, `Others`) and all 20 shelves. */
+    fun drama(): List<CatSpec> {
         val s = Space.DRAMA
-        CatSpec(
-            id, title,
-            listOf(row(s, "tv-series", "Latest $title", RowStyle.POSTER, "country" to country)) +
-                DRAMA_GENRES.map { g -> row(s, "tv-series", g, RowStyle.POSTER, "country" to country, "genre" to g) },
+        val kDramaCore = listOf(
+            row(s, "tv-series", "Trending K-Drama", RowStyle.POSTER, "country" to "Korea", "sort" to "hottest"),
+            row(s, "tv-series", "Latest K-Drama", RowStyle.POSTER, "country" to "Korea", "sort" to "latest"),
+            row(s, "tv-series", "Top Rated K-Drama", RowStyle.POSTER, "country" to "Korea", "sort" to "rating"),
+            row(s, "tv-series", "Korean Romance", RowStyle.POSTER, "country" to "Korea", "genre" to "Romance", "sort" to "hottest"),
+            row(s, "movies", "Korean Movies", RowStyle.POSTER, "country" to "Korea", "sort" to "hottest"),
+        )
+        val cDramaCore = listOf(
+            row(s, "tv-series", "Trending C-Drama", RowStyle.POSTER, "country" to "China", "sort" to "hottest"),
+            row(s, "tv-series", "Latest C-Drama", RowStyle.POSTER, "country" to "China", "sort" to "latest"),
+            row(s, "tv-series", "Top Rated C-Drama", RowStyle.POSTER, "country" to "China", "sort" to "rating"),
+            row(s, "tv-series", "Costume & Historical", RowStyle.POSTER, "country" to "China", "genre" to "History", "sort" to "hottest"),
+            row(s, "tv-series", "Chinese Romance", RowStyle.POSTER, "country" to "China", "genre" to "Romance", "sort" to "hottest"),
+            row(s, "movies", "Chinese Movies", RowStyle.POSTER, "country" to "China", "sort" to "hottest"),
+        )
+        val jDramaCore = listOf(
+            row(s, "tv-series", "Trending J-Drama", RowStyle.POSTER, "country" to "Japan", "sort" to "hottest"),
+            row(s, "tv-series", "Latest J-Drama", RowStyle.POSTER, "country" to "Japan", "sort" to "latest"),
+            row(s, "movies", "Japanese Movies", RowStyle.POSTER, "country" to "Japan", "sort" to "hottest"),
+        )
+        val pkDramaCore = listOf(
+            row(s, "tv-series", "Trending Pakistani Drama", RowStyle.POSTER, "country" to "Pakistan", "sort" to "hottest"),
+            row(s, "tv-series", "All-Time Best Pakistani Drama", RowStyle.POSTER, "country" to "Pakistan", "sort" to "rating"),
+        )
+        val inDramaCore = listOf(
+            row(s, "tv-series", "Indian Dramas", RowStyle.POSTER, "country" to "India", "sort" to "hottest"),
+        )
+        val otherAsianCore = listOf(
+            row(s, "tv-series", "Thai Dramas", RowStyle.POSTER, "country" to "Thailand", "sort" to "hottest"),
+            row(s, "tv-series", "Taiwanese Dramas", RowStyle.POSTER, "country" to "Taiwan", "sort" to "hottest"),
+            row(s, "tv-series", "Other Asian Dramas", RowStyle.POSTER, "country" to "Thailand", "sort" to "latest"),
+        )
+
+        val allTwentyShelves = kDramaCore + cDramaCore + jDramaCore + pkDramaCore + inDramaCore + otherAsianCore
+
+        return listOf(
+            CatSpec("gw:drama-all", "All", allTwentyShelves),
+            CatSpec(
+                "gw:drama-k",
+                "K-Drama",
+                kDramaCore + listOf("Comedy", "Crime", "Thriller", "Fantasy").map { g ->
+                    row(s, "tv-series", "Korean $g", RowStyle.POSTER, "country" to "Korea", "genre" to g)
+                },
+            ),
+            CatSpec(
+                "gw:drama-c",
+                "C-Drama",
+                cDramaCore + listOf("Comedy", "Fantasy", "Action").map { g ->
+                    row(s, "tv-series", "Chinese $g", RowStyle.POSTER, "country" to "China", "genre" to g)
+                },
+            ),
+            CatSpec(
+                "gw:drama-j",
+                "J-Drama",
+                jDramaCore + listOf(
+                    row(s, "tv-series", "Top Rated J-Drama", RowStyle.POSTER, "country" to "Japan", "sort" to "rating"),
+                    row(s, "tv-series", "Japanese Romance", RowStyle.POSTER, "country" to "Japan", "genre" to "Romance"),
+                ),
+            ),
+            CatSpec(
+                "gw:drama-pk",
+                "Pakistani Drama",
+                pkDramaCore + listOf(
+                    row(s, "tv-series", "Latest Pakistani Drama", RowStyle.POSTER, "country" to "Pakistan", "sort" to "latest"),
+                    row(s, "tv-series", "Pakistani Romance", RowStyle.POSTER, "country" to "Pakistan", "genre" to "Romance"),
+                ),
+            ),
+            CatSpec(
+                "gw:drama-in",
+                "Indian Drama",
+                inDramaCore + listOf(
+                    row(s, "tv-series", "Latest Indian Dramas", RowStyle.POSTER, "country" to "India", "sort" to "latest"),
+                    row(s, "tv-series", "Top Rated Indian Dramas", RowStyle.POSTER, "country" to "India", "sort" to "rating"),
+                    row(s, "zee-bangla", "Zee Bangla Serials", RowStyle.POSTER),
+                    row(s, "tv-series", "Zee Bangla Shows", RowStyle.POSTER, "genre" to "Zee Bangla", "country" to "India", "sort" to "latest"),
+                    row(s, "tv-series", "Star Jalsha Shows", RowStyle.POSTER, "genre" to "Star Jalsha", "country" to "India", "sort" to "latest"),
+                    row(s, "tv-series", "Sony AATH Series", RowStyle.POSTER, "genre" to "Sony AATH", "country" to "India", "sort" to "latest"),
+                ),
+            ),
+            CatSpec(
+                "gw:drama-other",
+                "Others",
+                otherAsianCore + listOf(
+                    row(s, "tv-series", "Filipino Dramas", RowStyle.POSTER, "country" to "Philippines", "sort" to "hottest"),
+                    row(s, "tv-series", "Turkish Dramas", RowStyle.POSTER, "country" to "Turkey", "sort" to "hottest"),
+                ),
+            ),
         )
     }
 
+    /** Adult space: Cinetor Beta category/sort chips (`For You`, `Hottest`, `Latest`, `Rating`, `Movies`, `Series`). */
     fun adult(): List<CatSpec> {
         val s = Space.ADULT
-        fun cat(id: String, title: String, kind: String) = CatSpec(
-            id, title,
-            listOf(
-                row(s, "adult", "Latest", RowStyle.POSTER, "kind" to kind, "sort" to "latest"),
-                row(s, "adult", "Hottest", RowStyle.LANDSCAPE, "kind" to kind, "sort" to "hottest"),
-                row(s, "adult", "Top Rated", RowStyle.POSTER, "kind" to kind, "sort" to "rating"),
+        return listOf(
+            CatSpec(
+                "gw:adult-foryou",
+                "For You",
+                listOf(
+                    row(s, "adult", "For You", RowStyle.POSTER, "kind" to "movies", "sort" to "foryou"),
+                    row(s, "adult", "Hottest", RowStyle.POSTER, "kind" to "movies", "sort" to "hottest"),
+                    row(s, "adult", "Latest", RowStyle.POSTER, "kind" to "movies", "sort" to "latest"),
+                    row(s, "adult", "Top Rated", RowStyle.POSTER, "kind" to "movies", "sort" to "rating"),
+                    row(s, "adult", "Adult Series", RowStyle.POSTER, "kind" to "tv-series", "sort" to "foryou"),
+                    row(s, "adult", "Western", RowStyle.POSTER, "kind" to "movies", "sort" to "latest", "country" to "United States"),
+                    row(s, "adult", "Korean", RowStyle.POSTER, "kind" to "movies", "sort" to "latest", "country" to "Korea"),
+                    row(s, "adult", "Japanese", RowStyle.POSTER, "kind" to "movies", "sort" to "latest", "country" to "Japan"),
+                    row(s, "adult", "Filipino", RowStyle.POSTER, "kind" to "movies", "sort" to "latest", "country" to "Philippines"),
+                ),
+            ),
+            CatSpec(
+                "gw:adult-hottest",
+                "Hottest",
+                listOf(
+                    row(s, "adult", "Hottest Movies", RowStyle.POSTER, "kind" to "movies", "sort" to "hottest"),
+                    row(s, "adult", "Hottest Series", RowStyle.POSTER, "kind" to "tv-series", "sort" to "hottest"),
+                ),
+            ),
+            CatSpec(
+                "gw:adult-latest",
+                "Latest",
+                listOf(
+                    row(s, "adult", "Latest Movies", RowStyle.POSTER, "kind" to "movies", "sort" to "latest"),
+                    row(s, "adult", "Latest Series", RowStyle.POSTER, "kind" to "tv-series", "sort" to "latest"),
+                ),
+            ),
+            CatSpec(
+                "gw:adult-rating",
+                "Rating",
+                listOf(
+                    row(s, "adult", "Top Rated Movies", RowStyle.POSTER, "kind" to "movies", "sort" to "rating"),
+                    row(s, "adult", "Top Rated Series", RowStyle.POSTER, "kind" to "tv-series", "sort" to "rating"),
+                ),
+            ),
+            CatSpec(
+                "gw:adult-movies",
+                "Movies",
+                listOf(
+                    row(s, "adult", "Latest", RowStyle.POSTER, "kind" to "movies", "sort" to "latest"),
+                    row(s, "adult", "Hottest", RowStyle.POSTER, "kind" to "movies", "sort" to "hottest"),
+                    row(s, "adult", "Top Rated", RowStyle.POSTER, "kind" to "movies", "sort" to "rating"),
+                ),
+            ),
+            CatSpec(
+                "gw:adult-series",
+                "Series",
+                listOf(
+                    row(s, "adult", "Latest", RowStyle.POSTER, "kind" to "tv-series", "sort" to "latest"),
+                    row(s, "adult", "Hottest", RowStyle.POSTER, "kind" to "tv-series", "sort" to "hottest"),
+                    row(s, "adult", "Top Rated", RowStyle.POSTER, "kind" to "tv-series", "sort" to "rating"),
+                ),
             ),
         )
-        return listOf(cat("gw:adult-movies", "Movies", "movies"), cat("gw:adult-series", "Series", "tv-series"))
     }
 }
 
@@ -358,10 +707,29 @@ class GatewayCatalogSource(
 
     fun slugOf(id: String): String? = details[id]?.slug ?: summaries[id]?.slug ?: slugs.get(id)
 
-    private fun map(list: List<GwItem>, space: Space?, cat: String): List<Item> =
+    private fun keepForSpace(raw: GwItem, mapped: Item, space: Space?, fromHomeCurated: Boolean = false): Boolean {
+        val rawGenres = GatewayMapper.genresOf(raw.genre)
+        if (space == Space.ADULT) {
+            return GatewayMapper.safeName(mapped.title)
+        }
+        if (mapped.space == Space.ADULT || GatewayMapper.isAdult(rawGenres, raw.badge)) {
+            return false
+        }
+        if (fromHomeCurated && space == Space.HOME) {
+            return !GatewayMapper.isAnime(rawGenres)
+        }
+        return when (space) {
+            Space.DRAMA -> !(GatewayMapper.isAnime(rawGenres) && rawGenres.none { it.equals("Drama", true) || it.equals("Romance", true) })
+            else -> true
+        }
+    }
+
+    private fun map(list: List<GwItem>, space: Space?, cat: String, fromHomeCurated: Boolean = false): List<Item> =
         remember(
-            list.mapNotNull { GatewayMapper.toItem(it, space, cat, colors) }
-                .filter { space == Space.ADULT || (it.space != Space.ADULT && !GatewayMapper.isAdult(it.genres)) }
+            list.mapNotNull { raw ->
+                val item = GatewayMapper.toItem(raw, space, cat, colors) ?: return@mapNotNull null
+                item.takeIf { keepForSpace(raw, it, space, fromHomeCurated) }
+            }
                 .filter { it.id !in unplayable }
                 .distinctBy { it.id },
         )
@@ -378,7 +746,7 @@ class GatewayCatalogSource(
                     GatewayLayout.homeSeries(),
                     GatewayLayout.shortTv(home.sections),
                     GatewayLayout.zeeBangla(home.sections),
-                ) to map(banner, Space.HOME, "gw:home-featured")
+                ) to map(banner, Space.HOME, "gw:home-featured", fromHomeCurated = true)
             }
             Space.ANIME -> GatewayLayout.anime() to emptyList()
             Space.DRAMA -> GatewayLayout.drama() to emptyList()
@@ -393,7 +761,7 @@ class GatewayCatalogSource(
             // Probe the first row of the first tab: a dead gateway throws here → HybridCatalog falls back.
             val heroes = when {
                 i == 0 && banner.isNotEmpty() -> banner.map { it.id }
-                i == 0 -> row(c.rows.first().id).take(6).map { it.id }
+                i == 0 && c.rows.isNotEmpty() -> row(c.rows.first().id).take(6).map { it.id }
                 else -> emptyList()
             }
             Category(c.id, space, c.title, heroes, c.rows.map { Row(it.id, it.title, it.style, emptyList()) })
@@ -401,14 +769,21 @@ class GatewayCatalogSource(
     }
 
     override suspend fun item(id: String): Item {
-        details[id]?.let { return it }
-        val slug = slugOf(id) ?: throw NotFoundException(id)
         val summary = summaries[id]
         if (summary?.space == Space.ADULT || id.startsWith(GatewayMapper.ADULT_PREFIX)) check(Space.ADULT)
+        details[id]?.let { return it }
+        val slug = slugOf(id) ?: throw NotFoundException(id)
         val d = api.detail(slug).data ?: throw NotFoundException(id)
         val item = GatewayMapper.detailToItem(d, slug, summary, colors)?.let {
             // Keep the id the card used (adult prefix etc.) even if the detail infers another space.
-            if (it.id != id) it.copy(id = id, space = summary?.space ?: if (id.startsWith(GatewayMapper.ADULT_PREFIX)) Space.ADULT else it.space) else it
+            if (it.id != id) {
+                it.copy(
+                    id = id,
+                    space = summary?.space ?: if (id.startsWith(GatewayMapper.ADULT_PREFIX)) Space.ADULT else it.space,
+                )
+            } else {
+                it
+            }
         } ?: throw NotFoundException(id)
         details[id] = item
         item.slug?.let { slugs.put(id, it) }
@@ -421,10 +796,16 @@ class GatewayCatalogSource(
         val spec = GatewayLayout.parseRow(rowId) ?: throw NotFoundException(rowId)
         check(spec.space)
         if (spec.path == GatewayLayout.HOME_SECTION) {
-            if (page > 1) return RowPage(emptyList(), page, false)
             val name = spec.params["section"].orEmpty()
-            val sec = api.home().sections.firstOrNull { it.section == name } ?: throw NotFoundException(rowId)
-            return RowPage(map(sec.items, spec.space, "gw:home-featured"), 1, false)
+            if (page <= 1) {
+                val sec = api.home().sections.firstOrNull { it.section == name } ?: throw NotFoundException(rowId)
+                val items = map(sec.items, spec.space, "gw:home-featured", fromHomeCurated = true)
+                return RowPage(items, 1, items.isNotEmpty())
+            }
+            // Endless See-all / horizontal paging for curated /home sections via closest pageable endpoint.
+            val fallback = GatewayLayout.sectionFallback(name)
+            val p = api.list(fallback.path, fallback.params, page - 1)
+            return RowPage(map(p.items, spec.space, rowId, fromHomeCurated = true), page, p.hasMore && p.items.isNotEmpty())
         }
         val p = api.list(spec.path, spec.params, page)
         // Trust the requested page number (some gateway lists echo `page:1` for every page).
@@ -434,9 +815,30 @@ class GatewayCatalogSource(
     override suspend fun byGenre(space: Space, genre: String): List<Item> {
         check(space)
         return when (space) {
-            Space.HOME -> map(api.list("movies", mapOf("genre" to genre)).items, space, "gw:genre")
+            Space.HOME -> when {
+                genre.equals("Movies", ignoreCase = true) -> map(api.list("movies", emptyMap()).items, space, "gw:genre")
+                genre.equals("Series", ignoreCase = true) -> map(api.list("tv-series", emptyMap()).items, space, "gw:genre")
+                else -> map(api.list("movies", mapOf("genre" to genre)).items, space, "gw:genre")
+            }
             Space.ANIME -> map(api.list("animation", mapOf("genre" to genre)).items, space, "gw:genre")
-            Space.DRAMA -> map(api.list("tv-series", mapOf("country" to "Korea", "genre" to genre)).items, space, "gw:genre")
+            Space.DRAMA -> when {
+                genre.equals("K-Drama", ignoreCase = true) -> map(api.list("tv-series", mapOf("country" to "Korea", "sort" to "hottest")).items, space, "gw:genre")
+                genre.equals("C-Drama", ignoreCase = true) -> map(api.list("tv-series", mapOf("country" to "China", "sort" to "hottest")).items, space, "gw:genre")
+                genre.equals("J-Drama", ignoreCase = true) -> map(api.list("tv-series", mapOf("country" to "Japan", "sort" to "hottest")).items, space, "gw:genre")
+                genre.equals("Pakistani Drama", ignoreCase = true) -> map(api.list("tv-series", mapOf("country" to "Pakistan", "sort" to "hottest")).items, space, "gw:genre")
+                genre.equals("Indian Drama", ignoreCase = true) -> map(api.list("tv-series", mapOf("country" to "India", "sort" to "hottest")).items, space, "gw:genre")
+                genre.equals("Others", ignoreCase = true) -> map(api.list("tv-series", mapOf("country" to "Thailand", "sort" to "hottest")).items, space, "gw:genre")
+                else -> map(api.list("tv-series", mapOf("country" to "Korea", "genre" to genre)).items, space, "gw:genre")
+            }
+            Space.ADULT -> {
+                val sort = when (genre.lowercase()) {
+                    "for you", "foryou" -> "foryou"
+                    "hottest", "popular" -> "hottest"
+                    "rating", "top rated" -> "rating"
+                    else -> "latest"
+                }
+                map(api.list("adult", mapOf("kind" to "movies", "sort" to sort)).items, space, "gw:genre")
+            }
             else -> summaries.values.filter { it.space == space && it.genres.any { g -> g.equals(genre, true) } }
         }
     }
@@ -457,8 +859,20 @@ class GatewayCatalogSource(
 
     /** Global search: video spaces only — adult results are dropped (never in global search). */
     override suspend fun search(query: String): List<Item> {
-        if (query.isBlank()) return emptyList()
-        return map(api.search(query.trim()).items, null, "gw:search").filter { it.space.isVideo }
+        val trimmed = query.trim()
+        if (trimmed.isEmpty()) return emptyList()
+        var results = map(api.search(trimmed).items, null, "gw:search").filter { it.space.isVideo }
+        if (results.isEmpty()) {
+            // Typo recovery matching Cinetor Beta: retry once with top suggestion stripped of bracket tags.
+            val suggestion = runCatching { api.suggest(trimmed).firstOrNull() }.getOrNull()
+                ?.replace(Regex("""\s*\[[^]]*]"""), "")
+                ?.trim()
+                ?.takeIf { it.isNotEmpty() && !it.equals(trimmed, ignoreCase = true) }
+            if (suggestion != null) {
+                results = map(api.search(suggestion).items, null, "gw:search").filter { it.space.isVideo }
+            }
+        }
+        return results
     }
 
     override suspend fun suggest(query: String): List<String> =
