@@ -1,13 +1,19 @@
 package com.mythbrix.cinetor.core.data.gateway
 
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.suspendCancellableCoroutine
+import kotlinx.coroutines.withContext
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.booleanOrNull
 import kotlinx.serialization.json.contentOrNull
+import kotlinx.serialization.json.intOrNull
 import okhttp3.Call
 import okhttp3.Callback
 import okhttp3.OkHttpClient
@@ -31,6 +37,7 @@ object GatewayConfig {
     const val API = "/api/public/v1"
     const val CATALOG_TIMEOUT_MS = 10_000L
     const val STREAM_TIMEOUT_MS = 15_000L
+    const val FULL_STREAM_TIMEOUT_MS = 25_000L
     const val CATALOG_TTL_MS = 10 * 60_000L
 
     /** Signed links expire (`t=`): never reuse a resolved stream for longer than this. */
@@ -58,7 +65,10 @@ class OkHttpGatewayHttp(private val client: OkHttpClient) : GatewayHttp {
 
     override suspend fun get(url: String, timeoutMs: Long): String = suspendCancellableCoroutine { cont ->
         val c = clients.getOrPut(timeoutMs) {
-            client.newBuilder().callTimeout(timeoutMs, TimeUnit.MILLISECONDS).readTimeout(timeoutMs, TimeUnit.MILLISECONDS).build()
+            client.newBuilder()
+                .callTimeout(timeoutMs, TimeUnit.MILLISECONDS)
+                .readTimeout(timeoutMs, TimeUnit.MILLISECONDS)
+                .build()
         }
         val request = Request.Builder().url(url)
             .header("Accept", "application/json")
@@ -160,6 +170,7 @@ data class GwItem(
     val year: String? = null,
     val genre: String? = null,
     val type: String? = null,
+    @SerialName("subjectType") val subjectType: Int? = null,
     val country: String? = null,
     val description: String? = null,
     @SerialName("release_date") val releaseDate: String? = null,
@@ -190,10 +201,46 @@ data class GwCover(val url: String? = null, val avgHueDark: String? = null, val 
 data class GwStar(val name: String = "", val character: String? = null, val staffType: Int = 0)
 
 @Serializable
-data class GwSeasonRes(val se: Int = 0, val maxEp: Int = 0, val allEp: String? = null)
+data class GwEpisodeRes(
+    val episode: Int? = null,
+    val name: String? = null,
+    val stillUrl: String? = null,
+    @SerialName("still_url") val stillUrlSnake: String? = null,
+    val stillPath: String? = null,
+) {
+    val resolvedStill: String?
+        get() = (stillUrl ?: stillUrlSnake ?: stillPath)?.takeIf { it.isNotBlank() }
+}
+
+@Serializable
+data class GwSeasonRes(
+    val se: Int = 0,
+    val season: Int? = null,
+    val maxEp: Int = 0,
+    val allEp: String? = null,
+    val episodes: List<GwEpisodeRes> = emptyList(),
+)
 
 @Serializable
 data class GwResource(val seasons: List<GwSeasonRes> = emptyList())
+
+@Serializable
+data class GwVideoAddress(
+    val videoId: String? = null,
+    val definition: String? = null,
+    val url: String? = null,
+    val duration: Int? = null,
+    val width: Int? = null,
+    val height: Int? = null,
+    val size: Long? = null,
+)
+
+@Serializable
+data class GwTrailer(
+    val videoAddress: GwVideoAddress? = null,
+    val cover: GwCover? = null,
+    val url: String? = null,
+)
 
 @Serializable
 data class GwSubject(
@@ -205,9 +252,14 @@ data class GwSubject(
     val duration: Int? = null,
     val genre: String? = null,
     val cover: GwCover? = null,
+    val stills: GwCover? = null,
+    val corner: String? = null,
     val countryName: String? = null,
     val imdbRatingValue: String? = null,
     val subtitles: String? = null,
+    val dubs: JsonElement? = null,
+    val trailer: GwTrailer? = null,
+    @SerialName("trailer_url") val trailerUrl: String? = null,
     val detailPath: String? = null,
 )
 
@@ -222,6 +274,20 @@ data class GwDetailData(
 data class GwDetail(val code: Int = 0, val data: GwDetailData? = null)
 
 @Serializable
+data class GwManifest(
+    val format: String? = null,
+    val id: String? = null,
+    val url: String = "",
+    val resolutions: String? = null,
+    val size: String? = null,
+    val duration: Int? = null,
+    val codecName: String? = null,
+    val signCookie: String? = null,
+    val signHeaderKey: String? = null,
+    val vipLocked: Boolean = false,
+)
+
+@Serializable
 data class GwSource(
     val source: String? = null,
     val isBdix: Boolean = false,
@@ -231,6 +297,8 @@ data class GwSource(
     val size: Long? = null,
     val duration: Int? = null,
     val codec: String? = null,
+    val language: String? = null,
+    val audio: String? = null,
     @SerialName("vip_locked") val vipLocked: Boolean = false,
     val headers: Map<String, String> = emptyMap(),
     @SerialName("proxy_url") val proxyUrl: String? = null,
@@ -244,6 +312,9 @@ data class GwStream(
     @SerialName("has_resource") val hasResource: Boolean = false,
     @SerialName("direct_play_url") val directPlayUrl: String? = null,
     val sources: List<GwSource> = emptyList(),
+    val hls: List<GwManifest> = emptyList(),
+    val dash: List<GwManifest> = emptyList(),
+    @SerialName("trailer_url") val trailerUrl: String? = null,
 )
 
 @Serializable
@@ -264,15 +335,32 @@ data class GwResolveSource(
     val quality: String? = null,
     val url: String = "",
     val type: String? = null,
+    val isBdix: Boolean = false,
     val headers: Map<String, String> = emptyMap(),
 )
 
 @Serializable
 data class GwResolve(val ok: Boolean = false, val sources: List<GwResolveSource> = emptyList())
 
-/** `subtitles` / `dubs` are lists of strings in search results but objects/strings elsewhere. */
+/** `subtitles` / `dubs` are lists of strings in search results, or lists of objects in browse/detail. */
 internal fun JsonElement?.stringList(): List<String> = when (this) {
-    is JsonArray -> mapNotNull { (it as? JsonPrimitive)?.contentOrNull?.takeIf { s -> s.isNotBlank() } }
+    is JsonArray -> mapNotNull { el ->
+        when (el) {
+            is JsonPrimitive -> el.contentOrNull?.takeIf { it.isNotBlank() }
+            is JsonObject -> {
+                // type == 1 in /detail dubs is a burnt-in subtitle variant, not an audio dub; original == true is Original Audio.
+                val typeInt = (el["type"] as? JsonPrimitive)?.intOrNull ?: 0
+                val isOriginal = (el["original"] as? JsonPrimitive)?.booleanOrNull == true
+                if (typeInt != 0 || isOriginal) {
+                    null
+                } else {
+                    listOf("language_name", "lanName", "language", "name")
+                        .firstNotNullOfOrNull { k -> (el[k] as? JsonPrimitive)?.contentOrNull?.takeIf { it.isNotBlank() } }
+                }
+            }
+            else -> null
+        }
+    }
     is JsonPrimitive -> contentOrNull?.split(',')?.map { it.trim() }?.filter { it.isNotEmpty() }.orEmpty()
     else -> emptyList()
 }
@@ -298,7 +386,7 @@ class GatewayApi(
         if (pathOrUrl.startsWith("http://") || pathOrUrl.startsWith("https://")) pathOrUrl else base + "/" + pathOrUrl.trimStart('/')
 
     /** Disk cache + JSON decoding never run on the main thread (scroll jank). */
-    private suspend fun <T> off(block: suspend () -> T): T = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { block() }
+    private suspend fun <T> off(block: suspend () -> T): T = withContext(Dispatchers.IO) { block() }
 
     private suspend fun cached(url: String): String = off { cachedNow(url) }
 
@@ -306,9 +394,10 @@ class GatewayApi(
         cache?.get(url)?.let { return it }
         val body = try {
             http.get(url, GatewayConfig.CATALOG_TIMEOUT_MS)
-        } catch (e: kotlinx.coroutines.CancellationException) {
+        } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
+            if (e is GatewayHttpException && e.code == 451) throw e
             // Offline / gateway down: last cached copy of any age, else the error (→ retry UI).
             return cache?.getStale(url) ?: throw e
         }
@@ -318,9 +407,16 @@ class GatewayApi(
 
     suspend fun home(): GwHome = off { json.decodeFromString(GwHome.serializer(), cachedNow(url("home"))) }
 
-    /** `movies` | `tv-series` | `animation` | `adult` list page. */
-    suspend fun list(path: String, params: Map<String, String?>, page: Int = 1): GwPage =
-        off { json.decodeFromString(GwPage.serializer(), cachedNow(url(path, params + ("page" to page.toString())))) }
+    /** `movies` | `tv-series` | `animation` | `short-tv` | `zee-bangla` | `adult` list page. */
+    suspend fun list(path: String, params: Map<String, String?>, page: Int = 1): GwPage = off {
+        try {
+            json.decodeFromString(GwPage.serializer(), cachedNow(url(path, params + ("page" to page.toString()))))
+        } catch (e: GatewayHttpException) {
+            // Adult endpoint returns HTTP 451 in geo-restricted regions; treat as an empty page rather than crashing.
+            if (path.trim('/') == "adult" && e.code == 451) GwPage(page = page, hasMore = false, items = emptyList())
+            else throw e
+        }
+    }
 
     suspend fun search(q: String, page: Int = 1): GwPage =
         off { json.decodeFromString(GwPage.serializer(), cachedNow(url("search", mapOf("q" to q, "page" to page.toString())))) }
@@ -332,11 +428,15 @@ class GatewayApi(
     suspend fun detail(slug: String): GwDetail =
         off { json.decodeFromString(GwDetail.serializer(), cachedNow(url("detail/${enc(slug)}"))) }
 
-    suspend fun stream(subjectId: String, slug: String?, se: Int, ep: Int): GwStream =
-        json.decodeFromString(
-            GwStream.serializer(),
-            http.get(url("stream/$subjectId", mapOf("detail_path" to slug, "se" to "$se", "ep" to "$ep")), GatewayConfig.STREAM_TIMEOUT_MS),
-        )
+    suspend fun stream(subjectId: String, slug: String?, se: Int, ep: Int, full: Boolean = false): GwStream {
+        val params = LinkedHashMap<String, String?>()
+        params["detail_path"] = slug
+        params["se"] = "$se"
+        params["ep"] = "$ep"
+        if (full) params["full"] = "1"
+        val timeout = if (full) GatewayConfig.FULL_STREAM_TIMEOUT_MS else GatewayConfig.STREAM_TIMEOUT_MS
+        return json.decodeFromString(GwStream.serializer(), http.get(url("stream/$subjectId", params), timeout))
+    }
 
     suspend fun captions(subjectId: String, slug: String?, se: Int, ep: Int): GwCaptions =
         json.decodeFromString(

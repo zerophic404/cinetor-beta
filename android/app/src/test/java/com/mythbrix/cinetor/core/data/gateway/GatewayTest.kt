@@ -135,19 +135,26 @@ class GatewayTest {
         assertEquals(first.poster, first.backdrop)
     }
 
-    /** User rule: EVERY curated `/home` section becomes a row, in gateway order, Banner excluded. */
+    /** Curated `/home` sections (minus Banner & anime/sport) render in order, followed by Beta pageable shelves. */
     @Test
-    fun home_rendersAll26CuratedSectionsInOrder_plusShortTvAndZeeBangla() = runTest {
+    fun home_rendersCuratedSectionsInOrder_plusBetaShelvesShortTvAndZeeBangla() = runTest {
         val http = FakeGatewayHttp(GatewayFixtures.fullHomeRoutes())
         val api = GatewayApi(http, GatewayCache(clock = { 0L }))
         val gw = GatewayCatalogSource(api)
         val cats = gw.categories(Space.HOME)
         val sections = GatewayApi.json.decodeFromString(GwHome.serializer(), GatewayFixtures.sample("home_full.json")).sections
         assertEquals(26, sections.size)
-        val expected = sections.map { it.section }.filter { !it.equals("Banner", true) }
+        val expectedCurated = sections
+            .filter { sec ->
+                !sec.section.equals("Banner", true) &&
+                    !sec.section.contains("Anime", true) &&
+                    sec.items.any { it.hasResource && !GatewayMapper.isAnime(GatewayMapper.genresOf(it.genre)) }
+            }
+            .map { it.section }
         val featured = cats.first { it.id == "gw:home-featured" }
-        assertEquals(expected, featured.rows.map { it.title })
-        assertEquals(25, featured.rows.size)
+        assertEquals(expectedCurated, featured.rows.take(expectedCurated.size).map { it.title })
+        assertEquals(expectedCurated.size + GatewayLayout.homeExtraShelves().size, featured.rows.size)
+        assertEquals(RowStyle.TOP10, featured.rows.first().style)
         assertEquals(2, featured.heroIds.size)
 
         // Coming Soon's first fixture item is has_resource=false → never listed.
@@ -169,11 +176,16 @@ class GatewayTest {
     fun dramaAndAnime_useCountryAndAnimationLists() = runTest {
         val (http, _, gw) = env()
         val drama = gw.categories(Space.DRAMA)
-        assertEquals(listOf("K-Drama", "C-Drama", "J-Drama"), drama.map { it.title })
-        assertTrue(http.urls.last(), http.urls.last().contains("tv-series?country=Korea&page=1"))
+        assertEquals(
+            listOf("All", "K-Drama", "C-Drama", "J-Drama", "Pakistani Drama", "Indian Drama", "Others"),
+            drama.map { it.title },
+        )
+        assertTrue(http.urls.last(), http.urls.last().contains("tv-series?country=Korea&sort=hottest&page=1"))
         assertTrue(gw.row(drama.first().rows.first().id).all { it.space == Space.DRAMA && it.type == ItemType.SERIES })
-        gw.categories(Space.ANIME)
-        assertTrue(http.urls.any { it.contains("/animation?page=1") })
+        val anime = gw.categories(Space.ANIME)
+        val cartoons = anime.first().rows.first { it.title == "Cartoons" }
+        gw.row(cartoons.id)
+        assertTrue(http.urls.any { it.contains("/animation?sort=hottest&page=1") })
         gw.byGenre(Space.HOME, "Action")
         assertTrue(http.urls.last(), http.urls.last().contains("movies?genre=Action"))
     }
@@ -368,8 +380,11 @@ class GatewayRoutingTest {
         }
         unlocked = true
         val cats = hybrid.categories(Space.ADULT)
-        assertEquals(listOf("gw:adult-movies", "gw:adult-series"), cats.map { it.id })
-        assertTrue(http.urls.any { it.contains("/adult?kind=movies&sort=latest&page=1") })
+        assertEquals(
+            listOf("gw:adult-foryou", "gw:adult-hottest", "gw:adult-latest", "gw:adult-rating", "gw:adult-movies", "gw:adult-series"),
+            cats.map { it.id },
+        )
+        assertTrue(http.urls.any { it.contains("/adult?kind=movies&sort=foryou&page=1") })
         val items = hybrid.row(cats.first().rows.first().id)
         assertTrue(items.isNotEmpty() && items.all { it.space == Space.ADULT && it.id.startsWith("ad-gw:") })
         // adult items are routed by the adult gate prefix (Details wraps them in the PIN guard)

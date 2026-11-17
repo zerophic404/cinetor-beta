@@ -2,7 +2,11 @@ package com.mythbrix.cinetor.core.data.gateway
 
 import android.content.Context
 import android.graphics.BitmapFactory
+import android.net.ConnectivityManager
+import android.net.Network
+import android.net.NetworkCapabilities
 import androidx.palette.graphics.Palette
+import com.mythbrix.cinetor.core.player.NetworkState
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -11,11 +15,59 @@ import kotlinx.coroutines.sync.withPermit
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.atomic.AtomicBoolean
+
+/**
+ * Process-scoped watcher keeping [NetworkState.mobile] synced with Android's active network
+ * (unmetered Wi-Fi/Ethernet → `false`; metered cellular → `true`).
+ */
+object GatewayNetworkWatcher {
+    private val installed = AtomicBoolean(false)
+
+    fun install(context: Context) {
+        if (!installed.compareAndSet(false, true)) return
+        runCatching {
+            val cm = context.applicationContext.getSystemService(Context.CONNECTIVITY_SERVICE) as? ConnectivityManager
+                ?: return
+            NetworkState.mobile = computeMobile(cm, cm.activeNetwork)
+            cm.registerDefaultNetworkCallback(object : ConnectivityManager.NetworkCallback() {
+                override fun onAvailable(network: Network) {
+                    runCatching { NetworkState.mobile = computeMobile(cm, network) }
+                }
+
+                override fun onCapabilitiesChanged(network: Network, capabilities: NetworkCapabilities) {
+                    runCatching { NetworkState.mobile = isMeteredCapabilities(capabilities) }
+                }
+
+                override fun onLost(network: Network) {
+                    runCatching { NetworkState.mobile = computeMobile(cm, cm.activeNetwork) }
+                }
+            })
+        }
+    }
+
+    internal fun isMeteredCapabilities(caps: NetworkCapabilities): Boolean {
+        val unmeteredWifiOrEth = caps.hasCapability(NetworkCapabilities.NET_CAPABILITY_NOT_METERED) &&
+            (caps.hasTransport(NetworkCapabilities.TRANSPORT_WIFI) || caps.hasTransport(NetworkCapabilities.TRANSPORT_ETHERNET))
+        if (unmeteredWifiOrEth) return false
+        return caps.hasTransport(NetworkCapabilities.TRANSPORT_CELLULAR) ||
+            !caps.hasCapability(NetworkCapabilities.NET_CAPABILITY_NOT_METERED)
+    }
+
+    private fun computeMobile(cm: ConnectivityManager, network: Network?): Boolean {
+        val caps = network?.let { runCatching { cm.getNetworkCapabilities(it) }.getOrNull() }
+        return if (caps != null) isMeteredCapabilities(caps) else cm.isActiveNetworkMetered
+    }
+}
 
 /** Gateway id → slug in SharedPreferences (history / downloads reopen gateway titles after a restart). */
 class SharedPrefsSlugStore(context: Context) : SlugStore {
     private val prefs = context.applicationContext.getSharedPreferences("gateway_slugs", Context.MODE_PRIVATE)
     private val memory = ConcurrentHashMap<String, String>()
+
+    init {
+        GatewayNetworkWatcher.install(context)
+    }
 
     override fun get(id: String): String? = memory[id] ?: prefs.getString(id, null)?.also { memory[id] = it }
 
@@ -40,6 +92,10 @@ class PaletteDominantColors(
     private val inFlight = ConcurrentHashMap.newKeySet<String>()
     private val permits = Semaphore(2)
 
+    init {
+        GatewayNetworkWatcher.install(context)
+    }
+
     override fun colorFor(posterUrl: String): String? {
         memory[posterUrl]?.let { return it }
         prefs.getString(posterUrl, null)?.let { memory[posterUrl] = it; return it }
@@ -59,8 +115,18 @@ class PaletteDominantColors(
         return null
     }
 
+    private fun tinyPosterUrl(url: String): String {
+        if ("x-oss-process=" in url) return url
+        val lower = url.lowercase()
+        return if ("aoneroom.com" in lower || "aliyuncs.com" in lower) {
+            url + (if ('?' in url) "&" else "?") + "x-oss-process=image/resize,w_96"
+        } else {
+            url
+        }
+    }
+
     private fun compute(url: String): String? {
-        val bytes = client.newCall(Request.Builder().url(url).build()).execute().use { r ->
+        val bytes = client.newCall(Request.Builder().url(tinyPosterUrl(url)).build()).execute().use { r ->
             if (!r.isSuccessful) return null
             r.body?.bytes() ?: return null
         }

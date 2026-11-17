@@ -1,30 +1,115 @@
 package com.mythbrix.cinetor.core.player
 
+import android.media.MediaCodecInfo
+import android.media.MediaCodecList
 import com.mythbrix.cinetor.core.data.Item
 import com.mythbrix.cinetor.core.data.ItemType
 import com.mythbrix.cinetor.core.data.Source
 import com.mythbrix.cinetor.core.data.SourceKind
+import com.mythbrix.cinetor.core.data.Space
 import com.mythbrix.cinetor.core.data.Sub
 import com.mythbrix.cinetor.core.data.SubFormat
 import com.mythbrix.cinetor.core.data.gateway.GatewayApi
 import com.mythbrix.cinetor.core.data.gateway.GatewayConfig
 import com.mythbrix.cinetor.core.data.gateway.GatewayMapper
 import com.mythbrix.cinetor.core.data.gateway.GwCaption
+import com.mythbrix.cinetor.core.data.gateway.GwManifest
 import com.mythbrix.cinetor.core.data.gateway.GwSource
+import com.mythbrix.cinetor.core.data.gateway.GwStream
 import com.mythbrix.cinetor.core.data.tmdb.TmdbMapper
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
+import java.net.URLDecoder
+import java.util.Locale
 import java.util.concurrent.ConcurrentHashMap
 
 /** What play / download needs for one title or episode. [fallback] = gateway proxy (`direct_play_url`). */
 data class ResolvedStream(val sources: List<Source>, val subtitles: List<Sub>, val fallback: Source?)
 
+/** Live network mode updated by `GatewayNetworkWatcher` on Android (false = unmetered Wi-Fi/Ethernet, true = metered mobile). */
+object NetworkState {
+    @Volatile
+    var mobile: Boolean = false
+}
+
+/** Hardware HEVC 10-bit capability probe, read once; defaults to `true` in JVM unit tests. */
+object DeviceCodecs {
+    val hevc10: Boolean by lazy {
+        runCatching {
+            val infos = MediaCodecList(MediaCodecList.REGULAR_CODECS).codecInfos
+            if (infos.isNullOrEmpty()) {
+                true
+            } else {
+                infos.any { info ->
+                    !info.isEncoder && info.supportedTypes.orEmpty().any { it.equals("video/hevc", ignoreCase = true) } &&
+                        info.getCapabilitiesForType("video/hevc")?.profileLevels.orEmpty().any {
+                            it.profile == MediaCodecInfo.CodecProfileLevel.HEVCProfileMain10
+                        }
+                }
+            }
+        }.getOrDefault(true)
+    }
+}
+
+/**
+ * Session-level stream health & codec tracker ported from Cinetor Beta `StreamResolver`:
+ * - Hosts returning 403/428/429/451 rest for 6 hours.
+ * - Dead URLs returning 404/410 are skipped for 6 hours.
+ * - Devices where HEVC 10-bit fails demote HEVC streams to the end of the queue.
+ * - Optional `preferDualAudio` promotes multi-language audio streams.
+ */
+object LinkHealth {
+    const val REST_MS = 6 * 60 * 60 * 1_000L
+
+    private val hosts = ConcurrentHashMap<String, Long>()
+    private val links = ConcurrentHashMap<String, Long>()
+
+    @Volatile
+    var hevcFailed: Boolean = false
+
+    @Volatile
+    var preferDualAudio: Boolean = false
+
+    private val HEVC_HINT = Regex("""(?i)(x265|hevc|h\.?265|10[ -]?bit|hdr10?\b)""")
+
+    internal fun hostOf(url: String): String =
+        url.substringAfter("://", "").substringBefore('/').substringBefore(':').lowercase(Locale.US)
+
+    fun failed(url: String, code: Int, nowMs: Long = System.currentTimeMillis()) {
+        val until = nowMs + REST_MS
+        when (code) {
+            403, 428, 429, 451 -> hostOf(url).takeIf { it.isNotEmpty() }?.let { hosts[it] = until }
+            404, 410 -> links[url.substringBefore('?')] = until
+        }
+    }
+
+    fun markDeadLink(url: String, nowMs: Long = System.currentTimeMillis()) = failed(url, 404, nowMs)
+
+    fun refused(url: String, nowMs: Long = System.currentTimeMillis()): Boolean {
+        val host = hostOf(url)
+        return (host.isNotEmpty() && (hosts[host] ?: 0L) > nowMs) || (links[url.substringBefore('?')] ?: 0L) > nowMs
+    }
+
+    fun undecodable(source: Source): Boolean {
+        if (!hevcFailed && DeviceCodecs.hevc10) return false
+        return GatewaySourceResolver.isHevc(source.codec) ||
+            HEVC_HINT.containsMatchIn(source.label.orEmpty() + " " + GatewaySourceResolver.safeDecodeUrl(source.url.substringBefore('?')))
+    }
+
+    fun reset() {
+        hosts.clear()
+        links.clear()
+        hevcFailed = false
+        preferDualAudio = false
+    }
+}
+
 /**
  * Attaches real gateway sources to an item right before warm / play / download (signed links expire,
- * so nothing is baked into the catalog). Gateway items: `/stream/{id}?detail_path=&se=&ep=` (+ captions).
+ * so nothing is baked into the catalog). Gateway items: `/stream/{id}?detail_path=&se=&ep=&full=1` (+ captions).
  * TMDB-origin items: `/api/v1/resolve`, then gateway search by title + year; nothing → no sources
- * ("No source available"). Results are cached for [GatewayConfig.STREAM_TTL_MS] per (title, se, ep).
+ * ("No source available"). Results are cached for [GatewayConfig.STREAM_TTL_MS] per (title, se, ep, network).
  */
 class GatewaySourceResolver(
     private val api: GatewayApi,
@@ -35,6 +120,8 @@ class GatewaySourceResolver(
     private val log: (String) -> Unit = {},
     /** The gateway answered but had nothing playable → the catalog hides that title from now on. */
     private val onNoSource: (String) -> Unit = {},
+    /** True when the active connection is metered mobile data; defaults to [NetworkState.mobile]. */
+    private val isMobile: () -> Boolean = { NetworkState.mobile },
 ) {
     private class Entry(val at: Long, val stream: ResolvedStream)
 
@@ -81,11 +168,21 @@ class GatewaySourceResolver(
     /** After a failed re-resolve: play the gateway proxy (MP4 with server-side headers). Null = none. */
     fun fallback(item: Item, episodeId: String?): Item? {
         val (se, ep) = numbersOf(item, episodeId)
-        val entry = listOfNotNull(keyFor(item, se, ep), "${item.id}|$se|$ep").firstNotNullOfOrNull { cache[it]?.takeIf { e -> e.stream.fallback != null } }
-            ?: return null
+        val baseKey = keyFor(item, se, ep)
+        val candidates = listOfNotNull(
+            baseKey?.let { "$it|${netTag()}" },
+            baseKey?.let { "$it|w" },
+            baseKey?.let { "$it|m" },
+            baseKey,
+            "${item.id}|$se|$ep|${netTag()}",
+            "${item.id}|$se|$ep",
+        )
+        val entry = candidates.firstNotNullOfOrNull { cache[it]?.takeIf { e -> e.stream.fallback != null } } ?: return null
         val proxy = entry.stream.fallback ?: return null
         return withStream(item, episodeId, ResolvedStream(listOf(proxy), entry.stream.subtitles, proxy))
     }
+
+    private fun netTag(): String = if (isMobile()) "m" else "w"
 
     private fun keyFor(item: Item, se: Int, ep: Int): String? {
         val sid = GatewayMapper.subjectIdOf(item.id) ?: tmdbMatches[item.id]?.first ?: item.id
@@ -112,39 +209,55 @@ class GatewaySourceResolver(
     }
 
     private fun cachedSources(item: Item, se: Int, ep: Int): List<Source> {
-        val key = keyFor(item, se, ep) ?: return emptyList()
-        val e = cache[key] ?: return emptyList()
+        val base = keyFor(item, se, ep) ?: return emptyList()
+        val e = cache["$base|${netTag()}"] ?: cache["$base|w"] ?: cache["$base|m"] ?: cache[base] ?: return emptyList()
         return if (clock() - e.at < GatewayConfig.STREAM_TTL_MS) e.stream.sources else emptyList()
     }
 
     suspend fun resolve(item: Item, episodeId: String?, fresh: Boolean = false): ResolvedStream? {
         val (se, ep) = numbersOf(item, episodeId)
+        val adultItem = item.space == Space.ADULT || item.id.startsWith(GatewayMapper.ADULT_PREFIX)
         if (GatewayMapper.isGatewayId(item.id)) {
             val sid = GatewayMapper.subjectIdOf(item.id) ?: return null
-            return streamFor(sid, item.slug ?: slugOf(item.id), se, ep, fresh)
+            return streamFor(sid, item.slug ?: slugOf(item.id), se, ep, fresh, adultItem)
         }
         // TMDB-origin item.
-        val tmdbKey = "${item.id}|$se|$ep"
+        val tmdbKey = "${item.id}|$se|$ep|${netTag()}"
         if (!fresh) cache[tmdbKey]?.takeIf { clock() - it.at < GatewayConfig.STREAM_TTL_MS }?.let { return it.stream }
-        resolveApi(item, se, ep)?.let { s ->
+        resolveApi(item, se, ep, adultItem)?.let { s ->
             cache[tmdbKey] = Entry(clock(), s)
             return s
         }
         val match = tmdbMatches[item.id] ?: searchMatch(item)?.also { tmdbMatches[item.id] = it } ?: return null
-        return streamFor(match.first, match.second, se, ep, fresh)?.also { cache[tmdbKey] = Entry(clock(), it) }
+        return streamFor(match.first, match.second, se, ep, fresh, adultItem)?.also { cache[tmdbKey] = Entry(clock(), it) }
     }
 
-    private suspend fun resolveApi(item: Item, se: Int, ep: Int): ResolvedStream? = try {
+    private suspend fun resolveApi(item: Item, se: Int, ep: Int, adultAllowed: Boolean): ResolvedStream? = try {
         val (media, tmdbId) = TmdbMapper.parseId(item.id) ?: return null
         val r = api.resolve(tmdbId.toString(), media, se.takeIf { media == TmdbMapper.TV }, ep.takeIf { media == TmdbMapper.TV }, item.title, item.year)
-        val sources = r.sources.filter { it.url.isNotBlank() }.map { s ->
-            val h = heightOf(s.quality)
-            Source(s.url, kindOf(s.type, s.url), listOfNotNull(s.quality, s.provider).joinToString(" · "), s.headers, height = h)
+        val gwSources = r.sources.filter { it.url.isNotBlank() }.map { s ->
+            GwSource(
+                source = s.provider,
+                isBdix = s.isBdix || s.provider.equals("bdix", ignoreCase = true),
+                resolution = s.quality,
+                format = s.type,
+                url = s.url,
+                headers = s.headers,
+            )
         }
-        if (r.ok && sources.isNotEmpty()) ResolvedStream(sortSources(sources, maxHeight()), emptyList(), null) else null
+        val ranked = rankGwSources(
+            raw = gwSources,
+            baseUrl = api.base,
+            directPlayUrl = null,
+            mobile = isMobile(),
+            cap = maxHeight(),
+            adultAllowed = adultAllowed,
+            nowMs = clock(),
+        )
+        if (r.ok && ranked.isNotEmpty()) ResolvedStream(ranked, emptyList(), null) else null
     } catch (e: CancellationException) {
         throw e
-    } catch (e: Exception) {
+    } catch (_: Exception) {
         null
     }
 
@@ -161,8 +274,33 @@ class GatewaySourceResolver(
         return best?.let { it.subjectId!! to it.slug }
     }
 
-    private suspend fun streamFor(sid: String, slug: String?, se: Int, ep: Int, fresh: Boolean): ResolvedStream? {
-        val key = "$sid|$se|$ep"
+    private suspend fun fetchStreamWithRescue(sid: String, slug: String?, se: Int, ep: Int): GwStream {
+        var s = api.stream(sid, slug, se, ep, full = true)
+        if (s.sources.isEmpty() && s.dash.isEmpty() && s.hls.isEmpty() && s.directPlayUrl.isNullOrBlank() && s.trailerUrl.isNullOrBlank()) {
+            // Rescue movies indexed as S1E1 or single-part TV specials indexed as 0/0 on the gateway.
+            if (se == 0 && ep == 0) {
+                runCatching { api.stream(sid, slug, 1, 1, full = true) }.getOrNull()?.takeIf {
+                    it.sources.isNotEmpty() || it.dash.isNotEmpty() || it.hls.isNotEmpty() || !it.directPlayUrl.isNullOrBlank()
+                }?.let { s = it }
+            } else if (se == 1 && ep == 1) {
+                runCatching { api.stream(sid, slug, 0, 0, full = true) }.getOrNull()?.takeIf {
+                    it.sources.isNotEmpty() || it.dash.isNotEmpty() || it.hls.isNotEmpty() || !it.directPlayUrl.isNullOrBlank()
+                }?.let { s = it }
+            }
+        }
+        return s
+    }
+
+    private suspend fun streamFor(
+        sid: String,
+        slug: String?,
+        se: Int,
+        ep: Int,
+        fresh: Boolean,
+        adultAllowed: Boolean,
+    ): ResolvedStream? {
+        val mobileNow = isMobile()
+        val key = "$sid|$se|$ep|${if (mobileNow) "m" else "w"}"
         if (!fresh) cache[key]?.takeIf { clock() - it.at < GatewayConfig.STREAM_TTL_MS }?.let { return it.stream }
         val result = coroutineScope {
             val subs = async {
@@ -170,30 +308,115 @@ class GatewaySourceResolver(
                     api.captions(sid, slug, se, ep).captions.mapNotNull { captionToSub(it) }
                 } catch (e: CancellationException) {
                     throw e
-                } catch (e: Exception) {
+                } catch (_: Exception) {
                     emptyList()
                 }
             }
-            val s = api.stream(sid, slug, se, ep)
-            val sources = sortSources(s.sources.mapNotNull { toSource(it) }, maxHeight())
-            val fallback = s.directPlayUrl?.takeIf { it.isNotBlank() }?.let { Source(api.absolute(it), SourceKind.MP4, "Gateway proxy") }
+            val s = fetchStreamWithRescue(sid, slug, se, ep)
+            val unlockedRaw = unlockStreamSources(s)
+            val fallback = s.directPlayUrl?.takeIf { it.isNotBlank() && extractYouTubeVideoId(it) == null }
+                ?.let { Source(api.absolute(it), SourceKind.MP4, "Gateway proxy") }
+            val sources = rankGwSources(
+                raw = unlockedRaw,
+                baseUrl = api.base,
+                directPlayUrl = if (mobileNow) s.directPlayUrl else null,
+                mobile = mobileNow,
+                cap = maxHeight(),
+                adultAllowed = adultAllowed,
+                nowMs = clock(),
+            )
             if (sources.isEmpty() && fallback == null) null else ResolvedStream(sources, subs.await(), fallback)
         }
         if (result != null) {
-            cache[key] = Entry(clock(), result)
+            val now = clock()
+            cache[key] = Entry(now, result)
+            cache["$sid|$se|$ep"] = Entry(now, result)
             log("gateway stream $key: ${result.sources.size} sources")
         }
         return result
     }
 
     companion object {
-        fun heightOf(resolution: String?): Int? = resolution?.let { Regex("(\\d{3,4})").find(it)?.groupValues?.get(1)?.toIntOrNull() }
+        private val PLAY_HEADERS = mapOf("Referer" to "https://movieboxhd.net/")
 
-        fun kindOf(format: String?, url: String): SourceKind = when (format?.uppercase()) {
+        private val IMAGE_PATH = Regex("""(?i)\.(jpe?g|png|webp|gif|bmp|svg)$|/null$""")
+
+        private val ADULT_LINK = Regex(
+            """(?i)(porn|xvideos|xnxx|xhamster|redtube|youporn|spankbang|eporner|onlyfans|brazzers|\bsex\b|xxx)""",
+        )
+
+        private val DUAL_AUDIO = Regex(
+            """(?i)(dual[ ._-]?audio|multi[ ._-]?audio|\bdual\b|hin(di)?[ ._-]+eng(lish)?|eng(lish)?[ ._-]+hin(di)?|ben(gali)?[ ._-]+eng(lish)?)""",
+        )
+
+        private val BDIX_URL_HINT = Regex(
+            """(?i)(^ftp://|\bbdix\b|\.bd/|://(10\.|192\.168\.|172\.(1[6-9]|2\d|3[0-1])\.|103\.))""",
+        )
+
+        private val YT_SCHEME = Regex("""(?i)^yt:(?://)?([A-Za-z0-9_-]{11})(?:[?&/#].*)?$""")
+        private val YT_PATH = Regex(
+            """(?i)(?:youtu\.be/|youtube(?:-nocookie)?\.com/(?:embed/|v/|shorts/|live/))([A-Za-z0-9_-]{11})""",
+        )
+        private val YT_WATCH_QUERY = Regex(
+            """(?i)youtube(?:-nocookie)?\.com/watch\?(?:[^#]*&)?v=([A-Za-z0-9_-]{11})""",
+        )
+        private val BARE_YT_ID = Regex("""^[A-Za-z0-9_-]{11}$""")
+
+        private val AUDIO_LANG_TOKENS = listOf(
+            "Hindi" to Regex("""(?i)\bhindi\b"""),
+            "Bengali" to Regex("""(?i)\b(bengali|bangla)\b"""),
+            "Tamil" to Regex("""(?i)\btamil\b"""),
+            "Telugu" to Regex("""(?i)\btelugu\b"""),
+            "English" to Regex("""(?i)\benglish\b"""),
+        )
+
+        internal data class Candidate(
+            val source: Source,
+            val isBdix: Boolean,
+            val isProxy: Boolean,
+            val isYouTube: Boolean,
+            val priority: Int,
+        )
+
+        fun extractYouTubeVideoId(rawUrl: String, format: String? = null, source: String? = null): String? {
+            val u = rawUrl.trim()
+            if (u.isEmpty()) return null
+            YT_SCHEME.find(u)?.groupValues?.get(1)?.let { return it }
+            YT_PATH.find(u)?.groupValues?.get(1)?.let { return it }
+            YT_WATCH_QUERY.find(u)?.groupValues?.get(1)?.let { return it }
+            val ytHint = format.equals("YOUTUBE", ignoreCase = true) ||
+                format.equals("YT", ignoreCase = true) ||
+                source.equals("YouTube", ignoreCase = true)
+            if (ytHint && BARE_YT_ID.matches(u)) return u
+            return null
+        }
+
+        fun toYouTubeEmbedUrl(videoId: String): String = "https://www.youtube-nocookie.com/embed/$videoId"
+
+        fun isYouTubeEmbedUrl(url: String): Boolean = url.startsWith("https://www.youtube-nocookie.com/embed/")
+
+        fun isImageLink(url: String): Boolean {
+            val path = url.substringBefore('?').substringBefore('#')
+            return IMAGE_PATH.containsMatchIn(path) || "image.tmdb.org" in path
+        }
+
+        fun isAdultLink(url: String): Boolean = ADULT_LINK.containsMatchIn(url.substringBefore('?'))
+
+        internal fun safeDecodeUrl(raw: String): String =
+            runCatching { URLDecoder.decode(raw, "UTF-8") }.getOrDefault(raw)
+
+        fun isDualAudio(label: String?, url: String): Boolean =
+            DUAL_AUDIO.containsMatchIn((label.orEmpty()) + " " + safeDecodeUrl(url.substringBefore('?')))
+
+        fun heightOf(resolution: String?): Int? =
+            resolution?.let { Regex("(\\d{3,4})").find(it)?.groupValues?.get(1)?.toIntOrNull() }
+
+        fun kindOf(format: String?, url: String): SourceKind = when (format?.uppercase(Locale.US)) {
             "DASH", "MPD" -> SourceKind.DASH
             "HLS", "M3U8" -> SourceKind.HLS
-            "MP4" -> SourceKind.MP4
+            "MP4", "YOUTUBE", "YT" -> SourceKind.MP4
             "MKV" -> SourceKind.MKV
+            "WEBM" -> SourceKind.WEBM
             else -> when (SourceResolver.streamTypeOfUrl(url)) {
                 StreamType.HLS -> SourceKind.HLS
                 StreamType.DASH -> SourceKind.DASH
@@ -201,43 +424,376 @@ class GatewaySourceResolver(
             }
         }
 
-        fun toSource(g: GwSource): Source? {
-            if (g.url.isBlank() || g.vipLocked) return null
-            val h = heightOf(g.resolution)
-            val kind = kindOf(g.format, g.url)
-            val label = listOfNotNull(h?.let { "${it}p" } ?: g.resolution, kind.name, if (isHevc(g.codec)) "HEVC" else null).joinToString(" · ")
-            return Source(g.url, kind, label, g.headers, height = h, sizeBytes = g.size?.takeIf { it > 0 }, codec = g.codec)
+        internal fun isHevc(codec: String?): Boolean =
+            codec?.lowercase(Locale.US)?.let { it.startsWith("hevc") || it.contains("265") } ?: false
+
+        fun formatSize(bytes: Long?): String {
+            val b = bytes ?: return ""
+            if (b <= 0L) return ""
+            return if (b >= 1L shl 30) {
+                String.format(Locale.US, "%.1f GB", b / (1024.0 * 1024.0 * 1024.0))
+            } else {
+                String.format(Locale.US, "%d MB", (b / (1024L * 1024L)).coerceAtLeast(1L))
+            }
         }
 
-        private fun isHevc(codec: String?): Boolean = codec?.lowercase()?.let { it.startsWith("hevc") || it.contains("265") } ?: false
+        fun qualityLabel(height: Int?, rawResolution: String? = null): String = when {
+            height != null && height >= 2160 -> "4K UHD"
+            height != null && height >= 1440 -> "2K QHD"
+            height != null && height >= 1080 -> "1080p FHD"
+            height != null && height >= 720 -> "720p HD"
+            height != null && height > 0 -> "${height}p"
+            else -> {
+                val cleaned = rawResolution?.trim().orEmpty()
+                if (
+                    cleaned.isEmpty() ||
+                    cleaned.contains("moviebox", true) ||
+                    cleaned.contains("youtube", true) ||
+                    cleaned.contains("bdix", true) ||
+                    cleaned.contains("server", true) ||
+                    cleaned.contains("zee bangla", true)
+                ) {
+                    "Auto"
+                } else {
+                    cleaned
+                }
+            }
+        }
+
+        private fun detectAudioLabel(g: GwSource): String? {
+            if (isDualAudio(listOfNotNull(g.language, g.audio).joinToString(" "), g.url)) {
+                return "Dual Audio"
+            }
+            val explicit = listOfNotNull(g.language, g.audio).joinToString(" ")
+            for ((canonical, regex) in AUDIO_LANG_TOKENS) {
+                if (regex.containsMatchIn(explicit)) return canonical
+            }
+            return null
+        }
+
+        /** Unlocks 1080p DASH/HLS manifests and YouTube trailers from [GwStream] when absent from `sources`. */
+        fun unlockStreamSources(s: GwStream): List<GwSource> {
+            val out = ArrayList<GwSource>(s.sources.size + s.dash.size + s.hls.size + 1)
+            out.addAll(s.sources)
+
+            fun addManifests(list: List<GwManifest>, defaultFormat: String) {
+                for (m in list) {
+                    if (m.vipLocked || m.url.isBlank()) continue
+                    val maxRes = m.resolutions.orEmpty()
+                        .split(',')
+                        .mapNotNull { it.trim().filter(Char::isDigit).toIntOrNull() }
+                        .maxOrNull()
+                    val kind = kindOf(m.format ?: defaultFormat, m.url)
+                    val alreadyHas = out.any { existing ->
+                        !existing.vipLocked &&
+                            existing.url.isNotBlank() &&
+                            (existing.url == m.url || (kindOf(existing.format, existing.url) == kind && heightOf(existing.resolution) == maxRes))
+                    }
+                    if (alreadyHas) continue
+                    val hdrs = LinkedHashMap<String, String>()
+                    hdrs["Referer"] = "https://movieboxhd.net/"
+                    hdrs["Origin"] = "https://movieboxhd.net"
+                    val cookie = m.signCookie?.takeIf { it.isNotBlank() }
+                    if (cookie != null) {
+                        hdrs["Cookie"] = cookie
+                        val headerKey = m.signHeaderKey?.takeIf { it.isNotBlank() } ?: "X-MB-Token"
+                        hdrs[headerKey] = cookie
+                    }
+                    out += GwSource(
+                        source = "Gateway",
+                        isBdix = false,
+                        resolution = maxRes?.let { "${it}p" },
+                        format = defaultFormat,
+                        url = m.url,
+                        size = m.size?.toLongOrNull(),
+                        duration = m.duration,
+                        codec = m.codecName,
+                        vipLocked = false,
+                        headers = hdrs,
+                    )
+                }
+            }
+
+            addManifests(s.dash, "DASH")
+            addManifests(s.hls, "HLS")
+
+            s.trailerUrl?.takeIf { it.isNotBlank() }?.let { trailer ->
+                val ytId = extractYouTubeVideoId(trailer, "YOUTUBE", "YouTube")
+                if (ytId != null && out.none { extractYouTubeVideoId(it.url, it.format, it.source) == ytId }) {
+                    out += GwSource(
+                        source = "YouTube",
+                        resolution = "720p",
+                        format = "YOUTUBE",
+                        url = toYouTubeEmbedUrl(ytId),
+                    )
+                }
+            }
+
+            return out
+        }
+
+        fun toSource(g: GwSource): Source? {
+            if (g.url.isBlank() || g.vipLocked) return null
+            val ytId = extractYouTubeVideoId(g.url, g.format, g.source)
+            if (ytId != null) {
+                val h = heightOf(g.resolution) ?: 720
+                val audioTag = detectAudioLabel(g)
+                val label = listOfNotNull(qualityLabel(h, g.resolution), audioTag).joinToString(" · ")
+                return Source(
+                    url = toYouTubeEmbedUrl(ytId),
+                    kind = SourceKind.MP4,
+                    label = label,
+                    headers = emptyMap(),
+                    height = h,
+                )
+            }
+            if (isImageLink(g.url)) return null
+            val h = heightOf(g.resolution)
+            val kind = kindOf(g.format, g.url)
+            val size = g.size?.takeIf { it > 0 }
+            val audioTag = detectAudioLabel(g)
+            val label = listOfNotNull(
+                qualityLabel(h, g.resolution),
+                audioTag,
+                kind.name,
+                if (isHevc(g.codec)) "HEVC" else null,
+                formatSize(size).takeIf { it.isNotEmpty() },
+            ).joinToString(" · ")
+            val isBdix = g.isBdix || g.source.equals("bdix", ignoreCase = true) || BDIX_URL_HINT.containsMatchIn(g.url)
+            val headers = when {
+                g.headers.isNotEmpty() -> g.headers
+                !isBdix && g.source.equals("MovieBox", ignoreCase = true) -> PLAY_HEADERS
+                else -> emptyMap()
+            }
+            return Source(
+                url = g.url,
+                kind = kind,
+                label = label,
+                headers = headers,
+                height = h,
+                sizeBytes = size,
+                codec = g.codec,
+            )
+        }
+
+        private fun absoluteUrl(baseUrl: String, pathOrUrl: String): String {
+            val base = GatewayConfig.normalize(baseUrl)
+            return if (pathOrUrl.startsWith("http://") || pathOrUrl.startsWith("https://")) {
+                pathOrUrl
+            } else {
+                "$base/${pathOrUrl.trimStart('/')}"
+            }
+        }
 
         /**
-         * Highest resolution first; at equal height H.264 MP4 before HEVC / DASH (decodes everywhere).
-         * With a cap, sources at or below it lead (best first), the rest follow.
+         * Expands raw [GwSource] entries into direct + progressive gateway proxy candidates and ranks
+         * them for the current network ([mobile] = false for unmetered Wi-Fi, true for metered mobile data).
          */
-        fun sortSources(sources: List<Source>, cap: Int? = null): List<Source> {
-            val byQuality = sources.sortedWith(
-                compareByDescending<Source> { it.height ?: 0 }
-                    .thenBy { if (isHevc(it.codec)) 1 else 0 }
-                    .thenBy { if (it.kind == SourceKind.MP4) 0 else 1 },
-            )
-            if (cap == null) return byQuality
-            val (fit, above) = byQuality.partition { (it.height ?: 0) <= cap }
-            return fit + above.reversed()
+        fun rankGwSources(
+            raw: List<GwSource>,
+            baseUrl: String = GatewayConfig.BASE_URL,
+            directPlayUrl: String? = null,
+            mobile: Boolean = NetworkState.mobile,
+            cap: Int? = null,
+            adultAllowed: Boolean = false,
+            nowMs: Long = System.currentTimeMillis(),
+        ): List<Source> {
+            val candidates = ArrayList<Candidate>(raw.size * 2 + 1)
+            for (g in raw) {
+                val primary = toSource(g) ?: continue
+                if (!adultAllowed && isAdultLink(primary.url)) continue
+                val yt = isYouTubeEmbedUrl(primary.url)
+                val bdix = !yt && (g.isBdix || g.source.equals("bdix", ignoreCase = true) || BDIX_URL_HINT.containsMatchIn(primary.url))
+                val prio = when {
+                    bdix -> 0
+                    yt -> 2
+                    else -> 1
+                }
+                candidates += Candidate(
+                    source = primary,
+                    isBdix = bdix,
+                    isProxy = false,
+                    isYouTube = yt,
+                    priority = prio,
+                )
+
+                // Progressive MP4/MKV proxy failover: never emit proxy_url for DASH/HLS manifests or YouTube embeds.
+                val rawProxy = g.proxyUrl?.takeIf { it.isNotBlank() }
+                val progressive = primary.kind == SourceKind.MP4 || primary.kind == SourceKind.MKV || primary.kind == SourceKind.WEBM
+                if (!yt && !bdix && progressive && rawProxy != null) {
+                    val proxyAbs = absoluteUrl(baseUrl, rawProxy)
+                    if (
+                        proxyAbs.startsWith("http") &&
+                        !proxyAbs.contains("youtube", ignoreCase = true) &&
+                        !proxyAbs.contains("embed", ignoreCase = true) &&
+                        !proxyAbs.substringBefore('?').endsWith(".mpd", ignoreCase = true) &&
+                        !proxyAbs.substringBefore('?').endsWith(".m3u8", ignoreCase = true)
+                    ) {
+                        val proxySource = primary.copy(
+                            url = proxyAbs,
+                            kind = SourceKind.MP4,
+                            label = listOfNotNull(primary.label?.takeIf { it.isNotBlank() }, "Proxy").joinToString(" · "),
+                            headers = emptyMap(),
+                        )
+                        candidates += Candidate(
+                            source = proxySource,
+                            isBdix = false,
+                            isProxy = true,
+                            isYouTube = false,
+                            priority = 1,
+                        )
+                    }
+                }
+            }
+
+            // On metered mobile data, if no per-source proxy_url existed, surface directPlayUrl as top gateway proxy.
+            if (mobile && !directPlayUrl.isNullOrBlank() && candidates.none { it.isProxy }) {
+                val proxyAbs = absoluteUrl(baseUrl, directPlayUrl)
+                if (extractYouTubeVideoId(proxyAbs) == null && (!isAdultLink(proxyAbs) || adultAllowed)) {
+                    candidates += Candidate(
+                        source = Source(
+                            url = proxyAbs,
+                            kind = SourceKind.MP4,
+                            label = "720p HD · Proxy",
+                            headers = emptyMap(),
+                            height = 720,
+                        ),
+                        isBdix = false,
+                        isProxy = true,
+                        isYouTube = false,
+                        priority = 1,
+                    )
+                }
+            }
+
+            return rankCandidates(candidates, mobile = mobile, cap = cap, nowMs = nowMs)
+        }
+
+        private fun isAdaptive(s: Source): Boolean =
+            s.kind == SourceKind.HLS || s.kind == SourceKind.DASH
+
+        /** Wi-Fi quality order when uncapped: high-definition 1080p/1440p/4K before SD. */
+        private fun wifiQualityRank(height: Int?): Int {
+            val h = height ?: 0
+            return when {
+                h >= 1000 -> 0
+                h in 700..999 -> 1
+                h in 450..699 -> 2
+                h in 1..449 -> 3
+                else -> 4
+            }
+        }
+
+        /** Mobile data fit when uncapped: 720p first, then 480p, 1080p, 360p — sharp yet light on cellular. */
+        private fun mobileFit(height: Int?): Int {
+            val h = height ?: 0
+            return when {
+                h in 700..800 -> 0
+                h in 450..699 -> 1
+                h in 1000..1150 -> 2
+                h in 300..449 -> 3
+                h == 0 -> 4
+                else -> 5
+            }
+        }
+
+        private fun rankCandidates(
+            all: List<Candidate>,
+            mobile: Boolean,
+            cap: Int?,
+            nowMs: Long,
+        ): List<Source> {
+            val unique = all.distinctBy { it.source.url }.filterNot { isImageLink(it.source.url) }
+            if (unique.isEmpty()) return emptyList()
+            val usable = unique.filterNot { LinkHealth.refused(it.source.url, nowMs) }.ifEmpty { unique }
+
+            val baseSorted = if (!mobile) {
+                // Unmetered Wi-Fi: BDIX direct first, then direct high-speed CDN, then YouTube, then proxy fallbacks.
+                usable.sortedWith(
+                    compareBy<Candidate> {
+                        when {
+                            it.isBdix -> 0
+                            !it.isProxy && !it.isYouTube -> 1
+                            it.isYouTube -> 2
+                            else -> 3
+                        }
+                    }
+                        .thenBy { it.priority }
+                        .thenBy { wifiQualityRank(it.source.height) }
+                        .thenByDescending { it.source.height ?: 0 }
+                        .thenBy { if (isHevc(it.source.codec)) 1 else 0 }
+                        .thenBy { if (it.source.kind == SourceKind.MP4) 0 else 1 }
+                        .thenByDescending { it.source.sizeBytes ?: 0L },
+                )
+            } else {
+                // Metered Mobile Data: reliable gateway proxy & adaptive web streams first; BDIX last.
+                usable.sortedWith(
+                    compareBy<Candidate> {
+                        when {
+                            it.isBdix -> 3
+                            it.isProxy || isAdaptive(it.source) -> 0
+                            !it.isYouTube -> 1
+                            else -> 2
+                        }
+                    }
+                        .thenBy { it.priority }
+                        .thenBy { mobileFit(it.source.height) }
+                        .thenBy { it.source.sizeBytes ?: Long.MAX_VALUE }
+                        .thenBy { if (isHevc(it.source.codec)) 1 else 0 },
+                )
+            }
+
+            // Undecodable HEVC goes last; when preferDualAudio is active, dual-audio sources float up within decodable ones.
+            val healthAdjusted = baseSorted.sortedBy { c ->
+                val undec = if (LinkHealth.undecodable(c.source)) 2 else 0
+                val dual = if (LinkHealth.preferDualAudio && !isDualAudio(c.source.label, c.source.url)) 1 else 0
+                undec + dual
+            }
+
+            val sources = healthAdjusted.map { it.source }
+            if (cap == null) return sources
+            val (fit, above) = sources.partition { (it.height ?: 0) <= cap }
+            return fit + above.sortedBy { it.height ?: Int.MAX_VALUE }
+        }
+
+        /**
+         * Pure ranking over already-mapped [Source] items (backward-compatible with callers & tests).
+         * Highest resolution first on Wi-Fi (H.264 MP4 ahead of HEVC / DASH at equal height);
+         * with a [cap], sources at or below it lead (best first) and higher resolutions follow.
+         */
+        fun sortSources(
+            sources: List<Source>,
+            cap: Int? = null,
+            mobile: Boolean = false,
+            nowMs: Long = System.currentTimeMillis(),
+        ): List<Source> {
+            val candidates = sources.map { s ->
+                val yt = isYouTubeEmbedUrl(s.url)
+                val proxy = !yt && (s.url.contains("/api/public/v1/stream/") || s.label?.contains("Proxy", ignoreCase = true) == true)
+                val bdix = !yt && !proxy && BDIX_URL_HINT.containsMatchIn(s.url)
+                Candidate(
+                    source = s,
+                    isBdix = bdix,
+                    isProxy = proxy,
+                    isYouTube = yt,
+                    priority = if (bdix) 0 else if (yt) 2 else 1,
+                )
+            }
+            return rankCandidates(candidates, mobile = mobile, cap = cap, nowMs = nowMs)
         }
 
         fun captionToSub(c: GwCaption): Sub? {
             if (c.url.isBlank()) return null
-            val path = c.url.substringBefore('?').lowercase()
+            val path = c.url.substringBefore('?').lowercase(Locale.US)
             val format = when {
                 path.endsWith(".vtt") -> SubFormat.VTT
                 path.endsWith(".ass") || path.endsWith(".ssa") -> SubFormat.ASS
                 else -> SubFormat.SRT
             }
             val lang = c.lan?.takeIf { it.isNotBlank() } ?: "und"
-            return Sub(lang, c.lanName?.takeIf { it.isNotBlank() } ?: lang.uppercase(), c.url, format)
+            return Sub(lang, c.lanName?.takeIf { it.isNotBlank() } ?: lang.uppercase(Locale.US), c.url, format)
         }
 
-        private fun normalize(s: String): String = s.lowercase().replace(Regex("[^\\p{L}\\p{N}]+"), " ").trim()
+        private fun normalize(s: String): String = s.lowercase(Locale.US).replace(Regex("[^\\p{L}\\p{N}]+"), " ").trim()
     }
 }
