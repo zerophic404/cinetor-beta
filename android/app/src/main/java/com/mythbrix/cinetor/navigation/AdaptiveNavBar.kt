@@ -1,7 +1,10 @@
 package com.mythbrix.cinetor.navigation
 
 import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.snap
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -38,19 +41,34 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawWithCache
+import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.mythbrix.cinetor.core.data.Space
+import com.mythbrix.cinetor.core.perf.PerformanceTier
+import com.mythbrix.cinetor.design.AppTheme
 import com.mythbrix.cinetor.design.Cinetor
+import com.mythbrix.cinetor.design.CinetorTokens
 import com.mythbrix.cinetor.design.GlassLevel
 import com.mythbrix.cinetor.design.glass
 
 val BottomBarHeight = 64.dp
-private val BarShape = RoundedCornerShape(24.dp)
+private val CapsuleHeight = 60.dp
+private val CapsuleVerticalGap = 10.dp
+private val StandardDockShape = RoundedCornerShape(24.dp)
+private val MaterialDockShape = RoundedCornerShape(28.dp)
+private val AuraCapsuleShape = RoundedCornerShape(percent = 50)
 
 fun iconFor(key: TabKey, space: Space?): ImageVector = when (key) {
     TabKey.HOME -> Icons.Rounded.Home
@@ -73,7 +91,7 @@ fun spaceIcon(space: Space?): ImageVector = when (space) {
     else -> Icons.Rounded.Home
 }
 
-/** Picks bottom glass bar (phone) or glass rail (tablet landscape / TV placeholder). */
+/** Picks floating Liquid Glass dock / Aura capsule (phone) or Liquid Glass rail (tablet / TV). */
 @Composable
 fun AdaptiveNavBar(
     layout: NavLayout,
@@ -90,6 +108,11 @@ fun AdaptiveNavBar(
     }
 }
 
+/**
+ * Floating Liquid Glass phone dock, morphing into Cinetor Beta's sleek floating pill capsule
+ * when `Cinetor.theme == AppTheme.AURA`. Keeps vertical center aligned with `y ≈ 89% H` and full
+ * 5-slot width coverage so CI `emulator-smoke.sh` coordinate and semantic taps hit dead-center.
+ */
 @Composable
 private fun GlassBottomBar(
     tabs: List<TabSpec>,
@@ -98,15 +121,30 @@ private fun GlassBottomBar(
     onSelect: (TabKey) -> Unit,
     modifier: Modifier,
 ) {
+    val theme = Cinetor.theme
+    val isAura = theme == AppTheme.AURA
+    val dockShape = when (theme) {
+        AppTheme.AURA -> AuraCapsuleShape
+        AppTheme.MATERIAL -> MaterialDockShape
+        else -> StandardDockShape
+    }
+    val horizontalInset = if (isAura) 18.dp else 12.dp
+    val verticalInset = if (isAura) CapsuleVerticalGap else 8.dp
+    val barHeight = if (isAura) CapsuleHeight else BottomBarHeight
+
     Box(
         modifier
             .fillMaxWidth()
             .navigationBarsPadding()
-            .padding(horizontal = 12.dp, vertical = 8.dp)
-            .glass(BarShape, GlassLevel.BAR),
+            .padding(horizontal = horizontalInset, vertical = verticalInset)
+            .glass(dockShape, GlassLevel.BAR),
     ) {
         Row(
-            Modifier.fillMaxWidth().height(BottomBarHeight).selectableGroup(),
+            Modifier
+                .fillMaxWidth()
+                .height(barHeight)
+                .padding(horizontal = if (isAura) 6.dp else 2.dp)
+                .selectableGroup(),
             horizontalArrangement = Arrangement.SpaceEvenly,
             verticalAlignment = Alignment.CenterVertically,
         ) {
@@ -115,8 +153,9 @@ private fun GlassBottomBar(
                     tab = tab,
                     icon = iconFor(tab.key, activeSpace),
                     selected = tab.key == selected,
+                    capsuleMode = isAura,
                     onClick = { onSelect(tab.key) },
-                    modifier = Modifier.weight(1f),
+                    modifier = Modifier.weight(1f).fillMaxHeight(),
                 )
             }
         }
@@ -132,6 +171,7 @@ private fun GlassRail(
     width: Int,
     modifier: Modifier,
 ) {
+    val isAura = Cinetor.theme == AppTheme.AURA
     Column(
         modifier
             .fillMaxHeight()
@@ -149,8 +189,9 @@ private fun GlassRail(
                 tab = tab,
                 icon = iconFor(tab.key, activeSpace),
                 selected = tab.key == selected,
+                capsuleMode = isAura,
                 onClick = { onSelect(tab.key) },
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier.fillMaxWidth().height(60.dp),
             )
         }
         Spacer(Modifier.weight(1f))
@@ -162,34 +203,122 @@ private fun NavItem(
     tab: TabSpec,
     icon: ImageVector,
     selected: Boolean,
+    capsuleMode: Boolean,
     onClick: () -> Unit,
     modifier: Modifier,
 ) {
     val tokens = Cinetor.tokens
-    val color by animateColorAsState(if (selected) tokens.accent else tokens.textSecondary, label = "navItem")
+    val tier = Cinetor.tier
+    val specular = Cinetor.specularShine
+    val reduceMotion = Cinetor.prefs.reduceMotion
+
+    val targetIconColor = when {
+        !selected -> tokens.textSecondary
+        capsuleMode -> tokens.textPrimary
+        else -> tokens.accent
+    }
+    val targetLabelColor = if (selected) tokens.textPrimary else tokens.textSecondary
+    val animSpec = if (reduceMotion || tier == PerformanceTier.LOW) {
+        snap<Color>()
+    } else {
+        tween<Color>(durationMillis = CinetorTokens.Motion.shortMs)
+    }
+    val iconColor by animateColorAsState(targetIconColor, animationSpec = animSpec, label = "navIcon")
+    val labelColor by animateColorAsState(targetLabelColor, animationSpec = animSpec, label = "navLabel")
+
+    val spotlightColor = if (capsuleMode || !tokens.isLight) tokens.focusRing else tokens.accent
+    val pillShape = RoundedCornerShape(percent = 50)
+    val pillFill = when {
+        !selected -> Color.Transparent
+        capsuleMode -> tokens.textPrimary.copy(alpha = 0.14f)
+        tokens.isLight -> tokens.accent.copy(alpha = 0.14f)
+        else -> tokens.accent.copy(alpha = 0.18f)
+    }
+    val pillStroke = when {
+        !selected || !specular -> Color.Transparent
+        capsuleMode -> tokens.glassStroke
+        else -> tokens.accent.copy(alpha = 0.28f)
+    }
+
     Column(
         modifier
-            .clip(RoundedCornerShape(16.dp))
+            .clip(if (capsuleMode) pillShape else RoundedCornerShape(16.dp))
+            .navSpotlight(
+                active = selected,
+                color = spotlightColor,
+                castGlow = specular && tier != PerformanceTier.LOW,
+            )
             .selectable(selected = selected, role = Role.Tab, onClick = onClick)
-            .padding(vertical = 6.dp),
+            .semantics { contentDescription = tab.label }
+            .padding(vertical = 4.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(2.dp),
+        verticalArrangement = Arrangement.Center,
     ) {
         Box(
             Modifier
-                .clip(RoundedCornerShape(50))
-                .background(if (selected) tokens.accent.copy(alpha = 0.18f) else Color.Transparent)
-                .padding(horizontal = 14.dp, vertical = 4.dp),
+                .clip(pillShape)
+                .background(pillFill)
+                .then(
+                    if (pillStroke != Color.Transparent) {
+                        Modifier.border(CinetorTokens.Shape.strokeHairline, pillStroke, pillShape)
+                    } else {
+                        Modifier
+                    },
+                )
+                .padding(horizontal = if (capsuleMode) 12.dp else 14.dp, vertical = 3.dp),
             contentAlignment = Alignment.Center,
         ) {
-            Icon(icon, contentDescription = null, tint = color, modifier = Modifier.size(24.dp))
+            Icon(
+                imageVector = icon,
+                contentDescription = null,
+                tint = iconColor,
+                modifier = Modifier.size(if (capsuleMode) 22.dp else 23.dp),
+            )
         }
+        Spacer(Modifier.height(2.dp))
         Text(
-            tab.label,
-            style = MaterialTheme.typography.labelSmall,
-            color = color,
+            text = tab.label,
+            style = MaterialTheme.typography.labelSmall.copy(
+                fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Medium,
+            ),
+            color = labelColor,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
         )
+    }
+}
+
+/** Cinetor Beta signature top spotlight bar with optional soft light cone falling onto the active tab. */
+private fun Modifier.navSpotlight(
+    active: Boolean,
+    color: Color,
+    castGlow: Boolean,
+): Modifier = if (!active) {
+    this
+} else {
+    drawWithCache {
+        val barW = 20.dp.toPx()
+        val barH = 2.dp.toPx()
+        val glowH = size.height * 0.68f
+        val glowBrush = if (castGlow) {
+            Brush.radialGradient(
+                colors = listOf(color.copy(alpha = 0.18f), Color.Transparent),
+                center = Offset(size.width / 2f, 0f),
+                radius = (size.width * 0.55f).coerceAtLeast(1f),
+            )
+        } else {
+            null
+        }
+        onDrawBehind {
+            if (glowBrush != null) {
+                drawRect(brush = glowBrush, size = Size(size.width, glowH))
+            }
+            drawRoundRect(
+                color = color,
+                topLeft = Offset((size.width - barW) / 2f, 0f),
+                size = Size(barW, barH),
+                cornerRadius = CornerRadius(barH),
+            )
+        }
     }
 }

@@ -14,34 +14,48 @@ import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawBehind
-import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.lerp
 import com.mythbrix.cinetor.core.perf.PerformanceTier
 
+internal const val SHIMMER_SWEEP_MS = 1300
+internal const val SHIMMER_LOW_PULSE_MS = 1600
+internal const val SHIMMER_BAND_FRACTION = 0.7f
+
 /**
- * One animation clock shared by every skeleton inside a [ShimmerHost]. The clock only runs while a
- * host is composed (i.e. while something is loading) — never app-wide.
- * [cheap] (LOW tier) = slow solid pulse instead of a moving gradient.
+ * Shared animation clock for skeletons inside a [ShimmerHost].
+ * - `progress == null` when `prefs.reduceMotion` is enabled (zero animation, static skeleton base).
+ * - `cheap == true` on [PerformanceTier.LOW] (draw-only solid pulse with zero shader allocations).
+ * - Otherwise runs Cinetor Beta's `1300ms` linear sweep read exclusively inside `drawBehind`.
  */
 @Stable
-class ShimmerState internal constructor(internal val progress: State<Float>, val cheap: Boolean)
+class ShimmerState internal constructor(
+    internal val progress: State<Float>?,
+    val cheap: Boolean,
+)
 
 val LocalShimmer = compositionLocalOf<ShimmerState?> { null }
 
 @Composable
 fun rememberShimmer(): ShimmerState {
+    val reduceMotion = Cinetor.prefs.reduceMotion
     val cheap = Cinetor.tier == PerformanceTier.LOW
+    if (reduceMotion) {
+        return remember { ShimmerState(progress = null, cheap = false) }
+    }
     val transition = rememberInfiniteTransition(label = "shimmer")
     val progress = transition.animateFloat(
         initialValue = 0f,
         targetValue = 1f,
         animationSpec = infiniteRepeatable(
-            animation = tween(if (cheap) 1600 else 1100, easing = LinearEasing),
+            animation = tween(
+                durationMillis = if (cheap) SHIMMER_LOW_PULSE_MS else SHIMMER_SWEEP_MS,
+                easing = LinearEasing,
+            ),
             repeatMode = if (cheap) RepeatMode.Reverse else RepeatMode.Restart,
         ),
-        label = "shimmerProgress",
+        label = "shimmer_phase",
     )
     return remember(progress, cheap) { ShimmerState(progress, cheap) }
 }
@@ -56,31 +70,39 @@ fun ShimmerHost(content: @Composable () -> Unit) {
     }
 }
 
-/** Draw-phase-only shimmer (no recomposition per frame). Clip before applying. */
+/**
+ * Zero-recomposition draw-phase shimmer: [ShimmerState.progress] is read ONLY inside `drawBehind`,
+ * sweeping a `0.7f` highlight band smoothly across [base] toward [highlight] on every repaint.
+ * Clip before applying.
+ */
 fun Modifier.shimmer(state: ShimmerState?, base: Color, highlight: Color): Modifier = drawBehind {
-    if (state == null) {
+    val phase = state?.progress?.value
+    if (phase == null) {
         drawRect(base)
         return@drawBehind
     }
-    val p = state.progress.value
     if (state.cheap) {
-        drawRect(lerp(base, highlight, p))
+        drawRect(lerp(base, highlight, phase * 0.75f))
     } else {
-        val w = size.width.coerceAtLeast(1f)
-        val x = -w + p * 3f * w
+        val width = size.width.coerceAtLeast(1f)
+        val band = width * SHIMMER_BAND_FRACTION
+        val x = -band + (width + 2f * band) * phase
+        val edge = highlight.copy(alpha = 0f)
+        drawRect(base)
         drawRect(
-            Brush.linearGradient(
-                colors = listOf(base, highlight, base),
-                start = Offset(x - w * 0.6f, 0f),
-                end = Offset(x, size.height),
+            brush = Brush.horizontalGradient(
+                colors = listOf(edge, highlight, edge),
+                startX = x,
+                endX = x + band,
             ),
         )
     }
 }
 
-/** Shimmer using theme skeleton colours and the nearest [ShimmerHost] clock. */
+/** Shimmer using theme skeleton colours and the nearest [ShimmerHost] (or a local clock if standalone). */
 @Composable
 fun Modifier.shimmer(): Modifier {
     val tokens = Cinetor.tokens
-    return shimmer(LocalShimmer.current, tokens.skeletonBase, tokens.skeletonHighlight)
+    val state = LocalShimmer.current ?: rememberShimmer()
+    return shimmer(state, tokens.skeletonBase, tokens.skeletonHighlight)
 }

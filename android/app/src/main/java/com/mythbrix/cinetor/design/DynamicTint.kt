@@ -1,6 +1,7 @@
 package com.mythbrix.cinetor.design
 
 import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.snap
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
@@ -57,39 +58,88 @@ class DynamicTintState {
 }
 
 /**
- * App background: theme bg + radial tint glow from the top, animated over 600 ms (tier-scaled).
- * Colour is read only in the draw phase → no recomposition while animating.
+ * App background: theme ground + atmospheric top glow (or full-page Aura wash), animated over 600 ms
+ * (tier-scaled, instant when reduceMotion is on). Colour state is read strictly in `drawBehind` so
+ * transitions never recompose child screens.
  */
 @Composable
 fun AppBackground(modifier: Modifier = Modifier, content: @Composable BoxScope.() -> Unit) {
+    val theme = Cinetor.theme
     val tokens = Cinetor.tokens
     val tier = Cinetor.tier
     val tint = Cinetor.tint
-    val target = blendTint(tint.source?.takeIf { tint.enabled } ?: tokens.accent, tokens.accent, tokens.tintStrength)
-    val animated by animateColorAsState(
+    val reduceMotion = Cinetor.prefs.reduceMotion
+    val specular = Cinetor.specularShine
+    val isLight = tokens.isLight
+    val isAura = theme == AppTheme.AURA
+
+    val activeSource = tint.source?.takeIf { tint.enabled }
+    val target = blendTint(activeSource ?: tokens.accent, tokens.accent, tokens.tintStrength)
+    val animatedState = animateColorAsState(
         targetValue = target,
-        animationSpec = tween(tier.scaled(CinetorTokens.Motion.tintAnimMs), easing = CinetorTokens.Motion.standard),
+        animationSpec = if (reduceMotion) {
+            snap()
+        } else {
+            tween(tier.scaled(CinetorTokens.Motion.tintAnimMs), easing = CinetorTokens.Motion.standard)
+        },
         label = "appTint",
     )
-    val threeStop = tier != PerformanceTier.LOW
+    val richStops = tier != PerformanceTier.LOW
+
     Box(
         modifier
             .fillMaxSize()
             .background(tokens.bg)
             .drawBehind {
-                val c = animated
-                val stops = if (threeStop) {
-                    arrayOf(0f to c.copy(alpha = 0.34f), 0.45f to c.copy(alpha = 0.10f), 1f to Color.Transparent)
-                } else {
-                    arrayOf(0f to c.copy(alpha = 0.26f), 1f to Color.Transparent)
+                val c = animatedState.value
+                if (!specular) {
+                    if (activeSource != null && tokens.tintStrength > 0f) {
+                        drawRect(
+                            Brush.verticalGradient(
+                                0f to c.copy(alpha = 0.10f),
+                                0.45f to Color.Transparent,
+                                1f to Color.Transparent,
+                            ),
+                        )
+                    }
+                    return@drawBehind
                 }
-                drawRect(
-                    Brush.radialGradient(
-                        colorStops = *stops,
-                        center = Offset(size.width * 0.5f, 0f),
-                        radius = max(size.width, size.height) * 0.85f,
-                    ),
-                )
+                if (isAura) {
+                    val washStops = if (richStops) {
+                        arrayOf(
+                            0f to c.copy(alpha = 0.40f),
+                            0.52f to c.copy(alpha = 0.16f),
+                            1f to c.copy(alpha = 0.04f),
+                        )
+                    } else {
+                        arrayOf(0f to c.copy(alpha = 0.30f), 1f to Color.Transparent)
+                    }
+                    drawRect(Brush.verticalGradient(colorStops = *washStops))
+                    if (richStops) {
+                        drawRect(
+                            Brush.radialGradient(
+                                colors = listOf(c.copy(alpha = 0.22f), Color.Transparent),
+                                center = Offset(size.width * 0.5f, 0f),
+                                radius = max(size.width, size.height) * 0.78f,
+                            ),
+                        )
+                    }
+                } else {
+                    val topAlpha = if (isLight) 0.13f else if (richStops) 0.34f else 0.24f
+                    val midAlpha = if (isLight) 0.04f else 0.10f
+                    val stops = if (richStops) {
+                        arrayOf(0f to c.copy(alpha = topAlpha), 0.45f to c.copy(alpha = midAlpha), 1f to Color.Transparent)
+                    } else {
+                        arrayOf(0f to c.copy(alpha = topAlpha), 1f to Color.Transparent)
+                    }
+                    drawRect(
+                        Brush.radialGradient(
+                            colorStops = *stops,
+                            center = Offset(size.width * 0.5f, 0f),
+                            radius = max(size.width, size.height) * 0.85f,
+                        ),
+                    )
+                }
             },
         content = content,
     )
