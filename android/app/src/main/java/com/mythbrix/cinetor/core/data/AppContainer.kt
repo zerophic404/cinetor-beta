@@ -30,6 +30,7 @@ import com.mythbrix.cinetor.core.prefs.ResumeDataStore
 import com.mythbrix.cinetor.core.prefs.SearchHistoryDataStore
 import com.mythbrix.cinetor.core.prefs.SettingsStore
 import com.mythbrix.cinetor.feature.player.PlayerStateHolder
+import com.mythbrix.cinetor.feature.music.GatewayMusicApi
 import com.mythbrix.cinetor.feature.music.MusicController
 import com.mythbrix.cinetor.feature.music.MusicRepository
 import com.mythbrix.cinetor.feature.tv.TvPrefs
@@ -293,7 +294,18 @@ class AppContainer(context: Context) {
     val tvPrefs: TvPrefs by lazy { TvPrefs(appContext) }
 
     /** Music library + app-scoped music player over the ONE shared player (Task 4.2). */
-    val musicLibrary: MusicRepository by lazy { MusicRepository(catalog) }
+    val musicLibrary: MusicRepository by lazy {
+        MusicRepository(
+            catalog = catalog,
+            api = GatewayMusicApi(
+                http = OkHttpGatewayHttp(httpClient),
+                cache = GatewayCache(disk = FileGatewayDiskCache(java.io.File(appContext.cacheDir, "music"))),
+                urlFor = gatewayApi::url,
+                absoluteUrl = gatewayApi::absolute,
+            ),
+            colors = PaletteDominantColors(appContext, httpClient, appScope),
+        )
+    }
     val music: MusicController by lazy {
         MusicController(
             scope = mainScope,
@@ -301,7 +313,15 @@ class AppContainer(context: Context) {
             takeOver = { if (playback.state.value.item != null) playback.close() },
             contextFor = { track -> musicLibrary.contextFor(track) },
             tracksOf = { album -> musicLibrary.tracksOf(album) },
-            resolve = { id -> runCatching { catalog.item(id) }.getOrNull() },
+            resolve = { id -> musicLibrary.resolveItem(id) ?: runCatching { catalog.item(id) }.getOrNull() },
+            prepareTrack = { track, quality ->
+                musicLibrary.attachStream(
+                    track = track,
+                    quality = quality,
+                    offlineAvailable = { id -> runCatching { downloads.cacheProvider.offlineSource(id, null) != null }.getOrDefault(false) },
+                )
+            },
+            fetchLyrics = { track -> musicLibrary.lyricsFor(track) },
         )
     }
 
