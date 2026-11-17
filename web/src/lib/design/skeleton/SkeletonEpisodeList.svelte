@@ -8,7 +8,11 @@
   {#each Array(count) as _, i (i)}
     <li>
       <div class="still"><SkeletonBox aspect="16 / 9" radius="var(--radius-md)" /></div>
-      <div class="txt"><SkeletonBox width="70%" height="16px" /><SkeletonText lines={2} lineHeight="0.75em" /></div>
+      <div class="txt">
+        <SkeletonBox width="68%" height="16px" radius="6px" />
+        <SkeletonText lines={2} lineHeight="0.75em" lastWidth="54%" />
+      </div>
+      <SkeletonBox width="36px" height="36px" radius="50%" />
     </li>
   {/each}
 </ul>
@@ -23,12 +27,13 @@
   }
   li {
     display: grid;
-    grid-template-columns: clamp(120px, 36vw, 200px) 1fr;
+    grid-template-columns: clamp(116px, 34vw, 196px) 1fr auto;
     gap: 12px;
     align-items: center;
   }
   .txt {
     display: grid;
-    gap: 10px;
+    gap: 9px;
+    min-width: 0;
   }
 </style>

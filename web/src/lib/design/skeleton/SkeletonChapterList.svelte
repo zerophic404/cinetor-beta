@@ -6,9 +6,12 @@
 <ul aria-hidden="true">
   {#each Array(count) as _, i (i)}
     <li>
-      <SkeletonBox width="40px" height="40px" radius="var(--radius-sm)" />
-      <SkeletonBox width="55%" height="16px" />
-      <SkeletonBox width="56px" height="14px" />
+      <SkeletonBox width="44px" height="44px" radius="var(--radius-sm)" />
+      <div class="mid">
+        <SkeletonBox width="58%" height="15px" radius="5px" />
+        <SkeletonBox width="36%" height="11px" radius="4px" />
+      </div>
+      <SkeletonBox width="56px" height="24px" radius="var(--radius-pill)" />
     </li>
   {/each}
 </ul>
@@ -23,11 +26,17 @@
   }
   li {
     display: grid;
-    grid-template-columns: 40px 1fr auto;
+    grid-template-columns: 44px 1fr auto;
     align-items: center;
     gap: 12px;
-    padding: 10px;
+    padding: 10px 12px;
     border-radius: var(--radius-md);
     background: var(--glass-fill);
+    box-shadow: inset 0 0 0 1px var(--divider);
+  }
+  .mid {
+    display: grid;
+    gap: 6px;
+    min-width: 0;
   }
 </style>

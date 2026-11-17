@@ -6,10 +6,10 @@
 <div class="epg" aria-hidden="true">
   {#each Array(channels) as _, r (r)}
     <div class="line">
-      <SkeletonBox width="64px" height="48px" radius="var(--radius-md)" />
+      <SkeletonBox width="68px" height="48px" radius="var(--radius-md)" />
       <div class="slots">
         {#each Array(slots) as _, c (c)}
-          <SkeletonBox width={`${110 + ((r * 37 + c * 53) % 90)}px`} height="48px" radius="var(--radius-sm)" />
+          <SkeletonBox width={`${112 + ((r * 37 + c * 53) % 88)}px`} height="48px" radius="var(--radius-sm)" />
         {/each}
       </div>
     </div>
