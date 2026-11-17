@@ -190,7 +190,7 @@ describe('space model', () => {
       has4kBadge({
         title: 'Interstellar',
         genres: ['Sci-Fi'],
-        sources: [{ url: 'https://x.example/v.mp4', kind: 'MP4', height: 2160 }]
+        sources: [{ height: 2160 }]
       })
     ).toBe(true);
     expect(has4kBadge({ title: 'Past Lives', genres: ['Romance', 'Drama'] })).toBe(false);
@@ -232,9 +232,9 @@ describe('space model', () => {
     const merged = mergeUniqueItems(dedupeItems(base), [it2('b', ['Action']), it2('c', ['Drama'])]);
     expect(merged.map((i) => i.id)).toEqual(['a', 'b', 'c']);
 
-    expect(canSeeAll({ id: 'r1', title: 'Trending', style: 'POSTER', itemIds: [] }, 6)).toBe(true);
-    expect(canSeeAll({ id: 'r2', title: 'Top 10', style: 'TOP10', itemIds: [] }, 10)).toBe(false);
-    expect(canSeeAll({ id: 'r3', title: 'Continue', style: 'CONTINUE', itemIds: [] }, 5)).toBe(false);
+    expect(canSeeAll({ style: 'POSTER' }, 6)).toBe(true);
+    expect(canSeeAll({ style: 'TOP10' }, 10)).toBe(false);
+    expect(canSeeAll({ style: 'CONTINUE' }, 5)).toBe(false);
   });
 
   it('scrubs gateway URLs from user-visible error copy while keeping safe messages', () => {
