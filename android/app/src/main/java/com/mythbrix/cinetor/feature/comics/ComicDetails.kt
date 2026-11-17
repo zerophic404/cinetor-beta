@@ -138,15 +138,35 @@ fun ComicDetails(id: String, container: AppContainer, contentPadding: PaddingVal
     val sort = runCatching { ChapterSort.valueOf(sortName) }.getOrDefault(ChapterSort.ASCENDING)
     val filter = runCatching { ChapterFilter.valueOf(filterName) }.getOrDefault(ChapterFilter.ALL)
 
+    val readyItem = (load as? ComicLoad.Ready)?.item
+    val summary = remember(readyItem, data) {
+        if (readyItem == null) null else comicReadSummary(readyItem.pages, data, readyItem.id)
+    }
+    val downloadedIds = remember(dl) {
+        dl.entries.asSequence().filter { it.value == ChapterDownload.Done }.map { it.key }.toSet()
+    }
+    val progressByChapter = remember(data, readyItem?.id) {
+        val targetId = readyItem?.id ?: return@remember emptyMap()
+        data.progress.asSequence().filter { it.comicId == targetId }.associateBy { it.chapterId }
+    }
+    val shownChapters = remember(readyItem?.pages, data, readyItem?.id, downloadedIds, chapterQuery, sort, filter) {
+        val targetItem = readyItem ?: return@remember emptyList()
+        filterAndSortChapters(
+            chapters = targetItem.pages,
+            data = data,
+            comicId = targetItem.id,
+            downloadedIds = downloadedIds,
+            query = chapterQuery,
+            sort = sort,
+            filter = filter,
+        )
+    }
+
     LazyColumn(
         contentPadding = PaddingValues(bottom = contentPadding.calculateBottomPadding() + 16.dp),
         modifier = Modifier.fillMaxSize(),
     ) {
         item(key = "header") {
-            val readyItem = (load as? ComicLoad.Ready)?.item
-            val summary = remember(readyItem, data) {
-                if (readyItem == null) null else comicReadSummary(readyItem.pages, data, readyItem.id)
-            }
             ComicHeader(header, summary, contentPadding)
         }
         when (val l = load) {
@@ -173,23 +193,6 @@ fun ComicDetails(id: String, container: AppContainer, contentPadding: PaddingVal
                 val item = l.item
                 val target = continueTarget(item, data)
                 val bookmarked = item.id in data.bookmarks
-                val downloadedIds = remember(dl) {
-                    dl.entries.asSequence().filter { it.value == ChapterDownload.Done }.map { it.key }.toSet()
-                }
-                val progressByChapter = remember(data, item.id) {
-                    data.progress.asSequence().filter { it.comicId == item.id }.associateBy { it.chapterId }
-                }
-                val shownChapters = remember(item.pages, data, downloadedIds, chapterQuery, sort, filter) {
-                    filterAndSortChapters(
-                        chapters = item.pages,
-                        data = data,
-                        comicId = item.id,
-                        downloadedIds = downloadedIds,
-                        query = chapterQuery,
-                        sort = sort,
-                        filter = filter,
-                    )
-                }
 
                 item(key = "actions") {
                     Row(
