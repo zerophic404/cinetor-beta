@@ -171,10 +171,17 @@ class ComicsReaderTest {
         s.ensureLoaded()
         val c = remoteComic()
         val asked = mutableListOf<String>()
-        val h = ReaderStateHolder(c, null, s, PerformanceTier.MID, backgroundScope) { ch ->
-            asked += ch.id
-            listOf("https://md/p1.png", "https://md/p2.png", "https://md/p3.png")
-        }
+        val h = ReaderStateHolder(
+            comic = c,
+            startChapterId = null,
+            store = s,
+            tier = PerformanceTier.MID,
+            scope = backgroundScope,
+            resolvePages = { ch ->
+                asked += ch.id
+                listOf("https://md/p1.png", "https://md/p2.png", "https://md/p3.png")
+            },
+        )
         runCurrent()
         assertEquals(listOf(c.pages[0].id), asked)
         assertEquals(3, h.current.pageCount)
@@ -196,9 +203,16 @@ class ComicsReaderTest {
         s.ensureLoaded()
         val c = remoteComic()
         var fail = true
-        val h = ReaderStateHolder(c, null, s, PerformanceTier.MID, backgroundScope) {
-            if (fail) emptyList() else listOf("https://md/p1.png")
-        }
+        val h = ReaderStateHolder(
+            comic = c,
+            startChapterId = null,
+            store = s,
+            tier = PerformanceTier.MID,
+            scope = backgroundScope,
+            resolvePages = {
+                if (fail) emptyList() else listOf("https://md/p1.png")
+            },
+        )
         runCurrent()
         assertEquals(CHAPTER_UNAVAILABLE, h.current.unavailable)
         assertEquals(0, h.current.pageCount)
