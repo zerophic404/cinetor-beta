@@ -36,7 +36,7 @@
   const heroUid = `hga-${++nextHeroArt}`;
 
   let index = $state(0);
-  let activeMs = $state(HERO_AUTO_ADVANCE_MS);
+  let activeMs = $state<number>(HERO_AUTO_ADVANCE_MS);
   let isPaused = $state(false);
   let el = $state<HTMLElement>();
   let isWide = $state(typeof window !== 'undefined' ? window.matchMedia('(min-width: 768px)').matches : true);

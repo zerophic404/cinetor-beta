@@ -28,7 +28,7 @@ export interface BadgeCandidate {
   genres: string[];
   tags?: string[];
   dubLanguages?: string[];
-  sources?: Pick<Source, 'height' | 'label'>[];
+  sources?: Partial<Source>[];
 }
 
 export interface GeneratedOrb {
@@ -183,7 +183,7 @@ export function mergeUniqueItems<T extends { id: string }>(base: readonly T[], i
 }
 
 /** Whether a shelf header should expose the `See all` grid drawer trigger. */
-export function canSeeAll(row: Pick<Row, 'style' | 'more'>, itemCount: number): boolean {
+export function canSeeAll(row: Pick<Row, 'style'> & Partial<Row>, itemCount: number): boolean {
   if (row.style === 'TOP10' || row.style === 'CONTINUE' || row.style === 'CHANNEL') return false;
   return Boolean(row.more?.hasMore || itemCount >= 4);
 }

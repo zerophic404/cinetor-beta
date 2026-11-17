@@ -35,7 +35,7 @@ export function extractYouTubeVideoId(url: string | null | undefined): string | 
   return null;
 }
 
-export function isYouTubeSource(src: Pick<Source, 'url'> | null | undefined): boolean {
+export function isYouTubeSource(src: Partial<Source> | null | undefined): boolean {
   return extractYouTubeVideoId(src?.url) !== null;
 }
 
@@ -164,7 +164,7 @@ function isNonDubToken(token: string): boolean {
 }
 
 /** Extracts a dub/audio language label (e.g. `'Hindi'`, `'Bengali'`, `'Tamil'`) from `source.label`, or `null`. */
-export function dubOfSource(source: Pick<Source, 'label'> | null | undefined): string | null {
+export function dubOfSource(source: Partial<Source> | null | undefined): string | null {
   const label = source?.label?.trim();
   if (!label) return null;
   const bracket = BRACKET_DUB_RE.exec(label)?.[1]?.trim();
