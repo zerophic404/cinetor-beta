@@ -78,11 +78,12 @@
 -dontwarn android.graphics.RuntimeShader
 
 # ---- Room, WorkManager, OkHttp & Coil ----
+# Coil 3 AARs ship their own ServiceLoader consumer rules; on Android `coil3.PlatformContext` is a typealias to Context.
 -keep class * extends androidx.room.RoomDatabase { *; }
 -keep class * extends androidx.work.ListenableWorker {
     public <init>(android.content.Context, androidx.work.WorkerParameters);
 }
--keep class coil3.network.okhttp.** { *; }
+-dontwarn coil3.PlatformContext
 -dontwarn okhttp3.internal.platform.**
 -dontwarn org.slf4j.**
 -dontwarn org.conscrypt.**
