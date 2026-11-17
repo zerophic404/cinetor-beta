@@ -2,9 +2,15 @@ package com.mythbrix.cinetor.feature.home
 
 import androidx.compose.ui.graphics.Color
 import com.mythbrix.cinetor.TestFiles
+import com.mythbrix.cinetor.core.data.CatalogRepository
+import com.mythbrix.cinetor.core.data.Category
+import com.mythbrix.cinetor.core.data.Item
 import com.mythbrix.cinetor.core.data.ItemType
+import com.mythbrix.cinetor.core.data.Row
 import com.mythbrix.cinetor.core.data.RowStyle
 import com.mythbrix.cinetor.core.data.Space
+import com.mythbrix.cinetor.core.data.gateway.PagedCatalog
+import com.mythbrix.cinetor.core.data.gateway.RowPage
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
@@ -116,7 +122,7 @@ class SpaceViewModelTest {
     }
 
     @Test
-    fun hero_pausesWhileDragging() = runTest {
+    fun hero_pausesWhileDragging_andResumesAfter6sPostTouchDelay() = runTest {
         var advances = 0
         val auto = HeroAutoAdvance(backgroundScope) { advances++ }
         auto.start()
@@ -125,11 +131,28 @@ class SpaceViewModelTest {
         assertTrue(auto.isPaused)
         advanceTimeBy(30_000)
         assertEquals(0, advances)
-        // releasing restarts a full interval (no jump right after the finger lifts)
+        // Releasing a drag waits 6s post-touch cooldown, then resumes normal 5s cadence
         auto.resume(HeroPause.DRAG)
-        advanceTimeBy(4_999)
+        advanceTimeBy(5_999)
         assertEquals(0, advances)
         advanceTimeBy(2)
+        assertEquals(1, advances)
+        advanceTimeBy(5_000)
+        assertEquals(2, advances)
+    }
+
+    @Test
+    fun hero_lowTierOrSettingPause_stopsTicking() = runTest {
+        var advances = 0
+        val auto = HeroAutoAdvance(backgroundScope) { advances++ }
+        auto.start()
+        auto.setPaused(HeroPause.LOW_TIER, true)
+        assertTrue(auto.isPaused)
+        assertFalse(auto.isTicking)
+        advanceTimeBy(20_000)
+        assertEquals(0, advances)
+        auto.setPaused(HeroPause.LOW_TIER, false)
+        advanceTimeBy(5_001)
         assertEquals(1, advances)
     }
 
@@ -168,5 +191,85 @@ class SpaceViewModelTest {
         advanceTimeBy(2)
         assertEquals(listOf(Color.Blue), applied)
         assertNull(applied.firstOrNull { it == Color.Red })
+    }
+
+    @Test
+    fun pagedCatalog_loadMore_appendsDeduplicatedPages_andUpdatesSeeAllSheet() = runTest {
+        val fake = FakePagedCatalog()
+        val h = SpaceStateHolder(Space.HOME, fake, backgroundScope)
+        h.load()
+        val initial = h.ready()
+        assertEquals(listOf("i1", "i2", "i3", "i4"), initial.rows.single().items.map { it.id })
+        assertNull(initial.seeAllRow)
+
+        h.openSeeAll("r1")
+        val opened = h.ready { it.seeAllRowId == "r1" }
+        assertEquals("Trending Now", opened.seeAllRow?.title)
+        assertEquals(4, opened.seeAllRow?.items?.size)
+
+        h.loadMore("r1")
+        val page2 = h.ready { it.rows.single().items.size == 6 }
+        assertEquals(listOf("i1", "i2", "i3", "i4", "i5", "i6"), page2.rows.single().items.map { it.id })
+        assertEquals(6, page2.seeAllRow?.items?.size)
+
+        // Page 3 has hasMore = false -> subsequent loadMore calls are ignored
+        h.loadMore("r1")
+        val page3 = h.ready { it.rows.single().items.size == 7 }
+        assertEquals(listOf("i1", "i2", "i3", "i4", "i5", "i6", "i7"), page3.rows.single().items.map { it.id })
+        val callsAfterExhausted = fake.pageRequests.size
+        h.loadMore("r1")
+        runCurrent()
+        assertEquals(callsAfterExhausted, fake.pageRequests.size)
+
+        h.closeSeeAll()
+        val closed = h.ready { it.seeAllRowId == null }
+        assertNull(closed.seeAllRow)
+    }
+
+    private class FakePagedCatalog : CatalogRepository, PagedCatalog {
+        val pageRequests = mutableListOf<Pair<String, Int>>()
+        private val items = (1..7).map { n ->
+            Item(
+                id = "i$n",
+                space = Space.HOME,
+                categoryId = "cat-1",
+                type = ItemType.MOVIE,
+                title = "Movie $n",
+                year = 2026,
+                rating = 7.5,
+                maturity = "PG-13",
+                genres = listOf("Action"),
+                synopsis = "Synopsis $n",
+                poster = "images/posters/$n.webp",
+                backdrop = "images/posters/$n.webp",
+                dominantColor = "#111111",
+                accentColor = "#E11D2E",
+            )
+        }
+
+        override suspend fun categories(space: Space): List<Category> = listOf(
+            Category(
+                id = "cat-1",
+                space = Space.HOME,
+                title = "Movies",
+                heroIds = listOf("i1"),
+                rows = listOf(Row("r1", "Trending Now", RowStyle.POSTER, listOf("i1", "i2", "i3", "i4"))),
+            ),
+        )
+
+        override suspend fun genres(space: Space): List<String> = listOf("Action")
+        override suspend fun row(rowId: String): List<Item> = items.take(4)
+        override suspend fun item(id: String): Item = items.first { it.id == id }
+        override suspend fun byGenre(space: Space, genre: String): List<Item> = items
+        override suspend fun allItems(space: Space): List<Item> = items
+
+        override suspend fun rowPage(rowId: String, page: Int): RowPage {
+            pageRequests += rowId to page
+            return when (page) {
+                2 -> RowPage(listOf(items[3], items[4], items[5]), page = 2, hasMore = true) // i4 duplicate + i5, i6
+                3 -> RowPage(listOf(items[6]), page = 3, hasMore = false) // i7, exhausted
+                else -> RowPage(emptyList(), page = page, hasMore = false)
+            }
+        }
     }
 }

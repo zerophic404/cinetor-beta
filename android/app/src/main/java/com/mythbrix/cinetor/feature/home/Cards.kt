@@ -14,10 +14,10 @@ import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -36,16 +36,22 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Shadow
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.font.DeviceFontFamilyName
+import androidx.compose.ui.text.font.Font
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
@@ -55,16 +61,92 @@ import androidx.compose.ui.zIndex
 import coil3.compose.AsyncImage
 import com.mythbrix.cinetor.core.data.EventStatus
 import com.mythbrix.cinetor.core.data.Item
+import com.mythbrix.cinetor.core.data.ItemType
+import com.mythbrix.cinetor.core.perf.PerformanceTier
+import com.mythbrix.cinetor.core.player.progressByItem
+import com.mythbrix.cinetor.core.ui.CinetorArtwork
+import com.mythbrix.cinetor.core.ui.LocalResumeEntries
 import com.mythbrix.cinetor.core.ui.rememberSizedImage
 import com.mythbrix.cinetor.core.ui.sharedPoster
 import com.mythbrix.cinetor.design.Cinetor
 import com.mythbrix.cinetor.design.CinetorTokens
 import com.mythbrix.cinetor.design.hexColor
+import java.util.Locale
 
 private val CardShape = RoundedCornerShape(CinetorTokens.Shape.card)
+private val StarGold = Color(0xFFFFB800)
 
-/** Deterministic mock watch progress (0.15–0.85) until playback history exists (Phase 3/5). */
+internal val CondensedRankFont: FontFamily = FontFamily(
+    Font(DeviceFontFamilyName("sans-serif-condensed"), FontWeight.Normal),
+    Font(DeviceFontFamilyName("sans-serif-condensed"), FontWeight.Bold),
+)
+
+private val HINDI_REGEX = Regex("""\bhindi\b""", RegexOption.IGNORE_CASE)
+private val BENGALI_REGEX = Regex("""\b(?:bengali|bangla)\b""", RegexOption.IGNORE_CASE)
+private val TAMIL_REGEX = Regex("""\btamil\b""", RegexOption.IGNORE_CASE)
+private val TELUGU_REGEX = Regex("""\btelugu\b""", RegexOption.IGNORE_CASE)
+private val ENGLISH_TITLE_TAG_REGEX = Regex("""(?:\[\s*english\s*\]|\(\s*english\s*\)|\benglish\s+dub(?:bed)?\b)""", RegexOption.IGNORE_CASE)
+private val ENGLISH_GENRE_REGEX = Regex("""^\[?\s*english(?:\s+dub)?\s*\]?$""", RegexOption.IGNORE_CASE)
+private val NON_GENRE_TAG_REGEX = Regex(
+    """^\[?\s*(?:hindi|bengali|bangla|tamil|telugu|english|dual\s*audio|4k(?:\s*uhd)?|2k|1080p|uhd)\s*\]?$""",
+    RegexOption.IGNORE_CASE,
+)
+
+/** Deterministic fallback progress (0.15–0.85) for Continue Watching mock entries. */
 fun mockProgress(id: String): Float = ((id.hashCode() and 0x7fffffff) % 71 + 15) / 100f
+
+/** Formats positive ratings to one decimal place (e.g. `7.8`); hides `0` / invalid ratings. */
+fun formatPosterRating(rating: Double): String? =
+    if (!rating.isFinite() || rating <= 0.0) null else String.format(Locale.US, "%.1f", rating)
+
+/** Detects dub/audio language badges (`Hindi`, `Bengali`, `Tamil`, `Telugu`, `English`) from title or genre tags. */
+fun detectDubLanguage(title: String, genres: List<String>, altTitle: String? = null): String? {
+    val combined = buildString {
+        append(title)
+        if (!altTitle.isNullOrBlank()) {
+            append(' ')
+            append(altTitle)
+        }
+        genres.forEach {
+            append(' ')
+            append(it)
+        }
+    }
+    return when {
+        HINDI_REGEX.containsMatchIn(combined) -> "Hindi"
+        BENGALI_REGEX.containsMatchIn(combined) -> "Bengali"
+        TAMIL_REGEX.containsMatchIn(combined) -> "Tamil"
+        TELUGU_REGEX.containsMatchIn(combined) -> "Telugu"
+        ENGLISH_TITLE_TAG_REGEX.containsMatchIn(title) ||
+            (altTitle != null && ENGLISH_TITLE_TAG_REGEX.containsMatchIn(altTitle)) ||
+            genres.any { ENGLISH_GENRE_REGEX.matches(it.trim()) } -> "English"
+        else -> null
+    }
+}
+
+/** Below 2% is a peek and above 95% is finished; neither renders a poster progress bar. */
+fun visibleWatchProgress(rawProgress: Float?): Float {
+    if (rawProgress == null || !rawProgress.isFinite()) return 0f
+    return if (rawProgress in 0.02f..0.95f) rawProgress else 0f
+}
+
+/** True when the item carries 4K / 2160p sources or explicit 4K metadata tags. */
+fun is4kItem(item: Item): Boolean =
+    item.sources.any { s ->
+        (s.height ?: 0) >= 2160 ||
+            s.label?.contains("4K", ignoreCase = true) == true ||
+            s.label?.contains("2160", ignoreCase = true) == true
+    } ||
+        item.title.contains("4K", ignoreCase = true) ||
+        item.maturity.contains("4K", ignoreCase = true) ||
+        item.genres.any { it.contains("4K", ignoreCase = true) || it.equals("UHD", ignoreCase = true) }
+
+/** Strips language/resolution tags and returns up to [maxCount] clean genre names. */
+fun cleanHeroGenres(genres: List<String>, maxCount: Int = 3): List<String> =
+    genres.map { it.trim() }
+        .filter { it.isNotEmpty() && !NON_GENRE_TAG_REGEX.matches(it) }
+        .distinct()
+        .take(maxCount)
 
 /**
  * Shared card chrome: press/focus scales 1.0→1.08 with a glow in the item's accent colour;
@@ -79,12 +161,14 @@ fun CardFrame(
     shape: Shape = CardShape,
     content: @Composable BoxScope.() -> Unit,
 ) {
+    val tokens = Cinetor.tokens
+    val lowTier = Cinetor.tier == PerformanceTier.LOW
     val interaction = remember { MutableInteractionSource() }
     val pressed by interaction.collectIsPressedAsState()
     val focused by interaction.collectIsFocusedAsState()
     val active = pressed || focused
     val scale by animateFloatAsState(if (active) CinetorTokens.Motion.cardFocusScale else 1f, label = "cardScale")
-    val glow by animateDpAsState(if (active) 18.dp else 0.dp, label = "cardGlow")
+    val glow by animateDpAsState(if (active && !lowTier) 18.dp else 0.dp, label = "cardGlow")
     val dominant = remember(item.dominantColor) { hexColor(item.dominantColor) }
     val accent = remember(item.accentColor) { hexColor(item.accentColor) }
     LaunchedEffect(active) { if (active) onActive(dominant) }
@@ -92,12 +176,15 @@ fun CardFrame(
         modifier
             .zIndex(if (active) 1f else 0f)
             .graphicsLayer { scaleX = scale; scaleY = scale }
-            .shadow(glow, shape, clip = false, ambientColor = accent, spotColor = accent)
+            .then(
+                if (glow > 0.dp) Modifier.shadow(glow, shape, clip = false, ambientColor = accent, spotColor = accent)
+                else Modifier,
+            )
             .clip(shape)
             .background(dominant)
             .border(
                 if (active) 2.dp else 1.dp,
-                if (active) accent.copy(alpha = 0.95f) else Color.White.copy(alpha = 0.06f),
+                if (active) tokens.focusRing.copy(alpha = 0.92f) else tokens.glassStroke,
                 shape,
             )
             .clickable(interactionSource = interaction, indication = null, onClick = onClick)
@@ -106,7 +193,13 @@ fun CardFrame(
     )
 }
 
-/** 2:3 poster. [sharedKey] makes it the shared element into Details. */
+/**
+ * 2:3 poster with CinePulse/Beta badges:
+ * - Top-left dark translucent `★ 7.8` pill (`rating > 0`)
+ * - Top-right crisp language badge (`Hindi`, `Bengali`, `Tamil`, `Telugu`, `English`) or vertical Series capsule
+ * - Bottom Cinema Red watch-progress line (`0.02f..0.95f`)
+ * - Zero-waste `GeneratedArt` fallback drawn only when `item.poster` is blank or fails to decode.
+ */
 @Composable
 fun PosterCard(
     item: Item,
@@ -116,14 +209,98 @@ fun PosterCard(
     width: Dp = 112.dp,
     sharedKey: String? = null,
 ) {
+    val tokens = Cinetor.tokens
     val height = width * 1.5f
+    val resumeEntries = LocalResumeEntries.current
+    val progress = remember(item.id, resumeEntries) {
+        visibleWatchProgress(progressByItem(resumeEntries)[item.id])
+    }
+    val ratingText = remember(item.rating) { formatPosterRating(item.rating) }
+    val langBadge = remember(item.title, item.genres, item.altTitle) {
+        detectDubLanguage(item.title, item.genres, item.altTitle)
+    }
     CardFrame(item, onClick, onActive, modifier.sharedPoster(sharedKey).size(width, height)) {
-        AsyncImage(
-            model = rememberSizedImage(item.poster, width, height),
-            contentDescription = null,
-            contentScale = ContentScale.Crop,
+        CinetorArtwork(
+            seedKey = item.id,
+            path = item.poster,
+            width = width,
+            height = height,
+            fallbackTitle = item.title,
             modifier = Modifier.fillMaxSize(),
         )
+
+        if (ratingText != null) {
+            val pillShape = RoundedCornerShape(6.dp)
+            Row(
+                modifier = Modifier
+                    .align(Alignment.TopStart)
+                    .padding(5.dp)
+                    .clip(pillShape)
+                    .background(Color(0xCC09090B))
+                    .border(0.5.dp, Color.White.copy(alpha = 0.16f), pillShape)
+                    .padding(horizontal = 5.dp, vertical = 2.dp)
+                    .clearAndSetSemantics {},
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(2.dp),
+            ) {
+                Text(
+                    text = "★",
+                    style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp, fontWeight = FontWeight.Bold),
+                    color = StarGold,
+                )
+                Text(
+                    text = ratingText,
+                    style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp, fontWeight = FontWeight.Bold),
+                    color = Color.White,
+                )
+            }
+        }
+
+        if (langBadge != null) {
+            Box(
+                modifier = Modifier
+                    .align(Alignment.TopEnd)
+                    .padding(5.dp)
+                    .clip(RoundedCornerShape(5.dp))
+                    .background(Color(0xF2FFFFFF))
+                    .padding(horizontal = 5.dp, vertical = 1.5.dp)
+                    .clearAndSetSemantics {},
+            ) {
+                Text(
+                    text = langBadge,
+                    style = MaterialTheme.typography.labelSmall.copy(fontSize = 9.sp, fontWeight = FontWeight.Bold),
+                    color = Color(0xFF0A0A0C),
+                )
+            }
+        } else if (item.type == ItemType.SERIES) {
+            val capsuleShape = RoundedCornerShape(3.5.dp)
+            Box(
+                modifier = Modifier
+                    .align(Alignment.TopEnd)
+                    .padding(6.dp)
+                    .size(width = 7.dp, height = 16.dp)
+                    .clip(capsuleShape)
+                    .background(Color(0xEBFFFFFF))
+                    .border(0.5.dp, Color.Black.copy(alpha = 0.25f), capsuleShape),
+            )
+        }
+
+        if (progress > 0f) {
+            Box(
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .fillMaxWidth()
+                    .height(3.dp)
+                    .background(Color(0x59FFFFFF)),
+            ) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth(progress)
+                        .fillMaxHeight()
+                        .background(tokens.accent),
+                )
+            }
+        }
     }
 }
 
@@ -131,23 +308,40 @@ fun PosterCard(
 @Composable
 fun LandscapeCard(item: Item, onClick: () -> Unit, onActive: (Color) -> Unit, width: Dp = 220.dp) {
     val height = width * 9f / 16f
-    val tokens = Cinetor.tokens
+    val ratingText = remember(item.rating) { formatPosterRating(item.rating) }
     CardFrame(item, onClick, onActive, Modifier.size(width, height)) {
-        AsyncImage(
-            model = rememberSizedImage(item.backdrop, width, height),
-            contentDescription = null,
-            contentScale = ContentScale.Crop,
+        CinetorArtwork(
+            seedKey = item.id,
+            path = item.backdrop.ifBlank { item.poster },
+            width = width,
+            height = height,
             modifier = Modifier.fillMaxSize(),
         )
         Box(
             Modifier.fillMaxSize().background(
-                Brush.verticalGradient(0.45f to Color.Transparent, 1f to Color.Black.copy(alpha = 0.85f)),
+                Brush.verticalGradient(0.42f to Color.Transparent, 1f to Color(0xEB08080A)),
             ),
         )
+        if (ratingText != null) {
+            Row(
+                modifier = Modifier
+                    .align(Alignment.TopStart)
+                    .padding(6.dp)
+                    .clip(RoundedCornerShape(6.dp))
+                    .background(Color(0xCC09090B))
+                    .padding(horizontal = 5.dp, vertical = 2.dp)
+                    .clearAndSetSemantics {},
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(2.dp),
+            ) {
+                Text("★", style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp, fontWeight = FontWeight.Bold), color = StarGold)
+                Text(ratingText, style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp, fontWeight = FontWeight.Bold), color = Color.White)
+            }
+        }
         Text(
             item.title,
             style = MaterialTheme.typography.titleSmall,
-            color = tokens.textPrimary,
+            color = Color.White,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
             modifier = Modifier.align(Alignment.BottomStart).padding(10.dp),
@@ -155,26 +349,77 @@ fun LandscapeCard(item: Item, onClick: () -> Unit, onActive: (Color) -> Unit, wi
     }
 }
 
-/** Top 10: big outlined numeral behind/left of the poster. */
+/**
+ * Ranked Chart card (`1`–`10`): bold condensed giant rank numeral anchored cleanly with
+ * high-contrast specular stroke & soft shadow alongside the 2:3 [PosterCard].
+ */
 @Composable
 fun Top10Card(rank: Int, item: Item, onClick: () -> Unit, onActive: (Color) -> Unit, sharedKey: String?) {
     val tokens = Cinetor.tokens
-    Box(Modifier.width(if (rank >= 10) 190.dp else 160.dp).height(168.dp)) {
-        Text(
-            rank.toString(),
-            style = TextStyle(
-                fontSize = 128.sp,
-                fontWeight = FontWeight.Black,
-                letterSpacing = (-8).sp,
-                drawStyle = Stroke(width = 5f, join = StrokeJoin.Round),
+    val posterWidth = 112.dp
+    val posterHeight = 168.dp
+    val cardWidth = if (rank >= 10) 172.dp else 152.dp
+    val rankLabel = rank.toString()
+    val fontSize = if (rank >= 10) 94.sp else 112.sp
+    val letterSpacing = if (rank >= 10) (-6).sp else (-2).sp
+    val fillBrush = remember(tokens.textPrimary, tokens.surfaceElevated) {
+        Brush.verticalGradient(
+            listOf(
+                tokens.textPrimary.copy(alpha = 0.24f),
+                tokens.textPrimary.copy(alpha = 0.06f),
             ),
-            color = tokens.textPrimary.copy(alpha = 0.85f),
-            modifier = Modifier.align(Alignment.BottomStart).offset(y = 26.dp),
         )
+    }
+    val strokeBrush = remember(tokens.textPrimary, tokens.accent) {
+        Brush.verticalGradient(
+            listOf(
+                tokens.textPrimary.copy(alpha = 0.92f),
+                tokens.accent.copy(alpha = 0.80f),
+            ),
+        )
+    }
+    Box(Modifier.width(cardWidth).height(posterHeight)) {
+        Box(
+            modifier = Modifier
+                .align(Alignment.BottomStart)
+                .padding(start = 2.dp)
+                .clearAndSetSemantics {},
+        ) {
+            Text(
+                text = rankLabel,
+                style = TextStyle(
+                    fontFamily = CondensedRankFont,
+                    fontSize = fontSize,
+                    lineHeight = fontSize,
+                    fontWeight = FontWeight.Bold,
+                    letterSpacing = letterSpacing,
+                    brush = fillBrush,
+                    shadow = Shadow(
+                        color = Color.Black.copy(alpha = 0.55f),
+                        offset = Offset(2f, 4f),
+                        blurRadius = 10f,
+                    ),
+                ),
+            )
+            Text(
+                text = rankLabel,
+                style = TextStyle(
+                    fontFamily = CondensedRankFont,
+                    fontSize = fontSize,
+                    lineHeight = fontSize,
+                    fontWeight = FontWeight.Bold,
+                    letterSpacing = letterSpacing,
+                    brush = strokeBrush,
+                    drawStyle = Stroke(width = 4.2f, join = StrokeJoin.Round),
+                ),
+            )
+        }
         PosterCard(
-            item, onClick, onActive,
+            item = item,
+            onClick = onClick,
+            onActive = onActive,
             modifier = Modifier.align(Alignment.BottomEnd),
-            width = 112.dp,
+            width = posterWidth,
             sharedKey = sharedKey,
         )
     }
@@ -185,16 +430,17 @@ fun Top10Card(rank: Int, item: Item, onClick: () -> Unit, onActive: (Color) -> U
 fun ContinueCard(item: Item, onClick: () -> Unit, onActive: (Color) -> Unit, width: Dp = 200.dp) {
     val tokens = Cinetor.tokens
     val height = width * 9f / 16f
-    val entries = com.mythbrix.cinetor.core.ui.LocalResumeEntries.current
+    val entries = LocalResumeEntries.current
     val progress = remember(item.id, entries) {
-        com.mythbrix.cinetor.core.player.progressByItem(entries)[item.id] ?: mockProgress(item.id)
+        progressByItem(entries)[item.id] ?: mockProgress(item.id)
     }
     Column(Modifier.width(width), verticalArrangement = Arrangement.spacedBy(6.dp)) {
         CardFrame(item, onClick, onActive, Modifier.size(width, height)) {
-            AsyncImage(
-                model = rememberSizedImage(item.backdrop, width, height),
-                contentDescription = null,
-                contentScale = ContentScale.Crop,
+            CinetorArtwork(
+                seedKey = item.id,
+                path = item.backdrop.ifBlank { item.poster },
+                width = width,
+                height = height,
                 modifier = Modifier.fillMaxSize(),
             )
             Box(
@@ -202,14 +448,14 @@ fun ContinueCard(item: Item, onClick: () -> Unit, onActive: (Color) -> Unit, wid
                     .align(Alignment.Center)
                     .size(40.dp)
                     .clip(CircleShape)
-                    .background(Color.Black.copy(alpha = 0.55f))
-                    .border(1.dp, Color.White.copy(alpha = 0.5f), CircleShape),
+                    .background(Color.Black.copy(alpha = 0.58f))
+                    .border(1.dp, Color.White.copy(alpha = 0.55f), CircleShape),
                 contentAlignment = Alignment.Center,
             ) {
                 Icon(Icons.Rounded.PlayArrow, contentDescription = null, tint = Color.White)
             }
-            Box(Modifier.align(Alignment.BottomStart).fillMaxWidth().height(4.dp).background(Color.White.copy(alpha = 0.25f))) {
-                Box(Modifier.fillMaxWidth(progress).height(4.dp).background(tokens.accent))
+            Box(Modifier.align(Alignment.BottomStart).fillMaxWidth().height(3.5.dp).background(Color.White.copy(alpha = 0.28f))) {
+                Box(Modifier.fillMaxWidth(progress.coerceIn(0f, 1f)).height(3.5.dp).background(tokens.accent))
             }
         }
         Text(item.title, style = MaterialTheme.typography.labelLarge, color = tokens.textPrimary, maxLines = 1, overflow = TextOverflow.Ellipsis)
@@ -228,10 +474,11 @@ fun CircleCard(item: Item, onClick: () -> Unit, onActive: (Color) -> Unit, size:
     val tokens = Cinetor.tokens
     Column(Modifier.width(size + 8.dp), horizontalAlignment = Alignment.CenterHorizontally) {
         CardFrame(item, onClick, onActive, Modifier.size(size), shape = CircleShape) {
-            AsyncImage(
-                model = rememberSizedImage(item.poster, size, size),
-                contentDescription = null,
-                contentScale = ContentScale.Crop,
+            CinetorArtwork(
+                seedKey = item.id,
+                path = item.poster,
+                width = size,
+                height = size,
                 modifier = Modifier.fillMaxSize(),
             )
         }
@@ -260,12 +507,22 @@ fun ChannelCard(item: Item, onClick: () -> Unit, onActive: (Color) -> Unit, widt
                     Brush.linearGradient(listOf(dominant, Color.Black.copy(alpha = 0.9f))),
                 ),
             )
-            AsyncImage(
-                model = rememberSizedImage(item.logo ?: item.poster, width, height),
-                contentDescription = null,
-                contentScale = if (item.logo != null) ContentScale.Fit else ContentScale.Crop,
-                modifier = Modifier.fillMaxSize().padding(if (item.logo != null) 18.dp else 0.dp),
-            )
+            if (item.logo != null) {
+                AsyncImage(
+                    model = rememberSizedImage(item.logo, width, height),
+                    contentDescription = null,
+                    contentScale = ContentScale.Fit,
+                    modifier = Modifier.fillMaxSize().padding(18.dp),
+                )
+            } else {
+                CinetorArtwork(
+                    seedKey = item.id,
+                    path = item.poster,
+                    width = width,
+                    height = height,
+                    modifier = Modifier.fillMaxSize(),
+                )
+            }
             Row(Modifier.fillMaxWidth().padding(6.dp), horizontalArrangement = Arrangement.SpaceBetween) {
                 if (live) {
                     Text(
