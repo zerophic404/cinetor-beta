@@ -1,7 +1,9 @@
 package com.mythbrix.cinetor.feature.comics
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -19,24 +21,37 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.rounded.Sort
 import androidx.compose.material.icons.rounded.Bookmark
 import androidx.compose.material.icons.rounded.BookmarkBorder
 import androidx.compose.material.icons.rounded.CheckCircle
+import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.MenuBook
+import androidx.compose.material.icons.rounded.Search
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.FilterChip
+import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.material3.TextField
+import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -86,23 +101,28 @@ fun continueTarget(item: Item, store: ComicsData): ContinueTarget? {
     }
 }
 
-/** Comic details: cover, synopsis, genres, bookmark, continue reading, chapter list (skeleton while loading). */
+/** Comic details: cover, synopsis, genres, bookmark, continue reading, sorted/filtered chapter list with progress badges. */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun ComicDetails(id: String, container: AppContainer, contentPadding: PaddingValues) {
     val comics = container.comics
-    // Always starts in Loading: header from the card peek, chapter list = SkeletonChapterList until the item resolves.
+    LaunchedEffect(container) {
+        comics.attachCatalog(container.comicsCatalog) { container.dataSaver }
+    }
+    var reloadTick by remember { mutableIntStateOf(0) }
     var load by remember(id) { mutableStateOf<ComicLoad>(ComicLoad.Loading) }
     val peek = remember(id) { container.peek.get(id) }
-    LaunchedEffect(id) {
+    LaunchedEffect(id, reloadTick) {
+        load = ComicLoad.Loading
         load = try {
             ComicLoad.Ready(container.catalog.item(id))
         } catch (e: CancellationException) {
             throw e
-        } catch (e: Exception) {
-            ComicLoad.Error(e.message ?: "Not found")
+        } catch (_: Exception) {
+            ComicLoad.Error("Could not load comic details.")
         }
     }
+
     val data by comics.store.data.collectAsStateWithLifecycle()
     val dl by comics.downloads.states.collectAsStateWithLifecycle()
     val tokens = Cinetor.tokens
@@ -110,14 +130,41 @@ fun ComicDetails(id: String, container: AppContainer, contentPadding: PaddingVal
     val header = (load as? ComicLoad.Ready)?.item ?: peek
     LaunchedEffect(header?.dominantColor) { header?.let { tint.setSource(hexColor(it.dominantColor)) } }
 
+    var sortName by rememberSaveable(id) { mutableStateOf(ChapterSort.ASCENDING.name) }
+    var filterName by rememberSaveable(id) { mutableStateOf(ChapterFilter.ALL.name) }
+    var chapterQuery by rememberSaveable(id) { mutableStateOf("") }
+    var synopsisExpanded by rememberSaveable(id) { mutableStateOf(false) }
+
+    val sort = runCatching { ChapterSort.valueOf(sortName) }.getOrDefault(ChapterSort.ASCENDING)
+    val filter = runCatching { ChapterFilter.valueOf(filterName) }.getOrDefault(ChapterFilter.ALL)
+
     LazyColumn(
-        contentPadding = PaddingValues(bottom = contentPadding.calculateBottomPadding()),
+        contentPadding = PaddingValues(bottom = contentPadding.calculateBottomPadding() + 16.dp),
         modifier = Modifier.fillMaxSize(),
     ) {
-        item(key = "header") { ComicHeader(header, contentPadding) }
+        item(key = "header") {
+            val readyItem = (load as? ComicLoad.Ready)?.item
+            val summary = remember(readyItem, data) {
+                if (readyItem == null) null else comicReadSummary(readyItem.pages, data, readyItem.id)
+            }
+            ComicHeader(header, summary, contentPadding)
+        }
         when (val l = load) {
             is ComicLoad.Error -> item(key = "error") {
-                Text("Comic not found ($id)", color = tokens.textSecondary, modifier = Modifier.padding(24.dp))
+                Column(
+                    Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 12.dp)
+                        .glass(RoundedCornerShape(18.dp), GlassLevel.SURFACE)
+                        .padding(20.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(10.dp),
+                ) {
+                    Text(l.message, color = tokens.textSecondary, style = MaterialTheme.typography.bodyMedium)
+                    TextButton(onClick = { reloadTick += 1 }) {
+                        Text("Retry", color = tokens.accent, fontWeight = FontWeight.SemiBold)
+                    }
+                }
             }
             ComicLoad.Loading -> item(key = "skeleton") {
                 SkeletonChapterList(Modifier.padding(top = 16.dp), count = 6)
@@ -126,19 +173,45 @@ fun ComicDetails(id: String, container: AppContainer, contentPadding: PaddingVal
                 val item = l.item
                 val target = continueTarget(item, data)
                 val bookmarked = item.id in data.bookmarks
+                val downloadedIds = remember(dl) {
+                    dl.entries.asSequence().filter { it.value == ChapterDownload.Done }.map { it.key }.toSet()
+                }
+                val progressByChapter = remember(data, item.id) {
+                    data.progress.asSequence().filter { it.comicId == item.id }.associateBy { it.chapterId }
+                }
+                val shownChapters = remember(item.pages, data, downloadedIds, chapterQuery, sort, filter) {
+                    filterAndSortChapters(
+                        chapters = item.pages,
+                        data = data,
+                        comicId = item.id,
+                        downloadedIds = downloadedIds,
+                        query = chapterQuery,
+                        sort = sort,
+                        filter = filter,
+                    )
+                }
+
                 item(key = "actions") {
                     Row(
                         Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
                         horizontalArrangement = Arrangement.spacedBy(12.dp),
                     ) {
                         Button(
-                            onClick = { comics.openReader(item, target?.chapterId) },
-                            colors = ButtonDefaults.buttonColors(containerColor = tokens.accent),
+                            onClick = { if (item.pages.isNotEmpty()) comics.openReader(item, target?.chapterId) },
+                            enabled = item.pages.isNotEmpty(),
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = tokens.accent,
+                                contentColor = tokens.onAccent,
+                            ),
                             modifier = Modifier.weight(1f).semantics { contentDescription = "Read" },
                         ) {
                             Icon(Icons.Rounded.MenuBook, contentDescription = null)
                             Spacer(Modifier.width(8.dp))
-                            Text(target?.label ?: "Read", maxLines = 1, overflow = TextOverflow.Ellipsis)
+                            Text(
+                                if (item.pages.isEmpty()) "No chapters yet" else (target?.label ?: "Read"),
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                            )
                         }
                         OutlinedButton(
                             onClick = { comics.store.toggleBookmark(item.id) },
@@ -152,46 +225,185 @@ fun ComicDetails(id: String, container: AppContainer, contentPadding: PaddingVal
                         }
                     }
                 }
-                item(key = "synopsis") {
-                    Column(Modifier.padding(horizontal = 16.dp, vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                        Text(item.synopsis, style = MaterialTheme.typography.bodyMedium, color = tokens.textSecondary)
-                        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                            item.genres.forEach { g ->
+
+                if (item.synopsis.isNotBlank() || item.genres.isNotEmpty()) {
+                    item(key = "synopsis") {
+                        Column(
+                            Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+                            verticalArrangement = Arrangement.spacedBy(10.dp),
+                        ) {
+                            if (item.synopsis.isNotBlank()) {
                                 Text(
-                                    g,
-                                    style = MaterialTheme.typography.labelMedium,
-                                    color = tokens.textPrimary,
-                                    modifier = Modifier
-                                        .glass(RoundedCornerShape(50), GlassLevel.SURFACE)
-                                        .padding(horizontal = 12.dp, vertical = 6.dp),
+                                    item.synopsis,
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = tokens.textSecondary,
+                                    maxLines = if (synopsisExpanded) Int.MAX_VALUE else 3,
+                                    overflow = TextOverflow.Ellipsis,
                                 )
+                                if (item.synopsis.length > 160) {
+                                    Text(
+                                        if (synopsisExpanded) "Show less" else "Show more",
+                                        style = MaterialTheme.typography.labelLarge,
+                                        color = tokens.accent,
+                                        modifier = Modifier.clickable { synopsisExpanded = !synopsisExpanded },
+                                    )
+                                }
+                            }
+                            if (item.genres.isNotEmpty()) {
+                                FlowRow(
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                                ) {
+                                    item.genres.forEach { g ->
+                                        Text(
+                                            g,
+                                            style = MaterialTheme.typography.labelMedium,
+                                            color = tokens.textPrimary,
+                                            modifier = Modifier
+                                                .glass(RoundedCornerShape(50), GlassLevel.SURFACE)
+                                                .padding(horizontal = 12.dp, vertical = 6.dp),
+                                        )
+                                    }
+                                }
                             }
                         }
                     }
                 }
-                item(key = "chapters-title") {
-                    Row(Modifier.padding(horizontal = 16.dp, vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
-                        Text(
-                            "${item.pages.size} chapters",
-                            style = MaterialTheme.typography.titleMedium,
-                            color = tokens.textPrimary,
-                            modifier = Modifier.weight(1f),
-                        )
-                        Text(
-                            (comics.store.modeOverride(item.id) ?: defaultReaderMode(item)).label,
-                            style = MaterialTheme.typography.labelMedium,
-                            color = tokens.textSecondary,
-                        )
+
+                item(key = "chapters-controls") {
+                    Column(
+                        Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Column(Modifier.weight(1f)) {
+                                Text(
+                                    if (shownChapters.size == item.pages.size) {
+                                        "${item.pages.size} chapters"
+                                    } else {
+                                        "${shownChapters.size} of ${item.pages.size} chapters"
+                                    },
+                                    style = MaterialTheme.typography.titleMedium,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = tokens.textPrimary,
+                                )
+                                Text(
+                                    (comics.store.modeOverride(item.id) ?: defaultReaderMode(item)).label,
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = tokens.textSecondary,
+                                )
+                            }
+                            if (item.pages.size > 1) {
+                                Row(
+                                    Modifier
+                                        .glass(CircleShape, GlassLevel.SURFACE)
+                                        .clickable {
+                                            sortName = if (sort == ChapterSort.ASCENDING) {
+                                                ChapterSort.DESCENDING.name
+                                            } else {
+                                                ChapterSort.ASCENDING.name
+                                            }
+                                        }
+                                        .semantics { contentDescription = "Sort chapters" }
+                                        .padding(horizontal = 12.dp, vertical = 7.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(4.dp),
+                                ) {
+                                    Icon(
+                                        Icons.AutoMirrored.Rounded.Sort,
+                                        contentDescription = null,
+                                        tint = tokens.accent,
+                                        modifier = Modifier.size(16.dp),
+                                    )
+                                    Text(
+                                        sort.label,
+                                        style = MaterialTheme.typography.labelMedium,
+                                        color = tokens.textPrimary,
+                                    )
+                                }
+                            }
+                        }
+
+                        if (item.pages.isNotEmpty()) {
+                            Row(
+                                Modifier.horizontalScroll(rememberScrollState()),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            ) {
+                                ChapterFilter.entries.forEach { entry ->
+                                    FilterChip(
+                                        selected = filter == entry,
+                                        onClick = { filterName = entry.name },
+                                        label = { Text(entry.label) },
+                                        colors = FilterChipDefaults.filterChipColors(
+                                            selectedContainerColor = tokens.accent,
+                                            selectedLabelColor = tokens.onAccent,
+                                        ),
+                                    )
+                                }
+                            }
+                        }
+
+                        if (item.pages.size > 8) {
+                            TextField(
+                                value = chapterQuery,
+                                onValueChange = { chapterQuery = it.take(30) },
+                                singleLine = true,
+                                leadingIcon = {
+                                    Icon(Icons.Rounded.Search, contentDescription = null, tint = tokens.textSecondary)
+                                },
+                                trailingIcon = {
+                                    if (chapterQuery.isNotEmpty()) {
+                                        IconButton(onClick = { chapterQuery = "" }) {
+                                            Icon(Icons.Rounded.Close, contentDescription = "Clear chapter filter", tint = tokens.textSecondary)
+                                        }
+                                    }
+                                },
+                                placeholder = { Text("Jump to chapter…", color = tokens.textSecondary) },
+                                colors = TextFieldDefaults.colors(
+                                    focusedContainerColor = Color.Transparent,
+                                    unfocusedContainerColor = Color.Transparent,
+                                    focusedIndicatorColor = Color.Transparent,
+                                    unfocusedIndicatorColor = Color.Transparent,
+                                    cursorColor = tokens.accent,
+                                    focusedTextColor = tokens.textPrimary,
+                                    unfocusedTextColor = tokens.textPrimary,
+                                ),
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .glass(RoundedCornerShape(14.dp), GlassLevel.SURFACE),
+                            )
+                        }
                     }
                 }
-                items(item.pages, key = { it.id }) { ch ->
-                    ChapterRow(
-                        chapter = ch,
-                        progress = data.progress.firstOrNull { it.comicId == item.id && it.chapterId == ch.id },
-                        download = dl[ch.id],
-                        onOpen = { comics.openReader(item, ch.id) },
-                        onDownload = { comics.downloads.download(item, ch) },
-                    )
+
+                if (item.pages.isEmpty()) {
+                    item(key = "chapters-empty") {
+                        Text(
+                            "No readable English chapters are available for this title right now.",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = tokens.textSecondary,
+                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
+                        )
+                    }
+                } else if (shownChapters.isEmpty()) {
+                    item(key = "chapters-filtered-empty") {
+                        Text(
+                            "No chapters match the current filter.",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = tokens.textSecondary,
+                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
+                        )
+                    }
+                } else {
+                    items(shownChapters, key = { it.id }) { ch ->
+                        ChapterRow(
+                            chapter = ch,
+                            progress = progressByChapter[ch.id],
+                            download = dl[ch.id],
+                            onOpen = { comics.openReader(item, ch.id) },
+                            onDownload = { comics.downloads.download(item, ch) },
+                        )
+                    }
                 }
             }
         }
@@ -199,10 +411,10 @@ fun ComicDetails(id: String, container: AppContainer, contentPadding: PaddingVal
 }
 
 @Composable
-private fun ComicHeader(item: Item?, contentPadding: PaddingValues) {
+private fun ComicHeader(item: Item?, summary: ComicReadSummary?, contentPadding: PaddingValues) {
     val tokens = Cinetor.tokens
     Box(Modifier.fillMaxWidth().height(340.dp)) {
-        if (item != null) {
+        if (item != null && item.backdrop.isNotBlank()) {
             AsyncImage(
                 model = AssetUris.of(item.backdrop),
                 contentDescription = null,
@@ -212,11 +424,18 @@ private fun ComicHeader(item: Item?, contentPadding: PaddingValues) {
         }
         Box(
             Modifier.fillMaxSize().background(
-                Brush.verticalGradient(listOf(Color.Black.copy(alpha = 0.35f), Color.Transparent, tokens.bg)),
+                Brush.verticalGradient(
+                    0f to Color.Black.copy(alpha = 0.35f),
+                    0.5f to tokens.bg.copy(alpha = 0.45f),
+                    1f to tokens.bg,
+                ),
             ),
         )
         Row(
-            Modifier.align(Alignment.BottomStart).padding(16.dp).padding(top = contentPadding.calculateTopPadding()),
+            Modifier
+                .align(Alignment.BottomStart)
+                .padding(16.dp)
+                .padding(top = contentPadding.calculateTopPadding()),
             horizontalArrangement = Arrangement.spacedBy(14.dp),
             verticalAlignment = Alignment.Bottom,
         ) {
@@ -224,10 +443,11 @@ private fun ComicHeader(item: Item?, contentPadding: PaddingValues) {
                 Modifier
                     .width(112.dp)
                     .aspectRatio(2f / 3f)
-                    .clip(RoundedCornerShape(12.dp))
-                    .background(tokens.skeletonBase),
+                    .clip(RoundedCornerShape(14.dp))
+                    .background(tokens.skeletonBase)
+                    .border(1.dp, tokens.glassStroke, RoundedCornerShape(14.dp)),
             ) {
-                if (item != null) {
+                if (item != null && item.poster.isNotBlank()) {
                     AsyncImage(
                         model = rememberSizedImage(item.poster, 112.dp, 168.dp),
                         contentDescription = item.title,
@@ -236,7 +456,7 @@ private fun ComicHeader(item: Item?, contentPadding: PaddingValues) {
                     )
                 }
             }
-            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 Text(
                     item?.title ?: "",
                     style = MaterialTheme.typography.titleLarge,
@@ -245,12 +465,32 @@ private fun ComicHeader(item: Item?, contentPadding: PaddingValues) {
                     maxLines = 3,
                     overflow = TextOverflow.Ellipsis,
                 )
-                item?.artist?.let { Text(it, style = MaterialTheme.typography.bodyMedium, color = tokens.textSecondary) }
+                item?.artist?.let {
+                    Text(it, style = MaterialTheme.typography.bodyMedium, color = tokens.textSecondary)
+                }
                 if (item != null) {
+                    val metaParts = buildList {
+                        add(categoryLabel(item))
+                        if (item.year > 0) add(item.year.toString())
+                        if (item.rating > 0.0) add("★ %.1f".format(java.util.Locale.US, item.rating))
+                        if (item.maturity.isNotBlank() && item.maturity != "All") add(item.maturity)
+                    }
                     Text(
-                        "${item.year} · ★ ${item.rating} · ${categoryLabel(item)}",
+                        metaParts.joinToString(" · "),
                         style = MaterialTheme.typography.labelMedium,
                         color = tokens.textSecondary,
+                    )
+                }
+                summary?.badgeLabel?.let { badge ->
+                    Text(
+                        badge,
+                        style = MaterialTheme.typography.labelSmall,
+                        fontWeight = FontWeight.SemiBold,
+                        color = tokens.onAccent,
+                        modifier = Modifier
+                            .clip(CircleShape)
+                            .background(tokens.accent)
+                            .padding(horizontal = 10.dp, vertical = 4.dp),
                     )
                 }
             }
@@ -274,37 +514,87 @@ private fun ChapterRow(
     onDownload: () -> Unit,
 ) {
     val tokens = Cinetor.tokens
+    val isRead = progress?.read == true
+    val isInProgress = progress != null && !progress.read
+    val badgeBg = when {
+        isRead -> tokens.success.copy(alpha = 0.16f)
+        isInProgress -> tokens.accent.copy(alpha = 0.16f)
+        else -> tokens.glassFill
+    }
     Row(
         Modifier
             .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 4.dp)
+            .glass(RoundedCornerShape(16.dp), GlassLevel.SURFACE)
             .clickable(onClick = onOpen)
             .semantics { contentDescription = "Chapter ${chapter.n}" }
-            .padding(horizontal = 16.dp, vertical = 8.dp),
+            .padding(horizontal = 12.dp, vertical = 10.dp),
         horizontalArrangement = Arrangement.spacedBy(12.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Box(Modifier.size(48.dp, 64.dp).clip(RoundedCornerShape(8.dp)).background(tokens.skeletonBase)) {
-            chapter.pages.firstOrNull()?.let { p ->
+        val thumb = chapter.pages.firstOrNull()
+        Box(
+            Modifier
+                .size(44.dp, 56.dp)
+                .clip(RoundedCornerShape(10.dp))
+                .background(badgeBg),
+            contentAlignment = Alignment.Center,
+        ) {
+            if (thumb != null) {
                 AsyncImage(
-                    model = rememberSizedImage(p, 48.dp, 64.dp),
+                    model = rememberSizedImage(thumb, 44.dp, 56.dp),
                     contentDescription = null,
                     contentScale = ContentScale.Crop,
                     modifier = Modifier.fillMaxSize(),
                 )
+            } else {
+                Text(
+                    if (chapter.n > 0) "#${chapter.n}" else "•",
+                    style = MaterialTheme.typography.labelLarge,
+                    fontWeight = FontWeight.Bold,
+                    color = when {
+                        isRead -> tokens.success
+                        isInProgress -> tokens.accent
+                        else -> tokens.textSecondary
+                    },
+                )
             }
         }
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            Text(chapter.title, style = MaterialTheme.typography.titleSmall, color = tokens.textPrimary)
-            val sub = when {
-                progress == null -> "${chapter.pages.size} pages"
-                progress.read -> "Read"
-                else -> "Page ${progress.page + 1} of ${progress.pageCount}"
+            Text(
+                chapter.title,
+                style = MaterialTheme.typography.titleSmall,
+                fontWeight = FontWeight.Medium,
+                color = if (isRead) tokens.textSecondary else tokens.textPrimary,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+            ) {
+                if (isRead) {
+                    Icon(
+                        Icons.Rounded.CheckCircle,
+                        contentDescription = null,
+                        tint = tokens.success,
+                        modifier = Modifier.size(14.dp),
+                    )
+                }
+                Text(
+                    chapterStatusBadge(chapter, progress),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = if (isInProgress) tokens.accent else tokens.textSecondary,
+                )
+                if (download == ChapterDownload.Done) {
+                    Text(
+                        "· Saved offline",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = tokens.success,
+                    )
+                }
             }
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                if (progress?.read == true) Icon(Icons.Rounded.CheckCircle, null, tint = tokens.success, modifier = Modifier.size(14.dp))
-                Text(sub, style = MaterialTheme.typography.bodySmall, color = tokens.textSecondary)
-            }
-            if (progress != null && !progress.read) {
+            if (isInProgress && progress != null) {
                 LinearProgressIndicator(
                     progress = { progress.fraction },
                     color = tokens.accent,

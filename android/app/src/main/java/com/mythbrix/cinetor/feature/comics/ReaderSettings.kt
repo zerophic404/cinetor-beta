@@ -23,6 +23,8 @@ import androidx.compose.material.icons.rounded.CheckCircle
 import androidx.compose.material.icons.rounded.Download
 import androidx.compose.material.icons.rounded.DownloadDone
 import androidx.compose.material.icons.rounded.ErrorOutline
+import androidx.compose.material.icons.rounded.HighQuality
+import androidx.compose.material.icons.rounded.Refresh
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -32,6 +34,7 @@ import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
@@ -39,18 +42,21 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.mythbrix.cinetor.design.Cinetor
 import com.mythbrix.cinetor.design.GlassLevel
 import com.mythbrix.cinetor.design.glass
 
-/** Glass bottom panel: reading mode override + brightness. */
+/** Liquid Glass bottom panel: reading mode override, data-saver / server switch, and brightness. */
 @Composable
 fun ReaderSettingsPanel(
     visible: Boolean,
     state: ReaderState,
     onMode: (ReaderMode) -> Unit,
     onBrightness: (Float?) -> Unit,
+    onDataSaverPages: (Boolean) -> Unit = {},
+    onSwitchServer: () -> Unit = {},
     onDismiss: () -> Unit,
 ) {
     val tokens = Cinetor.tokens
@@ -77,7 +83,12 @@ fun ReaderSettingsPanel(
                     .padding(16.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp),
             ) {
-                Text("Reading mode", style = MaterialTheme.typography.titleMedium, color = tokens.textPrimary)
+                Text(
+                    "Reading mode",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.SemiBold,
+                    color = tokens.textPrimary,
+                )
                 ReaderMode.entries.forEach { m ->
                     val selected = m == state.mode
                     Row(
@@ -99,7 +110,41 @@ fun ReaderSettingsPanel(
                         if (selected) Icon(Icons.Rounded.CheckCircle, contentDescription = null, tint = tokens.accent)
                     }
                 }
-                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(top = 8.dp)) {
+
+                if (MangaDexChapterCheck.isRemoteComic(state.comic.id)) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
+                    ) {
+                        Icon(Icons.Rounded.HighQuality, contentDescription = null, tint = tokens.textSecondary)
+                        Column(Modifier.padding(start = 10.dp).weight(1f)) {
+                            Text("Data-saver pages", color = tokens.textPrimary, style = MaterialTheme.typography.bodyLarge)
+                            Text("Faster compressed pages on slow networks", color = tokens.textSecondary, style = MaterialTheme.typography.bodySmall)
+                        }
+                        Switch(
+                            checked = state.dataSaverPages,
+                            onCheckedChange = onDataSaverPages,
+                            colors = SwitchDefaults.colors(checkedTrackColor = tokens.accent),
+                        )
+                    }
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.fillMaxWidth(),
+                    ) {
+                        Icon(Icons.Rounded.Refresh, contentDescription = null, tint = tokens.textSecondary)
+                        Text(
+                            if (state.usingBackupServer) "Backup server active" else "Pages loading slowly?",
+                            color = tokens.textPrimary,
+                            style = MaterialTheme.typography.bodyMedium,
+                            modifier = Modifier.padding(start = 10.dp).weight(1f),
+                        )
+                        TextButton(onClick = onSwitchServer) {
+                            Text("Switch server", color = tokens.accent, fontWeight = FontWeight.SemiBold)
+                        }
+                    }
+                }
+
+                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(top = 4.dp)) {
                     Icon(Icons.Rounded.Brightness6, contentDescription = null, tint = tokens.textSecondary)
                     Text("Brightness", color = tokens.textPrimary, modifier = Modifier.padding(start = 10.dp).weight(1f))
                     Text("Auto", color = tokens.textSecondary, style = MaterialTheme.typography.bodySmall)
@@ -122,6 +167,10 @@ fun ReaderSettingsPanel(
             }
         }
     }
+}
+
+private object MangaDexChapterCheck {
+    fun isRemoteComic(id: String): Boolean = id.startsWith("cm:")
 }
 
 /** Chapter download button with progress / done / failed states. */
