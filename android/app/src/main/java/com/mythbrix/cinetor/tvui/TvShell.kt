@@ -1,5 +1,7 @@
 package com.mythbrix.cinetor.tvui
 
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.focusGroup
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -13,14 +15,19 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import com.mythbrix.cinetor.design.Cinetor
+import com.mythbrix.cinetor.design.CinetorTokens
 import kotlinx.coroutines.delay
 
 /** Incremented when the TV player closes; TV screens re-run their focus restore on change. */
@@ -30,9 +37,9 @@ val LocalTvRefocus = androidx.compose.runtime.compositionLocalOf { 0 }
 fun overscanMargin(sizeDp: Dp): Dp = sizeDp * 0.05f
 
 /**
- * 10-foot shell: 5% overscan margins, glass [TvSideNav] on the left (collapsed icons; expands over
- * the content while focused), content on the right. Menu key → [onMenu] (settings).
- * D-pad with nothing focused (fresh screen) → focus enters the content.
+ * 10-foot shell: 5% overscan margins, Liquid Glass [TvSideNav] on the left (collapsed icons;
+ * expands smoothly over a dimmed content backdrop while focused), content on the right.
+ * Menu key → [onMenu] (Settings). D-pad with nothing focused → enters content cleanly.
  */
 @Composable
 fun TvShell(
@@ -48,16 +55,23 @@ fun TvShell(
     val contentFocus = remember { FocusRequester() }
     var contentHasFocus by remember { mutableStateOf(false) }
     var navHasFocus by remember { mutableStateOf(false) }
-    // New destination: if nothing claimed focus (screens without their own initial focus), enter content.
-    // (Screens with their own focus restore — TV home — claim focus first; this is the fallback.)
-    // Retried: during the nav transition the outgoing screen is still composed (its cards can grab
-    // focus and then vanish, which drops focus into the side nav).
+    val prefs = Cinetor.prefs
+    val tier = Cinetor.tier
+    val scrimAlpha by animateFloatAsState(
+        targetValue = if (navHasFocus) 0.45f else 0f,
+        animationSpec = tween(if (prefs.reduceMotion) 0 else tier.scaled(CinetorTokens.Motion.mediumMs)),
+        label = "tvNavBackdropScrim",
+    )
+
+    // New destination or player closed: ensure focus enters content once NavHost animations settle.
     LaunchedEffect(routeKey, refocusKey) {
-        repeat(4) {
-            delay(400)
+        val waits = longArrayOf(260L, 320L, 400L, 450L)
+        for (waitMs in waits) {
+            delay(waitMs)
             if (!contentHasFocus) runCatching { contentFocus.requestFocus() }
         }
     }
+
     BoxWithConstraints(
         Modifier
             .fillMaxSize()
@@ -87,7 +101,24 @@ fun TvShell(
                     .onFocusChanged { contentHasFocus = it.hasFocus }
                     .focusRequester(contentFocus)
                     .focusGroup(),
-            ) { content() }
+            ) {
+                content()
+            }
+            if (scrimAlpha > 0.01f) {
+                Box(
+                    Modifier
+                        .fillMaxSize()
+                        .drawBehind {
+                            drawRect(
+                                Brush.horizontalGradient(
+                                    0f to Color.Black.copy(alpha = scrimAlpha),
+                                    0.45f to Color.Black.copy(alpha = scrimAlpha * 0.55f),
+                                    1f to Color.Transparent,
+                                ),
+                            )
+                        },
+                )
+            }
             TvSideNav(
                 entries = entries,
                 selected = selected,
