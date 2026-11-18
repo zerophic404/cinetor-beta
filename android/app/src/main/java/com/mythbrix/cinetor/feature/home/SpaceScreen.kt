@@ -69,6 +69,7 @@ import androidx.lifecycle.viewmodel.viewModelFactory
 import com.mythbrix.cinetor.core.data.AppContainer
 import com.mythbrix.cinetor.core.data.Item
 import com.mythbrix.cinetor.core.data.Space
+import com.mythbrix.cinetor.core.player.Readiness
 import com.mythbrix.cinetor.core.ui.posterKey
 import com.mythbrix.cinetor.design.Cinetor
 import com.mythbrix.cinetor.design.CinetorTokens
@@ -81,11 +82,13 @@ import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.filter
 
 private const val HERO_KEY = "hero"
+private const val HERO_AUTOPLAY_ORIGIN = "autoplay"
 
 /**
- * Shared screen for every space: category tabs + Movira 3D hero deck + genre chips + styled shelves
+ * Shared screen for every space: category tabs + Cinetor Beta showcase hero + genre chips + styled shelves
  * + Liquid Glass "See all" endless grid overlay.
- * [onOpenItem] gets the item and the shared-element key of the poster that was tapped (or null).
+ * [onOpenItem] gets the item and the shared-element key of the poster that was tapped (or `"autoplay"`
+ * when Hero `Play` triggers inline playback inside `DetailsScreen`).
  */
 @Composable
 fun SpaceScreen(
@@ -93,6 +96,7 @@ fun SpaceScreen(
     container: AppContainer,
     contentPadding: PaddingValues,
     onOpenItem: (Item, String?) -> Unit,
+    onPlayItem: ((Item) -> Unit)? = null,
 ) {
     val vm: SpaceViewModel = viewModel(
         key = "space-${space.name}",
@@ -100,6 +104,7 @@ fun SpaceScreen(
     )
     val state by vm.state.collectAsStateWithLifecycle()
     val myList by container.myList.collectAsStateWithLifecycle()
+    val readinessMap by container.preloader.readiness.collectAsStateWithLifecycle()
     val feeder = rememberTintFeeder()
     val fadeMs = Cinetor.tier.scaled(CinetorTokens.Motion.longMs)
     AnimatedContent(
@@ -112,15 +117,23 @@ fun SpaceScreen(
             SpaceUiState.Loading -> SpaceSkeleton(contentPadding)
             is SpaceUiState.Error -> SpaceErrorState(message = s.message, onRetry = vm::load)
             is SpaceUiState.Ready -> SpaceContent(
+                space = space,
                 ui = s.ui,
                 myList = myList,
+                readinessMap = readinessMap,
                 contentPadding = contentPadding,
                 feeder = feeder,
                 onOpen = onOpenItem,
                 onSelectTab = vm::selectTab,
                 onSelectGenre = vm::selectGenre,
                 onToggleMyList = { container.toggleMyList(it) },
-                onPlay = { container.playback.play(it) },
+                onPlay = { item ->
+                    when {
+                        onPlayItem != null -> onPlayItem(item)
+                        space.isVideo -> onOpenItem(item, HERO_AUTOPLAY_ORIGIN)
+                        else -> container.playback.play(item)
+                    }
+                },
                 onLoadMore = vm::loadMore,
                 onSeeAll = vm::openSeeAll,
                 onCloseSeeAll = vm::closeSeeAll,
@@ -173,8 +186,10 @@ private fun SpaceSkeleton(contentPadding: PaddingValues) {
 
 @Composable
 private fun SpaceContent(
+    space: Space,
     ui: SpaceUi,
     myList: Set<String>,
+    readinessMap: Map<String, Readiness>,
     contentPadding: PaddingValues,
     feeder: TintFeeder,
     onOpen: (Item, String?) -> Unit,
@@ -190,6 +205,38 @@ private fun SpaceContent(
     val heroVisible by remember {
         derivedStateOf { listState.layoutInfo.visibleItemsInfo.any { it.key == HERO_KEY } }
     }
+
+    // Space.HOME never exposes regional drama tabs/rows ("Indian Dramas", "Bengali", etc. live in Space.DRAMA).
+    val indexedTabs = remember(space, ui.tabs) {
+        if (space == Space.HOME) {
+            ui.tabs.withIndex().filterNot { (_, t) ->
+                isExcludedFromHomeSpace(t.title) || isExcludedFromHomeSpace(t.id)
+            }
+        } else {
+            ui.tabs.withIndex().toList()
+        }
+    }
+    val visibleTabs = remember(indexedTabs) { indexedTabs.map { it.value } }
+    val visibleSelectedTab = remember(indexedTabs, ui.selectedTab) {
+        indexedTabs.indexOfFirst { it.index == ui.selectedTab }.coerceAtLeast(0)
+    }
+    LaunchedEffect(space, indexedTabs, ui.selectedTab) {
+        if (space == Space.HOME && indexedTabs.isNotEmpty() && indexedTabs.none { it.index == ui.selectedTab }) {
+            onSelectTab(indexedTabs.first().index)
+        }
+    }
+
+    val visibleRows = remember(space, ui.rows) {
+        if (space == Space.HOME) {
+            ui.rows.filterNot { r -> isExcludedFromHomeSpace(r.title) || isExcludedFromHomeSpace(r.id) }
+        } else {
+            ui.rows
+        }
+    }
+    val visibleGenres = remember(space, ui.genres) {
+        if (space == Space.HOME) ui.genres.filterNot(::isExcludedFromHomeSpace) else ui.genres
+    }
+
     val heroKey = remember(ui.heroes) { ui.heroes.joinToString(",") { it.id } }
     val onTint: (Color) -> Unit = remember(feeder) { { c -> feeder.offer(c) } }
     val seeAllRow = ui.seeAllRow
@@ -201,12 +248,18 @@ private fun SpaceContent(
         LazyColumn(
             state = listState,
             contentPadding = contentPadding,
-            verticalArrangement = Arrangement.spacedBy(16.dp),
+            verticalArrangement = Arrangement.spacedBy(18.dp),
             modifier = Modifier.fillMaxSize(),
         ) {
-            if (ui.showTabs) {
+            if (visibleTabs.size > 1) {
                 item(key = "tabs", contentType = "tabs") {
-                    CategoryTabs(ui.tabs, ui.selectedTab, onSelectTab)
+                    CategoryTabs(
+                        tabs = visibleTabs,
+                        selected = visibleSelectedTab,
+                        onSelect = { visibleIdx ->
+                            indexedTabs.getOrNull(visibleIdx)?.let { onSelectTab(it.index) }
+                        },
+                    )
                 }
             }
             item(key = HERO_KEY, contentType = HERO_KEY) {
@@ -219,12 +272,13 @@ private fun SpaceContent(
                         onPlay = onPlay,
                         onToggleMyList = onToggleMyList,
                         onColor = feeder::immediate,
+                        isReady = { item -> readinessMap[item.id] == Readiness.READY || item.sources.isNotEmpty() },
                     )
                 }
             }
-            if (ui.genres.isNotEmpty()) {
+            if (visibleGenres.isNotEmpty()) {
                 item(key = "genres", contentType = "genres") {
-                    GenreChips(ui.genres, ui.selectedGenre, onSelectGenre)
+                    GenreChips(visibleGenres, ui.selectedGenre, onSelectGenre)
                 }
             }
             if (ui.tabLoading) {
@@ -232,7 +286,7 @@ private fun SpaceContent(
                     SkeletonPosterRow()
                 }
             } else {
-                items(ui.rows, key = { it.id }, contentType = { it.style }) { row ->
+                items(visibleRows, key = { it.id }, contentType = { it.style }) { row ->
                     val nearEnd = remember(row.id, onLoadMore) { { onLoadMore(row.id) } }
                     val openAll = remember(row.id, onSeeAll) { { onSeeAll(row.id) } }
                     ContentRow(
@@ -243,7 +297,7 @@ private fun SpaceContent(
                         onSeeAll = openAll,
                     )
                 }
-                if (ui.rows.isEmpty()) {
+                if (visibleRows.isEmpty()) {
                     item(key = "empty", contentType = "empty") {
                         Text(
                             "Nothing in ${ui.selectedGenre ?: "this category"} yet",
@@ -366,10 +420,10 @@ private fun SeeAllGridOverlay(
                     start = hPad,
                     end = hPad,
                     top = 6.dp,
-                    bottom = contentPadding.calculateBottomPadding() + 24.dp,
+                    bottom = contentPadding.calculateBottomPadding() + 28.dp,
                 ),
                 horizontalArrangement = Arrangement.spacedBy(spacing),
-                verticalArrangement = Arrangement.spacedBy(12.dp),
+                verticalArrangement = Arrangement.spacedBy(14.dp),
                 modifier = Modifier.fillMaxSize(),
             ) {
                 items(row.items, key = { it.id }, contentType = { "poster" }) { item ->

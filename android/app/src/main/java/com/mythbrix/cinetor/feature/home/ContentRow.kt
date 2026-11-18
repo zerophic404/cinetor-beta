@@ -62,8 +62,9 @@ fun shouldLoadMoreRow(lastVisibleIndex: Int, totalItems: Int): Boolean =
 
 /**
  * One horizontal shelf in any of the 6 styles, featuring Movira-style section headers
- * (`3.dp x 16.dp` vertical Cinema Red bar + bold title + optional `See all` trigger)
- * and endless horizontal `onNearEnd` pagination (`PagedCatalog`).
+ * (`3.dp x 16.dp` vertical Cinema Red bar + bold title + optional `See all` trigger),
+ * unnumbered `TOP10` poster shelves, unclipped titles below every card, and endless
+ * horizontal `onNearEnd` pagination (`PagedCatalog`).
  */
 @Composable
 fun ContentRow(
@@ -85,14 +86,13 @@ fun ContentRow(
                 val real = space?.let { s -> continueEntries(resumeEntries, s).map { it.toCardItem() } }.orEmpty()
                 (real + row.items).distinctBy { it.id }
             }
-            RowStyle.TOP10 -> row.items.distinctBy { it.id }.take(10)
-            else -> row.items
+            else -> row.items.distinctBy { it.id }
         }
     }
     if (rowItems.isEmpty()) return
 
     val state = rememberLazyListState()
-    if (onNearEnd != null && row.style != RowStyle.TOP10 && row.style != RowStyle.CONTINUE) {
+    if (onNearEnd != null && row.style != RowStyle.CONTINUE) {
         val latestNearEnd by rememberUpdatedState(onNearEnd)
         LaunchedEffect(state, rowItems.size) {
             snapshotFlow {
@@ -168,11 +168,12 @@ fun ContentRow(
                 }
             }
         }
-        Spacer(Modifier.height(4.dp))
+        Spacer(Modifier.height(6.dp))
         LazyRow(
             state = state,
-            contentPadding = PaddingValues(horizontal = 16.dp, vertical = 10.dp),
-            horizontalArrangement = Arrangement.spacedBy(if (row.style == RowStyle.TOP10) 8.dp else 12.dp),
+            contentPadding = PaddingValues(start = 16.dp, top = 6.dp, end = 16.dp, bottom = 6.dp),
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+            verticalAlignment = Alignment.Top,
         ) {
             itemsIndexed(rowItems, key = { _, it -> it.id }, contentType = { _, _ -> row.style }) { index, item ->
                 val key = posterKey(row.id, item.id)
@@ -180,7 +181,7 @@ fun ContentRow(
                 val openPlain = { onOpen(item, null) }
                 when (row.style) {
                     RowStyle.POSTER -> PosterCard(item, open, onTint, sharedKey = key)
-                    RowStyle.LANDSCAPE -> LandscapeCard(item, openPlain, onTint)
+                    RowStyle.LANDSCAPE -> WideCard(item, openPlain, onTint)
                     RowStyle.TOP10 -> Top10Card(index + 1, item, open, onTint, sharedKey = key)
                     RowStyle.CONTINUE -> ContinueCard(item, openPlain, onTint)
                     RowStyle.CIRCLE -> CircleCard(item, openPlain, onTint)
