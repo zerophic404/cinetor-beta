@@ -69,13 +69,9 @@ jobs:
       - name: Unit tests
         run: gradle --no-daemon --stacktrace testDebugUnitTest
 
-      - name: Upload test reports
+      - name: Summarize failed unit tests
         if: failure()
-        uses: actions/upload-artifact@v4
-        with:
-          name: test-reports
-          path: android/app/build/reports/tests
-          retention-days: 7
+        run: grep -rn -C 4 '<failure' app/build/test-results/testDebugUnitTest/*.xml || true
 
       - name: Collect + verify APKs
         run: |
@@ -127,25 +123,11 @@ jobs:
           done
           true
 
-      - uses: actions/upload-artifact@v4
+      - name: Cache signed release APKs for smoke & release jobs
+        uses: actions/cache/save@v4
         with:
-          name: apk
-          path: android/out/*.apk
-          retention-days: 30
-
-      - uses: actions/upload-artifact@v4
-        with:
-          name: apk-debug
-          path: android/out-debug/*.apk
-          retention-days: 14
-
-      - uses: actions/upload-artifact@v4
-        with:
-          name: r8-mapping-and-compose-reports
-          path: |
-            android/app/build/outputs/mapping/release/mapping.txt
-            android/app/build/compose-reports
-          retention-days: 30
+          path: android/out
+          key: android-apk-${{ github.run_id }}-${{ github.run_attempt }}
 
   emulator-smoke:
     needs: build
@@ -154,10 +136,15 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - uses: actions/download-artifact@v4
+      - name: Restore signed release APKs
+        uses: actions/cache/restore@v4
         with:
-          name: apk
-          path: apk
+          path: android/out
+          key: android-apk-${{ github.run_id }}-${{ github.run_attempt }}
+          fail-on-cache-miss: true
+
+      - name: Prepare apk directory
+        run: mkdir -p apk && cp android/out/*.apk apk/ && ls -la apk
 
       - name: Enable KVM
         run: |
@@ -178,12 +165,11 @@ jobs:
           emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none -no-snapshot -no-metrics -dns-server 8.8.8.8,1.1.1.1
           script: bash .github/scripts/emulator-smoke.sh apk shots
 
-      - uses: actions/upload-artifact@v4
+      - name: Summarize phone smoke screenshots
         if: always()
-        with:
-          name: emulator-screenshots
-          path: shots
-          retention-days: 14
+        run: |
+          echo "### Phone Smoke Screenshots ($(ls -1 shots/*.png 2>/dev/null | wc -l))" >> "$GITHUB_STEP_SUMMARY"
+          ls -lh shots/*.png || true
 
   tv-smoke:
     needs: build
@@ -192,10 +178,15 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - uses: actions/download-artifact@v4
+      - name: Restore signed release APKs
+        uses: actions/cache/restore@v4
         with:
-          name: apk
-          path: apk
+          path: android/out
+          key: android-apk-${{ github.run_id }}-${{ github.run_attempt }}
+          fail-on-cache-miss: true
+
+      - name: Prepare apk directory
+        run: mkdir -p apk && cp android/out/*.apk apk/ && ls -la apk
 
       - name: Enable KVM
         run: |
@@ -216,22 +207,26 @@ jobs:
           emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none -no-snapshot -no-metrics -dns-server 8.8.8.8,1.1.1.1
           script: bash .github/scripts/tv-smoke.sh apk tv-shots
 
-      - uses: actions/upload-artifact@v4
+      - name: Summarize TV smoke screenshots
         if: always()
-        with:
-          name: tv-screenshots
-          path: tv-shots
-          retention-days: 14
+        run: |
+          echo "### TV Smoke Screenshots ($(ls -1 tv-shots/*.png 2>/dev/null | wc -l))" >> "$GITHUB_STEP_SUMMARY"
+          ls -lh tv-shots/*.png || true
 
   release:
     needs: [build]
     if: (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v')) && github.event_name != 'pull_request'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/download-artifact@v4
+      - name: Restore signed release APKs
+        uses: actions/cache/restore@v4
         with:
-          name: apk
-          path: apk
+          path: android/out
+          key: android-apk-${{ github.run_id }}-${{ github.run_attempt }}
+          fail-on-cache-miss: true
+
+      - name: Prepare apk directory
+        run: mkdir -p apk && cp android/out/*.apk apk/ && ls -la apk
 
       - name: Release info
         id: info

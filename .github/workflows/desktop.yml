@@ -104,33 +104,49 @@ jobs:
       - name: Collect installers
         shell: bash
         run: |
-          mkdir -p dist
+          mkdir -p dist-${{ matrix.name }}
           B=desktop/src-tauri/target/release/bundle
-          find "$B" -maxdepth 2 -type f \( -name '*.exe' -o -name '*.msi' -o -name '*.deb' -o -name '*.AppImage' \) -exec cp {} dist/ \;
-          ls -la dist
-          if [ "${{ matrix.name }}" = windows ]; then ls dist/*.exe dist/*.msi; else ls dist/*.deb dist/*.AppImage; fi
+          find "$B" -maxdepth 2 -type f \( -name '*.exe' -o -name '*.msi' -o -name '*.deb' -o -name '*.AppImage' \) -exec cp {} dist-${{ matrix.name }}/ \;
+          ls -la dist-${{ matrix.name }}
+          if [ "${{ matrix.name }}" = windows ]; then ls dist-${{ matrix.name }}/*.exe dist-${{ matrix.name }}/*.msi; else ls dist-${{ matrix.name }}/*.deb dist-${{ matrix.name }}/*.AppImage; fi
 
       - name: Check .deb dependencies
         if: matrix.name == 'linux'
-        run: dpkg-deb -I dist/*.deb | grep -E 'Depends:.*gstreamer1.0-libav'
+        run: dpkg-deb -I dist-linux/*.deb | grep -E 'Depends:.*gstreamer1.0-libav'
 
-      - uses: actions/upload-artifact@v4
+      - name: Cache built installers for release job
+        uses: actions/cache/save@v4
         with:
-          name: desktop-${{ matrix.name }}
-          path: dist/*
-          if-no-files-found: error
-          retention-days: 30
+          path: dist-${{ matrix.name }}
+          key: desktop-${{ matrix.name }}-${{ github.run_id }}-${{ github.run_attempt }}
+          enableCrossOsArchive: true
 
   release:
     needs: build
     if: (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/')) && github.event_name != 'pull_request'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/download-artifact@v4
+      - name: Restore Windows installers
+        uses: actions/cache/restore@v4
         with:
-          pattern: desktop-*
-          path: dist
-          merge-multiple: true
+          path: dist-windows
+          key: desktop-windows-${{ github.run_id }}-${{ github.run_attempt }}
+          enableCrossOsArchive: true
+          fail-on-cache-miss: true
+
+      - name: Restore Linux installers
+        uses: actions/cache/restore@v4
+        with:
+          path: dist-linux
+          key: desktop-linux-${{ github.run_id }}-${{ github.run_attempt }}
+          enableCrossOsArchive: true
+          fail-on-cache-miss: true
+
+      - name: Stage combined installers
+        run: |
+          mkdir -p dist
+          cp dist-windows/* dist-linux/* dist/
+          ls -la dist
 
       - name: Release info + checksums
         id: info
