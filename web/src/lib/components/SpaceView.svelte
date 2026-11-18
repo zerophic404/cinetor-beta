@@ -110,10 +110,34 @@
     seeAll = null;
   });
 
-  const category = $derived(model ? pickCategory(model, localCat ?? cat) : undefined);
-  const genres = $derived(model ? categoryGenres(model, category) : []);
+  const HOME_DRAMA_EXCLUDED_RE =
+    /\b(?:indian\s*dramas?|bengali|bangla|zee\s*bangla|star\s*jalsha|sony\s*aath|pakistani)\b/i;
+
+  const isExcludedFromHome = (labelOrId: string): boolean =>
+    space === 'HOME' && HOME_DRAMA_EXCLUDED_RE.test(labelOrId);
+
+  const visibleTabs = $derived(
+    model ? model.tabs.filter((t) => !isExcludedFromHome(t.label) && !isExcludedFromHome(t.id)) : []
+  );
+
+  const category = $derived.by(() => {
+    if (!model) return undefined;
+    const picked = pickCategory(model, localCat ?? cat);
+    if (picked && !isExcludedFromHome(picked.title) && !isExcludedFromHome(picked.id)) return picked;
+    return model.categories.find((c) => !isExcludedFromHome(c.title) && !isExcludedFromHome(c.id)) ?? picked;
+  });
+
+  const genres = $derived(
+    model ? categoryGenres(model, category).filter((g) => !isExcludedFromHome(g)) : []
+  );
   const hero = $derived(model ? heroItems(model, category, genre) : []);
-  const rows = $derived(model ? filterRows(model, category, genre) : []);
+  const rows = $derived(
+    model
+      ? filterRows(model, category, genre).filter(
+          (r) => !isExcludedFromHome(r.row.title) && !isExcludedFromHome(r.row.id)
+        )
+      : []
+  );
   const extraLocal = $derived(model && genre && rows.length === 0 ? genreItems(model, genre) : []);
 
   const continueRow = $derived.by(() => {
@@ -286,8 +310,8 @@
   }
 
   function tabKey(e: KeyboardEvent, i: number) {
-    if (!model) return;
-    const tabs = model.tabs;
+    const tabs = visibleTabs;
+    if (!tabs.length) return;
     let j = -1;
     if (e.key === 'ArrowRight') j = (i + 1) % tabs.length;
     else if (e.key === 'ArrowLeft') j = (i - 1 + tabs.length) % tabs.length;
@@ -320,9 +344,9 @@
     <SkeletonPosterRow />
   </div>
 {:else}
-  {#if showCategoryChips && model.tabs.length > 1}
+  {#if showCategoryChips && visibleTabs.length > 1}
     <div class="h-scroll filter-bar tabs" role="tablist" aria-label="Categories">
-      {#each model.tabs as t, i (t.id)}
+      {#each visibleTabs as t, i (t.id)}
         <button
           type="button"
           class="chip movira-pill"
@@ -558,7 +582,8 @@
   .grid {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(clamp(112px, 26vw, 160px), 1fr));
-    gap: 16px 12px;
+    gap: 18px 12px;
+    align-items: start;
     padding: 0 16px;
   }
   .grid :global(.card) {

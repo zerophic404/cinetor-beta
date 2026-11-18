@@ -7,6 +7,7 @@
   import { normalize } from '$lib/data/search';
   import { isVideoSpace, type Item, type Space } from '$lib/data/types';
   import { SkeletonBox } from '$lib/design/skeleton';
+  import { dedupeItems } from '$lib/ui/space-model';
   import Poster from './Poster.svelte';
 
   /** No space → global search (Home/Anime/Drama only). With space → in-space search. */
@@ -53,11 +54,12 @@
   history.list(profile, scopeKey).then((h) => (recent = h));
 
   function pickTrending(): Item[] {
-    // Highest-rated items of the scope (the engine only ever holds in-scope items).
-    return engine
-      .all()
-      .sort((a, b) => b.rating - a.rating)
-      .slice(0, 12);
+    return dedupeItems(
+      engine
+        .all()
+        .sort((a, b) => b.rating - a.rating)
+        .slice(0, 12)
+    );
   }
 
   // Every keystroke: instant local results; remote merges in after the engine's debounce.
@@ -81,7 +83,10 @@
     remoteSugg = [];
     if (query.length < 2 || (space && !isVideoSpace(space))) return;
     const ctl = new AbortController();
-    const t = setTimeout(() => catalog.suggest(query, ctl.signal).then((s) => !ctl.signal.aborted && (remoteSugg = s)), 220);
+    const t = setTimeout(
+      () => catalog.suggest(query, ctl.signal).then((s) => !ctl.signal.aborted && (remoteSugg = s)),
+      220
+    );
     return () => {
       clearTimeout(t);
       ctl.abort();
@@ -89,14 +94,18 @@
   });
 
   const results = $derived.by(() => {
-    const r = update?.results ?? [];
+    const r = dedupeItems(update?.results ?? []);
     return typeFilter === 'ALL' ? r : r.filter((i) => i.type === typeFilter);
   });
+
   const groups = $derived.by(() => {
     if (space) return results.length ? [{ space, items: results }] : [];
     const order: Space[] = ['HOME', 'ANIME', 'DRAMA'];
-    return order.map((s) => ({ space: s, items: results.filter((i) => i.space === s) })).filter((g) => g.items.length);
+    return order
+      .map((s) => ({ space: s, items: results.filter((i) => i.space === s) }))
+      .filter((g) => g.items.length);
   });
+
   const suggestions = $derived.by(() => {
     const nq = normalize(q);
     if (!nq) return [] as string[];
@@ -104,7 +113,9 @@
     for (const h of recent) if (normalize(h).startsWith(nq) && normalize(h) !== nq) out.push(h);
     for (const i of update?.local ?? []) {
       if (out.length >= 6) break;
-      if (normalize(i.title).startsWith(nq) && !out.some((x) => x.toLowerCase() === i.title.toLowerCase())) out.push(i.title);
+      if (normalize(i.title).startsWith(nq) && !out.some((x) => x.toLowerCase() === i.title.toLowerCase())) {
+        out.push(i.title);
+      }
     }
     for (const t of remoteSugg) {
       if (out.length >= 6) break;
@@ -112,10 +123,13 @@
     }
     return out.slice(0, 6);
   });
-  const busy = $derived(!!q.trim() && (!update || !update.localReady || (!update.results.length && update.remotePending) || !indexReady));
+
+  const busy = $derived(
+    Boolean(q.trim()) &&
+      (!update || !update.localReady || (!update.results.length && update.remotePending) || !indexReady)
+  );
 
   async function remember(query = q) {
-    // 18+ searches are never remembered (no recents for the adult space).
     if (!query.trim() || space === 'ADULT') return;
     recent = await history.add(profile, scopeKey, query);
   }
@@ -144,7 +158,10 @@
     }}
   >
     <label class="sr-only" for="search-q">Search {space ? LABEL[space] : 'movies, series, anime, drama'}</label>
-    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5" /><path d="M20 20l-4.6-4.6" /></svg>
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+      <circle cx="10.5" cy="10.5" r="6.5" />
+      <path d="M20 20l-4.6-4.6" />
+    </svg>
     <input
       id="search-q"
       bind:this={input}
@@ -155,24 +172,45 @@
       spellcheck="false"
       placeholder={space ? `Search ${LABEL[space]}` : 'Movies, series, anime, drama…'}
     />
-    {#if update?.remotePending}<span class="spin" aria-label="Searching online"></span>{/if}
+    {#if update?.remotePending}
+      <span class="spin" aria-label="Searching online"></span>
+    {/if}
+    {#if q}
+      <button
+        type="button"
+        class="clear-q"
+        aria-label="Clear search"
+        onclick={() => {
+          q = '';
+          input?.focus();
+        }}
+      >
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true">
+          <path d="M6 6l12 12M18 6L6 18" />
+        </svg>
+      </button>
+    {/if}
   </form>
 
   {#if !q.trim()}
     {#if recent.length}
       <section aria-label="Recent searches" class="recent">
-        <div class="head">
-          <h2 class="section-title">Recent searches</h2>
-          <button class="link" onclick={clearAll}>Clear all</button>
+        <div class="sec-head">
+          <span class="accent-bar" aria-hidden="true"></span>
+          <h2 class="section-title sec-title">Recent searches</h2>
+          <button type="button" class="link" onclick={clearAll}>Clear all</button>
         </div>
         <ul>
           {#each recent.slice(0, 10) as h (h)}
             <li>
-              <button class="rq" onclick={() => use(h)}>
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="8" /><path d="M12 8v4l3 2" /></svg>
+              <button type="button" class="rq" onclick={() => use(h)}>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                  <circle cx="12" cy="12" r="8" />
+                  <path d="M12 8v4l3 2" />
+                </svg>
                 {h}
               </button>
-              <button class="x" aria-label="Remove {h}" onclick={() => forget(h)}>×</button>
+              <button type="button" class="x" aria-label="Remove {h}" onclick={() => forget(h)}>×</button>
             </li>
           {/each}
         </ul>
@@ -183,20 +221,27 @@
       History stays on this device{space && !isVideoSpace(space) ? ', separate from global search' : ''}.
     </p>
     {#if trending.length}
-      <h2 class="section-title">Top picks</h2>
+      <div class="sec-head">
+        <span class="accent-bar" aria-hidden="true"></span>
+        <h2 class="section-title sec-title">Top picks</h2>
+      </div>
       <div class="grid">
-        {#each trending as item (item.id)}<Poster {item} />{/each}
+        {#each trending as item (item.id)}
+          <Poster {item} variant={item.type === 'CHANNEL' ? 'channel' : 'poster'} />
+        {/each}
       </div>
     {:else if !indexReady}
       <div class="grid" aria-busy="true">
-        {#each Array(6) as _, i (i)}<SkeletonBox aspect="2 / 3" radius="var(--radius-card)" />{/each}
+        {#each Array(6) as _, i (i)}
+          <SkeletonBox aspect="2 / 3" radius="var(--radius-card)" />
+        {/each}
       </div>
     {/if}
   {:else}
     {#if suggestions.length}
       <ul class="sugg" aria-label="Suggestions">
         {#each suggestions as s (s)}
-          <li><button onclick={() => use(s)}>{s}</button></li>
+          <li><button type="button" onclick={() => use(s)}>{s}</button></li>
         {/each}
       </ul>
     {/if}
@@ -204,14 +249,23 @@
     {#if !space || isVideoSpace(space)}
       <div class="h-scroll filters" role="group" aria-label="Type">
         {#each FILTERS as [v, label] (v)}
-          <button class="chip" aria-pressed={typeFilter === v} onclick={() => (typeFilter = v)}>{label}</button>
+          <button
+            type="button"
+            class="chip movira-pill"
+            aria-pressed={typeFilter === v}
+            onclick={() => (typeFilter = v)}
+          >
+            {label}
+          </button>
         {/each}
       </div>
     {/if}
 
     {#if busy && !results.length}
       <div class="grid" aria-busy="true" aria-label="Searching">
-        {#each Array(9) as _, i (i)}<SkeletonBox aspect="2 / 3" radius="var(--radius-card)" />{/each}
+        {#each Array(9) as _, i (i)}
+          <SkeletonBox aspect="2 / 3" radius="var(--radius-card)" />
+        {/each}
       </div>
     {:else if !results.length}
       <p class="hint">No results for “{q}”.</p>
@@ -219,9 +273,14 @@
 
     {#each groups as g (g.space)}
       <section aria-label={LABEL[g.space]}>
-        <h2 class="section-title">{LABEL[g.space]} · {g.items.length}</h2>
+        <div class="sec-head">
+          <span class="accent-bar" aria-hidden="true"></span>
+          <h2 class="section-title sec-title">{LABEL[g.space]} · {g.items.length}</h2>
+        </div>
         <div class="grid" onclickcapture={() => remember()} role="presentation">
-          {#each g.items as item (item.id)}<Poster {item} />{/each}
+          {#each g.items as item (item.id)}
+            <Poster {item} variant={item.type === 'CHANNEL' ? 'channel' : 'poster'} />
+          {/each}
         </div>
       </section>
     {/each}
@@ -231,13 +290,13 @@
 <style>
   .field {
     position: sticky;
-    top: calc(10px + var(--safe-t));
+    top: calc(var(--header-h, 56px) + 10px + var(--safe-t));
     z-index: 5;
     display: flex;
     align-items: center;
     gap: 10px;
     margin: 0 16px 8px;
-    padding: 0 16px;
+    padding: 0 14px 0 16px;
     height: 52px;
     border-radius: 18px;
     color: var(--text-secondary);
@@ -256,7 +315,28 @@
     font-size: 1rem;
     outline: none;
   }
+  input::-webkit-search-cancel-button {
+    display: none;
+  }
+  .clear-q {
+    flex: none;
+    width: 30px;
+    height: 30px;
+    padding: 0;
+    border: 0;
+    border-radius: 50%;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--glass-fill);
+    color: var(--text-secondary);
+    cursor: pointer;
+  }
+  .clear-q:hover {
+    color: var(--text-primary);
+  }
   .spin {
+    flex: none;
     width: 16px;
     height: 16px;
     border-radius: 50%;
@@ -269,11 +349,35 @@
       transform: rotate(360deg);
     }
   }
+
+  .sec-head {
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    margin: 18px 16px 10px;
+  }
+  .accent-bar {
+    flex: none;
+    width: 3px;
+    height: 16px;
+    border-radius: 2px;
+    background: var(--accent);
+    box-shadow: 0 0 10px color-mix(in srgb, var(--accent) 50%, transparent);
+  }
+  .sec-title {
+    flex: 1;
+    margin: 0;
+    font-size: 1.05rem;
+    font-weight: 750;
+    color: var(--text-primary);
+  }
+
   .grid {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(108px, 1fr));
-    gap: 14px 12px;
-    padding: 4px 16px;
+    grid-template-columns: repeat(auto-fill, minmax(clamp(112px, 27vw, 158px), 1fr));
+    gap: 18px 12px;
+    align-items: start;
+    padding: 4px 16px 12px;
   }
   .grid :global(.card) {
     width: auto;
@@ -284,16 +388,11 @@
     color: var(--text-secondary);
     font-size: 0.85rem;
   }
-  .head {
-    display: flex;
-    align-items: baseline;
-    justify-content: space-between;
-    padding-right: 16px;
-  }
   .link {
     border: 0;
     background: none;
     color: var(--text-secondary);
+    font-size: 0.84rem;
     font-weight: 600;
     cursor: pointer;
   }
@@ -346,5 +445,16 @@
   }
   .filters {
     padding-top: 6px;
+    gap: 8px;
+  }
+  .movira-pill {
+    background: color-mix(in srgb, var(--text-primary) 6%, var(--glass-fill));
+    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--text-primary) 24%, var(--glass-stroke));
+    color: var(--text-primary);
+  }
+  .movira-pill[aria-pressed='true'] {
+    background: var(--accent);
+    color: var(--on-accent);
+    box-shadow: 0 6px 20px -6px var(--accent-glow);
   }
 </style>

@@ -10,13 +10,16 @@
 
 <script lang="ts">
   import { catalog } from '$lib/data/app-catalog';
-  import type { Item, Row, Space } from '$lib/data/types';
+  import type { Item, Row, RowStyle, Space } from '$lib/data/types';
   import { hashStr } from '$lib/data/mock-sources';
-  import { canSeeAll, dedupeItems, mergeUniqueItems } from '$lib/ui/space-model';
+  import { dedupeItems, mergeUniqueItems } from '$lib/ui/space-model';
   import Poster, { type CardVariant } from './Poster.svelte';
 
   interface Props {
-    row: Row;
+    row?: Row;
+    /** Shorthand row heading when `row` object is omitted (e.g. `<PosterRow title="For You" items={related} />`). */
+    title?: string;
+    style?: RowStyle;
     items: Item[];
     eager?: boolean;
     /** Owning space / category: paged gateway rows fetch more items when scrolled near the end. */
@@ -27,20 +30,31 @@
     /** Opens the full-category `See all` drawer/modal grid view. */
     onSeeAll?: (payload: SeeAllPayload) => void;
   }
-  let { row, items, eager = false, space, categoryId, progressMap, onSeeAll }: Props = $props();
+  let { row, title, style: styleProp, items, eager = false, space, categoryId, progressMap, onSeeAll }: Props = $props();
 
+  const resolvedRow = $derived<Row>(
+    row ?? {
+      id: (title ?? 'row').toLowerCase().replace(/[^a-z0-9]+/g, '-'),
+      title: title ?? '',
+      style: styleProp ?? 'POSTER',
+      itemIds: []
+    }
+  );
+
+  // TOP10 (`Trending Now`) renders clean unnumbered standard poster cards in v2.1+.
   const variant = $derived<CardVariant>(
-    row.style === 'LANDSCAPE' || row.style === 'CONTINUE'
+    resolvedRow.style === 'LANDSCAPE' || resolvedRow.style === 'CONTINUE'
       ? 'landscape'
-      : row.style === 'CIRCLE'
+      : resolvedRow.style === 'CIRCLE'
         ? 'circle'
-        : row.style === 'CHANNEL'
+        : resolvedRow.style === 'CHANNEL'
           ? 'channel'
           : 'poster'
   );
 
   const progressFallback = (id: string) => 0.15 + (hashStr(id) % 70) / 100;
-  const progressFor = (id: string) => progressMap?.get(id) ?? (row.style === 'CONTINUE' ? progressFallback(id) : undefined);
+  const progressFor = (id: string) =>
+    progressMap?.get(id) ?? (resolvedRow.style === 'CONTINUE' ? progressFallback(id) : undefined);
 
   // ---- Infinite horizontal row pagination ----
   let extra = $state.raw<Item[]>([]);
@@ -49,23 +63,25 @@
   let scrollerEl = $state<HTMLElement>();
 
   $effect(() => {
-    more = row.more;
+    more = resolvedRow.more;
     extra = [];
     busy = false;
   });
 
   const baseItems = $derived(dedupeItems(items));
-  const all = $derived.by(() => {
-    const combined = extra.length ? mergeUniqueItems(baseItems, extra) : baseItems;
-    return row.style === 'TOP10' ? combined.slice(0, 10) : combined;
-  });
+  const all = $derived.by(() => (extra.length ? mergeUniqueItems(baseItems, extra) : baseItems));
 
-  const showSeeAll = $derived(Boolean(onSeeAll) && canSeeAll({ style: row.style, more }, all.length));
-  const canPageMore = $derived(Boolean(row.style !== 'TOP10' && more?.hasMore && space));
+  const showSeeAll = $derived(
+    Boolean(onSeeAll) &&
+      resolvedRow.style !== 'CONTINUE' &&
+      resolvedRow.style !== 'CHANNEL' &&
+      Boolean(more?.hasMore || all.length >= 4)
+  );
+  const canPageMore = $derived(Boolean(more?.hasMore && space));
 
   async function loadMore() {
     const m = more;
-    if (busy || !space || !m?.hasMore || row.style === 'TOP10') return;
+    if (busy || !space || !m?.hasMore) return;
     busy = true;
     try {
       const r = await catalog.moreRow(space, m, categoryId);
@@ -116,29 +132,37 @@
 </script>
 
 {#if all.length > 0}
-  <section class="row" class:ranked-row={row.style === 'TOP10'} aria-label={row.title}>
-    <div class="row-head">
-      <span class="accent-bar" aria-hidden="true"></span>
-      <h2 class="section-title row-title">{row.title}</h2>
-      {#if showSeeAll}
-        <button
-          type="button"
-          class="see-all"
-          aria-label="See all {row.title}"
-          onclick={() => onSeeAll?.({ row, items: all, more })}
-        >
-          <span>See all</span>
-          <svg width="14" height="14" viewBox="0 0 24 24" aria-hidden="true">
-            <path fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" d="M9 6l6 6-6 6" />
-          </svg>
-        </button>
-      {/if}
-    </div>
+  <section class="row" aria-label={resolvedRow.title}>
+    {#if resolvedRow.title}
+      <div class="row-head">
+        <span class="accent-bar" aria-hidden="true"></span>
+        <h2 class="section-title row-title">{resolvedRow.title}</h2>
+        {#if showSeeAll}
+          <button
+            type="button"
+            class="see-all"
+            aria-label="See all {resolvedRow.title}"
+            onclick={() => onSeeAll?.({ row: resolvedRow, items: all, more })}
+          >
+            <span>See all</span>
+            <svg width="14" height="14" viewBox="0 0 24 24" aria-hidden="true">
+              <path
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2.2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                d="M9 6l6 6-6 6"
+              />
+            </svg>
+          </button>
+        {/if}
+      </div>
+    {/if}
 
     <div
       bind:this={scrollerEl}
       class="h-scroll"
-      class:ranked-scroll={row.style === 'TOP10'}
       onscroll={handleScroll}
       onfocusin={handleFocusIn}
     >
@@ -146,7 +170,6 @@
         <Poster
           {item}
           {variant}
-          rank={row.style === 'TOP10' ? i + 1 : undefined}
           progress={progressFor(item.id)}
           eager={eager && i < 4}
         />
@@ -166,7 +189,7 @@
 <style>
   .row {
     content-visibility: auto;
-    contain-intrinsic-size: auto 310px;
+    contain-intrinsic-size: auto 320px;
     margin-top: 20px;
   }
 
@@ -225,11 +248,6 @@
   }
   .see-all:active {
     transform: scale(0.96);
-  }
-
-  .ranked-scroll {
-    gap: 10px;
-    padding-top: 6px;
   }
 
   .row-sk {
