@@ -62,7 +62,7 @@ export const themes: Record<ThemeName, ThemeTokens> = {
       "skeletonHighlight": "#262626"
     },
     "blurDp": 14,
-    "tintStrength": 0.18
+    "tintStrength": 0.0
   },
   "obsidian": {
     "name": "Obsidian",
@@ -126,30 +126,30 @@ export const themes: Record<ThemeName, ThemeTokens> = {
     "name": "Glass",
     "isLight": false,
     "colors": {
-      "bg": "#09090B",
-      "surface": "#121216",
-      "surfaceElevated": "#1B1B21",
+      "bg": "#050505",
+      "surface": "#101010",
+      "surfaceElevated": "#181818",
       "glassFill": "#FFFFFF14",
       "glassStroke": "#FFFFFF29",
-      "accent": "#E11D2E",
-      "accentEnd": "#C8102E",
-      "accentGlow": "#E11D2E66",
+      "accent": "#E50914",
+      "accentEnd": "#B20710",
+      "accentGlow": "#E5091466",
       "onAccent": "#FFFFFF",
       "textPrimary": "#FFFFFF",
-      "textSecondary": "#D4D4D8",
-      "textTertiary": "#9E9EA8",
+      "textSecondary": "#D6D6D6",
+      "textTertiary": "#9C9C9C",
       "divider": "#FFFFFF14",
       "focusRing": "#FFFFFF",
       "success": "#22C55E",
       "warning": "#F5A524",
-      "error": "#FF4757",
-      "liveBadge": "#E11D2E",
-      "scrim": "#09090BBF",
-      "skeletonBase": "#16161C",
-      "skeletonHighlight": "#262630"
+      "error": "#FF3B30",
+      "liveBadge": "#E50914",
+      "scrim": "#050505BF",
+      "skeletonBase": "#151515",
+      "skeletonHighlight": "#252525"
     },
     "blurDp": 20,
-    "tintStrength": 0.28
+    "tintStrength": 0.0
   },
   "matte": {
     "name": "Matte",

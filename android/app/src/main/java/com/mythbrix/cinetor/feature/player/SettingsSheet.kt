@@ -56,9 +56,11 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.mythbrix.cinetor.core.data.DubOption
+import com.mythbrix.cinetor.core.data.Source
 import com.mythbrix.cinetor.core.player.KnownSubtitle
 import com.mythbrix.cinetor.core.player.PLAYBACK_SPEEDS
 import com.mythbrix.cinetor.core.player.PlayerUiState
@@ -75,9 +77,52 @@ enum class SettingsPage { MAIN, QUALITY, SPEED, AUDIO, SUBTITLES, SLEEP }
 fun speedLabel(speed: Float): String =
     if (speed == 1f) "Normal" else (if (speed % 1f == 0f) "${speed.toInt()}" else speed.toString().trimEnd('0')) + "×"
 
+private val STANDARD_HEIGHTS = intArrayOf(4320, 2160, 1440, 1080, 720, 480, 360, 240, 144)
+
+/** Snaps a provider height (`1088`, `1072`, `2176`) to the nearest standard ladder rung (`1080`, `2160`). */
+fun standardHeight(height: Int?): Int? {
+    val h = height?.takeIf { it > 0 } ?: return null
+    return STANDARD_HEIGHTS.minByOrNull { kotlin.math.abs(it - h) }
+}
+
+/** One Quality menu entry: a single resolution, backed by the best source for the active language. */
+data class QualityOption(val height: Int, val sourceIndex: Int) {
+    val label: String get() = "${height}p"
+}
+
+private fun isPreferredCodec(src: Source): Boolean {
+    val c = src.codec.orEmpty().lowercase()
+    return c.isEmpty() || "264" in c || "avc" in c
+}
+
+/**
+ * Quality menu entries for the language currently playing: exactly one entry per resolution
+ * (`2160p`, `1080p`, `720p`, `480p`, `360p`), highest first, never repeated per language, codec
+ * or container. The active source wins its rung; otherwise H.264 beats HEVC/DASH variants.
+ */
+fun qualityOptions(sources: List<Source>, activeIndex: Int): List<QualityOption> {
+    if (sources.isEmpty()) return emptyList()
+    val activeLang = sources.getOrNull(activeIndex)?.let(::audioDubOf)
+    val sameLang = sources.indices.filter { i ->
+        activeLang == null || audioDubOf(sources[i])?.equals(activeLang, ignoreCase = true) != false
+    }
+    return sameLang
+        .mapNotNull { i -> standardHeight(sources[i].height)?.let { it to i } }
+        .groupBy({ it.first }, { it.second })
+        .map { (height, indices) ->
+            val pick = indices.firstOrNull { it == activeIndex }
+                ?: indices.firstOrNull { isPreferredCodec(sources[it]) }
+                ?: indices.first()
+            QualityOption(height, pick)
+        }
+        .sortedByDescending { it.height }
+}
+
 fun qualityLabel(ui: PlayerUiState, screen: PlayerScreenState? = null): String {
     screen?.sources?.getOrNull(screen.sourceIndex)?.let { src ->
-        if (screen.sources.size > 1 && ui.tracks.forcedHeight == null) return src.label ?: "Source ${screen.sourceIndex + 1}"
+        if (screen.sources.size > 1 && ui.tracks.forcedHeight == null) {
+            standardHeight(src.height)?.let { return "${it}p" }
+        }
     }
     val t = ui.tracks
     return t.forcedHeight?.let { "${it}p" } ?: ("Auto" + (t.playingHeight?.takeIf { it > 0 }?.let { " (${it}p)" } ?: ""))
@@ -204,27 +249,30 @@ fun SettingsSheet(
 
                 SettingsPage.QUALITY -> SubPage("Quality", { if (initialPage == SettingsPage.MAIN) page = SettingsPage.MAIN else onDismiss() }) {
                     val t = ui.tracks
-                    if (screen.sources.size > 1) {
-                        item { SectionLabel("Source") }
-                        items(screen.sources.size, key = { "src$it" }) { i ->
-                            val src = screen.sources[i]
-                            val size = src.sizeBytes?.let { b ->
-                                if (b >= 1_073_741_824L) " · %.1f GB".format(java.util.Locale.US, b / 1_073_741_824.0)
-                                else if (b >= 1_048_576L) " · ${b / 1_048_576L} MB"
-                                else ""
-                            }.orEmpty()
-                            val label = src.label ?: "Source ${i + 1}"
-                            Choice(if (label.contains("GB") || label.contains("MB")) label else label + size, screen.sourceIndex == i) {
-                                holder.selectSource(i)
-                                onDismiss()
-                            }
-                        }
-                        if (t.video.isNotEmpty()) item { SectionLabel("Stream tracks") }
+                    val options = qualityOptions(screen.sources, screen.sourceIndex)
+                    val currentHeight = standardHeight(screen.sources.getOrNull(screen.sourceIndex)?.height)
+                    // Adaptive (HLS/DASH) rungs only add resolutions the provider sources don't already cover.
+                    val trackRungs = t.video
+                        .mapNotNull { q -> standardHeight(q.height)?.let { it to q.height } }
+                        .distinctBy { it.first }
+                        .filter { (h, _) -> options.none { it.height == h } }
+                        .sortedByDescending { it.first }
+                    if (t.video.isNotEmpty()) {
+                        val auto = "Auto" + (t.playingHeight?.takeIf { it > 0 }?.let { " (${standardHeight(it)}p)" } ?: "")
+                        item { Choice(auto, t.autoQuality && options.size <= 1) { holder.selectQuality(null); onDismiss() } }
                     }
-                    val auto = "Auto" + (t.playingHeight?.takeIf { it > 0 }?.let { " (${it}p)" } ?: "")
-                    item { Choice(auto, t.autoQuality) { holder.selectQuality(null); onDismiss() } }
-                    items(t.video, key = { it.height }) { q ->
-                        Choice(q.label, t.forcedHeight == q.height) { holder.selectQuality(q.height); onDismiss() }
+                    items(options, key = { "q${it.height}" }) { opt ->
+                        Choice(opt.label, t.forcedHeight == null && opt.height == currentHeight) {
+                            if (opt.sourceIndex != screen.sourceIndex) holder.selectSource(opt.sourceIndex)
+                            else holder.selectQuality(null)
+                            onDismiss()
+                        }
+                    }
+                    items(trackRungs, key = { "t${it.first}" }) { (h, raw) ->
+                        Choice("${h}p", t.forcedHeight == raw) { holder.selectQuality(raw); onDismiss() }
+                    }
+                    if (options.isEmpty() && t.video.isEmpty()) {
+                        item { Choice(currentHeight?.let { "${it}p" } ?: "Auto", true) { onDismiss() } }
                     }
                 }
 
@@ -460,8 +508,23 @@ private fun SheetRow(icon: ImageVector, title: String, value: String, onClick: (
     ) {
         Icon(icon, contentDescription = null, tint = Color.White)
         Spacer(Modifier.width(16.dp))
-        Text(title, style = MaterialTheme.typography.bodyLarge, color = Color.White, modifier = Modifier.weight(1f))
-        Text(value, style = MaterialTheme.typography.bodyMedium, color = Color.White.copy(alpha = 0.6f), maxLines = 1, overflow = TextOverflow.Ellipsis)
+        Text(
+            title,
+            style = MaterialTheme.typography.bodyLarge,
+            color = Color.White,
+            maxLines = 1,
+            softWrap = false,
+        )
+        Spacer(Modifier.width(16.dp))
+        Text(
+            value,
+            style = MaterialTheme.typography.bodyMedium,
+            color = Color.White.copy(alpha = 0.6f),
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            textAlign = TextAlign.End,
+            modifier = Modifier.weight(1f),
+        )
         Icon(Icons.AutoMirrored.Rounded.KeyboardArrowRight, contentDescription = null, tint = Color.White.copy(alpha = 0.6f))
     }
 }

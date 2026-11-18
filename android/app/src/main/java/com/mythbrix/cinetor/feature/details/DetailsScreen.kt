@@ -4,12 +4,14 @@ import android.annotation.SuppressLint
 import android.graphics.Color as AndroidColor
 import android.view.TextureView
 import android.webkit.WebView
+import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.snap
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -48,6 +50,7 @@ import androidx.compose.material.icons.automirrored.rounded.VolumeUp
 import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.Close
+import androidx.compose.material.icons.rounded.Person
 import androidx.compose.material.icons.rounded.PlayArrow
 import androidx.compose.material.icons.rounded.SkipNext
 import androidx.compose.material.icons.rounded.Star
@@ -75,9 +78,11 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
@@ -87,9 +92,11 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
@@ -110,6 +117,7 @@ import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import coil3.compose.AsyncImage
 import com.mythbrix.cinetor.core.data.AppContainer
+import com.mythbrix.cinetor.core.data.CastMember
 import com.mythbrix.cinetor.core.data.Episode
 import com.mythbrix.cinetor.core.data.Item
 import com.mythbrix.cinetor.core.data.ItemType
@@ -126,6 +134,7 @@ import com.mythbrix.cinetor.core.player.SourceResolver
 import com.mythbrix.cinetor.core.ui.CinetorArtwork
 import com.mythbrix.cinetor.core.ui.LocalResumeEntries
 import com.mythbrix.cinetor.core.ui.posterKey
+import com.mythbrix.cinetor.core.ui.rememberArtworkColor
 import com.mythbrix.cinetor.core.ui.rememberSizedImage
 import com.mythbrix.cinetor.core.ui.sharedPoster
 import com.mythbrix.cinetor.design.Cinetor
@@ -138,6 +147,7 @@ import com.mythbrix.cinetor.design.SkeletonEpisodeList
 import com.mythbrix.cinetor.design.SkeletonText
 import com.mythbrix.cinetor.design.glass
 import com.mythbrix.cinetor.design.hexColor
+import com.mythbrix.cinetor.design.liquidGlassButton
 import com.mythbrix.cinetor.feature.downloads.BatchSeriesDownloadSheet
 import com.mythbrix.cinetor.feature.downloads.DownloadButton
 import com.mythbrix.cinetor.feature.downloads.DownloadDetailsSheet
@@ -149,12 +159,12 @@ import com.mythbrix.cinetor.feature.home.PosterCard
 import com.mythbrix.cinetor.feature.player.HostMode
 import com.mythbrix.cinetor.feature.player.InlinePlayerSlot
 import com.mythbrix.cinetor.feature.player.gestures.GesturePrefs
+import java.util.Locale
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
-import java.util.Locale
 
 private val ReadyGreen = Color(0xFF22C55E)
 private val PosterThumbW = 76.dp
@@ -253,9 +263,19 @@ fun DetailsScreen(
         is DetailsUiState.Loading -> s.peek
         is DetailsUiState.Error -> null
     }
-    LaunchedEffect(headerItem?.dominantColor) {
-        headerItem?.let { tint.setSource(hexColor(it.dominantColor)) }
+    // The title's own colour from its poster: drives a gentle page wash + the app-wide tint.
+    val artColor = rememberArtworkColor(headerItem?.let { it.poster.ifBlank { it.backdrop } })
+    LaunchedEffect(headerItem?.dominantColor, artColor) {
+        val source = artColor ?: headerItem?.let { hexColor(it.dominantColor) }
+        source?.let(tint::setSource)
     }
+    val washTarget = if (tint.enabled && artColor != null) artColor else Color.Transparent
+    val wash by animateColorAsState(
+        targetValue = washTarget,
+        animationSpec = if (Cinetor.prefs.reduceMotion) snap() else tween(700, easing = CinetorTokens.Motion.standard),
+        label = "detailsArtWash",
+    )
+    val washLight = Cinetor.tokens.isLight
 
     val downloadsById by container.downloads.engine.downloads.collectAsStateWithLifecycle()
     val dlMap = remember(downloadsById) { downloadsById.associateBy { it.record.id } }
@@ -381,7 +401,30 @@ fun DetailsScreen(
         }
     }
 
-    Column(Modifier.fillMaxSize()) {
+    Column(
+        Modifier
+            .fillMaxSize()
+            .drawBehind {
+                if (wash.alpha <= 0f) return@drawBehind
+                val k = if (washLight) 0.55f else 1f
+                // Soft glow from the artwork down to mid-page, plus a faint full-page cast.
+                drawRect(
+                    Brush.verticalGradient(
+                        0f to wash.copy(alpha = wash.alpha * 0.30f * k),
+                        0.38f to wash.copy(alpha = wash.alpha * 0.12f * k),
+                        0.75f to wash.copy(alpha = wash.alpha * 0.04f * k),
+                        1f to Color.Transparent,
+                    ),
+                )
+                drawRect(
+                    Brush.radialGradient(
+                        colors = listOf(wash.copy(alpha = wash.alpha * 0.22f * k), Color.Transparent),
+                        center = Offset(size.width * 0.5f, size.height * 0.18f),
+                        radius = size.maxDimension * 0.62f,
+                    ),
+                )
+            },
+    ) {
         if (pinInlineSlot && headerItem != null) {
             TopMediaSlot(
                 item = headerItem,
@@ -620,11 +663,12 @@ fun DetailsScreen(
                     }
 
                     // 2. Clickable Cast Section
-                    if (item.cast.isNotEmpty()) {
+                    val castPeople = castPeopleOf(item)
+                    if (castPeople.isNotEmpty()) {
                         item(key = "cast", contentType = "cast") {
                             CastSection(
-                                castNames = item.cast,
-                                onSelectActor = { name -> vm.openCast(Person(name = name)) },
+                                people = castPeople,
+                                onSelectActor = { member -> vm.openCast(Person(name = member.name, role = member.role)) },
                             )
                         }
                     }
@@ -1182,7 +1226,7 @@ private fun MetaChips(item: Item, extraSources: List<Source>) {
                     Icon(
                         Icons.Rounded.Star,
                         contentDescription = null,
-                        tint = tokens.warning,
+                        tint = tokens.accent,
                         modifier = Modifier.size(12.dp),
                     )
                     Text(
@@ -1340,47 +1384,25 @@ private fun DetailsActions(
                 DownloadButton(
                     info = if (isSeriesBatch) null else downloadInfo,
                     onClick = onDownload,
-                    overrideLabel = if (isSeriesBatch) "Download" else null,
+                    iconOnly = true,
                 )
             }
 
             // 3. My List
-            Row(
+            Box(
                 Modifier
-                    .height(50.dp)
-                    .clip(pillShape)
-                    .then(
-                        if (inMyList) Modifier.background(tokens.accent.copy(alpha = 0.16f))
-                        else Modifier.glass(pillShape, GlassLevel.SURFACE),
-                    )
-                    .border(
-                        width = if (myListFocused) 2.dp else 1.dp,
-                        color = when {
-                            myListFocused -> tokens.focusRing
-                            inMyList -> tokens.accent.copy(alpha = 0.65f)
-                            else -> Color.Transparent
-                        },
-                        shape = pillShape,
-                    )
+                    .size(50.dp)
+                    .liquidGlassButton(CircleShape, active = inMyList, interaction = myListInteraction)
+                    .then(if (myListFocused) Modifier.border(2.dp, tokens.focusRing, CircleShape) else Modifier)
                     .clickable(interactionSource = myListInteraction, indication = null, onClick = onToggleMyList)
-                    .semantics { contentDescription = "My List" }
-                    .padding(horizontal = 14.dp),
-                horizontalArrangement = Arrangement.Center,
-                verticalAlignment = Alignment.CenterVertically,
+                    .semantics { contentDescription = if (inMyList) "Remove from My List" else "Add to My List" },
+                contentAlignment = Alignment.Center,
             ) {
                 Icon(
                     if (inMyList) Icons.Rounded.Check else Icons.Rounded.Add,
                     contentDescription = null,
                     tint = if (inMyList) tokens.accent else tokens.textPrimary,
-                    modifier = Modifier.size(20.dp),
-                )
-                Spacer(Modifier.width(5.dp))
-                Text(
-                    "My List",
-                    style = MaterialTheme.typography.labelLarge,
-                    fontWeight = FontWeight.SemiBold,
-                    color = tokens.textPrimary,
-                    maxLines = 1,
+                    modifier = Modifier.size(24.dp),
                 )
             }
         }
@@ -1482,16 +1504,32 @@ private fun Synopsis(item: Item) {
     }
 }
 
-/** Clickable Cast row: tapping any actor opens [CastWorksSheet] with their filmography. */
+/** Cast with photos when the source has them, else plain names (same order, no duplicates). */
+internal fun castPeopleOf(item: Item): List<CastMember> {
+    val members = item.castMembers.filter { it.name.isNotBlank() }
+    val base = members.ifEmpty { item.cast.filter { it.isNotBlank() }.map { CastMember(name = it.trim()) } }
+    return base.distinctBy { it.name.trim().lowercase() }
+}
+
+private const val CAST_SHOWN = 6
+
+/**
+ * Cinetor Beta cast grid: three people per row (six on tablets/TV), each a 64dp round photo with
+ * the name and character underneath. Six show by default; "See all (N)" expands in place.
+ * Tapping a person opens [CastWorksSheet] with their filmography.
+ */
 @Composable
 private fun CastSection(
-    castNames: List<String>,
-    onSelectActor: (String) -> Unit,
+    people: List<CastMember>,
+    onSelectActor: (CastMember) -> Unit,
 ) {
     val tokens = Cinetor.tokens
-    Column(Modifier.padding(top = 20.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+    var showAll by rememberSaveable(people.size) { mutableStateOf(false) }
+    val perRow = if (LocalConfiguration.current.screenWidthDp >= 600) 6 else 3
+    val shown = if (showAll) people else people.take(CAST_SHOWN)
+    Column(Modifier.padding(top = 20.dp, start = 16.dp, end = 16.dp)) {
         Row(
-            Modifier.padding(horizontal = 16.dp),
+            Modifier.fillMaxWidth().padding(bottom = 10.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {
@@ -1507,59 +1545,97 @@ private fun CastSection(
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.Bold,
                 color = tokens.textPrimary,
+                modifier = Modifier.weight(1f),
             )
-        }
-        LazyRow(
-            contentPadding = PaddingValues(horizontal = 16.dp),
-            horizontalArrangement = Arrangement.spacedBy(10.dp),
-        ) {
-            items(castNames.distinct(), key = { "cast-$it" }) { actor ->
-                val interaction = remember { MutableInteractionSource() }
-                val focused by interaction.collectIsFocusedAsState()
-                val cardShape = RoundedCornerShape(CinetorTokens.Shape.pill)
-                val initials = remember(actor) {
-                    actor.trim().split(Regex("\\s+")).take(2).mapNotNull { it.firstOrNull()?.uppercaseChar() }.joinToString("")
-                        .ifEmpty { "?" }
-                }
-                Row(
-                    Modifier
-                        .clip(cardShape)
-                        .glass(cardShape, GlassLevel.SURFACE)
-                        .border(
-                            width = if (focused) 2.dp else 1.dp,
-                            color = if (focused) tokens.focusRing else tokens.glassStroke,
-                            shape = cardShape,
-                        )
-                        .clickable(interactionSource = interaction, indication = null) { onSelectActor(actor) }
-                        .semantics { contentDescription = "Cast $actor" }
-                        .padding(start = 6.dp, end = 14.dp, top = 6.dp, bottom = 6.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                ) {
-                    Box(
-                        Modifier
-                            .size(32.dp)
-                            .clip(CircleShape)
-                            .background(tokens.accent.copy(alpha = 0.22f))
-                            .border(1.dp, tokens.accent.copy(alpha = 0.45f), CircleShape),
-                        contentAlignment = Alignment.Center,
-                    ) {
-                        Text(
-                            initials,
-                            style = MaterialTheme.typography.labelSmall,
-                            fontWeight = FontWeight.Bold,
-                            color = tokens.textPrimary,
-                        )
-                    }
-                    Text(
-                        actor,
-                        style = MaterialTheme.typography.labelLarge,
-                        fontWeight = FontWeight.Medium,
-                        color = tokens.textPrimary,
-                        maxLines = 1,
-                    )
-                }
+            if (people.size > CAST_SHOWN) {
+                Text(
+                    if (showAll) "Show less" else "See all (${people.size})",
+                    style = MaterialTheme.typography.labelMedium,
+                    fontWeight = FontWeight.SemiBold,
+                    color = tokens.accent,
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(CinetorTokens.Shape.pill))
+                        .clickable { showAll = !showAll }
+                        .padding(horizontal = 8.dp, vertical = 4.dp),
+                )
             }
+        }
+        shown.chunked(perRow).forEach { row ->
+            Row(
+                Modifier.fillMaxWidth().padding(bottom = 10.dp),
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+            ) {
+                row.forEach { member ->
+                    CastPerson(member, Modifier.weight(1f)) { onSelectActor(member) }
+                }
+                repeat(perRow - row.size) { Spacer(Modifier.weight(1f)) }
+            }
+        }
+    }
+}
+
+@Composable
+private fun CastPerson(member: CastMember, modifier: Modifier, onClick: () -> Unit) {
+    val tokens = Cinetor.tokens
+    val interaction = remember { MutableInteractionSource() }
+    val focused by interaction.collectIsFocusedAsState()
+    val shape = RoundedCornerShape(10.dp)
+    Column(
+        modifier
+            .clip(shape)
+            .then(if (focused) Modifier.border(2.dp, tokens.focusRing, shape) else Modifier)
+            .clickable(interactionSource = interaction, indication = null, onClick = onClick)
+            .semantics { contentDescription = "Cast ${member.name}" }
+            .padding(4.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        Box(
+            Modifier
+                .size(64.dp)
+                .clip(CircleShape)
+                .background(tokens.surfaceElevated)
+                .border(1.dp, tokens.glassStroke, CircleShape),
+            contentAlignment = Alignment.Center,
+        ) {
+            var failed by remember(member.photo) { mutableStateOf(false) }
+            val photo = member.photo
+            if (photo != null && !failed) {
+                AsyncImage(
+                    model = rememberSizedImage(photo, 64.dp, 64.dp),
+                    contentDescription = null,
+                    contentScale = ContentScale.Crop,
+                    onError = { failed = true },
+                    modifier = Modifier.fillMaxSize(),
+                )
+            } else {
+                Icon(
+                    Icons.Rounded.Person,
+                    contentDescription = null,
+                    tint = tokens.textSecondary,
+                    modifier = Modifier.size(32.dp),
+                )
+            }
+        }
+        Spacer(Modifier.height(6.dp))
+        Text(
+            member.name,
+            style = MaterialTheme.typography.labelMedium,
+            fontWeight = FontWeight.Medium,
+            color = tokens.textPrimary,
+            maxLines = 2,
+            overflow = TextOverflow.Ellipsis,
+            textAlign = TextAlign.Center,
+            lineHeight = 15.sp,
+        )
+        member.role?.let { role ->
+            Text(
+                role,
+                style = MaterialTheme.typography.labelSmall,
+                color = tokens.textSecondary,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                textAlign = TextAlign.Center,
+            )
         }
     }
 }

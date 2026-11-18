@@ -206,12 +206,19 @@ data class Item(
     val trackNumber: Int? = null,
     val trackIds: List<String> = emptyList(),
     val cast: List<String> = emptyList(),
+    /** Cast with photo + character when the source provides them (same order as [cast]). */
+    val castMembers: List<CastMember> = emptyList(),
     val studio: String? = null,
     /** Gateway `detail_path` (needed for /detail + /stream); null for mock/TMDB items. */
     val slug: String? = null,
     /** Sibling dubbed editions resolved from `/detail` + `/search` (`Hindi`, `Bangla`, `English`, etc.). */
     val dubs: List<DubOption> = emptyList(),
 )
+
+/** One actor: display name, optional character name, optional round photo URL. */
+@Immutable
+@Serializable
+data class CastMember(val name: String, val role: String? = null, val photo: String? = null)
 
 @Immutable
 @Serializable

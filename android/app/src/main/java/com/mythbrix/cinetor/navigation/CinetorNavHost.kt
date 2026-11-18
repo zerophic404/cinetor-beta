@@ -12,6 +12,7 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.PaddingValues
@@ -46,6 +47,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.drawscope.Stroke
@@ -84,9 +86,8 @@ import com.mythbrix.cinetor.core.ui.LocalSharedTransitionScope
 import com.mythbrix.cinetor.design.AppBackground
 import com.mythbrix.cinetor.design.Cinetor
 import com.mythbrix.cinetor.design.CinetorTokens
-import com.mythbrix.cinetor.design.GlassLevel
 import com.mythbrix.cinetor.design.LocalInsideHazeSource
-import com.mythbrix.cinetor.design.glass
+import com.mythbrix.cinetor.design.liquidGlassButton
 import com.mythbrix.cinetor.feature.about.AboutScreen
 import com.mythbrix.cinetor.feature.adult.AdultGate
 import com.mythbrix.cinetor.feature.adult.AdultSpace
@@ -452,9 +453,10 @@ fun CinetorNavHost(container: AppContainer, modifier: Modifier = Modifier) {
 }
 
 /**
- * Cinetor Beta Liquid Glass top bar across all Phone/Tablet sections:
- * 3-blade red Aperture iris + `CINE` Light / `TOR` Bold (`0.34.em` tracking), optional section pill,
- * and a persistent top-right circular Liquid Glass `Search` icon button (`contentDescription = "Search"`).
+ * Flat top bar across all Phone/Tablet sections: it sits on the app's own background (no card
+ * shape, corners or border) and fades out at its lower edge so scrolling content slides under it
+ * seamlessly. 3-blade red Aperture iris + `CINE` Light / `TOR` Bold (`0.34.em` tracking), optional
+ * section pill, and a persistent top-right Liquid Glass `Search` button (`contentDescription = "Search"`).
  */
 @Composable
 private fun GlassTopBar(
@@ -464,14 +466,20 @@ private fun GlassTopBar(
     modifier: Modifier = Modifier,
 ) {
     val tokens = Cinetor.tokens
-    val searchFill = if (searchActive) tokens.accent.copy(alpha = 0.18f) else tokens.glassFill
-    val searchBorder = if (searchActive) tokens.accent.copy(alpha = 0.45f) else tokens.glassStroke
     val searchTint = if (searchActive) tokens.accent else tokens.textPrimary
+    val searchInteraction = remember { MutableInteractionSource() }
+    val flatFill = remember(tokens.bg) {
+        Brush.verticalGradient(
+            0f to tokens.bg.copy(alpha = 0.97f),
+            0.82f to tokens.bg.copy(alpha = 0.92f),
+            1f to tokens.bg.copy(alpha = 0f),
+        )
+    }
 
     Row(
         modifier
             .fillMaxWidth()
-            .glass(RoundedCornerShape(bottomStart = 20.dp, bottomEnd = 20.dp), GlassLevel.BAR)
+            .background(flatFill)
             .statusBarsPadding()
             .height(TopBarHeight)
             .padding(horizontal = 16.dp),
@@ -520,10 +528,8 @@ private fun GlassTopBar(
         Box(
             modifier = Modifier
                 .size(40.dp)
-                .clip(CircleShape)
-                .background(searchFill)
-                .border(CinetorTokens.Shape.strokeHairline, searchBorder, CircleShape)
-                .clickable(role = Role.Button, onClick = onSearch)
+                .liquidGlassButton(CircleShape, active = searchActive, interaction = searchInteraction)
+                .clickable(interactionSource = searchInteraction, indication = null, role = Role.Button, onClick = onSearch)
                 .semantics { contentDescription = "Search" },
             contentAlignment = Alignment.Center,
         ) {

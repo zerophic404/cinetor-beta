@@ -44,6 +44,7 @@ import com.mythbrix.cinetor.design.Cinetor
 import com.mythbrix.cinetor.design.CinetorTokens
 import com.mythbrix.cinetor.design.GlassLevel
 import com.mythbrix.cinetor.design.glass
+import com.mythbrix.cinetor.design.liquidGlassButton
 
 /** Visual state of a Download button. */
 enum class DownloadButtonState { NONE, QUEUED, WAITING, DOWNLOADING, PAUSED, COMPLETED, FAILED }
@@ -82,6 +83,8 @@ fun DownloadButton(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
     overrideLabel: String? = null,
+    /** Details action bar: a round Liquid Glass icon button with no text label. */
+    iconOnly: Boolean = false,
 ) {
     val tokens = Cinetor.tokens
     val state = buttonStateOf(info)
@@ -89,6 +92,20 @@ fun DownloadButton(
     val shape = RoundedCornerShape(CinetorTokens.Shape.pill)
     val interaction = remember { MutableInteractionSource() }
     val focused by interaction.collectIsFocusedAsState()
+    if (iconOnly) {
+        Box(
+            modifier
+                .size(50.dp)
+                .liquidGlassButton(CircleShape, active = state != DownloadButtonState.NONE, interaction = interaction)
+                .then(if (focused) Modifier.border(2.dp, tokens.focusRing, CircleShape) else Modifier)
+                .clickable(interactionSource = interaction, indication = null, onClick = onClick)
+                .semantics { contentDescription = "Download" },
+            contentAlignment = Alignment.Center,
+        ) {
+            StateIcon(state, info, look, 22)
+        }
+        return
+    }
     Row(
         modifier
             .height(50.dp)

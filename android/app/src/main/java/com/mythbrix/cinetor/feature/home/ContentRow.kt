@@ -52,6 +52,9 @@ import com.mythbrix.cinetor.design.hexColor
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.filter
 
+/** Ranked chart shelves always show exactly the top 10. */
+const val TOP10_LIMIT = 10
+
 /** True when a shelf supports opening the full-grid "See all" view. */
 fun canSeeAllRow(row: RowUi): Boolean =
     (row.style == RowStyle.POSTER || row.style == RowStyle.LANDSCAPE) && row.items.size >= 4
@@ -63,7 +66,7 @@ fun shouldLoadMoreRow(lastVisibleIndex: Int, totalItems: Int): Boolean =
 /**
  * One horizontal shelf in any of the 6 styles, featuring Movira-style section headers
  * (`3.dp x 16.dp` vertical Cinema Red bar + bold title + optional `See all` trigger),
- * unnumbered `TOP10` poster shelves, unclipped titles below every card, and endless
+ * ranked `TOP10` chart shelves (exactly 10 cards, no paging), unclipped titles below every card, and endless
  * horizontal `onNearEnd` pagination (`PagedCatalog`).
  */
 @Composable
@@ -86,13 +89,14 @@ fun ContentRow(
                 val real = space?.let { s -> continueEntries(resumeEntries, s).map { it.toCardItem() } }.orEmpty()
                 (real + row.items).distinctBy { it.id }
             }
+            RowStyle.TOP10 -> row.items.distinctBy { it.id }.take(TOP10_LIMIT)
             else -> row.items.distinctBy { it.id }
         }
     }
     if (rowItems.isEmpty()) return
 
     val state = rememberLazyListState()
-    if (onNearEnd != null && row.style != RowStyle.CONTINUE) {
+    if (onNearEnd != null && row.style != RowStyle.CONTINUE && row.style != RowStyle.TOP10) {
         val latestNearEnd by rememberUpdatedState(onNearEnd)
         LaunchedEffect(state, rowItems.size) {
             snapshotFlow {

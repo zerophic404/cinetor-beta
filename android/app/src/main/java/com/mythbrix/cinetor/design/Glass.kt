@@ -1,7 +1,13 @@
 package com.mythbrix.cinetor.design
 
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.spring
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsPressedAsState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.compositionLocalOf
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawWithCache
@@ -13,6 +19,7 @@ import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.drawOutline
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.mythbrix.cinetor.core.perf.PerformanceTier
@@ -219,4 +226,60 @@ fun Modifier.glass(
             drawOutline(outline = outline, brush = borderBrush, style = strokeStyle)
         }
     }
+}
+
+/**
+ * Liquid Glass control (icon buttons, pills): [glass] plus a curved lens highlight across the top,
+ * a soft refracted rim glow along the bottom edge, a Cinema Red wash + rim when [active], and a
+ * springy press-in driven by [interaction]. LOW tier keeps the plain glass and the press scale only.
+ */
+@Composable
+fun Modifier.liquidGlassButton(
+    shape: Shape = CircleShape,
+    active: Boolean = false,
+    interaction: MutableInteractionSource? = null,
+): Modifier {
+    val tokens = Cinetor.tokens
+    val tier = Cinetor.tier
+    val pressed = interaction?.collectIsPressedAsState()?.value ?: false
+    val scale by animateFloatAsState(
+        targetValue = if (pressed) 0.93f else 1f,
+        animationSpec = spring(dampingRatio = 0.55f, stiffness = 650f),
+        label = "liquidGlassPress",
+    )
+    val optics = tier != PerformanceTier.LOW
+    val lensAlpha = if (tokens.isLight) 0.42f else 0.20f
+    val rimColor = if (active) tokens.accent else Color.White
+    return this
+        .graphicsLayer {
+            scaleX = scale
+            scaleY = scale
+        }
+        .glass(shape, GlassLevel.SURFACE)
+        .drawWithCache {
+            val outline = shape.createOutline(size, layoutDirection, this)
+            val w = size.width.coerceAtLeast(1f)
+            val h = size.height.coerceAtLeast(1f)
+            val lens = Brush.radialGradient(
+                colors = listOf(Color.White.copy(alpha = lensAlpha), Color.Transparent),
+                center = Offset(w * 0.5f, -h * 0.18f),
+                radius = maxOf(w, h) * 0.78f,
+            )
+            val rimGlow = Brush.verticalGradient(
+                colors = listOf(Color.Transparent, rimColor.copy(alpha = if (active) 0.26f else 0.09f)),
+                startY = h * 0.55f,
+                endY = h,
+            )
+            val activeWash = tokens.accent.copy(alpha = 0.16f)
+            val activeStroke = Stroke(width = 1.dp.toPx())
+            onDrawWithContent {
+                if (active) drawOutline(outline = outline, color = activeWash)
+                if (optics) {
+                    drawOutline(outline = outline, brush = lens)
+                    drawOutline(outline = outline, brush = rimGlow)
+                }
+                drawContent()
+                if (active) drawOutline(outline = outline, color = tokens.accent.copy(alpha = 0.62f), style = activeStroke)
+            }
+        }
 }

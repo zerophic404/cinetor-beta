@@ -134,7 +134,8 @@ class PlaybackPreloaderTest {
         runCurrent()
         assertEquals(listOf("a"), e.fake.loads.map { it.first })
         assertEquals("a", e.fake.currentKey)
-        assertEquals(Readiness.RESOLVING, e.pre.readiness.value["b"])
+        // Resolved (source in hand) but not buffered: Details shows the green dot, take() loads.
+        assertEquals(Readiness.READY, e.pre.readiness.value["b"])
         // Play on b replaces a in the same player (single audio).
         assertSame(e.fake, e.pre.take("b"))
         assertEquals(listOf("a", "b"), e.fake.loads.map { it.first })
@@ -183,7 +184,7 @@ class PlaybackPreloaderTest {
         e.pre.warm(movie("a"))
         runCurrent()
         assertTrue(e.fake.loads.isEmpty())
-        assertEquals(Readiness.RESOLVING, e.pre.readiness.value["a"])
+        assertEquals(Readiness.READY, e.pre.readiness.value["a"])
         e.pre.take("a")
         assertEquals(listOf("a"), e.fake.loads.map { it.first })
         assertTrue(e.fake.lastPlayWhenReady)

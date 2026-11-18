@@ -127,7 +127,8 @@ class GatewayTest {
         assertTrue("heroes ${featured.heroIds}", featured.heroIds.all { it.startsWith("gw:") })
         assertFalse("rows ${featured.rows.map { it.title }}", featured.rows.any { it.title == "Banner" })
         assertEquals(RowStyle.POSTER, featured.rows[0].style)
-        assertTrue(featured.rows.none { it.style == RowStyle.TOP10 })
+        assertEquals(RowStyle.TOP10, featured.rows[1].style)
+        assertEquals(1, featured.rows.count { it.style == RowStyle.TOP10 })
         val popular = gw.row(featured.rows.first().id)
         assertEquals(3, popular.size)
         assertEquals(1, http.urls.count { it.endsWith("/home") }) // cached for the section row
@@ -167,10 +168,17 @@ class GatewayTest {
             }
             .map { it.section }
         val featured = cats.first { it.id == "gw:home-featured" }
-        assertEquals(expectedCurated, featured.rows.take(expectedCurated.size).map { it.title })
-        assertEquals(expectedCurated.size + GatewayLayout.homeExtraShelves().size, featured.rows.size)
+        val chart = featured.rows.single { it.style == RowStyle.TOP10 }
+        assertEquals(1, featured.rows.indexOf(chart))
+        assertEquals("Top 10 Today", chart.title)
+        val movedSection = expectedCurated.firstOrNull {
+            chart.id.endsWith("section=" + java.net.URLEncoder.encode(it, "UTF-8"))
+        }
+        val curatedShelves = expectedCurated.filter { it != movedSection }
+        val shelves = featured.rows.filter { it.style != RowStyle.TOP10 }
+        assertEquals(curatedShelves, shelves.take(curatedShelves.size).map { it.title })
+        assertEquals(curatedShelves.size + GatewayLayout.homeExtraShelves().size + 1, featured.rows.size)
         assertEquals(RowStyle.POSTER, featured.rows.first().style)
-        assertTrue(featured.rows.none { it.style == RowStyle.TOP10 })
         assertEquals(2, featured.heroIds.size)
 
         // Coming Soon's first fixture item is has_resource=false → never listed.

@@ -1,5 +1,6 @@
 package com.mythbrix.cinetor.core.data.tmdb
 
+import com.mythbrix.cinetor.core.data.CastMember
 import com.mythbrix.cinetor.core.data.Episode
 import com.mythbrix.cinetor.core.data.Item
 import com.mythbrix.cinetor.core.data.ItemType
@@ -214,6 +215,13 @@ object TmdbMapper {
             durationSec = if (media == MOVIE) d.runtime?.let { it * 60 } else null,
             seasons = seasons,
             cast = d.credits?.cast.orEmpty().sortedBy { it.order }.take(12).map { it.name },
+            castMembers = d.credits?.cast.orEmpty().sortedBy { it.order }.take(12).map { c ->
+                CastMember(
+                    name = c.name,
+                    role = c.character?.takeIf { it.isNotBlank() },
+                    photo = c.profilePath?.takeIf { it.isNotBlank() }?.let { "tmdb:$it" },
+                )
+            },
             studio = d.productionCompanies.firstOrNull()?.name,
         )
     }

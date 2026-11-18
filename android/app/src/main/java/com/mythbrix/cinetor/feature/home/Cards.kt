@@ -1,5 +1,13 @@
 package com.mythbrix.cinetor.feature.home
 
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.graphics.Shadow
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.StrokeJoin
+import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.font.Font
+import androidx.compose.ui.text.font.DeviceFontFamilyName
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.background
@@ -68,7 +76,13 @@ import com.mythbrix.cinetor.design.hexColor
 import java.util.Locale
 
 private val CardShape = RoundedCornerShape(CinetorTokens.Shape.card)
-private val StarGold = Color(0xFFFFB800)
+/** Rating star in Cinema Red (white / red / black palette). */
+private val StarGold = Color(0xFFE50914)
+
+internal val CondensedRankFont: FontFamily = FontFamily(
+    Font(DeviceFontFamilyName("sans-serif-condensed"), FontWeight.Normal),
+    Font(DeviceFontFamilyName("sans-serif-condensed"), FontWeight.Bold),
+)
 
 private val HINDI_REGEX = Regex("""\bhindi\b""", RegexOption.IGNORE_CASE)
 private val BENGALI_REGEX = Regex("""\b(?:bengali|bangla)\b""", RegexOption.IGNORE_CASE)
@@ -391,18 +405,78 @@ fun LandscapeCard(item: Item, onClick: () -> Unit, onActive: (Color) -> Unit, wi
 }
 
 /**
- * `RowStyle.TOP10` card: renders a clean unnumbered [PosterCard] (rank numbers removed in v2.1
- * with visible title underneath).
+ * Ranked chart card (`1`-`10`), restored from v2.0: a giant condensed rank numeral with a soft
+ * gradient fill, specular red stroke and drop shadow, anchored to the poster's bottom edge.
+ * The [PosterCard] keeps its title underneath, so the numeral sits inside the poster band only.
  */
-@Suppress("UNUSED_PARAMETER")
 @Composable
 fun Top10Card(rank: Int, item: Item, onClick: () -> Unit, onActive: (Color) -> Unit, sharedKey: String?) {
-    PosterCard(
-        item = item,
-        onClick = onClick,
-        onActive = onActive,
-        sharedKey = sharedKey,
+    val tokens = Cinetor.tokens
+    val posterWidth = 112.dp
+    val posterHeight = posterWidth * 1.5f
+    val cardWidth = if (rank >= 10) 172.dp else 152.dp
+    val rankLabel = rank.toString()
+    val fontSize = if (rank >= 10) 94.sp else 112.sp
+    val letterSpacing = if (rank >= 10) (-6).sp else (-2).sp
+    val fillBrush = remember(tokens.textPrimary) {
+        Brush.verticalGradient(
+            listOf(
+                tokens.textPrimary.copy(alpha = 0.24f),
+                tokens.textPrimary.copy(alpha = 0.06f),
+            ),
+        )
+    }
+    val strokeBrush = remember(tokens.textPrimary, tokens.accent) {
+        Brush.verticalGradient(
+            listOf(
+                tokens.textPrimary.copy(alpha = 0.92f),
+                tokens.accent.copy(alpha = 0.80f),
+            ),
+        )
+    }
+    val rankStyle = TextStyle(
+        fontFamily = CondensedRankFont,
+        fontSize = fontSize,
+        lineHeight = fontSize,
+        fontWeight = FontWeight.Bold,
+        letterSpacing = letterSpacing,
     )
+    Box(Modifier.width(cardWidth)) {
+        Box(
+            modifier = Modifier
+                .height(posterHeight)
+                .padding(start = 2.dp)
+                .clearAndSetSemantics {},
+            contentAlignment = Alignment.BottomStart,
+        ) {
+            Text(
+                text = rankLabel,
+                style = rankStyle.copy(
+                    brush = fillBrush,
+                    shadow = Shadow(
+                        color = Color.Black.copy(alpha = 0.55f),
+                        offset = Offset(2f, 4f),
+                        blurRadius = 10f,
+                    ),
+                ),
+            )
+            Text(
+                text = rankLabel,
+                style = rankStyle.copy(
+                    brush = strokeBrush,
+                    drawStyle = Stroke(width = 4.2f, join = StrokeJoin.Round),
+                ),
+            )
+        }
+        PosterCard(
+            item = item,
+            onClick = onClick,
+            onActive = onActive,
+            modifier = Modifier.align(Alignment.TopEnd),
+            width = posterWidth,
+            sharedKey = sharedKey,
+        )
+    }
 }
 
 /** Continue watching: 16:9 tile + progress bar + visible title & time left underneath. */

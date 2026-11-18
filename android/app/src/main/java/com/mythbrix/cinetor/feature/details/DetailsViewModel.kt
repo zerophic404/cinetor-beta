@@ -20,7 +20,9 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withTimeoutOrNull
 
 private val DUB_TOKENS = listOf(
     "Dual Audio" to Regex("""\b(dual\s*audio|multi\s*audio)\b""", RegexOption.IGNORE_CASE),
@@ -208,6 +210,13 @@ fun moreLikeThis(item: Item, candidates: List<Item>, limit: Int = 12): List<Item
         .take(limit)
         .toList()
 
+/**
+ * How long Details keeps its shimmer skeleton up after a tap while the stream resolves and buffers,
+ * so the page lands with Play already green and instant. After this cap the page shows anyway and
+ * the dot turns green on its own when the source arrives.
+ */
+const val STREAM_GATE_MS = 3_500L
+
 private suspend fun <T> orNull(block: suspend () -> T): T? = try {
     block()
 } catch (e: CancellationException) {
@@ -218,8 +227,8 @@ private suspend fun <T> orNull(block: suspend () -> T): T? = try {
 
 /**
  * Details logic (Android-free, TestScope-drivable).
- * - Immediately kicks off [preloader.warm] concurrently with `catalog.item(id)` while the shimmer
- *   skeleton is showing (synthesizing S1:E1 when `peek` is a `SERIES` summary so gateway stream
+ * - Immediately kicks off [preloader.warm] concurrently with `catalog.item(id)` and keeps the shimmer
+ *   skeleton up until the stream is READY (bounded by `streamGateMs`), so Play is green on arrival (synthesizing S1:E1 when `peek` is a `SERIES` summary so gateway stream
  *   resolution runs in parallel with detail fetching!).
  * - Eliminates `"Title not found"` whenever `peek(id)` exists or a fallback search resolves the title.
  * - Loads actor filmography (`castWorks`) via `catalog.castWorks(person.name)`.
@@ -232,6 +241,8 @@ class DetailsStateHolder(
     private val resumeEpisodeOf: (String) -> String? = { null },
     private val searchFallback: (suspend (String) -> List<Item>)? = null,
     private val onItemsDiscovered: (List<Item>) -> Unit = {},
+    /** Keep the skeleton until the stream is READY/ERROR, at most this long (0 = don't wait). */
+    private val streamGateMs: Long = 0L,
 ) {
     private val _state = MutableStateFlow<DetailsUiState>(DetailsUiState.Loading(null))
     val state: StateFlow<DetailsUiState> = _state.asStateFlow()
@@ -291,6 +302,7 @@ class DetailsStateHolder(
             ) {
                 warm(resolved, targetEpId)
             }
+            awaitStream(resolved.id)
 
             _state.value = DetailsUiState.Ready(DetailsUi(resolved))
             val more = moreLikeThis(resolved, candidates(resolved))
@@ -352,6 +364,14 @@ class DetailsStateHolder(
         }
     }
 
+    /** Source first, metadata second: hold the skeleton until the warm-up settles (bounded). */
+    private suspend fun awaitStream(id: String) {
+        if (streamGateMs <= 0L) return
+        withTimeoutOrNull(streamGateMs) {
+            readiness.first { it[id] == Readiness.READY || it[id] == Readiness.ERROR }
+        }
+    }
+
     private fun warm(item: Item, episodeId: String? = null) {
         warmedId = item.id
         warmedEpisodeId = episodeId
@@ -391,6 +411,7 @@ class DetailsViewModel(
         resumeEpisodeOf = resumeEpisodeOf,
         searchFallback = searchFallback,
         onItemsDiscovered = onItemsDiscovered,
+        streamGateMs = STREAM_GATE_MS,
     )
 
     val castState: StateFlow<CastSheetState> get() = holder.castState

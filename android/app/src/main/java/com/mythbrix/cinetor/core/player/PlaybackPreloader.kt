@@ -234,7 +234,11 @@ class MediaPlaybackPreloader(
             s.startMs = if (entry != null && entry.episodeId == req.episodeId) startPositionFor(entry) else 0
             if (session !== s && owned !== s) return@launch
             // Resolve only: data saver, or the player is busy with an owned title (take() loads).
-            if (!s.taken && (dataSaver() || owned != null)) return@launch
+            // The source itself is in hand, so Details can show its green ready dot right away.
+            if (!s.taken && (dataSaver() || owned != null)) {
+                set(item.id, Readiness.READY)
+                return@launch
+            }
             load(s)
         }
         return s

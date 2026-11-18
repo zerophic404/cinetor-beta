@@ -1,5 +1,6 @@
 package com.mythbrix.cinetor.core.data.gateway
 
+import com.mythbrix.cinetor.core.data.CastMember
 import com.mythbrix.cinetor.core.data.CatalogRepository
 import com.mythbrix.cinetor.core.data.Category
 import com.mythbrix.cinetor.core.data.DubOption
@@ -393,6 +394,18 @@ object GatewayMapper {
                 durationSec = if (isTv) null else epDuration.takeIf { it > 0 },
                 seasons = parsedSeasons,
                 cast = d.stars.filter { it.staffType == 1 }.map { it.name }.filter { it.isNotBlank() }.take(12),
+                castMembers = d.stars
+                    .filter { it.staffType == 1 && it.name.isNotBlank() && !it.name.equals(resolvedTitle, ignoreCase = true) }
+                    .distinctBy { it.name.trim().lowercase() }
+                    .take(12)
+                    .map { star ->
+                        CastMember(
+                            name = star.name.trim(),
+                            role = star.character?.trim()?.takeIf { it.isNotEmpty() },
+                            // A missing face falls back to the title artwork upstream: show the person glyph instead.
+                            photo = star.avatarUrl?.trim()?.takeIf { it.isNotEmpty() && it != poster && it != backdrop },
+                        )
+                    },
                 studio = d.stars.firstOrNull { it.staffType == 2 }?.name?.let { "Dir. $it" },
                 slug = s.detailPath?.takeIf { it.isNotBlank() } ?: slug,
                 dubs = structuredDubs,
@@ -434,6 +447,32 @@ object GatewayLayout {
 
     private fun row(space: Space, path: String, title: String, style: RowStyle = RowStyle.POSTER, vararg p: Pair<String, String>) =
         RowSpec(space, path, linkedMapOf(*p), title, style)
+
+    /** Curated `/home` headings that are real charts (never "Trending", which stays an unnumbered shelf). */
+    private val TOP_CHART = Regex("""(?i)^\W*(popular|top\s*10|most\s+watched)\b""")
+    private val TRENDING = Regex("""(?i)trending""")
+
+    /**
+     * Ranked `Top 10` chart for a tab: restyles the first row matching [pick] as [RowStyle.TOP10]
+     * under [title] and moves it to the second slot, right below the tab's lead shelf. When nothing
+     * matches, [fallback] (if given) is inserted there instead, so every tab carries a chart.
+     */
+    internal fun withTopChart(
+        rows: List<RowSpec>,
+        title: String,
+        fallback: RowSpec? = null,
+        pick: (RowSpec) -> Boolean,
+    ): List<RowSpec> {
+        val i = rows.indexOfFirst(pick)
+        val chart = when {
+            i >= 0 -> rows[i].copy(title = title, style = RowStyle.TOP10)
+            fallback != null && rows.none { it.id == fallback.id } -> fallback.copy(title = title, style = RowStyle.TOP10)
+            else -> return rows
+        }
+        if (i == 0) return listOf(chart) + rows.drop(1)
+        val rest = if (i > 0) rows.filterIndexed { j, _ -> j != i } else rows
+        return rest.take(1) + chart + rest.drop(1)
+    }
 
     val HOME_SERIES_GENRES = listOf("Action", "Comedy", "Crime", "Drama", "Romance", "Sci-Fi", "Horror", "Thriller")
     val ANIME_GENRES = listOf("Action", "Adventure", "Fantasy", "Comedy", "Romance", "Horror", "Sci-Fi", "Family")
@@ -510,7 +549,12 @@ object GatewayLayout {
             .map { sec ->
                 row(s, HOME_SECTION, sec.section, RowStyle.POSTER, "section" to sec.section)
             }
-        return CatSpec("gw:home-featured", "For You", curated + homeExtraShelves())
+        val rows = withTopChart(
+            curated + homeExtraShelves(),
+            title = "Top 10 Today",
+            fallback = row(s, "movies", "Top 10 Today", RowStyle.TOP10, "sort" to "hottest"),
+        ) { it.path == HOME_SECTION && TOP_CHART.containsMatchIn(it.title) && !TRENDING.containsMatchIn(it.title) }
+        return CatSpec("gw:home-featured", "For You", rows)
     }
 
     /** Home Movies tab: paged `/movies` shelves, latest/popular/top-rated first, then per genre. */
@@ -519,12 +563,15 @@ object GatewayLayout {
         return CatSpec(
             "gw:home-movies",
             "Movies",
-            listOf(
-                row(s, "movies", "New Movies", RowStyle.POSTER),
-                row(s, "movies", "Popular Movies", RowStyle.POSTER, "sort" to "hottest"),
-                row(s, "movies", "Top Rated Movies", RowStyle.POSTER, "sort" to "rating"),
-                row(s, "movies", "Hollywood", RowStyle.POSTER, "country" to "United States", "sort" to "hottest"),
-            ) + genres(Space.HOME).map { g -> row(s, "movies", "$g Movies", RowStyle.POSTER, "genre" to g) },
+            withTopChart(
+                listOf(
+                    row(s, "movies", "New Movies", RowStyle.POSTER),
+                    row(s, "movies", "Popular Movies", RowStyle.POSTER, "sort" to "hottest"),
+                    row(s, "movies", "Top Rated Movies", RowStyle.POSTER, "sort" to "rating"),
+                    row(s, "movies", "Hollywood", RowStyle.POSTER, "country" to "United States", "sort" to "hottest"),
+                ) + genres(Space.HOME).map { g -> row(s, "movies", "$g Movies", RowStyle.POSTER, "genre" to g) },
+                title = "Top 10 Movies",
+            ) { it.title == "Popular Movies" },
         )
     }
 
@@ -539,10 +586,13 @@ object GatewayLayout {
         return CatSpec(
             "gw:short-tv",
             "Short TV",
-            listOf(
-                row(s, "short-tv", "Latest Short TV", RowStyle.POSTER),
-                row(s, "short-tv", "🔥 Hot Short TV", RowStyle.POSTER, "sort" to "hottest"),
-            ) + curated,
+            withTopChart(
+                listOf(
+                    row(s, "short-tv", "Latest Short TV", RowStyle.POSTER),
+                    row(s, "short-tv", "🔥 Hot Short TV", RowStyle.POSTER, "sort" to "hottest"),
+                ) + curated,
+                title = "Top 10 Short TV",
+            ) { it.path == "short-tv" && it.params["sort"] == "hottest" },
         )
     }
 
@@ -551,10 +601,13 @@ object GatewayLayout {
         return CatSpec(
             "gw:home-series",
             "Series",
-            listOf(
-                row(s, "tv-series", "Latest Series", RowStyle.POSTER),
-                row(s, "tv-series", "Popular Series", RowStyle.POSTER, "sort" to "hottest"),
-            ) + HOME_SERIES_GENRES.map { g -> row(s, "tv-series", "$g Series", RowStyle.POSTER, "genre" to g) },
+            withTopChart(
+                listOf(
+                    row(s, "tv-series", "Latest Series", RowStyle.POSTER),
+                    row(s, "tv-series", "Popular Series", RowStyle.POSTER, "sort" to "hottest"),
+                ) + HOME_SERIES_GENRES.map { g -> row(s, "tv-series", "$g Series", RowStyle.POSTER, "genre" to g) },
+                title = "Top 10 Series",
+            ) { it.title == "Popular Series" },
         )
     }
 
@@ -565,13 +618,16 @@ object GatewayLayout {
             CatSpec(
                 "gw:anime",
                 "Anime",
-                listOf(
-                    row(s, "tv-series", "Trending Anime", RowStyle.POSTER, "genre" to "Anime", "sort" to "hottest"),
-                    row(s, "tv-series", "Latest Anime", RowStyle.POSTER, "genre" to "Anime", "sort" to "latest"),
-                    row(s, "tv-series", "Top Rated Anime", RowStyle.POSTER, "genre" to "Anime", "sort" to "rating"),
-                    row(s, "movies", "Animated Movies", RowStyle.POSTER, "genre" to "Animation", "sort" to "hottest"),
-                    row(s, "animation", "Cartoons", RowStyle.POSTER, "sort" to "hottest"),
-                ) + ANIME_GENRES.map { g -> row(s, "animation", "$g Anime", RowStyle.POSTER, "genre" to g) },
+                withTopChart(
+                    listOf(
+                        row(s, "tv-series", "Trending Anime", RowStyle.POSTER, "genre" to "Anime", "sort" to "hottest"),
+                        row(s, "tv-series", "Latest Anime", RowStyle.POSTER, "genre" to "Anime", "sort" to "latest"),
+                        row(s, "tv-series", "Top Rated Anime", RowStyle.POSTER, "genre" to "Anime", "sort" to "rating"),
+                        row(s, "movies", "Animated Movies", RowStyle.POSTER, "genre" to "Animation", "sort" to "hottest"),
+                        row(s, "animation", "Cartoons", RowStyle.POSTER, "sort" to "hottest"),
+                    ) + ANIME_GENRES.map { g -> row(s, "animation", "$g Anime", RowStyle.POSTER, "genre" to g) },
+                    title = "Top 10 Anime",
+                ) { it.title == "Top Rated Anime" },
             ),
         )
     }
@@ -614,6 +670,15 @@ object GatewayLayout {
 
         val allTwentyShelves = kDramaCore + cDramaCore + jDramaCore + pkDramaCore + inDramaCore + otherAsianCore
 
+        val charts = mapOf(
+            "gw:drama-all" to ("Top 10 Dramas" to "Top Rated K-Drama"),
+            "gw:drama-k" to ("Top 10 K-Drama" to "Top Rated K-Drama"),
+            "gw:drama-c" to ("Top 10 C-Drama" to "Top Rated C-Drama"),
+            "gw:drama-j" to ("Top 10 J-Drama" to "Top Rated J-Drama"),
+            "gw:drama-pk" to ("Top 10 Pakistani Drama" to "All-Time Best Pakistani Drama"),
+            "gw:drama-in" to ("Top 10 Indian Drama" to "Top Rated Indian Dramas"),
+            "gw:drama-other" to ("Top 10 Asian Drama" to "Thai Dramas"),
+        )
         return listOf(
             CatSpec("gw:drama-all", "All", allTwentyShelves),
             CatSpec(
@@ -666,12 +731,23 @@ object GatewayLayout {
                     row(s, "tv-series", "Turkish Dramas", RowStyle.POSTER, "country" to "Turkey", "sort" to "hottest"),
                 ),
             ),
-        )
+        ).map { cat ->
+            val (title, source) = charts[cat.id] ?: return@map cat
+            cat.copy(rows = withTopChart(cat.rows, title) { it.title == source })
+        }
     }
 
     /** Adult space: Cinetor Beta category/sort chips (`For You`, `Hottest`, `Latest`, `Rating`, `Movies`, `Series`). */
     fun adult(): List<CatSpec> {
         val s = Space.ADULT
+        val charts = mapOf(
+            "gw:adult-foryou" to "Top Rated",
+            "gw:adult-hottest" to "Hottest Movies",
+            "gw:adult-latest" to "Latest Movies",
+            "gw:adult-rating" to "Top Rated Movies",
+            "gw:adult-movies" to "Top Rated",
+            "gw:adult-series" to "Top Rated",
+        )
         return listOf(
             CatSpec(
                 "gw:adult-foryou",
@@ -730,7 +806,10 @@ object GatewayLayout {
                     row(s, "adult", "Top Rated", RowStyle.POSTER, "kind" to "tv-series", "sort" to "rating"),
                 ),
             ),
-        )
+        ).map { cat ->
+            val source = charts[cat.id] ?: return@map cat
+            cat.copy(rows = withTopChart(cat.rows, "Top 10") { it.title == source })
+        }
     }
 }
 

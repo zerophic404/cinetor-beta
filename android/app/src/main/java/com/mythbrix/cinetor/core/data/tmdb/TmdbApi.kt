@@ -80,7 +80,12 @@ data class TmdbPage(
 data class TmdbGenre(val id: Int, val name: String = "")
 
 @Serializable
-data class TmdbCast(val name: String = "", val order: Int = 0)
+data class TmdbCast(
+    val name: String = "",
+    val order: Int = 0,
+    val character: String? = null,
+    @SerialName("profile_path") val profilePath: String? = null,
+)
 
 @Serializable
 data class TmdbCredits(val cast: List<TmdbCast> = emptyList())

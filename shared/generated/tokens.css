@@ -32,29 +32,29 @@
 
 :root {
   color-scheme: dark;
-  --bg: #09090B;
-  --surface: #121216;
-  --surface-elevated: #1B1B21;
+  --bg: #050505;
+  --surface: #101010;
+  --surface-elevated: #181818;
   --glass-fill: #FFFFFF14;
   --glass-stroke: #FFFFFF29;
-  --accent: #E11D2E;
-  --accent-end: #C8102E;
-  --accent-glow: #E11D2E66;
+  --accent: #E50914;
+  --accent-end: #B20710;
+  --accent-glow: #E5091466;
   --on-accent: #FFFFFF;
   --text-primary: #FFFFFF;
-  --text-secondary: #D4D4D8;
-  --text-tertiary: #9E9EA8;
+  --text-secondary: #D6D6D6;
+  --text-tertiary: #9C9C9C;
   --divider: #FFFFFF14;
   --focus-ring: #FFFFFF;
   --success: #22C55E;
   --warning: #F5A524;
-  --error: #FF4757;
-  --live-badge: #E11D2E;
-  --scrim: #09090BBF;
-  --skeleton-base: #16161C;
-  --skeleton-highlight: #262630;
+  --error: #FF3B30;
+  --live-badge: #E50914;
+  --scrim: #050505BF;
+  --skeleton-base: #151515;
+  --skeleton-highlight: #252525;
   --blur: 20px;
-  --tint-strength: 0.28;
+  --tint-strength: 0.0;
 }
 
 [data-theme="noir"] {
@@ -81,7 +81,7 @@
   --skeleton-base: #161616;
   --skeleton-highlight: #262626;
   --blur: 14px;
-  --tint-strength: 0.18;
+  --tint-strength: 0.0;
 }
 
 [data-theme="obsidian"] {
@@ -140,29 +140,29 @@
 
 [data-theme="glass"] {
   color-scheme: dark;
-  --bg: #09090B;
-  --surface: #121216;
-  --surface-elevated: #1B1B21;
+  --bg: #050505;
+  --surface: #101010;
+  --surface-elevated: #181818;
   --glass-fill: #FFFFFF14;
   --glass-stroke: #FFFFFF29;
-  --accent: #E11D2E;
-  --accent-end: #C8102E;
-  --accent-glow: #E11D2E66;
+  --accent: #E50914;
+  --accent-end: #B20710;
+  --accent-glow: #E5091466;
   --on-accent: #FFFFFF;
   --text-primary: #FFFFFF;
-  --text-secondary: #D4D4D8;
-  --text-tertiary: #9E9EA8;
+  --text-secondary: #D6D6D6;
+  --text-tertiary: #9C9C9C;
   --divider: #FFFFFF14;
   --focus-ring: #FFFFFF;
   --success: #22C55E;
   --warning: #F5A524;
-  --error: #FF4757;
-  --live-badge: #E11D2E;
-  --scrim: #09090BBF;
-  --skeleton-base: #16161C;
-  --skeleton-highlight: #262630;
+  --error: #FF3B30;
+  --live-badge: #E50914;
+  --scrim: #050505BF;
+  --skeleton-base: #151515;
+  --skeleton-highlight: #252525;
   --blur: 20px;
-  --tint-strength: 0.28;
+  --tint-strength: 0.0;
 }
 
 [data-theme="matte"] {

@@ -4,7 +4,6 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -65,8 +64,8 @@ import kotlinx.coroutines.launch
 /**
  * Single-profile Cinetor Beta `Me` hub:
  * - Clean on-device profile summary card with inline display-name edit.
- * - Dedicated **Spaces** grid (`Music`, `Comics`, and PIN-gated `18+` ONLY when enabled in Settings).
- * - Unified Liquid Glass menu (`Library`, `Downloads`, `Settings`, `About`).
+ * - One Liquid Glass menu list in Cinetor Beta order: `Library`, `Downloads`, `Comics`, `Music`,
+ *   PIN-gated `Adult Content` (ONLY when enabled in Settings), `Settings`, `About`.
  */
 @Composable
 fun MeScreen(
@@ -169,17 +168,6 @@ fun MeScreen(
             }
         }
 
-        if (visibleSpaces.isNotEmpty()) {
-            SpacesHubSection(
-                spaces = visibleSpaces,
-                adultEnabled = adultEnabled && !active.kids,
-                adultUnlocked = adultUnlocked,
-                comicsBookmarksCount = comicsData.bookmarks.size,
-                onSpace = onSpace,
-                onLockAdult = { container.adult.lock() },
-            )
-        }
-
         // Grouped Library & App Menu (single Liquid Glass container — zero nested cards)
         Column(
             Modifier
@@ -199,6 +187,17 @@ fun MeScreen(
                 subtitle = if (activeDl > 0) "$activeDl active · $doneDl downloaded" else "$doneDl downloaded",
                 onClick = onDownloads,
             )
+            // Cinetor Beta order: Comics, Music, then Adult Content as plain rows, one after another.
+            orderedSpaces(visibleSpaces).forEach { space ->
+                MenuDivider()
+                SpaceMenuItem(
+                    space = space,
+                    adultUnlocked = adultUnlocked,
+                    comicsBookmarksCount = comicsData.bookmarks.size,
+                    onClick = { onSpace(space) },
+                    onLockAdult = { container.adult.lock() },
+                )
+            }
             MenuDivider()
             MeMenuItem(
                 icon = Icons.Rounded.Settings,
@@ -257,152 +256,58 @@ fun MeScreen(
     }
 }
 
-@Composable
-private fun SpacesHubSection(
-    spaces: List<Space>,
-    adultEnabled: Boolean,
-    adultUnlocked: Boolean,
-    comicsBookmarksCount: Int,
-    onSpace: (Space) -> Unit,
-    onLockAdult: () -> Unit,
-) {
-    val tokens = Cinetor.tokens
-    Column(
-        Modifier
-            .fillMaxWidth()
-            .semantics { contentDescription = "Spaces" },
-        verticalArrangement = Arrangement.spacedBy(8.dp),
-    ) {
-        Row(
-            Modifier.fillMaxWidth().padding(horizontal = 4.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-        ) {
-            Text(
-                "Spaces",
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.SemiBold,
-                color = tokens.textPrimary,
-                modifier = Modifier.weight(1f),
-            )
-            if (adultEnabled && adultUnlocked) {
-                Text(
-                    "Lock 18+",
-                    style = MaterialTheme.typography.labelMedium,
-                    color = tokens.accent,
-                    fontWeight = FontWeight.SemiBold,
-                    modifier = Modifier
-                        .clip(CircleShape)
-                        .background(tokens.glassFill)
-                        .clickable(onClick = onLockAdult)
-                        .padding(horizontal = 10.dp, vertical = 4.dp),
-                )
-            }
-        }
-
-        val rows = spaces.chunked(2)
-        rows.forEach { pair ->
-            Row(
-                Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(10.dp),
-            ) {
-                SpaceTile(
-                    space = pair[0],
-                    adultUnlocked = adultUnlocked,
-                    comicsBookmarksCount = comicsBookmarksCount,
-                    onClick = { onSpace(pair[0]) },
-                    modifier = Modifier.weight(1f),
-                )
-                if (pair.size > 1) {
-                    SpaceTile(
-                        space = pair[1],
-                        adultUnlocked = adultUnlocked,
-                        comicsBookmarksCount = comicsBookmarksCount,
-                        onClick = { onSpace(pair[1]) },
-                        modifier = Modifier.weight(1f),
-                    )
-                } else {
-                    Spacer(Modifier.weight(1f))
-                }
-            }
-        }
-    }
+/** Comics, Music, then 18+, matching the Cinetor Beta `Me` list order. */
+private fun orderedSpaces(spaces: List<Space>): List<Space> {
+    val order = listOf(Space.COMICS, Space.MUSIC, Space.ADULT)
+    return spaces.sortedBy { sp -> order.indexOf(sp).let { if (it < 0) order.size else it } }
 }
 
+/** One space as a plain menu row (icon, title, one-line subtitle, chevron), like the Beta `Me` list. */
 @Composable
-private fun SpaceTile(
+private fun SpaceMenuItem(
     space: Space,
     adultUnlocked: Boolean,
     comicsBookmarksCount: Int,
     onClick: () -> Unit,
-    modifier: Modifier = Modifier,
+    onLockAdult: () -> Unit,
 ) {
     val tokens = Cinetor.tokens
-    // Keep exact `spaceEntryLabel(space).first` for `contentDescription = "Space $semanticTitle"`.
     val (semanticTitle, defaultSub) = spaceEntryLabel(space)
-    val displayTitle = if (space == Space.ADULT) "18+ Adult" else semanticTitle
+    val title = when (space) {
+        Space.ADULT -> "Adult Content"
+        Space.COMICS -> "Comics"
+        else -> semanticTitle
+    }
     val subtitle = when (space) {
-        Space.MUSIC -> "Streaming · FLAC · MP3"
-        Space.COMICS -> if (comicsBookmarksCount > 0) "Manga · Manhwa · $comicsBookmarksCount saved" else "Manga · Manhwa · Manhua"
-        Space.ADULT -> if (adultUnlocked) "Unlocked · Tap to open" else "PIN protected"
+        Space.MUSIC -> "Streaming · Lossless · MP3"
+        Space.COMICS -> if (comicsBookmarksCount > 0) "Manga, Manhwa & Manhua · $comicsBookmarksCount saved" else "Manga, Manhwa & Manhua"
+        Space.ADULT -> if (adultUnlocked) "Unlocked" else "PIN protected"
         else -> defaultSub
     }
     val icon = when (space) {
         Space.MUSIC -> Icons.Rounded.MusicNote
         Space.COMICS -> Icons.Rounded.AutoStories
         Space.ADULT -> if (adultUnlocked) Icons.Rounded.LockOpen else Icons.Rounded.Lock
-        else -> Icons.Rounded.MusicNote
+        else -> Icons.Rounded.VideoLibrary
     }
-
     Row(
-        modifier
-            .glass(RoundedCornerShape(18.dp), GlassLevel.SURFACE)
+        Modifier
+            .fillMaxWidth()
             .clickable(onClick = onClick)
             .semantics { contentDescription = "Space $semanticTitle" }
-            .padding(horizontal = 12.dp, vertical = 12.dp),
+            .padding(horizontal = 14.dp, vertical = 11.dp),
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(10.dp),
+        horizontalArrangement = Arrangement.spacedBy(14.dp),
     ) {
-        Box(
-            Modifier
-                .size(36.dp)
-                .clip(RoundedCornerShape(11.dp))
-                .background(tokens.accent.copy(alpha = 0.14f)),
-            contentAlignment = Alignment.Center,
-        ) {
-            Icon(
-                icon,
-                contentDescription = null,
-                tint = tokens.accent,
-                modifier = Modifier.size(20.dp),
-            )
-        }
+        Icon(icon, contentDescription = null, tint = tokens.accent, modifier = Modifier.size(22.dp))
         Column(Modifier.weight(1f)) {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(6.dp),
-            ) {
-                Text(
-                    displayTitle,
-                    style = MaterialTheme.typography.titleSmall,
-                    fontWeight = FontWeight.SemiBold,
-                    color = tokens.textPrimary,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
-                if (space == Space.ADULT) {
-                    Text(
-                        "18+",
-                        style = MaterialTheme.typography.labelSmall,
-                        fontWeight = FontWeight.Bold,
-                        color = tokens.onAccent,
-                        modifier = Modifier
-                            .clip(CircleShape)
-                            .background(tokens.accent)
-                            .padding(horizontal = 6.dp, vertical = 1.dp),
-                    )
-                }
-            }
+            Text(
+                title,
+                style = MaterialTheme.typography.titleSmall,
+                fontWeight = FontWeight.SemiBold,
+                color = tokens.textPrimary,
+                maxLines = 1,
+            )
             Text(
                 subtitle,
                 style = MaterialTheme.typography.bodySmall,
@@ -411,6 +316,38 @@ private fun SpaceTile(
                 overflow = TextOverflow.Ellipsis,
             )
         }
+        if (space == Space.ADULT) {
+            if (adultUnlocked) {
+                Text(
+                    "Lock",
+                    style = MaterialTheme.typography.labelMedium,
+                    fontWeight = FontWeight.SemiBold,
+                    color = tokens.accent,
+                    modifier = Modifier
+                        .clip(CircleShape)
+                        .background(tokens.glassFill)
+                        .clickable(onClick = onLockAdult)
+                        .semantics { contentDescription = "Lock 18+" }
+                        .padding(horizontal = 10.dp, vertical = 4.dp),
+                )
+            } else {
+                Text(
+                    "18+",
+                    style = MaterialTheme.typography.labelSmall,
+                    fontWeight = FontWeight.Bold,
+                    color = tokens.onAccent,
+                    modifier = Modifier
+                        .clip(CircleShape)
+                        .background(tokens.accent)
+                        .padding(horizontal = 6.dp, vertical = 1.dp),
+                )
+            }
+        }
+        Icon(
+            Icons.AutoMirrored.Rounded.KeyboardArrowRight,
+            contentDescription = null,
+            tint = tokens.textSecondary,
+        )
     }
 }
 

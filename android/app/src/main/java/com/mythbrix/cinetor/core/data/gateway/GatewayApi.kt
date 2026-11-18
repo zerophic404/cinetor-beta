@@ -347,7 +347,12 @@ data class GwHome(val status: String? = null, val sections: List<GwSection> = em
 data class GwCover(val url: String? = null, val avgHueDark: String? = null, val avgHueLight: String? = null)
 
 @Serializable
-data class GwStar(val name: String = "", val character: String? = null, val staffType: Int = 0)
+data class GwStar(
+    val name: String = "",
+    val character: String? = null,
+    val staffType: Int = 0,
+    val avatarUrl: String? = null,
+)
 
 @Serializable
 data class GwEpisodeRes(

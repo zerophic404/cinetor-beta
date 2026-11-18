@@ -78,10 +78,12 @@ class GatewayBetaParityTest {
         assertFalse(featured.rows.any { it.title.equals("Banner", ignoreCase = true) })
         assertFalse(featured.rows.any { it.title.contains("Anime", ignoreCase = true) })
 
-        // v2.1.0: Trending / first curated row uses clean unnumbered POSTER style (no TOP10 numbering).
+        // Trending stays an unnumbered POSTER lead shelf; exactly one ranked Top 10 chart sits right below it.
         assertEquals("Trending Short Drama", featured.rows[0].title)
         assertEquals(RowStyle.POSTER, featured.rows[0].style)
-        assertTrue(featured.rows.none { it.style == RowStyle.TOP10 })
+        assertEquals(1, featured.rows.count { it.style == RowStyle.TOP10 })
+        assertEquals(RowStyle.TOP10, featured.rows[1].style)
+        assertEquals("Top 10 Today", featured.rows[1].title)
         val topRowItems = gw.row(featured.rows[0].id)
         assertEquals(listOf("Rank One"), topRowItems.map { it.title })
 
@@ -156,8 +158,14 @@ class GatewayBetaParityTest {
             "Taiwanese Dramas",
             "Other Asian Dramas",
         )
-        assertEquals(expectedShelves, allDramaRows)
-        assertTrue(cats.first().rows.all { it.style == RowStyle.POSTER })
+        assertEquals(1, cats.first().rows.count { it.style == RowStyle.TOP10 })
+        // "Top Rated K-Drama" is promoted to the ranked chart right below the lead shelf.
+        assertEquals("Top 10 Dramas", allDramaRows[1])
+        assertEquals(RowStyle.TOP10, cats.first().rows[1].style)
+        assertEquals(
+            expectedShelves.filter { it != "Top Rated K-Drama" },
+            allDramaRows.filterIndexed { i, _ -> cats.first().rows[i].style != RowStyle.TOP10 },
+        )
         assertEquals(cats.first().rows.size, cats.first().rows.map { it.id }.toSet().size)
     }
 

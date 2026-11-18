@@ -28,10 +28,12 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.AspectRatio
 import androidx.compose.material.icons.rounded.Audiotrack
+import androidx.compose.material.icons.rounded.Bedtime
 import androidx.compose.material.icons.rounded.ClosedCaption
 import androidx.compose.material.icons.rounded.Forward10
 import androidx.compose.material.icons.rounded.Fullscreen
 import androidx.compose.material.icons.rounded.FullscreenExit
+import androidx.compose.material.icons.rounded.HighQuality
 import androidx.compose.material.icons.rounded.KeyboardArrowDown
 import androidx.compose.material.icons.rounded.Lock
 import androidx.compose.material.icons.rounded.LockOpen
@@ -43,6 +45,7 @@ import androidx.compose.material.icons.rounded.Replay10
 import androidx.compose.material.icons.rounded.Settings
 import androidx.compose.material.icons.rounded.SkipNext
 import androidx.compose.material.icons.rounded.SkipPrevious
+import androidx.compose.material.icons.rounded.Speed
 import androidx.compose.material.icons.rounded.VideoLibrary
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
@@ -90,8 +93,10 @@ fun PlayerIconButton(
 }
 
 /**
- * Auto-hiding glass controls over the video. Locked → only the unlock button.
- * Includes dedicated Audio (dubs + tracks), Subtitles (with online search), Quality/Settings, PiP, and Fullscreen buttons.
+ * Auto-hiding glass controls over the video, with no catch-all Settings button: its items live in
+ * the two existing rows. Top: minimize, title, then Speed, Sleep timer, PiP, Lock. Bottom: seek
+ * bar, time, then Audio, Subtitles, Quality, Episodes, Next, Aspect ratio, Fullscreen.
+ * Inline keeps the compact icon-only form. Locked → only the unlock button.
  */
 @Composable
 fun PlayerControls(
@@ -102,13 +107,12 @@ fun PlayerControls(
     onInteract: () -> Unit,
     onBack: () -> Unit,
     onRotate: () -> Unit,
-    onSettings: () -> Unit,
+    /** Opens one player sheet page directly (Quality, Speed, Audio, Subtitles, Sleep timer). */
+    onOpenPage: (SettingsPage) -> Unit,
     onEpisodes: () -> Unit,
     holder: PlayerStateHolder,
     modifier: Modifier = Modifier,
     inline: Boolean = false,
-    onAudio: () -> Unit = onSettings,
-    onSubtitles: () -> Unit = onSettings,
     onPip: (() -> Unit)? = null,
     extraTopActions: @Composable () -> Unit = {},
 ) {
@@ -136,9 +140,9 @@ fun PlayerControls(
                     ),
                 ) {
                     Box(Modifier.fillMaxSize().then(safe).padding(horizontal = if (fullscreen && !inline) 20.dp else 8.dp, vertical = 6.dp)) {
-                        TopBar(screen, inline, onBack, onSettings, onPip, holder, onInteract, extraTopActions)
+                        TopBar(screen, ui, fullscreen, inline, onBack, onPip, holder, onInteract, onOpenPage, extraTopActions)
                         CenterButtons(screen, ui, holder, onInteract, big = fullscreen && !inline)
-                        BottomBar(screen, ui, fullscreen, inline, holder, onInteract, onRotate, onEpisodes, onAudio, onSubtitles)
+                        BottomBar(screen, ui, fullscreen, inline, holder, onInteract, onRotate, onEpisodes, onOpenPage)
                     }
                 }
             }
@@ -149,14 +153,17 @@ fun PlayerControls(
 @Composable
 private fun BoxScope.TopBar(
     screen: PlayerScreenState,
+    ui: PlayerUiState,
+    fullscreen: Boolean,
     inline: Boolean,
     onBack: () -> Unit,
-    onSettings: () -> Unit,
     onPip: (() -> Unit)?,
     holder: PlayerStateHolder,
     onInteract: () -> Unit,
+    onOpenPage: (SettingsPage) -> Unit,
     extraTopActions: @Composable () -> Unit,
 ) {
+    val expanded = fullscreen && !inline
     val btnSize = if (inline) 36.dp else 40.dp
     val icSize = if (inline) 18.dp else 20.dp
     Row(
@@ -175,13 +182,22 @@ private fun BoxScope.TopBar(
             }
         }
         extraTopActions()
+        if (!screen.live) {
+            PlayerPillButton(Icons.Rounded.Speed, "Playback speed", if (expanded) speedLabel(ui.speed) else null) {
+                onOpenPage(SettingsPage.SPEED); onInteract()
+            }
+            if (!inline) {
+                PlayerPillButton(Icons.Rounded.Bedtime, "Sleep timer", if (expanded) screen.sleep.label else null) {
+                    onOpenPage(SettingsPage.SLEEP); onInteract()
+                }
+            }
+        }
         if (onPip != null) {
             PlayerIconButton(Icons.Rounded.PictureInPictureAlt, "Picture in picture", { onPip(); onInteract() }, size = btnSize, iconSize = icSize)
         }
         if (!inline) {
             PlayerIconButton(Icons.Rounded.LockOpen, "Lock controls", { holder.toggleLock(); onInteract() }, size = btnSize, iconSize = icSize)
         }
-        PlayerIconButton(Icons.Rounded.Settings, "Player settings", { onSettings(); onInteract() }, size = btnSize, iconSize = icSize)
     }
 }
 
@@ -235,9 +251,9 @@ private fun BoxScope.BottomBar(
     onInteract: () -> Unit,
     onRotate: () -> Unit,
     onEpisodes: () -> Unit,
-    onAudio: () -> Unit,
-    onSubtitles: () -> Unit,
+    onOpenPage: (SettingsPage) -> Unit,
 ) {
+    val expanded = fullscreen && !inline
     Column(Modifier.align(Alignment.BottomCenter).fillMaxWidth()) {
         val marks = buildList {
             val s = screen.introStartMs
@@ -268,11 +284,14 @@ private fun BoxScope.BottomBar(
             }
             Spacer(Modifier.weight(1f))
             if (!screen.live) {
-                PlayerPillButton(Icons.Rounded.Audiotrack, "Audio", if (fullscreen && !inline) "Audio" else null) {
-                    onAudio(); onInteract()
+                PlayerPillButton(Icons.Rounded.Audiotrack, "Audio", if (expanded) "Audio" else null) {
+                    onOpenPage(SettingsPage.AUDIO); onInteract()
                 }
-                PlayerPillButton(Icons.Rounded.ClosedCaption, "Subtitles", if (fullscreen && !inline) "Subtitles" else null) {
-                    onSubtitles(); onInteract()
+                PlayerPillButton(Icons.Rounded.ClosedCaption, "Subtitles", if (expanded) "Subtitles" else null) {
+                    onOpenPage(SettingsPage.SUBTITLES); onInteract()
+                }
+                PlayerPillButton(Icons.Rounded.HighQuality, "Quality", if (expanded) qualityLabel(ui, screen) else null) {
+                    onOpenPage(SettingsPage.QUALITY); onInteract()
                 }
             }
             if (!inline && screen.episodes.isNotEmpty()) {
@@ -282,20 +301,8 @@ private fun BoxScope.BottomBar(
                 PlayerIconButton(Icons.Rounded.SkipNext, "Next episode", { holder.next(); onInteract() }, size = 36.dp, iconSize = 18.dp)
             }
             if (!inline) {
-                Row(
-                    Modifier
-                        .height(36.dp)
-                        .clip(RoundedCornerShape(18.dp))
-                        .background(Color.Black.copy(alpha = 0.38f))
-                        .border(1.dp, Color.White.copy(alpha = 0.16f), RoundedCornerShape(18.dp))
-                        .clickable { holder.cycleAspect(); onInteract() }
-                        .semantics { contentDescription = "Aspect ratio" }
-                        .padding(horizontal = 10.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Icon(Icons.Rounded.AspectRatio, contentDescription = null, tint = Color.White, modifier = Modifier.size(18.dp))
-                    Spacer(Modifier.width(4.dp))
-                    Text(screen.aspect.label, color = Color.White, style = MaterialTheme.typography.labelMedium)
+                PlayerPillButton(Icons.Rounded.AspectRatio, "Aspect ratio", screen.aspect.label) {
+                    holder.cycleAspect(); onInteract()
                 }
             }
             val fsExpanded = fullscreen && !inline

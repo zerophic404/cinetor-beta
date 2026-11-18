@@ -85,6 +85,40 @@ class DetailsViewModelTest {
     }
 
     @Test
+    fun streamGate_keepsSkeletonUntilSourceReady() = runTest {
+        val flow = MutableStateFlow<Map<String, Readiness>>(emptyMap())
+        val pre = object : PlaybackPreloader {
+            override val readiness: StateFlow<Map<String, Readiness>> = flow
+            override fun warm(item: Item, episodeId: String?) {
+                flow.value = flow.value + (item.id to Readiness.RESOLVING)
+            }
+            override fun cancel(itemId: String) = Unit
+        }
+        val peek = catalogItems.associateBy { it.id }
+        val h = DetailsStateHolder(FakeCatalog(catalogItems), pre, backgroundScope, peek::get, streamGateMs = 3_000)
+        h.open("a")
+        advanceTimeBy(1_500)
+        runCurrent()
+        // Metadata is back, but the stream is still resolving: the skeleton stays.
+        assertTrue(h.state.value is DetailsUiState.Loading)
+        flow.value = flow.value + ("a" to Readiness.READY)
+        runCurrent()
+        assertEquals("a", (h.state.value as DetailsUiState.Ready).ui.item.id)
+    }
+
+    @Test
+    fun streamGate_isBounded_whenTheSourceNeverArrives() = runTest {
+        val h = DetailsStateHolder(FakeCatalog(catalogItems), RecordingPreloader(), backgroundScope, streamGateMs = 3_000)
+        h.open("a")
+        advanceTimeBy(3_500)
+        runCurrent()
+        assertTrue(h.state.value is DetailsUiState.Loading)
+        advanceTimeBy(600)
+        runCurrent()
+        assertTrue(h.state.value is DetailsUiState.Ready)
+    }
+
+    @Test
     fun details_callsWarmOnOpen_andCancelOnLeave() = runTest {
         val pre = RecordingPreloader()
         val peek = catalogItems.associateBy { it.id }

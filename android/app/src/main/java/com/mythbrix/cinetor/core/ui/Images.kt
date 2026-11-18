@@ -1,5 +1,6 @@
 package com.mythbrix.cinetor.core.ui
 
+import android.content.Context
 import android.graphics.Bitmap
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
@@ -26,6 +27,7 @@ import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -135,22 +137,38 @@ fun rememberSizedImage(path: String, width: Dp, height: Dp, large: Boolean = fal
     val density = LocalDensity.current
     val tier = Cinetor.tier
     return remember(path, width, height, large, tier, density) {
-        val scale = decodeScale(tier, large)
-        val w = (with(density) { width.toPx() } * scale).toInt().coerceAtLeast(1)
-        val h = (with(density) { height.toPx() } * scale).toInt().coerceAtLeast(1)
-        val resolved = sizedImageUrl(path, w, tier, large)
-        ImageRequest.Builder(context)
-            .data(resolved.ifEmpty { null })
-            .size(w, h)
-            .crossfade(if (tier == PerformanceTier.LOW) 0 else tier.crossfadeMs)
-            .apply {
-                if (tier.imageRgb565) {
-                    bitmapConfig(Bitmap.Config.RGB_565)
-                    allowHardware(false)
-                }
-            }
-            .build()
+        sizedImageRequest(context, path, width, height, density, tier, large)
     }
+}
+
+/**
+ * The exact request [rememberSizedImage] builds, usable outside composition. The startup preloader
+ * enqueues these so every card's first frame is a memory-cache hit (same URL, same decoded size).
+ */
+fun sizedImageRequest(
+    context: Context,
+    path: String,
+    width: Dp,
+    height: Dp,
+    density: Density,
+    tier: PerformanceTier,
+    large: Boolean = false,
+): ImageRequest {
+    val scale = decodeScale(tier, large)
+    val w = (with(density) { width.toPx() } * scale).toInt().coerceAtLeast(1)
+    val h = (with(density) { height.toPx() } * scale).toInt().coerceAtLeast(1)
+    val resolved = sizedImageUrl(path, w, tier, large)
+    return ImageRequest.Builder(context)
+        .data(resolved.ifEmpty { null })
+        .size(w, h)
+        .crossfade(if (tier == PerformanceTier.LOW) 0 else tier.crossfadeMs)
+        .apply {
+            if (tier.imageRgb565) {
+                bitmapConfig(Bitmap.Config.RGB_565)
+                allowHardware(false)
+            }
+        }
+        .build()
 }
 
 /**
