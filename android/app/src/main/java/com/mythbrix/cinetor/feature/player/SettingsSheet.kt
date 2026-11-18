@@ -1,8 +1,12 @@
 package com.mythbrix.cinetor.feature.player
 
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -12,7 +16,11 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowLeft
 import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowRight
@@ -21,29 +29,45 @@ import androidx.compose.material.icons.rounded.Bedtime
 import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.ClosedCaption
 import androidx.compose.material.icons.rounded.HighQuality
+import androidx.compose.material.icons.rounded.Search
 import androidx.compose.material.icons.rounded.Speed
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import com.mythbrix.cinetor.core.data.DubOption
+import com.mythbrix.cinetor.core.player.KnownSubtitle
 import com.mythbrix.cinetor.core.player.PLAYBACK_SPEEDS
 import com.mythbrix.cinetor.core.player.PlayerUiState
 import com.mythbrix.cinetor.design.Cinetor
+import com.mythbrix.cinetor.feature.player.subs.POPULAR_SUBTITLE_LANGUAGES
+import com.mythbrix.cinetor.feature.player.subs.formatTrackLanguageLabel
+import com.mythbrix.cinetor.feature.player.subs.fullSubtitleLanguageName
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.launch
 
 enum class SettingsPage { MAIN, QUALITY, SPEED, AUDIO, SUBTITLES, SLEEP }
 
@@ -59,16 +83,52 @@ fun qualityLabel(ui: PlayerUiState, screen: PlayerScreenState? = null): String {
     return t.forcedHeight?.let { "${it}p" } ?: ("Auto" + (t.playingHeight?.takeIf { it > 0 }?.let { " (${it}p)" } ?: ""))
 }
 
-/** Extra subtitle rows contributed by Task 3.5 (load file, style, sync). */
+/** Extra subtitle hooks (load file, style, sync, and in-app online subtitle search). */
 class SubtitleExtras(
     val onLoadFile: (() -> Unit)? = null,
     val onStyle: (() -> Unit)? = null,
     val onSync: (() -> Unit)? = null,
     val sideLoadedLabel: String? = null,
     val onClearSideLoaded: (() -> Unit)? = null,
+    val onSearchOnline: (suspend (query: String, lang: String?) -> List<KnownSubtitle>)? = null,
+    val onPickOnlineSub: ((KnownSubtitle) -> Unit)? = null,
 )
 
-/** Player settings: Quality / Speed / Audio / Subtitles / Sleep timer. */
+private data class AudioDubEntry(
+    val language: String,
+    val fromSources: Boolean,
+    val siblingOption: DubOption? = null,
+)
+
+private fun buildAudioDubEntries(screen: PlayerScreenState): List<AudioDubEntry> {
+    val map = LinkedHashMap<String, AudioDubEntry>()
+    for (src in screen.sources) {
+        val lang = audioDubOf(src) ?: continue
+        val key = lang.lowercase()
+        if (!map.containsKey(key)) {
+            map[key] = AudioDubEntry(language = lang, fromSources = true)
+        }
+    }
+    for (dub in screen.item?.dubs.orEmpty()) {
+        val lang = fullSubtitleLanguageName(dub.languageName.ifBlank { dub.languageCode })
+        val key = lang.lowercase()
+        val existing = map[key]
+        if (existing == null) {
+            map[key] = AudioDubEntry(language = lang, fromSources = false, siblingOption = dub)
+        } else if (existing.siblingOption == null) {
+            map[key] = existing.copy(siblingOption = dub)
+        }
+    }
+    val priority = listOf("hindi", "original", "english", "bangla", "dual audio")
+    return map.values.sortedWith(
+        compareBy<AudioDubEntry> { entry ->
+            val idx = priority.indexOf(entry.language.lowercase())
+            if (idx >= 0) idx else priority.size
+        }.thenBy { it.language },
+    )
+}
+
+/** Player settings: Quality / Speed / Audio (Dubs + Tracks) / Subtitles (+ Online Search) / Sleep timer. */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SettingsSheet(
@@ -77,9 +137,46 @@ fun SettingsSheet(
     holder: PlayerStateHolder,
     onDismiss: () -> Unit,
     extras: SubtitleExtras = SubtitleExtras(),
+    initialPage: SettingsPage = SettingsPage.MAIN,
 ) {
-    var page by remember { mutableStateOf(SettingsPage.MAIN) }
+    var page by remember(initialPage) { mutableStateOf(initialPage) }
     val sheet = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    val scope = rememberCoroutineScope()
+
+    var onlineQuery by remember(screen.title) { mutableStateOf(screen.title) }
+    var onlineLangCode by remember { mutableStateOf<String?>(null) }
+    var onlineResults by remember(screen.generation) { mutableStateOf<List<KnownSubtitle>>(emptyList()) }
+    var onlineLoading by remember { mutableStateOf(false) }
+    var onlineSearched by remember(screen.generation) { mutableStateOf(false) }
+    var onlineError by remember { mutableStateOf<String?>(null) }
+
+    fun runOnlineSearch(queryOverride: String = onlineQuery, langOverride: String? = onlineLangCode) {
+        val searchFn = extras.onSearchOnline ?: return
+        val q = queryOverride.trim().ifEmpty { screen.title.trim() }
+        if (q.isEmpty()) return
+        onlineLoading = true
+        onlineSearched = true
+        onlineError = null
+        scope.launch {
+            try {
+                onlineResults = searchFn(q, langOverride)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (_: Exception) {
+                onlineResults = emptyList()
+                onlineError = "Couldn't search subtitles right now."
+            } finally {
+                onlineLoading = false
+            }
+        }
+    }
+
+    LaunchedEffect(page, screen.title) {
+        if (page == SettingsPage.SUBTITLES && extras.onSearchOnline != null && !onlineSearched && screen.title.isNotBlank()) {
+            runOnlineSearch(screen.title, onlineLangCode)
+        }
+    }
+
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = sheet,
@@ -89,97 +186,269 @@ fun SettingsSheet(
         Column(Modifier.fillMaxWidth().navigationBarsPadding().padding(bottom = 12.dp)) {
             when (page) {
                 SettingsPage.MAIN -> {
-                    val subLabel = extras.sideLoadedLabel
-                        ?: ui.tracks.text.firstOrNull { it.selected }?.label
+                    val selectedText = ui.tracks.text.firstOrNull { it.selected }
+                    val subLabel = extras.sideLoadedLabel?.let { fullSubtitleLanguageName(it) }
+                        ?: selectedText?.let { formatTrackLanguageLabel(it.label, it.language, "On") }
                         ?: "Off"
-                    val activeDub = screen.sources.getOrNull(screen.sourceIndex)?.let(::dubOfSource)
+                    val activeDub = screen.sources.getOrNull(screen.sourceIndex)?.let(::audioDubOf)
+                    val selectedAudio = ui.tracks.audio.firstOrNull { it.selected }
                     val audioSummary = activeDub
-                        ?: ui.tracks.audio.firstOrNull { it.selected }?.label
-                        ?: "Default"
+                        ?: selectedAudio?.let { formatTrackLanguageLabel(it.label, it.language, "Original") }
+                        ?: "Original"
                     SheetRow(Icons.Rounded.HighQuality, "Quality", qualityLabel(ui, screen)) { page = SettingsPage.QUALITY }
                     SheetRow(Icons.Rounded.Speed, "Playback speed", speedLabel(ui.speed)) { page = SettingsPage.SPEED }
-                    SheetRow(Icons.Rounded.Audiotrack, "Audio", audioSummary) {
-                        page = SettingsPage.AUDIO
-                    }
+                    SheetRow(Icons.Rounded.Audiotrack, "Audio", audioSummary) { page = SettingsPage.AUDIO }
                     SheetRow(Icons.Rounded.ClosedCaption, "Subtitles", subLabel) { page = SettingsPage.SUBTITLES }
                     SheetRow(Icons.Rounded.Bedtime, "Sleep timer", screen.sleep.label) { page = SettingsPage.SLEEP }
                 }
-                SettingsPage.QUALITY -> SubPage("Quality", { page = SettingsPage.MAIN }) {
+
+                SettingsPage.QUALITY -> SubPage("Quality", { if (initialPage == SettingsPage.MAIN) page = SettingsPage.MAIN else onDismiss() }) {
                     val t = ui.tracks
-                    // Provider sources (gateway resolutions): switching keeps the position.
                     if (screen.sources.size > 1) {
-                        item { Text("Source", color = Color.White.copy(alpha = 0.6f), modifier = Modifier.padding(horizontal = 20.dp, vertical = 4.dp)) }
+                        item { SectionLabel("Source") }
                         items(screen.sources.size, key = { "src$it" }) { i ->
                             val src = screen.sources[i]
-                            val size = src.sizeBytes?.let { b -> " · " + "%.1f GB".format(b / 1_073_741_824.0).replace(" 0.", " 0.") }.orEmpty()
-                            Choice((src.label ?: "Source ${i + 1}") + size, screen.sourceIndex == i) {
-                                holder.selectSource(i); page = SettingsPage.MAIN
+                            val size = src.sizeBytes?.let { b ->
+                                if (b >= 1_073_741_824L) " · %.1f GB".format(java.util.Locale.US, b / 1_073_741_824.0)
+                                else if (b >= 1_048_576L) " · ${b / 1_048_576L} MB"
+                                else ""
+                            }.orEmpty()
+                            val label = src.label ?: "Source ${i + 1}"
+                            Choice(if (label.contains("GB") || label.contains("MB")) label else label + size, screen.sourceIndex == i) {
+                                holder.selectSource(i)
+                                onDismiss()
                             }
                         }
-                        if (t.video.isNotEmpty()) item { Text("Stream tracks", color = Color.White.copy(alpha = 0.6f), modifier = Modifier.padding(horizontal = 20.dp, vertical = 4.dp)) }
+                        if (t.video.isNotEmpty()) item { SectionLabel("Stream tracks") }
                     }
                     val auto = "Auto" + (t.playingHeight?.takeIf { it > 0 }?.let { " (${it}p)" } ?: "")
-                    item { Choice(auto, t.autoQuality) { holder.selectQuality(null); page = SettingsPage.MAIN } }
+                    item { Choice(auto, t.autoQuality) { holder.selectQuality(null); onDismiss() } }
                     items(t.video, key = { it.height }) { q ->
-                        Choice(q.label, t.forcedHeight == q.height) { holder.selectQuality(q.height); page = SettingsPage.MAIN }
+                        Choice(q.label, t.forcedHeight == q.height) { holder.selectQuality(q.height); onDismiss() }
                     }
                 }
-                SettingsPage.SPEED -> SubPage("Playback speed", { page = SettingsPage.MAIN }) {
+
+                SettingsPage.SPEED -> SubPage("Playback speed", { if (initialPage == SettingsPage.MAIN) page = SettingsPage.MAIN else onDismiss() }) {
                     items(PLAYBACK_SPEEDS, key = { it }) { sp ->
-                        Choice(speedLabel(sp), ui.speed == sp) { holder.setSpeed(sp); page = SettingsPage.MAIN }
+                        Choice(speedLabel(sp), ui.speed == sp) { holder.setSpeed(sp); onDismiss() }
                     }
                 }
-                SettingsPage.AUDIO -> SubPage("Audio", { page = SettingsPage.MAIN }) {
-                    val dubs = screen.sources.mapNotNull(::dubOfSource).distinct()
-                    val activeDub = screen.sources.getOrNull(screen.sourceIndex)?.let(::dubOfSource)
-                    if (dubs.size > 1) {
-                        item { Text("Language / Dub", color = Color.White.copy(alpha = 0.6f), modifier = Modifier.padding(horizontal = 20.dp, vertical = 4.dp)) }
-                        items(dubs, key = { "dub:$it" }) { dub ->
-                            Choice(dub, dub.equals(activeDub, ignoreCase = true)) {
-                                holder.selectDub(dub)
-                                page = SettingsPage.MAIN
+
+                SettingsPage.AUDIO -> SubPage("Audio", { if (initialPage == SettingsPage.MAIN) page = SettingsPage.MAIN else onDismiss() }) {
+                    val dubEntries = buildAudioDubEntries(screen)
+                    val activeDub = screen.sources.getOrNull(screen.sourceIndex)?.let(::audioDubOf)
+                    if (dubEntries.isNotEmpty()) {
+                        item { SectionLabel("Audio / Dub language") }
+                        items(dubEntries, key = { "dub:${it.language}" }) { entry ->
+                            val isSelected = activeDub?.equals(entry.language, ignoreCase = true) == true ||
+                                (activeDub == null && dubEntries.size == 1)
+                            Choice(
+                                label = entry.language,
+                                selected = isSelected,
+                                badge = if (entry.language.equals("Original", ignoreCase = true)) "Original" else "Dub",
+                            ) {
+                                if (entry.fromSources) holder.selectDub(entry.language)
+                                else if (entry.siblingOption != null) holder.selectDubOption(entry.siblingOption)
+                                else holder.selectDub(entry.language)
+                                onDismiss()
                             }
                         }
-                        if (ui.tracks.audio.isNotEmpty()) {
-                            item { Text("Stream audio tracks", color = Color.White.copy(alpha = 0.6f), modifier = Modifier.padding(horizontal = 20.dp, vertical = 4.dp)) }
+                    }
+                    if (ui.tracks.audio.isNotEmpty()) {
+                        if (dubEntries.isNotEmpty()) {
+                            item { SectionLabel("Stream audio tracks") }
+                        }
+                        items(ui.tracks.audio, key = { it.id }) { a ->
+                            val cleanLabel = formatTrackLanguageLabel(a.label, a.language, "Original")
+                            Choice(cleanLabel, a.selected, badge = "Track") {
+                                holder.selectAudio(a.id)
+                                onDismiss()
+                            }
                         }
                     }
-                    if (dubs.size <= 1 && ui.tracks.audio.isEmpty()) {
-                        item { Choice(activeDub ?: "Default", true) { page = SettingsPage.MAIN } }
-                    }
-                    items(ui.tracks.audio, key = { it.id }) { a ->
-                        Choice(a.label, a.selected) { holder.selectAudio(a.id); page = SettingsPage.MAIN }
+                    if (dubEntries.isEmpty() && ui.tracks.audio.isEmpty()) {
+                        item { Choice(activeDub ?: "Original", true) { onDismiss() } }
                     }
                 }
-                SettingsPage.SUBTITLES -> SubPage("Subtitles", { page = SettingsPage.MAIN }) {
+
+                SettingsPage.SUBTITLES -> SubPage("Subtitles", { if (initialPage == SettingsPage.MAIN) page = SettingsPage.MAIN else onDismiss() }) {
                     val anySelected = extras.sideLoadedLabel != null || ui.tracks.text.any { it.selected }
                     item {
                         Choice("Off", !anySelected) {
                             extras.onClearSideLoaded?.invoke()
                             holder.selectText(null)
-                            page = SettingsPage.MAIN
+                            onDismiss()
                         }
                     }
-                    extras.sideLoadedLabel?.let { label -> item { Choice(label, true) { page = SettingsPage.MAIN } } }
+                    extras.sideLoadedLabel?.let { raw ->
+                        val label = fullSubtitleLanguageName(raw)
+                        item { Choice(label, true, badge = "Loaded") { onDismiss() } }
+                    }
                     items(ui.tracks.text, key = { it.id }) { t ->
-                        Choice(t.label, t.selected && extras.sideLoadedLabel == null) {
+                        val fullLabel = formatTrackLanguageLabel(t.label, t.language, "Original")
+                        Choice(fullLabel, t.selected && extras.sideLoadedLabel == null) {
                             extras.onClearSideLoaded?.invoke()
                             holder.selectText(t.id)
-                            page = SettingsPage.MAIN
+                            onDismiss()
                         }
                     }
+
+                    if (extras.onSearchOnline != null) {
+                        item {
+                            SectionLabel("Search online subtitles")
+                            OnlineSubtitleSearchBox(
+                                query = onlineQuery,
+                                onQueryChange = { onlineQuery = it },
+                                selectedLangCode = onlineLangCode,
+                                onPickLang = { code ->
+                                    onlineLangCode = code
+                                    runOnlineSearch(onlineQuery, code)
+                                },
+                                loading = onlineLoading,
+                                onSearch = { runOnlineSearch(onlineQuery, onlineLangCode) },
+                            )
+                        }
+                        if (onlineError != null) {
+                            item {
+                                Text(
+                                    onlineError.orEmpty(),
+                                    color = Color(0xFFFF8A80),
+                                    style = MaterialTheme.typography.bodySmall,
+                                    modifier = Modifier.padding(horizontal = 20.dp, vertical = 4.dp),
+                                )
+                            }
+                        } else if (!onlineLoading && onlineSearched && onlineResults.isEmpty()) {
+                            item {
+                                Text(
+                                    "No matching online subtitles found.",
+                                    color = Color.White.copy(alpha = 0.6f),
+                                    style = MaterialTheme.typography.bodySmall,
+                                    modifier = Modifier.padding(horizontal = 20.dp, vertical = 6.dp),
+                                )
+                            }
+                        }
+                        items(onlineResults, key = { "online:${it.id}" }) { sub ->
+                            val cleanName = formatTrackLanguageLabel(sub.label, sub.language, "Original")
+                            Choice(
+                                label = cleanName,
+                                selected = extras.sideLoadedLabel?.equals(cleanName, ignoreCase = true) == true,
+                                badge = "Online",
+                            ) {
+                                extras.onPickOnlineSub?.invoke(sub)
+                                onDismiss()
+                            }
+                        }
+                    }
+
+                    item { SectionLabel("Tools") }
                     extras.onLoadFile?.let { f -> item { Action("Load subtitle file (SRT/VTT)…") { f(); onDismiss() } } }
                     extras.onSync?.let { f -> item { Action("Sync offset…") { f(); onDismiss() } } }
                     extras.onStyle?.let { f -> item { Action("Subtitle style…") { f(); onDismiss() } } }
                 }
-                SettingsPage.SLEEP -> SubPage("Sleep timer", { page = SettingsPage.MAIN }) {
+
+                SettingsPage.SLEEP -> SubPage("Sleep timer", { if (initialPage == SettingsPage.MAIN) page = SettingsPage.MAIN else onDismiss() }) {
                     items(SleepOption.entries, key = { it.name }) { o ->
-                        Choice(o.label, screen.sleep == o) { holder.setSleep(o); page = SettingsPage.MAIN }
+                        Choice(o.label, screen.sleep == o) { holder.setSleep(o); onDismiss() }
                     }
                 }
             }
         }
     }
+}
+
+@Composable
+private fun SectionLabel(text: String) {
+    Text(
+        text,
+        style = MaterialTheme.typography.labelLarge,
+        color = Cinetor.tokens.accent,
+        fontWeight = FontWeight.SemiBold,
+        modifier = Modifier.padding(horizontal = 20.dp, vertical = 6.dp),
+    )
+}
+
+@Composable
+private fun OnlineSubtitleSearchBox(
+    query: String,
+    onQueryChange: (String) -> Unit,
+    selectedLangCode: String?,
+    onPickLang: (String?) -> Unit,
+    loading: Boolean,
+    onSearch: () -> Unit,
+) {
+    Column(
+        Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        Row(
+            Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            OutlinedTextField(
+                value = query,
+                onValueChange = onQueryChange,
+                singleLine = true,
+                placeholder = { Text("Movie or series title", color = Color.White.copy(alpha = 0.45f)) },
+                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
+                keyboardActions = KeyboardActions(onSearch = { onSearch() }),
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedTextColor = Color.White,
+                    unfocusedTextColor = Color.White,
+                    focusedBorderColor = Cinetor.tokens.accent,
+                    unfocusedBorderColor = Color.White.copy(alpha = 0.22f),
+                    cursorColor = Cinetor.tokens.accent,
+                ),
+                modifier = Modifier.weight(1f),
+            )
+            Box(
+                Modifier
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(Cinetor.tokens.accent)
+                    .clickable(enabled = !loading, onClick = onSearch)
+                    .semantics { contentDescription = "Search online subtitles" }
+                    .padding(horizontal = 14.dp, vertical = 14.dp),
+                contentAlignment = Alignment.Center,
+            ) {
+                if (loading) {
+                    CircularProgressIndicator(color = Color.White, strokeWidth = 2.dp, modifier = Modifier.size(18.dp))
+                } else {
+                    Icon(Icons.Rounded.Search, contentDescription = null, tint = Color.White, modifier = Modifier.size(20.dp))
+                }
+            }
+        }
+        LazyRow(
+            contentPadding = PaddingValues(horizontal = 2.dp),
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+        ) {
+            item(key = "lang:all") {
+                LangFilterChip("All", selectedLangCode == null) { onPickLang(null) }
+            }
+            items(POPULAR_SUBTITLE_LANGUAGES, key = { "lang:${it.code}" }) { lang ->
+                LangFilterChip(lang.name, selectedLangCode == lang.code) {
+                    onPickLang(if (selectedLangCode == lang.code) null else lang.code)
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun LangFilterChip(label: String, selected: Boolean, onClick: () -> Unit) {
+    val shape = RoundedCornerShape(50)
+    Text(
+        label,
+        color = Color.White,
+        style = MaterialTheme.typography.labelMedium,
+        fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
+        modifier = Modifier
+            .clip(shape)
+            .background(if (selected) Cinetor.tokens.accent else Color.White.copy(alpha = 0.08f))
+            .border(1.dp, if (selected) Cinetor.tokens.accent else Color.White.copy(alpha = 0.16f), shape)
+            .clickable(onClick = onClick)
+            .semantics { contentDescription = "Subtitle language $label" }
+            .padding(horizontal = 12.dp, vertical = 6.dp),
+    )
 }
 
 @Composable
@@ -192,7 +461,7 @@ private fun SheetRow(icon: ImageVector, title: String, value: String, onClick: (
         Icon(icon, contentDescription = null, tint = Color.White)
         Spacer(Modifier.width(16.dp))
         Text(title, style = MaterialTheme.typography.bodyLarge, color = Color.White, modifier = Modifier.weight(1f))
-        Text(value, style = MaterialTheme.typography.bodyMedium, color = Color.White.copy(alpha = 0.6f))
+        Text(value, style = MaterialTheme.typography.bodyMedium, color = Color.White.copy(alpha = 0.6f), maxLines = 1, overflow = TextOverflow.Ellipsis)
         Icon(Icons.AutoMirrored.Rounded.KeyboardArrowRight, contentDescription = null, tint = Color.White.copy(alpha = 0.6f))
     }
 }
@@ -207,25 +476,34 @@ private fun SubPage(title: String, onBack: () -> Unit, content: androidx.compose
         Spacer(Modifier.width(8.dp))
         Text(title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = Color.White)
     }
-    LazyColumn(Modifier.fillMaxWidth().heightIn(max = 420.dp), content = content)
+    LazyColumn(Modifier.fillMaxWidth().heightIn(max = 460.dp), content = content)
 }
 
 @Composable
-private fun Choice(label: String, selected: Boolean, onClick: () -> Unit) {
+private fun Choice(label: String, selected: Boolean, badge: String? = null, onClick: () -> Unit) {
     Row(
         Modifier.fillMaxWidth().clickable(onClick = onClick).semantics { contentDescription = label }
-            .padding(horizontal = 20.dp, vertical = 13.dp),
+            .padding(horizontal = 20.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(14.dp),
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        Spacer(Modifier.size(24.dp).let { it })
+        Spacer(Modifier.size(12.dp))
         Text(
             label,
             style = MaterialTheme.typography.bodyLarge,
             color = if (selected) Cinetor.tokens.accent else Color.White,
             fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal,
+            maxLines = 2,
+            overflow = TextOverflow.Ellipsis,
             modifier = Modifier.weight(1f),
         )
+        badge?.let {
+            Text(
+                it,
+                style = MaterialTheme.typography.labelSmall,
+                color = Color.White.copy(alpha = 0.55f),
+            )
+        }
         if (selected) Icon(Icons.Rounded.Check, contentDescription = null, tint = Cinetor.tokens.accent)
     }
 }
@@ -236,6 +514,6 @@ private fun Action(label: String, onClick: () -> Unit) {
         label,
         style = MaterialTheme.typography.bodyLarge,
         color = Color.White.copy(alpha = 0.9f),
-        modifier = Modifier.fillMaxWidth().clickable(onClick = onClick).padding(horizontal = 58.dp, vertical = 13.dp),
+        modifier = Modifier.fillMaxWidth().clickable(onClick = onClick).padding(horizontal = 32.dp, vertical = 12.dp),
     )
 }

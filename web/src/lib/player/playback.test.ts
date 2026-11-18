@@ -5,6 +5,14 @@ import { Session } from './session';
 import { ResumeStore, memoryKV, resumable, shouldSave, type ResumeEntry } from './resume';
 import { buildMedia, nextEpisode, pickSource, playbackOf, externalPlayerHref, type Media } from './sources';
 import {
+  clampMiniOffset,
+  fromMiniPosFrac,
+  isSwipeOff,
+  miniHeight,
+  parseMiniPosFrac,
+  toMiniPosFrac
+} from './mini-math';
+import {
   buildYouTubePlayerVars,
   dubOfSource,
   extractYouTubeVideoId,
@@ -345,5 +353,47 @@ describe('chromeless YouTube contract, state transitions, fallback & dub persist
     ];
     expect(pickPreferredSource(ep2Sources, { dub: 'Hindi', height: 720 })?.url).toBe('hi-480');
     expect(pickPreferredSource(ep2Sources, { dub: 'Hindi', height: 1080 })?.url).toBe('hi-1080');
+  });
+});
+
+describe('free-position floating mini-player math', () => {
+  const insets = { top: 16, right: 12, bottom: 84, left: 12 };
+
+  it('keeps exact dropped (x, y) inside safe viewport margins without corner-snapping', () => {
+    const vw = 1280;
+    const vh = 720;
+    const w = 420;
+    const h = miniHeight(w);
+
+    const mid = clampMiniOffset(360, 250, w, h, vw, vh, insets);
+    expect(mid).toEqual({ x: 360, y: 250 });
+
+    const topClamped = clampMiniOffset(410, -20, w, h, vw, vh, insets);
+    expect(topClamped).toEqual({ x: 410, y: insets.top });
+
+    const bottomClamped = clampMiniOffset(500, 999, w, h, vw, vh, insets);
+    expect(bottomClamped).toEqual({ x: 500, y: vh - h - insets.bottom });
+
+    expect(isSwipeOff({ x: -w * 0.6, y: 200, w, h }, vw)).toBe(true);
+    expect(isSwipeOff({ x: 360, y: 250, w, h }, vw)).toBe(false);
+  });
+
+  it('persists normalized (xFrac, yFrac) round-trip and defaults cleanly when unset', () => {
+    const vw = 1280;
+    const vh = 720;
+    const w = 420;
+    const h = miniHeight(w);
+
+    const def = fromMiniPosFrac(null, w, h, vw, vh, insets);
+    expect(def).toEqual({ x: vw - w - insets.right, y: vh - h - insets.bottom });
+
+    const frac = toMiniPosFrac(360, 250, w, h, vw, vh, insets);
+    const json = JSON.stringify(frac);
+    const parsed = parseMiniPosFrac(json);
+    expect(parsed).not.toBeNull();
+    const restored = fromMiniPosFrac(parsed, w, h, vw, vh, insets);
+    expect(restored.x).toBeCloseTo(360, 0);
+    expect(restored.y).toBeCloseTo(250, 0);
+    expect(parseMiniPosFrac('not-json')).toBeNull();
   });
 });

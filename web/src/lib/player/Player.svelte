@@ -1,30 +1,47 @@
 <script lang="ts">
   // This app is the complete property of Mythbrix. Do not touch, retrieve, reverse-engineer,
   // scrape or hack anything without Mythbrix's explicit permission.
-  // Full player: the persistent <video> is MOVED into .stage (instant start, buffer kept).
+  // Full & inline player: the persistent <video> / chromeless YouTube stage is MOVED into .stage (instant start, buffer kept).
   import { onMount } from 'svelte';
   import { engine } from './engine';
-  import { clock, nextUp, session, sleep } from './controller';
+  import { clock, mediaFor, nextUp, prepareMedia, session, sleep } from './controller';
   import { attachGestures, volumeReadOnly, type LevelKind } from './Gestures';
   import { BRIGHTNESS_MAX, BRIGHTNESS_MIN } from './gesture-math';
   import { keyAction } from './keys';
   import { navKey, tvEnabled } from '../tv/spatial';
   import { externalPlayerHref, isLocalMediaUrl, type Media } from './sources';
-  import { PlayerUI } from './ui.svelte';
+  import { PlayerUI, ui as sharedUi } from './ui.svelte';
   import Controls from './Controls.svelte';
   import Subtitles from './Subtitles.svelte';
   import { settings } from '$lib/settings/store.svelte';
+  import type { Episode, Item } from '$lib/data/types';
   import { base } from '$app/paths';
 
   interface Props {
-    media: Media;
-    onBack: () => void;
+    media?: Media;
+    item?: Item | null;
+    season?: number | null;
+    episode?: Episode | number | null;
+    onBack?: () => void;
+    inline?: boolean;
+    onExitInline?: () => void;
     /** Live TV mode: LIVE badge + channel zapping (PageUp/PageDown, ↑/↓ while controls are hidden, centre swipe). */
     live?: boolean;
     liveInfo?: string;
     onZap?: (dir: 1 | -1) => void;
   }
-  let { media, onBack, live = false, liveInfo = '', onZap }: Props = $props();
+  let {
+    media: propMedia,
+    item = null,
+    season = null,
+    episode = null,
+    onBack,
+    inline = false,
+    onExitInline,
+    live = false,
+    liveInfo = '',
+    onZap
+  }: Props = $props();
 
   const ui = new PlayerUI();
   const sess = session.state;
@@ -34,18 +51,80 @@
   let triedUrls = $state.raw<string[]>([]);
   const iosVolume = volumeReadOnly();
 
+  const resolvedEp = $derived.by((): Episode | undefined => {
+    if (episode && typeof episode === 'object') return episode;
+    if (!item?.seasons?.length) return undefined;
+    const sObj = season != null ? (item.seasons.find((s) => s.n === season) ?? item.seasons[0]) : item.seasons[0];
+    if (!sObj) return undefined;
+    if (typeof episode === 'number') return sObj.episodes.find((e) => e.n === episode) ?? sObj.episodes[0];
+    return sObj.episodes[0];
+  });
+
+  const activeMedia = $derived.by((): Media | undefined => {
+    if (propMedia) {
+      if ($sess.media && $sess.media.key === propMedia.key) return $sess.media;
+      return propMedia;
+    }
+    if ($sess.media && (!item || $sess.media.item.id === item.id)) return $sess.media;
+    if (item) return mediaFor(item, resolvedEp);
+    return undefined;
+  });
+
+  const handleBack = () => {
+    if (inline && onExitInline) {
+      onExitInline();
+      return;
+    }
+    if (onBack) {
+      onBack();
+      return;
+    }
+    session.minimize();
+  };
+
+  // When <Player {item} {season} {episode} inline={true} /> is mounted without pre-passed `media`, auto-prepare & play.
+  let autoPreparedKey = '';
+  $effect(() => {
+    if (propMedia || !item) return;
+    const targetKey = resolvedEp ? `${item.id}#${resolvedEp.id}` : item.id;
+    if (autoPreparedKey === targetKey || $sess.media?.key === targetKey) return;
+    autoPreparedKey = targetKey;
+    const targetItem = item;
+    const targetEp = resolvedEp;
+    void prepareMedia(targetItem, targetEp).then((m) => {
+      if (autoPreparedKey === targetKey) void session.play(m);
+    });
+  });
+
   const intro = $derived<[number, number] | null>(
-    media.introEndSec && media.introEndSec > (media.introStartSec ?? 0) ? [media.introStartSec ?? 0, media.introEndSec] : null
+    activeMedia?.introEndSec && activeMedia.introEndSec > (activeMedia.introStartSec ?? 0)
+      ? [activeMedia.introStartSec ?? 0, activeMedia.introEndSec]
+      : null
   );
   const unsupported = $derived($sess.error === 'unsupported' || !!$err?.unsupported);
-  const noSource = $derived($sess.error === 'nosource' || !!media.noSource);
-  const errorMsg = $derived($err?.msg ?? ($sess.error && $sess.error !== 'unsupported' && $sess.error !== 'gesture' && $sess.error !== 'nosource' ? $sess.error : null));
+  const noSource = $derived($sess.error === 'nosource' || !!activeMedia?.noSource);
+  const errorMsg = $derived(
+    $err?.msg ??
+      ($sess.error && $sess.error !== 'unsupported' && $sess.error !== 'gesture' && $sess.error !== 'nosource'
+        ? $sess.error
+        : null)
+  );
+
+  // Sync shared inlineMounted state so <MiniPlayer> hides while inline player is visible on /app/title.
+  $effect(() => {
+    if (!inline) return;
+    sharedUi.inlineMounted = true;
+    return () => {
+      sharedUi.inlineMounted = false;
+    };
+  });
 
   // New media → fresh UI state (subs, lock, offset).
   let lastKey = '';
   $effect(() => {
-    if (media.key !== lastKey) {
-      lastKey = media.key;
+    const k = activeMedia?.key ?? '';
+    if (k && k !== lastKey) {
+      lastKey = k;
       ui.reset();
       countdown = null;
       triedUrls = [];
@@ -54,27 +133,28 @@
   });
 
   function tryAnotherSource() {
-    const variants = media.variants ?? [];
-    const curUrl = $sess.media?.source?.url ?? media.source?.url ?? '';
+    if (!activeMedia) return;
+    const variants = activeMedia.variants ?? [];
+    const curUrl = $sess.media?.source?.url ?? activeMedia.source?.url ?? '';
     const seen = curUrl && !triedUrls.includes(curUrl) ? [...triedUrls, curUrl] : triedUrls;
     triedUrls = seen;
     const alt = variants.find((v) => v.url && !seen.includes(v.url)) ?? variants.find((v) => v.url && v.url !== curUrl);
     session.clearError();
     if (alt) {
-      void session.play({ ...media, source: alt, playable: true }, { start: engine.currentTime });
+      void session.play({ ...activeMedia, source: alt, playable: true }, { start: engine.currentTime });
     } else {
       triedUrls = [];
-      void session.play(media, { start: engine.currentTime });
+      void session.play(activeMedia, { start: engine.currentTime });
     }
   }
 
   /** Settings → Subtitles → turn on automatically in the preferred language. */
   function autoSubs() {
-    if (!settings.s.subsAuto) return;
+    if (!settings.s.subsAuto || !activeMedia) return;
     const want = settings.s.subLang;
-    const i = media.subtitles.findIndex((s) => s.lang.toLowerCase().startsWith(want));
+    const i = activeMedia.subtitles.findIndex((s) => s.lang.toLowerCase().startsWith(want));
     if (i < 0) return;
-    void ui.selectSub(`side:${i}`, media.subtitles);
+    void ui.selectSub(`side:${i}`, activeMedia.subtitles);
   }
 
   /** Svelte action: host the shared element here while mounted. */
@@ -84,39 +164,51 @@
   }
 
   onMount(() => {
-    if (!stage) return;
+    if (inline) sharedUi.inlineMounted = true;
+    if (!stage) {
+      return () => {
+        if (inline) {
+          sharedUi.inlineMounted = false;
+          if (session.snapshot.media && session.snapshot.mode === 'full') session.minimize();
+        }
+      };
+    }
     ui.stage = stage;
     ui.show();
-    if ($tvEnabled) stage.focus({ preventScroll: true });
+    if ($tvEnabled && !inline) stage.focus({ preventScroll: true });
     // Settings → Playback: gestures off = taps only; double-tap step configurable.
-    const offGestures = attachGestures(stage, {
-      locked: () => ui.locked || !settings.s.gestures,
-      tap: (type) => (type === 'mouse' ? ui.togglePlay() : ui.toggleControls()),
-      dblclick: () => void ui.toggleFullscreen(),
-      doubleTapSeek: (side, total, step) => side !== 'center' && ui.doubleTap(side, total, step),
-      holdStart: () => ui.holdStart(),
-      holdEnd: () => ui.holdEnd(),
-      time: () => engine.currentTime,
-      duration: () => engine.duration,
-      seekPreview: (target, delta) => {
-        ui.drag = { target, delta };
+    const offGestures = attachGestures(
+      stage,
+      {
+        locked: () => ui.locked || !settings.s.gestures,
+        tap: (type) => (type === 'mouse' ? ui.togglePlay() : ui.toggleControls()),
+        dblclick: () => void ui.toggleFullscreen(),
+        doubleTapSeek: (side, total, step) => side !== 'center' && ui.doubleTap(side, total, step),
+        holdStart: () => ui.holdStart(),
+        holdEnd: () => ui.holdEnd(),
+        time: () => engine.currentTime,
+        duration: () => engine.duration,
+        seekPreview: (target, delta) => {
+          ui.drag = { target, delta };
+        },
+        seekCommit: (target) => {
+          ui.drag = null;
+          ui.seekTo(target);
+        },
+        levelGet: (k: LevelKind) => (k === 'brightness' ? ui.brightness : engine.volume),
+        levelSet: (k: LevelKind, v: number) => {
+          if (k === 'brightness') ui.setBrightness(v);
+          else if (iosVolume) ui.flash('Use the device volume buttons', 1600);
+          else {
+            ui.setVolume(v);
+            ui.showHud('volume', v);
+          }
+        },
+        levelEnd: () => {},
+        swipeV: live && onZap ? (dir) => zap(dir) : undefined
       },
-      seekCommit: (target) => {
-        ui.drag = null;
-        ui.seekTo(target);
-      },
-      levelGet: (k: LevelKind) => (k === 'brightness' ? ui.brightness : engine.volume),
-      levelSet: (k: LevelKind, v: number) => {
-        if (k === 'brightness') ui.setBrightness(v);
-        else if (iosVolume) ui.flash('Use the device volume buttons', 1600);
-        else {
-          ui.setVolume(v);
-          ui.showHud('volume', v);
-        }
-      },
-      levelEnd: () => {},
-      swipeV: live && onZap ? (dir) => zap(dir) : undefined
-    }, settings.s.doubleTapSec);
+      settings.s.doubleTapSec
+    );
     const fs = () => (ui.fullscreen = document.fullscreenElement === stage);
     document.addEventListener('fullscreenchange', fs);
     return () => {
@@ -124,13 +216,22 @@
       document.removeEventListener('fullscreenchange', fs);
       if (document.fullscreenElement === stage) document.exitFullscreen().catch(() => {});
       ui.dispose();
+      if (inline) {
+        sharedUi.inlineMounted = false;
+        // Navigating away from /app/title while inline playback is active → float seamlessly in <MiniPlayer>!
+        if (session.snapshot.media && session.snapshot.mode === 'full') {
+          const pref = settings.s as typeof settings.s & { autoPip?: boolean };
+          if (pref.autoPip !== false) session.minimize();
+          else void session.stop();
+        }
+      }
     };
   });
 
   // Autoplay next: 10 s countdown card when the episode ends (not with "sleep: end of episode").
   const ended = $derived($clock.ended);
   $effect(() => {
-    if (!ended || !$nextUp || !settings.s.autoplayNext || $sleep.mode === 'end' || $sess.mode !== 'full') {
+    if (!ended || !$nextUp || !settings.s.autoplayNext || $sleep.mode === 'end' || ($sess.mode !== 'full' && !inline)) {
       countdown = null;
       return;
     }
@@ -151,12 +252,11 @@
   /** TV / remote: ←/→ ±10 s, Enter play/pause, ↑ shows controls + focuses them, Back minimizes. */
   function onTvKey(e: KeyboardEvent): boolean {
     if (!$tvEnabled || !stage || e.ctrlKey || e.metaKey || e.altKey) return false;
-    // Already handled by spatial nav (e.g. Back inside the controls refocused the stage).
+    if (inline && document.fullscreenElement !== stage && !stage.contains(document.activeElement)) return false;
     if (e.defaultPrevented) return true;
     const k = navKey(e);
     if (!k) return false;
     const a = document.activeElement;
-    // Focus inside the controls → spatial navigation moves between buttons.
     if (a && a !== stage && a !== document.body && stage.contains(a)) {
       ui.show();
       return true;
@@ -164,7 +264,7 @@
     if (document.querySelector('dialog[open]')) return true;
     e.preventDefault();
     if (k.type === 'back') {
-      onBack();
+      handleBack();
       return true;
     }
     if (k.type === 'enter') {
@@ -212,10 +312,18 @@
   }
 
   function onKey(e: KeyboardEvent) {
+    if (!activeMedia) return;
     if (onLiveKey(e)) return;
     if (onTvKey(e)) return;
     const t = e.target as HTMLElement | null;
-    if (t && (t.closest('input, textarea, select, [contenteditable="true"]') || (t.getAttribute('role') === 'slider' && e.key.startsWith('Arrow')))) return;
+    if (
+      t &&
+      (t.closest('input, textarea, select, [contenteditable="true"]') ||
+        (t.getAttribute('role') === 'slider' && e.key.startsWith('Arrow')) ||
+        document.querySelector('dialog[open]'))
+    ) {
+      return;
+    }
     const a = keyAction(e);
     if (!a || ui.locked) return;
     e.preventDefault();
@@ -240,7 +348,7 @@
         ui.toggleMute();
         return ui.flash(engine.muted ? 'Muted' : 'Sound on');
       case 'captions':
-        return ui.toggleCaptions(media.subtitles);
+        return ui.toggleCaptions(activeMedia.subtitles);
       case 'speed':
         return ui.stepRate(a.dir);
       case 'next':
@@ -250,8 +358,12 @@
 
   // §2: a stream URL must never reach a link, share intent or the clipboard. Only an already
   // downloaded (local) file may be handed to an external player; otherwise we offer the app link.
-  const extOk = $derived(isLocalMediaUrl(media.source?.url));
-  const ext = $derived(extOk && media.source ? externalPlayerHref(media.source.url, typeof navigator !== 'undefined' ? navigator.userAgent : '') : '');
+  const extOk = $derived(isLocalMediaUrl(activeMedia?.source?.url));
+  const ext = $derived(
+    extOk && activeMedia?.source
+      ? externalPlayerHref(activeMedia.source.url, typeof navigator !== 'undefined' ? navigator.userAgent : '')
+      : ''
+  );
   let copied = $state(false);
   /** Copies Cinetor's own watch link (never a stream URL) — §2. */
   async function copyAppLink() {
@@ -269,14 +381,15 @@
 <svelte:window onkeydown={onKey} />
 
 <div
-  class="stage"
+  class="stage player"
+  class:inline
   bind:this={stage}
   data-aspect={ui.aspect}
   class:hide-cursor={!ui.visible && !ui.settings}
   style:--bright={ui.brightness}
   style:--cue-size="{ui.subStyle.size}%"
   style:--cue-color={ui.subStyle.color}
-  style:--cue-bg="rgb(0 0 0 / {ui.subStyle.bg})"
+  style:--cue-bg={ui.subStyle.bg <= 0.01 ? 'transparent' : `rgb(0 0 0 / ${ui.subStyle.bg})`}
   onpointermove={(e) => e.pointerType === 'mouse' && ui.show()}
   role="region"
   aria-label="Video player"
@@ -311,21 +424,21 @@
     <div class="msg glass" data-no-gesture role="alert">
       <strong>No source available</strong>
       <p>This title has no playable stream right now. It will be hidden from lists.</p>
-      <div class="acts"><button class="btn btn-ghost" onclick={onBack}>Back</button></div>
+      <div class="acts"><button class="btn btn-ghost" onclick={handleBack}>Back</button></div>
     </div>
   {:else if unsupported}
     <div class="msg glass" data-no-gesture role="alert">
       <strong>Can't play this format here</strong>
       <p>{$err?.msg ?? 'This browser cannot decode this stream format.'}</p>
-      {#if media.source}
+      {#if activeMedia?.source}
         <div class="acts">
-          {#if media.variants && media.variants.length > 1}
+          {#if activeMedia.variants && activeMedia.variants.length > 1}
             <button class="btn btn-primary" onclick={tryAnotherSource}>Try another source</button>
           {/if}
           {#if extOk}
             <a class="btn btn-primary" href={ext} target="_blank" rel="noopener noreferrer">Open in external player</a>
           {:else}
-            <a class="btn {media.variants && media.variants.length > 1 ? 'btn-ghost' : 'btn-primary'}" href="{base}/app/downloads">Downloads</a>
+            <a class="btn {activeMedia.variants && activeMedia.variants.length > 1 ? 'btn-ghost' : 'btn-primary'}" href="{base}/app/downloads">Downloads</a>
           {/if}
           <button class="btn btn-ghost" onclick={copyAppLink}>{copied ? 'Link copied' : 'Copy app link'}</button>
         </div>
@@ -334,13 +447,13 @@
         {/if}
       {/if}
     </div>
-  {:else if errorMsg}
+  {:else if errorMsg && activeMedia}
     <div class="msg glass" data-no-gesture role="alert">
       <strong>Playback problem</strong>
       <p>{errorMsg}</p>
       <div class="acts">
-        <button class="btn btn-primary" onclick={() => session.play(media, { start: engine.currentTime })}>Retry</button>
-        {#if media.variants && media.variants.length > 1}
+        <button class="btn btn-primary" onclick={() => activeMedia && session.play(activeMedia, { start: engine.currentTime })}>Retry</button>
+        {#if activeMedia.variants && activeMedia.variants.length > 1}
           <button class="btn btn-ghost" onclick={tryAnotherSource}>Try another source</button>
         {/if}
       </div>
@@ -357,7 +470,7 @@
     >
       <svg viewBox="0 0 24 24" width="48" height="48" aria-hidden="true"><path fill="currentColor" d="M8 5.5v13l10.5-6.5z" /></svg>
     </button>
-  {:else if $sess.loading}
+  {:else if $sess.loading || !activeMedia}
     <div class="loading" aria-label="Loading"><span></span></div>
   {/if}
 
@@ -371,8 +484,18 @@
     </div>
   {/if}
 
-  {#if !unsupported}
-    <Controls {ui} title={media.title} subtitle={media.subtitle} subs={media.subtitles} {intro} next={$nextUp} {onBack} />
+  {#if !unsupported && activeMedia}
+    <Controls
+      {ui}
+      media={activeMedia}
+      title={activeMedia.title}
+      subtitle={activeMedia.subtitle}
+      subs={activeMedia.subtitles}
+      {intro}
+      next={$nextUp}
+      {inline}
+      onBack={handleBack}
+    />
   {/if}
 </div>
 
@@ -433,6 +556,13 @@
     -webkit-touch-callout: none;
     container-type: inline-size;
   }
+  .player.inline {
+    position: relative;
+    width: 100%;
+    height: 100%;
+    max-height: none;
+    border-radius: inherit;
+  }
   .stage.hide-cursor {
     cursor: none;
   }
@@ -440,6 +570,7 @@
     aspect-ratio: auto;
     width: 100vw;
     height: 100vh;
+    border-radius: 0;
   }
   .host {
     position: absolute;
@@ -469,11 +600,14 @@
   .stage[data-aspect='fill'] .host :global(.cinetor-yt-slot) {
     transform: scale(1.18, 1);
   }
-  /* Embedded (in-stream) text tracks rendered natively: same style settings. */
+  /* Embedded (in-stream) text tracks rendered natively: default 0 % transparent bg + crisp drop shadow. */
   .host :global(video::cue) {
     font-size: calc(var(--cue-size, 100%) * 1);
     color: var(--cue-color, #fff);
-    background: var(--cue-bg, rgb(0 0 0 / 0.5));
+    background: var(--cue-bg, transparent);
+    text-shadow:
+      0 2px 6px rgba(0, 0, 0, 0.92),
+      0 0 2px rgba(0, 0, 0, 0.95);
   }
   .ripple {
     position: absolute;

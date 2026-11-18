@@ -27,19 +27,22 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.AspectRatio
+import androidx.compose.material.icons.rounded.Audiotrack
+import androidx.compose.material.icons.rounded.ClosedCaption
 import androidx.compose.material.icons.rounded.Forward10
+import androidx.compose.material.icons.rounded.Fullscreen
+import androidx.compose.material.icons.rounded.FullscreenExit
 import androidx.compose.material.icons.rounded.KeyboardArrowDown
 import androidx.compose.material.icons.rounded.Lock
 import androidx.compose.material.icons.rounded.LockOpen
 import androidx.compose.material.icons.rounded.Pause
+import androidx.compose.material.icons.rounded.PictureInPictureAlt
 import androidx.compose.material.icons.rounded.PlayArrow
 import androidx.compose.material.icons.rounded.Replay
 import androidx.compose.material.icons.rounded.Replay10
-import androidx.compose.material.icons.rounded.ScreenRotation
 import androidx.compose.material.icons.rounded.Settings
 import androidx.compose.material.icons.rounded.SkipNext
 import androidx.compose.material.icons.rounded.SkipPrevious
-import com.mythbrix.cinetor.feature.tv.LiveEdgeBadge
 import androidx.compose.material.icons.rounded.VideoLibrary
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
@@ -60,6 +63,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.mythbrix.cinetor.core.player.PlayerUiState
 import com.mythbrix.cinetor.design.Cinetor
+import com.mythbrix.cinetor.feature.tv.LiveEdgeBadge
 
 /** Glass circle button for the player (dark translucent fill + hairline stroke; video is not blur-sourced). */
 @Composable
@@ -87,7 +91,7 @@ fun PlayerIconButton(
 
 /**
  * Auto-hiding glass controls over the video. Locked → only the unlock button.
- * Skip Intro / autoplay card are drawn by [PlayerOverlays] (visible regardless of controls).
+ * Includes dedicated Audio (dubs + tracks), Subtitles (with online search), Quality/Settings, PiP, and Fullscreen buttons.
  */
 @Composable
 fun PlayerControls(
@@ -102,9 +106,13 @@ fun PlayerControls(
     onEpisodes: () -> Unit,
     holder: PlayerStateHolder,
     modifier: Modifier = Modifier,
+    inline: Boolean = false,
+    onAudio: () -> Unit = onSettings,
+    onSubtitles: () -> Unit = onSettings,
+    onPip: (() -> Unit)? = null,
     extraTopActions: @Composable () -> Unit = {},
 ) {
-    val safe = if (fullscreen) Modifier.windowInsetsPadding(WindowInsets.displayCutout) else Modifier
+    val safe = if (fullscreen && !inline) Modifier.windowInsetsPadding(WindowInsets.displayCutout) else Modifier
     Box(modifier.fillMaxSize()) {
         AnimatedVisibility(visible, enter = fadeIn(), exit = fadeOut(), modifier = Modifier.fillMaxSize()) {
             if (screen.locked) {
@@ -120,17 +128,17 @@ fun PlayerControls(
                 Box(
                     Modifier.fillMaxSize().background(
                         Brush.verticalGradient(
-                            0f to Color.Black.copy(alpha = 0.6f),
+                            0f to Color.Black.copy(alpha = 0.62f),
                             0.3f to Color.Transparent,
                             0.65f to Color.Transparent,
-                            1f to Color.Black.copy(alpha = 0.7f),
+                            1f to Color.Black.copy(alpha = 0.72f),
                         ),
                     ),
                 ) {
-                    Box(Modifier.fillMaxSize().then(safe).padding(horizontal = if (fullscreen) 20.dp else 8.dp, vertical = 8.dp)) {
-                        TopBar(screen, onBack, onSettings, holder, onInteract, extraTopActions)
-                        CenterButtons(screen, ui, holder, onInteract, big = fullscreen)
-                        BottomBar(screen, ui, fullscreen, holder, onInteract, onRotate, onEpisodes)
+                    Box(Modifier.fillMaxSize().then(safe).padding(horizontal = if (fullscreen && !inline) 20.dp else 8.dp, vertical = 6.dp)) {
+                        TopBar(screen, inline, onBack, onSettings, onPip, holder, onInteract, extraTopActions)
+                        CenterButtons(screen, ui, holder, onInteract, big = fullscreen && !inline)
+                        BottomBar(screen, ui, fullscreen, inline, holder, onInteract, onRotate, onEpisodes, onAudio, onSubtitles)
                     }
                 }
             }
@@ -141,47 +149,55 @@ fun PlayerControls(
 @Composable
 private fun BoxScope.TopBar(
     screen: PlayerScreenState,
+    inline: Boolean,
     onBack: () -> Unit,
     onSettings: () -> Unit,
+    onPip: (() -> Unit)?,
     holder: PlayerStateHolder,
     onInteract: () -> Unit,
     extraTopActions: @Composable () -> Unit,
 ) {
+    val btnSize = if (inline) 36.dp else 40.dp
+    val icSize = if (inline) 18.dp else 20.dp
     Row(
         Modifier.align(Alignment.TopCenter).fillMaxWidth(),
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
     ) {
-        PlayerIconButton(Icons.Rounded.KeyboardArrowDown, "Minimize player", onBack, size = 40.dp)
+        PlayerIconButton(Icons.Rounded.KeyboardArrowDown, "Minimize player", onBack, size = btnSize, iconSize = icSize)
         Column(Modifier.weight(1f)) {
             Text(
                 screen.title, color = Color.White, style = MaterialTheme.typography.titleSmall,
                 fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis,
             )
             screen.subtitle?.let {
-                Text(it, color = Color.White.copy(alpha = 0.7f), style = MaterialTheme.typography.labelSmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(it, color = Color.White.copy(alpha = 0.72f), style = MaterialTheme.typography.labelSmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
         }
         extraTopActions()
-        PlayerIconButton(Icons.Rounded.LockOpen, "Lock controls", { holder.toggleLock(); onInteract() }, size = 40.dp, iconSize = 20.dp)
-        PlayerIconButton(Icons.Rounded.Settings, "Player settings", onSettings, size = 40.dp, iconSize = 20.dp)
+        if (onPip != null) {
+            PlayerIconButton(Icons.Rounded.PictureInPictureAlt, "Picture in picture", { onPip(); onInteract() }, size = btnSize, iconSize = icSize)
+        }
+        if (!inline) {
+            PlayerIconButton(Icons.Rounded.LockOpen, "Lock controls", { holder.toggleLock(); onInteract() }, size = btnSize, iconSize = icSize)
+        }
+        PlayerIconButton(Icons.Rounded.Settings, "Player settings", { onSettings(); onInteract() }, size = btnSize, iconSize = icSize)
     }
 }
 
 @Composable
 private fun BoxScope.CenterButtons(screen: PlayerScreenState, ui: PlayerUiState, holder: PlayerStateHolder, onInteract: () -> Unit, big: Boolean) {
-    // Live: channel −/+ around play/pause (zapping); VOD: ±10 s.
     val zap = screen.live && screen.channels.size > 1
     val seekable = !screen.live || hasDvrWindow(ui)
     Row(
         Modifier.align(Alignment.Center),
-        horizontalArrangement = Arrangement.spacedBy(if (big) 48.dp else 28.dp),
+        horizontalArrangement = Arrangement.spacedBy(if (big) 48.dp else 26.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         if (zap) {
-            PlayerIconButton(Icons.Rounded.SkipPrevious, "Previous channel", { holder.zap(-1); onInteract() }, size = if (big) 52.dp else 44.dp)
+            PlayerIconButton(Icons.Rounded.SkipPrevious, "Previous channel", { holder.zap(-1); onInteract() }, size = if (big) 52.dp else 42.dp)
         } else if (seekable) {
-            PlayerIconButton(Icons.Rounded.Replay10, "Back 10 seconds", { holder.seekBy(-10_000); onInteract() }, size = if (big) 52.dp else 44.dp)
+            PlayerIconButton(Icons.Rounded.Replay10, "Back 10 seconds", { holder.seekBy(-10_000); onInteract() }, size = if (big) 52.dp else 42.dp)
         }
         Box(contentAlignment = Alignment.Center) {
             val icon = when {
@@ -192,19 +208,19 @@ private fun BoxScope.CenterButtons(screen: PlayerScreenState, ui: PlayerUiState,
             PlayerIconButton(
                 icon, if (ui.playWhenReady) "Pause" else "Play",
                 { holder.togglePlay(); onInteract() },
-                size = if (big) 72.dp else 60.dp, iconSize = if (big) 40.dp else 34.dp,
+                size = if (big) 72.dp else 56.dp, iconSize = if (big) 40.dp else 32.dp,
             )
             if (ui.buffering && ui.playWhenReady) {
                 CircularProgressIndicator(
                     color = Cinetor.tokens.accent, strokeWidth = 3.dp,
-                    modifier = Modifier.size(if (big) 76.dp else 64.dp),
+                    modifier = Modifier.size(if (big) 76.dp else 60.dp),
                 )
             }
         }
         if (zap) {
-            PlayerIconButton(Icons.Rounded.SkipNext, "Next channel", { holder.zap(1); onInteract() }, size = if (big) 52.dp else 44.dp)
+            PlayerIconButton(Icons.Rounded.SkipNext, "Next channel", { holder.zap(1); onInteract() }, size = if (big) 52.dp else 42.dp)
         } else if (seekable) {
-            PlayerIconButton(Icons.Rounded.Forward10, "Forward 10 seconds", { holder.seekBy(10_000); onInteract() }, size = if (big) 52.dp else 44.dp)
+            PlayerIconButton(Icons.Rounded.Forward10, "Forward 10 seconds", { holder.seekBy(10_000); onInteract() }, size = if (big) 52.dp else 42.dp)
         }
     }
 }
@@ -214,10 +230,13 @@ private fun BoxScope.BottomBar(
     screen: PlayerScreenState,
     ui: PlayerUiState,
     fullscreen: Boolean,
+    inline: Boolean,
     holder: PlayerStateHolder,
     onInteract: () -> Unit,
     onRotate: () -> Unit,
     onEpisodes: () -> Unit,
+    onAudio: () -> Unit,
+    onSubtitles: () -> Unit,
 ) {
     Column(Modifier.align(Alignment.BottomCenter).fillMaxWidth()) {
         val marks = buildList {
@@ -225,7 +244,6 @@ private fun BoxScope.BottomBar(
             val e = screen.introEndMs
             if (s != null && e != null && e > s) add(s..e)
         }
-        // Live: DVR window seek bar only when seekable; no download, no episodes.
         if (!screen.live || hasDvrWindow(ui)) {
             SeekBar(
                 positionMs = ui.positionMs,
@@ -249,32 +267,74 @@ private fun BoxScope.BottomBar(
                 )
             }
             Spacer(Modifier.weight(1f))
-            if (screen.episodes.isNotEmpty()) {
+            if (!screen.live) {
+                PlayerPillButton(Icons.Rounded.Audiotrack, "Audio", if (fullscreen && !inline) "Audio" else null) {
+                    onAudio(); onInteract()
+                }
+                PlayerPillButton(Icons.Rounded.ClosedCaption, "Subtitles", if (fullscreen && !inline) "Subtitles" else null) {
+                    onSubtitles(); onInteract()
+                }
+            }
+            if (!inline && screen.episodes.isNotEmpty()) {
                 PlayerIconButton(Icons.Rounded.VideoLibrary, "Episodes", { onEpisodes(); onInteract() }, size = 36.dp, iconSize = 18.dp)
             }
             if (screen.nextEpisode != null) {
                 PlayerIconButton(Icons.Rounded.SkipNext, "Next episode", { holder.next(); onInteract() }, size = 36.dp, iconSize = 18.dp)
             }
-            Row(
-                Modifier
-                    .height(36.dp)
-                    .clip(RoundedCornerShape(18.dp))
-                    .background(Color.Black.copy(alpha = 0.38f))
-                    .border(1.dp, Color.White.copy(alpha = 0.16f), RoundedCornerShape(18.dp))
-                    .clickable { holder.cycleAspect(); onInteract() }
-                    .semantics { contentDescription = "Aspect ratio" }
-                    .padding(horizontal = 10.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Icon(Icons.Rounded.AspectRatio, contentDescription = null, tint = Color.White, modifier = Modifier.size(18.dp))
-                Spacer(Modifier.width(4.dp))
-                Text(screen.aspect.label, color = Color.White, style = MaterialTheme.typography.labelMedium)
+            if (!inline) {
+                Row(
+                    Modifier
+                        .height(36.dp)
+                        .clip(RoundedCornerShape(18.dp))
+                        .background(Color.Black.copy(alpha = 0.38f))
+                        .border(1.dp, Color.White.copy(alpha = 0.16f), RoundedCornerShape(18.dp))
+                        .clickable { holder.cycleAspect(); onInteract() }
+                        .semantics { contentDescription = "Aspect ratio" }
+                        .padding(horizontal = 10.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Icon(Icons.Rounded.AspectRatio, contentDescription = null, tint = Color.White, modifier = Modifier.size(18.dp))
+                    Spacer(Modifier.width(4.dp))
+                    Text(screen.aspect.label, color = Color.White, style = MaterialTheme.typography.labelMedium)
+                }
             }
+            val fsExpanded = fullscreen && !inline
             PlayerIconButton(
-                Icons.Rounded.ScreenRotation, if (fullscreen) "Exit fullscreen" else "Fullscreen",
-                { onRotate(); onInteract() }, size = 36.dp, iconSize = 18.dp,
+                if (fsExpanded) Icons.Rounded.FullscreenExit else Icons.Rounded.Fullscreen,
+                if (fsExpanded) "Exit fullscreen" else "Fullscreen",
+                { onRotate(); onInteract() },
+                size = 36.dp,
+                iconSize = 20.dp,
             )
         }
+    }
+}
+
+@Composable
+private fun PlayerPillButton(
+    icon: ImageVector,
+    description: String,
+    text: String?,
+    onClick: () -> Unit,
+) {
+    if (text == null) {
+        PlayerIconButton(icon, description, onClick, size = 36.dp, iconSize = 18.dp)
+        return
+    }
+    Row(
+        Modifier
+            .height(36.dp)
+            .clip(RoundedCornerShape(18.dp))
+            .background(Color.Black.copy(alpha = 0.38f))
+            .border(1.dp, Color.White.copy(alpha = 0.16f), RoundedCornerShape(18.dp))
+            .clickable(onClick = onClick)
+            .semantics { contentDescription = description }
+            .padding(horizontal = 10.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Icon(icon, contentDescription = null, tint = Color.White, modifier = Modifier.size(17.dp))
+        Spacer(Modifier.width(4.dp))
+        Text(text, color = Color.White, style = MaterialTheme.typography.labelMedium)
     }
 }
 
@@ -283,7 +343,7 @@ private fun BoxScope.BottomBar(
 fun BoxScope.PlayerOverlays(screen: PlayerScreenState, ui: PlayerUiState, holder: PlayerStateHolder, fullscreen: Boolean) {
     val pad = if (fullscreen) Modifier.windowInsetsPadding(WindowInsets.displayCutout).padding(24.dp) else Modifier.padding(12.dp)
     Column(
-        Modifier.align(Alignment.BottomEnd).then(pad).padding(bottom = 56.dp),
+        Modifier.align(Alignment.BottomEnd).then(pad).padding(bottom = 52.dp),
         horizontalAlignment = Alignment.End,
         verticalArrangement = Arrangement.spacedBy(10.dp),
     ) {

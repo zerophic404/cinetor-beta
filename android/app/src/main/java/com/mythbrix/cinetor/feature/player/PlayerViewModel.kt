@@ -1,6 +1,7 @@
 package com.mythbrix.cinetor.feature.player
 
 import androidx.compose.runtime.Immutable
+import com.mythbrix.cinetor.core.data.DubOption
 import com.mythbrix.cinetor.core.data.Episode
 import com.mythbrix.cinetor.core.data.Item
 import com.mythbrix.cinetor.core.data.ItemType
@@ -15,6 +16,7 @@ import com.mythbrix.cinetor.core.player.ResumeStore
 import com.mythbrix.cinetor.core.player.SourceResolver
 import com.mythbrix.cinetor.core.player.SubPlan
 import com.mythbrix.cinetor.core.player.TrackOption
+import com.mythbrix.cinetor.feature.player.subs.fullSubtitleLanguageName
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
@@ -37,8 +39,70 @@ fun knownSubFor(selected: TrackOption?, subs: List<SubPlan>): SubPlan? {
         ?: selected.language?.let { lang -> subs.firstOrNull { it.language.equals(lang, ignoreCase = true) } }
 }
 
-/** Where the player is drawn (PlayerHost above the NavHost). */
-enum class HostMode { FULL, MINI, HIDDEN }
+private val NON_AUDIO_DUB_TOKEN = Regex(
+    """(?i)^(?:\d{3,4}p(?:\s*(?:hd|fhd|qhd|uhd))?|4k(?:\s*uhd)?|2k(?:\s*qhd)?|auto|hd|sd|fhd|qhd|uhd|high[ -]?speed|bdix|mp4|mkv|m4v|avi|webm|mov|ts|hls|dash|h\.?264|h\.?265|x264|x265|hevc|av1|aac|flac|mp3|youtube|direct|proxy|gateway(?:\s*proxy)?|server\s*\d*|source\s*\d*|[\d.]+\s*[kmgt]?b)$""",
+)
+
+/** Clean human audio/dub language name for a [Source] (`"Hindi"`, `"English"`, `"Bangla"`, `"Original"`, etc.). */
+fun audioDubOf(source: Source): String? {
+    source.audioLang?.trim()?.takeIf { it.isNotEmpty() }?.let { raw ->
+        return if (raw.equals("Dual Audio", ignoreCase = true)) "Dual Audio" else fullSubtitleLanguageName(raw)
+    }
+    val label = source.label?.trim()?.takeIf { it.isNotEmpty() } ?: return null
+    val parts = label.split("·", "|", "/").map { it.trim().trim('[', ']', '(', ')').trim() }
+    for (part in parts) {
+        if (part.isEmpty() || NON_AUDIO_DUB_TOKEN.matches(part)) continue
+        if (part.equals("Dual Audio", ignoreCase = true) || part.equals("Multi Audio", ignoreCase = true)) return "Dual Audio"
+        return fullSubtitleLanguageName(part)
+    }
+    return dubOfSource(source)?.takeIf { !NON_AUDIO_DUB_TOKEN.matches(it) }?.let(::fullSubtitleLanguageName)
+}
+
+/** Resolves `(season, episode)` numbers for a loaded item/episode (`(0, 0)` for movies). */
+fun seasonEpisodeNumbersOf(item: Item?, episodeId: String?): Pair<Int, Int> {
+    if (item == null) return 0 to 0
+    if (episodeId != null) {
+        Regex("""(?:^|[:_-])s0*(\d+)[:_-]?e0*(\d+)$""", RegexOption.IGNORE_CASE).find(episodeId)?.let { m ->
+            val se = m.groupValues[1].toIntOrNull()
+            val ep = m.groupValues[2].toIntOrNull()
+            if (se != null && ep != null) return se to ep
+        }
+        for (season in item.seasons) {
+            val hit = season.episodes.firstOrNull { it.id == episodeId }
+            if (hit != null) return season.n to hit.n
+        }
+    }
+    if (item.seasons.isNotEmpty()) {
+        val firstSeason = item.seasons.first()
+        val firstEp = firstSeason.episodes.firstOrNull()
+        return firstSeason.n to (firstEp?.n ?: 1)
+    }
+    return if (item.type == ItemType.SERIES) 1 to 1 else 0 to 0
+}
+
+private fun resolveEpisodeId(item: Item, season: Int?, episode: Int?): String? {
+    if (season == null && episode == null) return null
+    val seasons = item.seasons
+    if (seasons.isNotEmpty()) {
+        val targetSeason = if (season != null) seasons.firstOrNull { it.n == season } ?: seasons.firstOrNull() else seasons.firstOrNull()
+        if (targetSeason != null) {
+            val targetEp = if (episode != null) {
+                targetSeason.episodes.firstOrNull { it.n == episode } ?: targetSeason.episodes.firstOrNull()
+            } else {
+                targetSeason.episodes.firstOrNull()
+            }
+            if (targetEp != null) return targetEp.id
+        }
+        if (season != null && episode != null) {
+            val suffix = Regex("""(?:^|[:_-])s0*${season}[:_-]?e0*${episode}$""", RegexOption.IGNORE_CASE)
+            SourceResolver.episodes(item).firstOrNull { suffix.containsMatchIn(it.id) }?.let { return it.id }
+        }
+    }
+    return null
+}
+
+/** Where the player is drawn (`INLINE` = embedded 16:9 slot in `DetailsScreen`; `FULL`/`MINI` = `PlayerHost`). */
+enum class HostMode { HIDDEN, INLINE, FULL, MINI }
 
 /** Video scaling (PlayerView resize mode + optional zoom). */
 enum class AspectMode(val label: String) { FIT("Fit"), FILL("Fill"), ZOOM("Zoom"), STRETCH("Stretch") }
@@ -79,9 +143,11 @@ data class PlayerScreenState(
     val channelInput: String? = null,
     /** User-facing notice instead of a stream (e.g. "No source available"). */
     val notice: String? = null,
-    /** Provider sources of the loaded title/episode (gateway resolutions) for the quality menu. */
+    /** Provider sources of the loaded title/episode (gateway resolutions) for the quality/audio menus. */
     val sources: List<Source> = emptyList(),
     val sourceIndex: Int = 0,
+    /** True while the session is anchored to an open inline `DetailsScreen` (so Fullscreen -> Back returns to INLINE). */
+    val openedInline: Boolean = false,
 ) {
     val active: Boolean get() = mode != HostMode.HIDDEN && item != null
     val episodes: List<Episode> get() = item?.let { SourceResolver.episodes(it) }.orEmpty()
@@ -123,29 +189,47 @@ class PlayerStateHolder(
     private val prepare: suspend (Item, String?, Boolean) -> Item = { item, _, _ -> item },
     /** Last resort after a failed re-resolve: the gateway proxy source. */
     private val fallbackFor: (Item, String?) -> Item? = { _, _ -> null },
-    /** Mini-player size per profile (docs/requirements-hardening.md §3). */
+    /** Mini-player size + free-drag position per profile (docs/requirements-hardening.md §3). */
     private val miniSizes: MiniSizeStore = InMemoryMiniSizeStore(),
     /** Per-series/profile dub & quality choice persistence across episodes. */
     private val playbackPrefs: PlaybackPreferenceStore = (miniSizes as? PlaybackPreferenceStore) ?: InMemoryPlaybackPreferenceStore(),
 ) {
     private val _miniFraction = MutableStateFlow(
-        com.mythbrix.cinetor.feature.player.MiniPlayerMath.clampFraction(miniSizes.get(profileId())),
+        MiniPlayerMath.clampFraction(miniSizes.get(profileId())),
     )
 
     /** Mini-player width as a fraction of screen width for the active profile (0.25–0.80). */
     val miniFraction: StateFlow<Float> = _miniFraction.asStateFlow()
 
+    private val _miniPosition = MutableStateFlow(miniSizes.getPosition(profileId()))
+
+    /** Normalized free-drag mini-player position `(xFrac, yFrac)` for the active profile, or `null` when unset. */
+    val miniPosition: StateFlow<Pair<Float, Float>?> = _miniPosition.asStateFlow()
+
+    /** Shared chromeless YouTube WebView holder across `INLINE <-> FULL <-> MINI <-> PiP`. */
+    internal var youtubeWebViewHolder: YouTubeWebViewHolder? = null
+
     /** Persists the mini-player size for the active profile (clamped, 16:9 is kept by the UI). */
     fun setMiniFraction(fraction: Float) {
-        val f = com.mythbrix.cinetor.feature.player.MiniPlayerMath.clampFraction(fraction)
+        val f = MiniPlayerMath.clampFraction(fraction)
         if (f == _miniFraction.value) return
         _miniFraction.value = f
         miniSizes.set(profileId(), f)
     }
 
-    /** Re-reads the stored size (call after a profile switch). */
+    /** Persists the user's chosen free-drag `(xFrac, yFrac)` position for the active profile. */
+    fun setMiniPosition(xFrac: Float, yFrac: Float) {
+        val clamped = xFrac.coerceIn(0f, 1f) to yFrac.coerceIn(0f, 1f)
+        if (clamped == _miniPosition.value) return
+        _miniPosition.value = clamped
+        miniSizes.setPosition(profileId(), clamped.first, clamped.second)
+    }
+
+    /** Re-reads the stored size and free-drag position (call after a profile switch). */
     fun reloadMiniFraction() {
-        _miniFraction.value = com.mythbrix.cinetor.feature.player.MiniPlayerMath.clampFraction(miniSizes.get(profileId()))
+        val prof = profileId()
+        _miniFraction.value = MiniPlayerMath.clampFraction(miniSizes.get(prof))
+        _miniPosition.value = miniSizes.getPosition(prof)
     }
 
     private val _state = MutableStateFlow(PlayerScreenState())
@@ -165,6 +249,7 @@ class PlayerStateHolder(
     private var countdownJob: Job? = null
     private var sleepJob: Job? = null
     private var resolveJob: Job? = null
+    private var dubJob: Job? = null
     private var autoplayCancelledFor: String? = null
     private var lineupOverride: List<Item>? = null
     private var digitJob: Job? = null
@@ -177,73 +262,141 @@ class PlayerStateHolder(
 
     val playback: PlayerUiState get() = _player.value?.state?.value ?: PlayerUiState()
 
+    /**
+     * Open [item] at optional `(season, episode)` either inline inside `DetailsScreen` (`inline = true` →
+     * `HostMode.INLINE`) or fullscreen (`inline = false` → `HostMode.FULL`).
+     */
+    fun open(item: Item, season: Int? = null, episode: Int? = null, inline: Boolean = false) {
+        val targetMode = if (inline) HostMode.INLINE else HostMode.FULL
+        val epId = resolveEpisodeId(item, season, episode)
+        launchPlay(item, epId, targetMode, openedInline = inline, pendingSeason = season, pendingEpisode = episode)
+    }
+
     /** Play [item] (optionally [episodeId]) full screen. Same title already active → just expand. */
     fun play(item: Item, episodeId: String? = null) {
+        launchPlay(item, episodeId, HostMode.FULL, openedInline = false)
+    }
+
+    private fun launchPlay(
+        item: Item,
+        episodeId: String?,
+        targetMode: HostMode,
+        openedInline: Boolean,
+        pendingSeason: Int? = null,
+        pendingEpisode: Int? = null,
+    ) {
         if (audioHandler(item)) return
         val s = _state.value
         if (s.active && s.item?.id == item.id && (episodeId == null || episodeId == s.episodeId)) {
-            _state.update { it.copy(mode = HostMode.FULL) }
+            _state.update {
+                it.copy(
+                    mode = targetMode,
+                    openedInline = if (openedInline) true else it.openedInline,
+                    locked = false,
+                )
+            }
             return
         }
         resolveJob?.cancel()
+        dubJob?.cancel()
         beforePlay()
         if (needsFull(item)) {
-            _state.update { it.copy(mode = HostMode.FULL, item = item, title = item.title, subtitle = null) }
+            _state.update {
+                it.copy(
+                    mode = targetMode,
+                    item = item,
+                    title = item.title,
+                    subtitle = null,
+                    openedInline = openedInline,
+                    notice = null,
+                )
+            }
             resolveJob = scope.launch {
                 val full = try {
                     resolveFull(item)
                 } catch (e: CancellationException) {
                     throw e
-                } catch (e: Exception) {
+                } catch (_: Exception) {
                     item
                 }
-                start(full, episodeId)
+                val finalEpId = episodeId ?: resolveEpisodeId(full, pendingSeason, pendingEpisode)
+                start(full, finalEpId, targetMode, openedInline)
             }
         } else {
-            start(item, episodeId)
+            start(item, episodeId, targetMode, openedInline)
         }
     }
 
     private fun needsFull(item: Item): Boolean =
         (item.type == ItemType.SERIES && item.seasons.isEmpty()) || (item.sources.isEmpty() && item.seasons.isEmpty())
 
-    private fun start(item: Item, episodeId: String?) {
-        if (!needsPrepare(item)) return startNow(item, episodeId)
+    private fun start(item: Item, episodeId: String?, targetMode: HostMode = HostMode.FULL, openedInline: Boolean = _state.value.openedInline) {
+        if (!needsPrepare(item)) return startNow(item, episodeId, targetMode, openedInline)
         val prev = _state.value
         if (prev.item != null && _player.value != null) {
             saveNow()
             _player.value?.pause()
         }
-        _state.update { it.copy(mode = HostMode.FULL, item = item, title = item.title, notice = null) }
+        _state.update {
+            it.copy(mode = targetMode, item = item, title = item.title, notice = null, openedInline = openedInline)
+        }
         resolveJob = scope.launch {
             val prepared = try {
                 prepare(item, episodeId, false)
             } catch (e: CancellationException) {
                 throw e
-            } catch (e: Exception) {
+            } catch (_: Exception) {
                 item
             }
-            startNow(prepared, episodeId)
+            startNow(prepared, episodeId, targetMode, openedInline)
         }
     }
 
     private fun sourcesOf(item: Item, episodeId: String?): List<Source> {
         val ep = SourceResolver.episodes(item).let { eps -> eps.firstOrNull { it.id == episodeId } ?: if (episodeId == null) eps.firstOrNull() else null }
         val list = ep?.sources?.ifEmpty { null } ?: item.sources
-        return if (list.any { it.height != null || isYouTubeUrl(it.url) } || (list.size > 1 && list.any { it.label != null })) list else emptyList()
+        return if (
+            list.any { it.height != null || !it.audioLang.isNullOrBlank() || isYouTubeUrl(it.url) } ||
+            (list.size > 1 && list.any { it.label != null })
+        ) list else emptyList()
     }
 
     private fun preferredIndexFor(item: Item, sources: List<Source>): Int {
         if (isLiveItem(item) || sources.size < 2) return 0
         val prof = profileId()
+        val titlePref = playbackPrefs.getTitlePref(prof, item.id)
+        val globalPref = playbackPrefs.getGlobalPref(prof)
+        val targetDub = titlePref?.dub?.takeIf { it.isNotBlank() } ?: globalPref?.dub?.takeIf { it.isNotBlank() }
+        if (targetDub != null) {
+            val normTarget = fullSubtitleLanguageName(targetDub)
+            val targetH = titlePref?.height ?: globalPref?.height
+            val dubIndices = sources.indices.filter { i ->
+                val d = audioDubOf(sources[i])
+                d != null && (d.equals(normTarget, ignoreCase = true) || d.equals(targetDub, ignoreCase = true))
+            }
+            if (dubIndices.isNotEmpty()) {
+                if (targetH != null) {
+                    dubIndices.firstOrNull { sources[it].height == targetH }?.let { return it }
+                    dubIndices.filter { (sources[it].height ?: 0) > 0 }
+                        .minByOrNull { kotlin.math.abs((sources[it].height ?: 0) - targetH) }
+                        ?.let { return it }
+                }
+                return dubIndices.first()
+            }
+        }
         return preferredSourceIndex(
             sources = sources,
-            titlePref = playbackPrefs.getTitlePref(prof, item.id),
-            globalPref = playbackPrefs.getGlobalPref(prof),
+            titlePref = titlePref,
+            globalPref = globalPref,
         )
     }
 
-    private fun startNow(item: Item, episodeId: String?) {
+    private fun startNow(
+        item: Item,
+        episodeId: String?,
+        targetMode: HostMode = HostMode.FULL,
+        openedInline: Boolean = _state.value.openedInline,
+    ) {
         val prev = _state.value
         if (prev.item != null && _player.value != null) {
             saveNow() // previous title keeps its position
@@ -257,13 +410,18 @@ class PlayerStateHolder(
             _player.value?.let { preloader.release(prev.item?.id ?: item.id) }
             _player.value = null
             _state.value = PlayerScreenState(
-                mode = HostMode.FULL, item = item, title = item.title, aspect = prev.aspect,
-                generation = prev.generation + 1, notice = "No source available",
+                mode = targetMode,
+                item = item,
+                title = item.title,
+                aspect = prev.aspect,
+                generation = prev.generation + 1,
+                notice = "No source available",
+                openedInline = openedInline,
             )
             return
         }
         val p = preloader.open(item, episodeId) ?: run {
-            _state.update { it.copy(mode = HostMode.HIDDEN) }
+            _state.update { it.copy(mode = HostMode.HIDDEN, openedInline = false) }
             return
         }
         opens++
@@ -274,7 +432,7 @@ class PlayerStateHolder(
         lineupOverride = null
         _state.update {
             PlayerScreenState(
-                mode = HostMode.FULL,
+                mode = targetMode,
                 item = item,
                 episodeId = req?.episodeId,
                 title = item.title,
@@ -288,6 +446,7 @@ class PlayerStateHolder(
                 live = live,
                 channels = lineup,
                 sources = sourcesOf(item, req?.episodeId),
+                openedInline = openedInline,
             )
         }
         watch(p, item)
@@ -299,6 +458,8 @@ class PlayerStateHolder(
         countdownJob?.cancel()
         sleepJob?.cancel()
         recoverJob?.cancel()
+        dubJob?.cancel()
+        dubJob = null
         recoverJob = null
         watchJob = null
         saveJob = null
@@ -481,7 +642,8 @@ class PlayerStateHolder(
 
     private fun switchChannel(target: Item, lineup: List<Item>) {
         lineupOverride = lineup
-        start(target, null)
+        val keepMode = _state.value.mode.takeIf { it != HostMode.HIDDEN } ?: HostMode.FULL
+        start(target, null, keepMode, _state.value.openedInline)
         lineupOverride = null
     }
 
@@ -489,11 +651,13 @@ class PlayerStateHolder(
     fun goLive() = _player.value?.goLive()
 
     fun playEpisode(episodeId: String) {
-        val item = _state.value.item ?: return
-        if (episodeId == _state.value.episodeId) return
+        val s = _state.value
+        val item = s.item ?: return
+        if (episodeId == s.episodeId) return
         countdownJob?.cancel()
         _state.update { it.copy(nextCountdown = null) }
-        start(item, episodeId)
+        val keepMode = s.mode.takeIf { it != HostMode.HIDDEN } ?: HostMode.FULL
+        start(item, episodeId, keepMode, s.openedInline)
     }
 
     fun next() {
@@ -539,7 +703,24 @@ class PlayerStateHolder(
     /** Audio menu: switch dubbed source stream while keeping preferred resolution & playback position. */
     fun selectDub(dub: String) {
         val s = _state.value
+        val targetNorm = fullSubtitleLanguageName(dub)
         val curHeight = s.sources.getOrNull(s.sourceIndex)?.height
+        val candidates = s.sources.indices.filter { i ->
+            val d = audioDubOf(s.sources[i])
+            d != null && (d.equals(targetNorm, ignoreCase = true) || d.equals(dub, ignoreCase = true))
+        }
+        if (candidates.isNotEmpty()) {
+            val best = if (curHeight != null) {
+                candidates.firstOrNull { s.sources[it].height == curHeight }
+                    ?: candidates.filter { (s.sources[it].height ?: 0) > 0 }
+                        .minByOrNull { kotlin.math.abs((s.sources[it].height ?: 0) - curHeight) }
+                    ?: candidates.first()
+            } else {
+                candidates.first()
+            }
+            selectSource(best)
+            return
+        }
         val idx = preferredSourceIndex(
             sources = s.sources,
             titlePref = PlaybackPref(dub = dub, height = curHeight),
@@ -547,6 +728,61 @@ class PlayerStateHolder(
         )
         if (s.sources.getOrNull(idx)?.let(::dubOfSource)?.equals(dub, ignoreCase = true) == true) {
             selectSource(idx)
+            return
+        }
+        // Check sibling Item.dubs if not yet in s.sources
+        val sib = s.item?.dubs.orEmpty().firstOrNull { opt ->
+            fullSubtitleLanguageName(opt.languageName).equals(targetNorm, ignoreCase = true) ||
+                opt.languageCode.takeIf { it.isNotBlank() }?.let(::fullSubtitleLanguageName)?.equals(targetNorm, ignoreCase = true) == true
+        }
+        if (sib != null) {
+            selectDubOption(sib)
+        }
+    }
+
+    /** Switch to a sibling catalog [DubOption] (`subjectId`, `slug`), preserving playback position & mode. */
+    fun selectDubOption(dub: DubOption) {
+        val s = _state.value
+        val item = s.item ?: return
+        val p = _player.value ?: return
+        val targetLang = fullSubtitleLanguageName(dub.languageName.ifBlank { dub.languageCode })
+        val inSources = s.sources.indexOfFirst { audioDubOf(it)?.equals(targetLang, ignoreCase = true) == true }
+        if (inSources >= 0) {
+            selectSource(inSources)
+            return
+        }
+        val pos = p.state.value.positionMs
+        val curHeight = s.sources.getOrNull(s.sourceIndex)?.height
+        val sibId = if (dub.subjectId.startsWith("gw:")) dub.subjectId else "gw:${dub.subjectId}"
+        val sibStub = item.copy(id = sibId, slug = dub.slug.ifBlank { item.slug })
+        dubJob?.cancel()
+        dubJob = scope.launch {
+            val prepared = runCatching { prepare(sibStub, s.episodeId, false) }.getOrNull() ?: return@launch
+            val rawSources = sourcesOf(prepared, s.episodeId)
+            if (rawSources.isEmpty()) return@launch
+            val labeled = rawSources.map { src ->
+                if (audioDubOf(src) != null) src
+                else src.copy(
+                    audioLang = targetLang,
+                    label = listOfNotNull(src.label, targetLang).joinToString(" · "),
+                )
+            }
+            val merged = (s.sources + labeled).distinctBy { it.url }
+            val chosenIdx = merged.indexOfFirst {
+                audioDubOf(it)?.equals(targetLang, ignoreCase = true) == true && (curHeight == null || it.height == curHeight)
+            }.takeIf { it >= 0 }
+                ?: merged.indexOfFirst { audioDubOf(it)?.equals(targetLang, ignoreCase = true) == true }
+            if (chosenIdx < 0 || _player.value !== p || _state.value.item?.id != item.id) return@launch
+            val chosen = merged[chosenIdx]
+            val req = SourceResolver.request(item, s.episodeId) ?: return@launch
+            val plan = SourceResolver.plan(chosen, emptyList()).copy(subtitles = req.plan.subtitles)
+            p.load(req.copy(plan = plan), pos, playWhenReady = true)
+            _state.update { it.copy(sources = merged, sourceIndex = chosenIdx) }
+            if (!isLiveItem(item)) {
+                val prof = profileId()
+                playbackPrefs.setTitlePref(prof, item.id, PlaybackPref(dub = targetLang, height = chosen.height ?: curHeight))
+                playbackPrefs.setGlobalPref(prof, PlaybackPref(dub = targetLang, height = chosen.height ?: curHeight))
+            }
         }
     }
 
@@ -565,7 +801,7 @@ class PlayerStateHolder(
             val prof = profileId()
             val prevTitle = playbackPrefs.getTitlePref(prof, item.id) ?: PlaybackPref()
             val prevGlobal = playbackPrefs.getGlobalPref(prof) ?: PlaybackPref()
-            val pickedDub = dubOfSource(src) ?: prevTitle.dub
+            val pickedDub = audioDubOf(src) ?: dubOfSource(src) ?: prevTitle.dub
             val pickedHeight = src.height ?: prevTitle.height
             playbackPrefs.setTitlePref(prof, item.id, PlaybackPref(dub = pickedDub, height = pickedHeight))
             playbackPrefs.setGlobalPref(prof, PlaybackPref(dub = pickedDub ?: prevGlobal.dub, height = pickedHeight ?: prevGlobal.height))
@@ -603,6 +839,7 @@ class PlayerStateHolder(
             _state.update { it.copy(item = next, sources = sources, sourceIndex = idx) }
         }
     }
+
     fun selectText(trackId: String?) = _player.value?.selectText(trackId)
 
     fun skipIntro() {
@@ -634,9 +871,32 @@ class PlayerStateHolder(
         }
     }
 
+    /** Dock active playback into `HostMode.INLINE` on `DetailsScreen`. */
+    fun enterInline() {
+        if (_state.value.item == null) return
+        _state.update { it.copy(mode = HostMode.INLINE, openedInline = true, locked = false) }
+    }
+
+    /** Expand inline (or mini) playback into `HostMode.FULL`. */
+    fun expandFullscreen() {
+        if (_state.value.item == null) return
+        _state.update { it.copy(mode = HostMode.FULL) }
+    }
+
+    /** Collapse from `HostMode.FULL`: returns to `HostMode.INLINE` if `DetailsScreen` opened it inline, else `HostMode.MINI`. */
+    fun collapseFullscreen() {
+        val s = _state.value
+        if (!s.active) return
+        if (s.openedInline) {
+            _state.update { it.copy(mode = HostMode.INLINE, locked = false) }
+        } else {
+            minimize()
+        }
+    }
+
     fun minimize() {
         if (!_state.value.active) return
-        _state.update { it.copy(mode = HostMode.MINI, locked = false) }
+        _state.update { it.copy(mode = HostMode.MINI, openedInline = false, locked = false) }
     }
 
     fun expand() {

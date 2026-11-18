@@ -1,12 +1,28 @@
 <script lang="ts">
   // This app is the complete property of Mythbrix. Do not touch, retrieve, reverse-engineer,
   // scrape or hack anything without Mythbrix's explicit permission.
-  // In-app floating mini player: draggable, snaps to corners, tap expands, swipe off stops.
-  // Lives in the /app layout → survives route changes. Shares the single <video>.
+  // In-app free-position floating PiP mini player: stays at exact dropped (x, y) clamped to safe
+  // viewport margins, hides automatically while <Player inline={true}> is mounted on /app/title,
+  // tap expands, swipe past halfway off an edge or × stops, and corner grip resizes 25–80 % (16:9).
   import { goto } from '$app/navigation';
   import { engine } from './engine';
   import { clock, session, togglePiP, pipSupported } from './controller';
-  import { cornerPos, isSwipeOff, snapCorner, clampMiniWidth, miniFrac, miniHeight, resizeWidth, MINI_DEFAULT_FRAC, MINI_WIDTH_KEY, type Corner } from './mini-math';
+  import { ui } from './ui.svelte';
+  import {
+    clampMiniOffset,
+    clampMiniWidth,
+    fromMiniPosFrac,
+    isSwipeOff,
+    miniFrac,
+    miniHeight,
+    parseMiniPosFrac,
+    resizeWidth,
+    toMiniPosFrac,
+    MINI_DEFAULT_FRAC,
+    MINI_POS_KEY,
+    MINI_WIDTH_KEY,
+    type MiniPosFrac
+  } from './mini-math';
   import { watchHref } from '$lib/ui/handoff';
   import { desktop } from '$lib/desktop/desktop.svelte';
   import { localKV } from '$lib/data/kv';
@@ -15,27 +31,32 @@
   const sess = session.state;
   const ytMode = engine.isYouTube;
 
-  let corner = $state<Corner>('br');
   let vw = $state(typeof window !== 'undefined' ? window.innerWidth : 400);
   let vh = $state(typeof window !== 'undefined' ? window.innerHeight : 800);
   let drag = $state<{ x: number; y: number } | null>(null);
   let leaving = $state(false);
 
-  // Persisted size (fraction of the viewport width, clamped 25–80 % — aspect stays 16:9).
   const kv = localKV();
   const storedFrac = (() => {
     const v = Number(kv.get(MINI_WIDTH_KEY));
     return Number.isFinite(v) && v > 0 ? v : MINI_DEFAULT_FRAC;
   })();
   let widthFrac = $state(storedFrac);
+  let posFrac = $state<MiniPosFrac | null>(parseMiniPosFrac(kv.get(MINI_POS_KEY)));
   let resizing = $state(false);
 
   const w = $derived(clampMiniWidth(vw * widthFrac, vw));
   const h = $derived(miniHeight(w));
-  const insets = $derived({ top: 16, right: 12, left: vw >= 900 ? 100 : 12, bottom: vw >= 900 ? 16 : 84 });
-  const rest = $derived(cornerPos(corner, w, h, vw, vh, insets));
+  const insets = $derived({
+    top: vw >= 900 ? 72 : 68,
+    right: 12,
+    left: vw >= 900 ? 100 : 12,
+    bottom: vw >= 900 ? 16 : 84
+  });
+  const rest = $derived(fromMiniPosFrac(posFrac, w, h, vw, vh, insets));
   const pos = $derived(drag ?? rest);
-  const show = $derived($sess.mode === 'mini' && !!$sess.media && !hidden);
+  const onRightHalf = $derived(pos.x + w / 2 > vw / 2);
+  const show = $derived($sess.mode === 'mini' && !!$sess.media && !hidden && !ui.inlineMounted);
 
   function host(node: HTMLElement) {
     const detach = engine.attach(node);
@@ -46,7 +67,17 @@
   function down(e: PointerEvent) {
     if ((e.target as Element).closest('button')) return;
     (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
-    start = { px: e.clientX, py: e.clientY, x: pos.x, y: pos.y, t: performance.now(), lastX: e.clientX, lastT: performance.now(), vx: 0, moved: false };
+    start = {
+      px: e.clientX,
+      py: e.clientY,
+      x: pos.x,
+      y: pos.y,
+      t: performance.now(),
+      lastX: e.clientX,
+      lastT: performance.now(),
+      vx: 0,
+      moved: false
+    };
   }
   function move(e: PointerEvent) {
     if (!start.t) return;
@@ -79,31 +110,48 @@
       drag = { x: start.vx < 0 || d.x < 0 ? -w - 20 : vw + 20, y: d.y };
       return;
     }
-    if (d) corner = snapCorner({ x: d.x, y: d.y, w, h }, vw, vh, start.vx, 0);
+    if (d) {
+      const clamped = clampMiniOffset(d.x, d.y, w, h, vw, vh, insets);
+      const nextFrac = toMiniPosFrac(clamped.x, clamped.y, w, h, vw, vh, insets);
+      posFrac = nextFrac;
+      kv.set(MINI_POS_KEY, JSON.stringify(nextFrac));
+    }
     drag = null;
   }
   function expand() {
     const m = $sess.media;
     if (!m) return;
     session.expand();
-    goto(watchHref(m.item.id, m.episode?.id));
+    goto(watchHref(m.item, m.episode?.id));
   }
   function toggle() {
     engine.togglePlay();
   }
 
-  // ---- corner resize handle (pointer events; 16:9 kept, size persisted) ----
-  let rs = { px: 0, w: 0, on: false };
+  // ---- corner resize handle (pointer events; 16:9 kept, size & clamped position persisted) ----
+  let rs = { px: 0, w: 0, anchorRight: 0, anchorLeft: 0, anchorY: 0, rightHalf: true, on: false };
   function resizeDown(e: PointerEvent) {
     e.stopPropagation();
     (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
-    rs = { px: e.clientX, w, on: true };
+    rs = {
+      px: e.clientX,
+      w,
+      anchorRight: pos.x + w,
+      anchorLeft: pos.x,
+      anchorY: pos.y,
+      rightHalf: onRightHalf,
+      on: true
+    };
     resizing = true;
   }
   function resizeMove(e: PointerEvent) {
     if (!rs.on) return;
     e.stopPropagation();
-    widthFrac = miniFrac(resizeWidth(rs.w, e.clientX - rs.px, corner, vw), vw);
+    const nextW = resizeWidth(rs.w, e.clientX - rs.px, rs.rightHalf ? 'br' : 'bl', vw);
+    widthFrac = miniFrac(nextW, vw);
+    const nextH = miniHeight(nextW);
+    const rawX = rs.rightHalf ? rs.anchorRight - nextW : rs.anchorLeft;
+    drag = clampMiniOffset(rawX, rs.anchorY, nextW, nextH, vw, vh, insets);
   }
   function resizeUp(e: PointerEvent) {
     if (!rs.on) return;
@@ -111,6 +159,12 @@
     rs.on = false;
     resizing = false;
     kv.set(MINI_WIDTH_KEY, String(widthFrac));
+    if (drag) {
+      const nextFrac = toMiniPosFrac(drag.x, drag.y, w, h, vw, vh, insets);
+      posFrac = nextFrac;
+      kv.set(MINI_POS_KEY, JSON.stringify(nextFrac));
+      drag = null;
+    }
   }
   /** Keyboard resize for TV / a11y: ±5 % steps. */
   function resizeKey(e: KeyboardEvent) {
@@ -136,7 +190,7 @@
     class:resizing
     style:width="{w}px"
     style:height="{h}px"
-    style:transform="translate({pos.x}px, {pos.y}px)"
+    style:transform="translate3d({pos.x}px, {pos.y}px, 0)"
     onpointerdown={down}
     onpointermove={move}
     onpointerup={up}
@@ -173,7 +227,7 @@
     </div>
     <button
       class="grip"
-      class:left={corner.endsWith('r')}
+      class:left={onRightHalf}
       onpointerdown={resizeDown}
       onpointermove={resizeMove}
       onpointerup={resizeUp}
@@ -198,7 +252,7 @@
     background: #000;
     touch-action: none;
     cursor: grab;
-    transition: transform 260ms var(--ease-emphasized, cubic-bezier(0.2, 0, 0, 1));
+    transition: transform 240ms var(--ease-emphasized, cubic-bezier(0.2, 0, 0, 1));
     box-shadow: 0 18px 40px -12px rgb(0 0 0 / 0.8), 0 0 0 1px rgb(255 255 255 / 0.12);
   }
   .mini.dragging {

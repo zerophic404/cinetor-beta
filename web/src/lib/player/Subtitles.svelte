@@ -1,5 +1,5 @@
 <script lang="ts">
-  // Own cue rendering (side-loaded VTT/SRT) → sync offset works both directions, style per profile.
+  // Own cue rendering (side-loaded VTT/SRT) → sync offset works both directions, transparent default bg + crisp shadow.
   import { activeCues, cueHtml } from './subs';
   import type { PlayerUI } from './ui.svelte';
   import { engine } from './engine';
@@ -28,7 +28,14 @@
 </script>
 
 {#if html}
-  <div class="subs" class:raised aria-live="off" style:--sub-size="{ui.subStyle.size / 100}" style:--sub-color={ui.subStyle.color} style:--sub-bg="rgb(0 0 0 / {ui.subStyle.bg})">
+  <div
+    class="subs"
+    class:raised
+    aria-live="off"
+    style:--sub-size="{ui.subStyle.size / 100}"
+    style:--sub-color={ui.subStyle.color}
+    style:--sub-bg={ui.subStyle.bg <= 0.01 ? 'transparent' : `rgb(0 0 0 / ${ui.subStyle.bg})`}
+  >
     <!-- eslint-disable-next-line svelte/no-at-html-tags -- cueHtml escapes everything except <i>/<b>/<u> -->
     <span>{@html html}</span>
   </div>
@@ -55,11 +62,14 @@
     font-size: calc(clamp(14px, 3.6cqw, 34px) * var(--sub-size));
     font-weight: 600;
     color: var(--sub-color);
-    background: var(--sub-bg);
+    background: var(--sub-bg, transparent);
     border-radius: 4px;
     box-decoration-break: clone;
     -webkit-box-decoration-break: clone;
-    text-shadow: 0 1px 3px rgb(0 0 0 / 0.9);
+    text-shadow:
+      0 2px 6px rgba(0, 0, 0, 0.92),
+      0 0 2px rgba(0, 0, 0, 0.95),
+      0 1px 2px rgba(0, 0, 0, 0.98);
     white-space: pre-line;
   }
 </style>

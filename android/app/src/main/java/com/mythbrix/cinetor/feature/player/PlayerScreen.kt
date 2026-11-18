@@ -1,10 +1,14 @@
 package com.mythbrix.cinetor.feature.player
 
 import android.app.Activity
+import android.app.PictureInPictureParams
 import android.content.Context
 import android.content.ContextWrapper
 import android.content.pm.ActivityInfo
+import android.content.pm.PackageManager
 import android.content.res.Configuration
+import android.os.Build
+import android.util.Rational
 import android.view.ViewGroup
 import android.widget.FrameLayout
 import androidx.activity.compose.BackHandler
@@ -161,9 +165,8 @@ class PlayerLayers(
 )
 
 /**
- * Full player: portrait = 16:9 video on top + info/episodes below (vertical videos fill);
- * landscape = immersive fullscreen (notch-safe controls). Orientation follows the sensor
- * (FULL_USER: respects rotation lock); rotate button forces the other orientation.
+ * Player screen supporting both embedded 16:9 [inline] mode (`InlinePlayerSlot` inside `DetailsScreen` —
+ * never forces landscape or hides system bars) and [HostMode.FULL] immersive fullscreen mode.
  */
 @OptIn(UnstableApi::class)
 @Composable
@@ -176,28 +179,36 @@ fun PlayerScreen(
     layers: PlayerLayers = PlayerLayers(),
     subtitleExtras: SubtitleExtras = SubtitleExtras(),
     extraTopActions: @Composable () -> Unit = {},
+    inline: Boolean = false,
 ) {
     val context = LocalContext.current
     val activity = remember(context) { context.findActivity() }
     val view = LocalView.current
     val landscape = LocalConfiguration.current.orientation == Configuration.ORIENTATION_LANDSCAPE
 
-    DisposableEffect(activity) {
-        activity?.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_FULL_USER
-        onDispose { activity?.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED }
-    }
-    // Immersive in landscape; bars back in portrait / on exit.
-    DisposableEffect(activity, landscape) {
-        val window = activity?.window
-        val ctrl = window?.let { WindowCompat.getInsetsController(it, view) }
-        if (landscape) {
-            ctrl?.systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
-            ctrl?.hide(WindowInsetsCompat.Type.systemBars())
-        } else {
-            ctrl?.show(WindowInsetsCompat.Type.systemBars())
+    if (!inline) {
+        DisposableEffect(activity, screen.openedInline) {
+            activity?.requestedOrientation = if (screen.openedInline && !ui.isVertical) {
+                ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
+            } else {
+                ActivityInfo.SCREEN_ORIENTATION_FULL_USER
+            }
+            onDispose { activity?.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED }
         }
-        onDispose { ctrl?.show(WindowInsetsCompat.Type.systemBars()) }
+        // Immersive in landscape / expanded inline fullscreen; bars back in portrait / on exit.
+        DisposableEffect(activity, landscape, screen.openedInline) {
+            val window = activity?.window
+            val ctrl = window?.let { WindowCompat.getInsetsController(it, view) }
+            if (landscape || screen.openedInline) {
+                ctrl?.systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+                ctrl?.hide(WindowInsetsCompat.Type.systemBars())
+            } else {
+                ctrl?.show(WindowInsetsCompat.Type.systemBars())
+            }
+            onDispose { ctrl?.show(WindowInsetsCompat.Type.systemBars()) }
+        }
     }
+
     DisposableEffect(view, ui.isPlaying) {
         view.keepScreenOn = ui.isPlaying
         onDispose { view.keepScreenOn = false }
@@ -205,10 +216,11 @@ fun PlayerScreen(
 
     var controlsVisible by remember { mutableStateOf(true) }
     var interaction by remember { mutableIntStateOf(0) }
-    var showSettings by remember { mutableStateOf(false) }
+    var settingsPage by remember { mutableStateOf<SettingsPage?>(null) }
     var showEpisodes by remember { mutableStateOf(false) }
-    LaunchedEffect(controlsVisible, interaction, ui.isPlaying, showSettings) {
-        if (controlsVisible && ui.isPlaying && !showSettings) {
+
+    LaunchedEffect(controlsVisible, interaction, ui.isPlaying, settingsPage) {
+        if (controlsVisible && ui.isPlaying && settingsPage == null) {
             delay(3_000)
             controlsVisible = false
         }
@@ -220,7 +232,7 @@ fun PlayerScreen(
         interaction++
     }
 
-    BackHandler {
+    BackHandler(enabled = !inline || showEpisodes || screen.locked) {
         when {
             showEpisodes -> showEpisodes = false
             screen.locked -> controlsVisible = true
@@ -228,20 +240,46 @@ fun PlayerScreen(
         }
     }
 
-    val rotate: () -> Unit = {
-        activity?.requestedOrientation = if (landscape) {
-            ActivityInfo.SCREEN_ORIENTATION_SENSOR_PORTRAIT
+    val enterPip: () -> Unit = {
+        val enteredSystemPip = if (
+            activity != null &&
+            Build.VERSION.SDK_INT >= Build.VERSION_CODES.O &&
+            activity.packageManager.hasSystemFeature(PackageManager.FEATURE_PICTURE_IN_PICTURE)
+        ) {
+            val (w, h) = pipAspect(ui.videoWidth, ui.videoHeight)
+            runCatching {
+                activity.enterPictureInPictureMode(
+                    PictureInPictureParams.Builder().setAspectRatio(Rational(w, h)).build(),
+                )
+            }.getOrDefault(false)
         } else {
-            ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
+            false
+        }
+        if (!enteredSystemPip) {
+            holder.minimize()
         }
     }
-    val fill = landscape || ui.isVertical
+
+    val toggleFullscreen: () -> Unit = {
+        if (inline) {
+            holder.expandFullscreen()
+        } else if (screen.openedInline) {
+            holder.collapseFullscreen()
+        } else {
+            activity?.requestedOrientation = if (landscape) {
+                ActivityInfo.SCREEN_ORIENTATION_SENSOR_PORTRAIT
+            } else {
+                ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
+            }
+        }
+    }
+
+    val fill = !inline && (landscape || ui.isVertical || screen.openedInline)
 
     Column(Modifier.fillMaxSize().background(Color.Black)) {
-        val videoModifier = if (fill) {
-            Modifier.fillMaxSize()
-        } else {
-            Modifier.windowInsetsPadding(WindowInsets.statusBars).fillMaxWidth().aspectRatio(16f / 9f)
+        val videoModifier = when {
+            inline || fill -> Modifier.fillMaxSize()
+            else -> Modifier.windowInsetsPadding(WindowInsets.statusBars).fillMaxWidth().aspectRatio(16f / 9f)
         }
         Box(videoModifier.background(Color.Black)) {
             val activeYoutubeId = ui.youtubeVideoId ?: screen.sources.getOrNull(screen.sourceIndex)?.url?.let(::extractYouTubeVideoId)
@@ -261,7 +299,7 @@ fun PlayerScreen(
             layers.overVideo()
             layers.gestures(Modifier.fillMaxSize(), toggle)
             if (screen.notice == null && (cinetorPlayer == null || (ui.buffering && !controlsVisible && ui.playWhenReady))) {
-                CircularProgressIndicator(color = Cinetor.tokens.accent, modifier = Modifier.align(Alignment.Center).size(48.dp))
+                CircularProgressIndicator(color = Cinetor.tokens.accent, modifier = Modifier.align(Alignment.Center).size(if (inline) 38.dp else 48.dp))
             }
             (screen.notice ?: ui.error?.let { "Playback error: $it" })?.let { err ->
                 Text(
@@ -275,17 +313,21 @@ fun PlayerScreen(
                 ui = ui,
                 visible = controlsVisible,
                 fullscreen = fill,
+                inline = inline,
                 onInteract = poke,
                 onBack = onBack,
-                onRotate = rotate,
-                onSettings = { showSettings = true },
+                onRotate = toggleFullscreen,
+                onSettings = { settingsPage = SettingsPage.MAIN },
+                onAudio = { settingsPage = SettingsPage.AUDIO },
+                onSubtitles = { settingsPage = SettingsPage.SUBTITLES },
+                onPip = enterPip,
                 onEpisodes = { showEpisodes = true },
                 holder = holder,
                 extraTopActions = extraTopActions,
             )
             PlayerOverlays(screen, ui, holder, fill)
             androidx.compose.animation.AnimatedVisibility(
-                visible = showEpisodes && fill,
+                visible = showEpisodes && fill && !inline,
                 enter = slideInHorizontally { it },
                 exit = slideOutHorizontally { it },
                 modifier = Modifier.align(Alignment.CenterEnd),
@@ -302,11 +344,19 @@ fun PlayerScreen(
                 }
             }
         }
-        if (!fill) InfoPanel(screen, holder)
+        if (!inline && !fill) InfoPanel(screen, holder)
     }
 
-    if (showSettings && cinetorPlayer != null) {
-        SettingsSheet(ui, screen, holder, onDismiss = { showSettings = false; poke() }, extras = subtitleExtras)
+    val openPage = settingsPage
+    if (openPage != null && cinetorPlayer != null) {
+        SettingsSheet(
+            ui = ui,
+            screen = screen,
+            holder = holder,
+            onDismiss = { settingsPage = null; poke() },
+            extras = subtitleExtras,
+            initialPage = openPage,
+        )
     }
 }
 

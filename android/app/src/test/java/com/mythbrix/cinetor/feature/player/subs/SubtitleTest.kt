@@ -93,6 +93,48 @@ class SubtitleTest {
     }
 
     @Test
+    fun defaultStyle_hasTransparentBackgroundAndDropShadow() {
+        val def = SubtitleStyle()
+        assertEquals(0f, def.bgOpacity, 1e-4f)
+        assertEquals(0x00000000L, def.bgArgb)
+        assertEquals(SubEdge.SHADOW, def.edge)
+    }
+
+    @Test
+    fun languageNames_areFullHumanWordsWithoutShortCodes() {
+        assertEquals("Bangla", fullSubtitleLanguageName("bn"))
+        assertEquals("Bangla", fullSubtitleLanguageName("ben"))
+        assertEquals("Bangla", fullSubtitleLanguageName("bengali"))
+        assertEquals("Bangla", fullSubtitleLanguageName("BN-BD"))
+        assertEquals("English", fullSubtitleLanguageName("en"))
+        assertEquals("English", fullSubtitleLanguageName("eng"))
+        assertEquals("Hindi", fullSubtitleLanguageName("hi"))
+        assertEquals("Hindi", fullSubtitleLanguageName("hin"))
+        assertEquals("Urdu", fullSubtitleLanguageName("ur"))
+        assertEquals("Chinese", fullSubtitleLanguageName("zh"))
+        assertEquals("Chinese", fullSubtitleLanguageName("chi"))
+        assertEquals("Chinese", fullSubtitleLanguageName("zh-CN"))
+        assertEquals("Arabic", fullSubtitleLanguageName("ar"))
+        assertEquals("Korean", fullSubtitleLanguageName("ko"))
+        assertEquals("Japanese", fullSubtitleLanguageName("ja"))
+        assertEquals("Spanish", fullSubtitleLanguageName("es"))
+        assertEquals("French", fullSubtitleLanguageName("fr"))
+        assertEquals("Indonesian", fullSubtitleLanguageName("id"))
+        assertEquals("Indonesian", fullSubtitleLanguageName("in"))
+        assertEquals("Turkish", fullSubtitleLanguageName("tr"))
+        assertEquals("Tamil", fullSubtitleLanguageName("ta"))
+        assertEquals("Telugu", fullSubtitleLanguageName("te"))
+        assertEquals("Original", fullSubtitleLanguageName("und"))
+        assertEquals("Original", fullSubtitleLanguageName(""))
+        assertEquals("English", formatTrackLanguageLabel("Subtitle 1", "en"))
+        assertEquals("Bangla", formatTrackLanguageLabel("BN", "bn"))
+        assertEquals(
+            listOf("Bangla", "English", "Hindi", "Urdu", "Chinese", "Arabic", "Korean", "Japanese", "Spanish", "French", "Indonesian"),
+            POPULAR_SUBTITLE_LANGUAGES.map { it.name },
+        )
+    }
+
+    @Test
     fun controller_offsetConvertsKnownTrack_elseHint() = runTest {
         val files = mapOf("asset:///mock/subs/en.vtt" to VTT)
         val c = SubtitleController(backgroundScope, SubtitleStyleStore(InMemoryHistoryStorage()), { "p" }, { files.getValue(it) })

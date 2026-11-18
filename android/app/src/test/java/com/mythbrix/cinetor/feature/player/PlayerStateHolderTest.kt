@@ -199,4 +199,38 @@ class PlayerStateHolderTest {
         assertEquals(HostMode.HIDDEN, e.holder.state.value.mode)
         assertNull(e.holder.player.value)
     }
+
+    @Test
+    fun inlineMode_openExpandCollapseAndMinimizeLifecycle() = runTest {
+        val e = Env(this)
+        val series = testSeries("s")
+        e.holder.open(series, season = 1, episode = 2, inline = true)
+        runCurrent()
+        assertEquals(HostMode.INLINE, e.holder.state.value.mode)
+        assertTrue(e.holder.state.value.active)
+        assertEquals("e2", e.holder.state.value.episodeId)
+        assertEquals("s#e2", e.fake.currentKey)
+
+        // Fullscreen inside Details -> HostMode.FULL, then Back/Collapse returns to INLINE!
+        e.holder.expandFullscreen()
+        assertEquals(HostMode.FULL, e.holder.state.value.mode)
+        e.holder.collapseFullscreen()
+        assertEquals(HostMode.INLINE, e.holder.state.value.mode)
+
+        // Leaving DetailsScreen -> minimize() transitions INLINE -> MINI and clears openedInline.
+        e.holder.minimize()
+        assertEquals(HostMode.MINI, e.holder.state.value.mode)
+
+        // Tapping MiniPlayer on Home -> FULL; Back now returns to MINI (Details is gone).
+        e.holder.expand()
+        assertEquals(HostMode.FULL, e.holder.state.value.mode)
+        e.holder.collapseFullscreen()
+        assertEquals(HostMode.MINI, e.holder.state.value.mode)
+
+        // Re-entering Details of same title -> enterInline() docks without reloading!
+        val loadsBefore = e.fake.loads.size
+        e.holder.enterInline()
+        assertEquals(HostMode.INLINE, e.holder.state.value.mode)
+        assertEquals(loadsBefore, e.fake.loads.size)
+    }
 }

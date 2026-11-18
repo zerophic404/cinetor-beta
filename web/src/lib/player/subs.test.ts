@@ -1,5 +1,19 @@
 import { describe, expect, it } from 'vitest';
-import { activeCues, clampOffset, cueHtml, parseSubtitles, parseTimestamp, parseVtt, shiftCues, srtToVtt } from './subs';
+import {
+  activeCues,
+  audioDubOfSource,
+  clampOffset,
+  cueHtml,
+  DEFAULT_SUB_STYLE,
+  formatTrackLanguage,
+  fullLanguageName,
+  parseSubtitles,
+  parseTimestamp,
+  parseVtt,
+  POPULAR_SUBTITLE_LANGUAGES,
+  shiftCues,
+  srtToVtt
+} from './subs';
 
 const SRT = `\uFEFF1\r\n00:00:01,000 --> 00:00:03,500\r\nHello <i>world</i>\r\n\r\n2\r\n00:01:02,05 --> 00:01:04,000\r\nLine one\r\nLine two\r\n`;
 
@@ -44,5 +58,53 @@ describe('subtitles', () => {
 
   it('cue html is safe', () => {
     expect(cueHtml('<i>hi</i> <script>x</script>\nb')).toBe('<i>hi</i> x<br>b');
+  });
+
+  it('defaults subtitle background opacity to 0 (transparent)', () => {
+    expect(DEFAULT_SUB_STYLE).toEqual({ size: 100, color: '#ffffff', bg: 0 });
+  });
+
+  it('maps short language codes and dub labels to full human language words', () => {
+    expect(fullLanguageName('bn')).toBe('Bangla');
+    expect(fullLanguageName('ben')).toBe('Bangla');
+    expect(fullLanguageName('bengali')).toBe('Bangla');
+    expect(fullLanguageName('en')).toBe('English');
+    expect(fullLanguageName('eng')).toBe('English');
+    expect(fullLanguageName('hi')).toBe('Hindi');
+    expect(fullLanguageName('hin')).toBe('Hindi');
+    expect(fullLanguageName('ur')).toBe('Urdu');
+    expect(fullLanguageName('zh')).toBe('Chinese');
+    expect(fullLanguageName('chi')).toBe('Chinese');
+    expect(fullLanguageName('zh-TW')).toBe('Chinese');
+    expect(fullLanguageName('ar')).toBe('Arabic');
+    expect(fullLanguageName('ko')).toBe('Korean');
+    expect(fullLanguageName('ja')).toBe('Japanese');
+    expect(fullLanguageName('es')).toBe('Spanish');
+    expect(fullLanguageName('fr')).toBe('French');
+    expect(fullLanguageName('id')).toBe('Indonesian');
+    expect(fullLanguageName('in')).toBe('Indonesian');
+    expect(fullLanguageName('tr')).toBe('Turkish');
+    expect(fullLanguageName('ta')).toBe('Tamil');
+    expect(fullLanguageName('te')).toBe('Telugu');
+    expect(fullLanguageName('und')).toBe('Original');
+    expect(fullLanguageName('')).toBe('Original');
+    expect(formatTrackLanguage('bn', 'bn')).toBe('Bangla');
+    expect(formatTrackLanguage('Subtitle 1', 'hi')).toBe('Hindi');
+    expect(POPULAR_SUBTITLE_LANGUAGES.map((l) => l.name)).toEqual([
+      'Bangla',
+      'English',
+      'Hindi',
+      'Urdu',
+      'Chinese',
+      'Arabic',
+      'Korean',
+      'Japanese',
+      'Spanish',
+      'French',
+      'Indonesian'
+    ]);
+    expect(audioDubOfSource({ label: '1080p FHD · High-Speed · Hindi · 1.4 GB' })).toBe('Hindi');
+    expect(audioDubOfSource({ label: '720p HD · bn · 650 MB' })).toBe('Bangla');
+    expect(audioDubOfSource({ label: '1080p FHD · Original' })).toBe('Original');
   });
 });

@@ -62,25 +62,34 @@ fun SubtitleOverlay(subs: SideLoadedSubs?, offsetMs: Long, style: SubtitleStyle,
     BoxWithConstraints(modifier.fillMaxSize()) {
         val bottom = maxHeight * (style.bottomPercent / 100f)
         val sizeSp = (BASE_SP * style.sizePercent / 100f * (if (maxWidth > 600.dp) 1.25f else 1f)).sp
-        val weight = if (style.font == SubFont.BOLD) FontWeight.Bold else FontWeight.Medium
+        val weight = if (style.font == SubFont.BOLD) FontWeight.Bold else FontWeight.SemiBold
         val color = Color(style.textColor.toInt())
+        val transparentBg = style.bgOpacity <= 0.01f
+        val bgColor = if (transparentBg) Color.Transparent else Color(style.bgArgb.toInt())
+        val shadow = when {
+            style.edge == SubEdge.SHADOW -> Shadow(Color(0xF0000000), Offset(0f, 2f), 6f)
+            transparentBg && style.edge == SubEdge.NONE -> Shadow(Color(0xEB000000), Offset(0f, 2f), 5f)
+            else -> null
+        }
         val base = TextStyle(
             fontSize = sizeSp,
             fontFamily = style.fontFamily(),
             fontWeight = weight,
             textAlign = TextAlign.Center,
-            lineHeight = sizeSp * 1.2f,
-            shadow = if (style.edge == SubEdge.SHADOW) Shadow(Color.Black, Offset(2f, 2f), 6f) else null,
+            lineHeight = sizeSp * 1.25f,
+            shadow = shadow,
         )
         Box(
             Modifier
                 .align(Alignment.BottomCenter)
                 .padding(bottom = bottom, start = 24.dp, end = 24.dp)
-                .background(Color(style.bgArgb.toInt()), RoundedCornerShape(4.dp))
+                .background(bgColor, RoundedCornerShape(4.dp))
                 .padding(horizontal = 8.dp, vertical = 2.dp),
         ) {
             if (style.edge == SubEdge.OUTLINE) {
                 Text(text, style = base.copy(color = Color.Black, drawStyle = Stroke(width = 4f)))
+            } else if (style.edge == SubEdge.SHADOW) {
+                Text(text, style = base.copy(color = Color(0xCC000000), drawStyle = Stroke(width = 2.4f), shadow = null))
             }
             Text(text, style = base.copy(color = color))
         }
@@ -103,15 +112,16 @@ fun applySubtitleStyle(view: PlayerView, style: SubtitleStyle, hidden: Boolean) 
         SubFont.MONO -> Typeface.MONOSPACE
         SubFont.BOLD -> Typeface.DEFAULT_BOLD
     }
+    val bgArgb = if (style.bgOpacity <= 0.01f) android.graphics.Color.TRANSPARENT else style.bgArgb.toInt()
     sv.setApplyEmbeddedStyles(false)
     sv.setApplyEmbeddedFontSizes(false)
     sv.setStyle(
         CaptionStyleCompat(
             style.textColor.toInt(),
-            style.bgArgb.toInt(),
+            bgArgb,
             android.graphics.Color.TRANSPARENT,
             edge,
-            android.graphics.Color.BLACK,
+            android.graphics.Color.argb(242, 0, 0, 0),
             typeface,
         ),
     )
