@@ -14,8 +14,7 @@ import kotlinx.coroutines.launch
 
 /**
  * App-scoped settings state (Android-free). The root composable collects [theme] / [state], so a change
- * recomposes the whole tree in place — no activity restart. Theme picks are written to the app default
- * and to the active profile ([onProfileTheme]); [profileTheme] (the active profile's override) wins.
+ * recomposes the whole tree in place — no activity restart.
  */
 class SettingsStateHolder(
     private val source: SettingsSource,
@@ -23,6 +22,11 @@ class SettingsStateHolder(
     profileTheme: Flow<String?> = flowOf(null),
     private val onProfileTheme: suspend (AppTheme) -> Unit = {},
 ) {
+    companion object {
+        /** Transparent subtitle background by default (`bgOpacity = 0`). */
+        const val DEFAULT_SUBTITLE_BG_OPACITY: Float = 0f
+    }
+
     val state: StateFlow<AppSettings> = source.all.stateIn(scope, SharingStarted.Eagerly, AppSettings())
 
     val theme: StateFlow<AppTheme> = combine(state, profileTheme) { s, override ->
@@ -37,6 +41,17 @@ class SettingsStateHolder(
         scope.launch {
             onProfileTheme(theme)
             source.update { it.copy(theme = theme) }
+        }
+    }
+
+    /** Restores player, gesture, and appearance settings to Cinetor defaults. */
+    fun resetToDefaults() {
+        val def = AppSettings()
+        scope.launch {
+            onProfileTheme(def.theme)
+            source.update { current ->
+                def.copy(gatewayUrl = current.gatewayUrl)
+            }
         }
     }
 }

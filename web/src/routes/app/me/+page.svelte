@@ -3,40 +3,28 @@
   import Logo from '$lib/components/Logo.svelte';
   import Sheet from '$lib/components/Sheet.svelte';
   import InstallButton from '$lib/pwa/InstallButton.svelte';
-  import PinPad from '$lib/adult/PinPad.svelte';
-  import { pinHash } from '$lib/adult/gate';
-  import ProfileEditor from '$lib/profile/ProfileEditor.svelte';
-  import { MAX_PROFILES, initials, type Profile } from '$lib/profile/profiles';
-  import { profiles } from '$lib/profile/store.svelte';
   import Icon from '$lib/components/Icon.svelte';
+  import { AVATAR_COLORS, initials } from '$lib/profile/profiles';
+  import { profiles } from '$lib/profile/store.svelte';
   import { adult } from '$lib/adult/store.svelte';
   import { meSpaces } from '$lib/nav';
   import { myList } from '$lib/data/library.svelte';
   import type { Space } from '$lib/data/types';
 
-  let editing = $state<Profile | null>(null);
-  let editorOpen = $state(false);
-  let unlockFor = $state<Profile | null>(null);
-  let unlockOpen = $state(false);
-
-  // Inline 18+ opt-in & PIN management sheets right in Profile / Me
-  let gateOpen = $state(false);
-  let gateStep = $state<'age' | 'pin' | 'confirm'>('age');
-  let ageOk = $state(false);
-  let firstPin = '';
-  let changePinOpen = $state(false);
-  let changePinStep = $state<'old' | 'new'>('old');
-  let currentPin = '';
-  let statusNotice = $state('');
+  let editOpen = $state(false);
+  let draftName = $state('');
+  let draftColor = $state(AVATAR_COLORS[0]);
 
   const savedCount = $derived(
     myList.ids('video').length + myList.ids('comics').length + myList.ids('music').length
   );
   const adultVisible = $derived(adult.enabled && !profiles.active.kids);
-  const spaces = $derived(meSpaces(adultVisible));
+  const spaces = $derived(
+    meSpaces(adultVisible).filter((s) => s.space !== 'TV' && (s.space !== 'ADULT' || adultVisible))
+  );
+  const displayName = $derived(profiles.active.name.trim() || 'Your Cinetor');
 
   const SPACE_META: Record<string, { title: string; subtitle: string; badge: string }> = {
-    TV: { title: 'Live TV & Sports', subtitle: 'Channels · EPG · Live matches', badge: 'LIVE' },
     MUSIC: { title: 'Music', subtitle: 'FLAC Lossless · Charts · Synced lyrics', badge: 'FLAC' },
     COMICS: { title: 'Comics', subtitle: 'Manga · Manhwa · Manhua', badge: 'READER' },
     ADULT: { title: '18+ Adult', subtitle: 'Adults only · PIN protected', badge: '18+' }
@@ -46,87 +34,25 @@
     return SPACE_META[space] ?? { title: fallbackTitle, subtitle: fallbackSub, badge: '' };
   }
 
-  function pick(p: Profile) {
-    if (p.id === profiles.activeId) return;
-    if (p.pinHash) {
-      unlockFor = p;
-      unlockOpen = true;
-    } else profiles.switchTo(p.id);
+  function openEditName() {
+    draftName = profiles.active.name;
+    draftColor = profiles.active.color || AVATAR_COLORS[0];
+    editOpen = true;
   }
 
-  function edit(p: Profile | null) {
-    editing = p;
-    editorOpen = true;
-  }
-
-  async function tryProfilePin(pin: string): Promise<true | string> {
-    const p = unlockFor;
-    if (!p) return 'No profile';
-    if ((await pinHash(p.id, pin)) !== p.pinHash) return 'Incorrect PIN';
-    unlockOpen = false;
-    profiles.switchTo(p.id);
-    return true;
-  }
-
-  function toggleAdultSpace() {
-    if (!adult.canEnable) return;
-    if (adult.enabled) {
-      adult.disable();
-      statusNotice = '18+ Adult space hidden from Spaces.';
-      return;
-    }
-    gateStep = 'age';
-    ageOk = false;
-    firstPin = '';
-    gateOpen = true;
-  }
-
-  function onNewAdultPin(pin: string): true | string {
-    firstPin = pin;
-    gateStep = 'confirm';
-    return true;
-  }
-
-  async function onConfirmAdultPin(pin: string): Promise<true | string> {
-    if (pin !== firstPin) {
-      gateStep = 'pin';
-      return "PINs didn't match — enter a new PIN";
-    }
-    const r = await adult.enable(ageOk, pin);
-    if (!r.ok) return r.error;
-    gateOpen = false;
-    statusNotice = '18+ Adult space enabled and unlocked for this session.';
-    return true;
-  }
-
-  function openChangeAdultPin() {
-    changePinStep = 'old';
-    currentPin = '';
-    changePinOpen = true;
-  }
-
-  function onOldAdultPin(pin: string): true | string {
-    currentPin = pin;
-    changePinStep = 'new';
-    return true;
-  }
-
-  async function onSaveChangedPin(pin: string): Promise<true | string> {
-    const r = await adult.changePin(currentPin, pin);
-    if (!r.ok) {
-      changePinStep = 'old';
-      return r.error;
-    }
-    changePinOpen = false;
-    statusNotice = '18+ PIN updated.';
-    return true;
+  function saveEditName(e: SubmitEvent) {
+    e.preventDefault();
+    const trimmed = draftName.trim();
+    if (!trimmed) return;
+    profiles.update(profiles.activeId, { name: trimmed, color: draftColor });
+    editOpen = false;
   }
 
   const links = [
     {
       href: `${base}/app/library`,
       title: 'My List & Library',
-      sub: 'Watchlist · saved tracks & albums · bookmarked comics',
+      sub: 'Watchlist · watch history · saved tracks & comics',
       icon: 'M5 4h4v16H5zM10 4h4v16h-4zM15.5 4.5l3.8 1-3.6 15-3.8-1z'
     },
     {
@@ -138,13 +64,13 @@
     {
       href: `${base}/app/settings`,
       title: 'App Settings',
-      sub: 'Themes · Liquid Glass quality · player · subtitles · privacy',
+      sub: 'Themes · player · downloads · content & privacy',
       icon: 'M12 9a3 3 0 1 0 0 6 3 3 0 0 0 0-6zM4 12h2M18 12h2M12 4v2M12 18v2M6.3 6.3l1.4 1.4M16.3 16.3l1.4 1.4M6.3 17.7l1.4-1.4M16.3 7.7l1.4-1.4'
     },
     {
       href: `${base}/app/about`,
       title: 'About & Community',
-      sub: 'Version · Telegram channel · credits',
+      sub: 'Version · Mythbrix · Telegram community',
       icon: 'M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18zM12 11v6M12 7.5v.5'
     }
   ];
@@ -155,182 +81,63 @@
 <div class="me">
   <header class="profile glass">
     <span class="av big" style:background={profiles.active.color}>
-      {initials(profiles.active.name)}
-      {#if profiles.active.pinHash}
-        <i class="lock-dot" aria-hidden="true">
-          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
-            <rect x="5" y="11" width="14" height="10" rx="2.5" />
-            <path d="M8 11V7a4 4 0 0 1 8 0v4" />
-          </svg>
-        </i>
-      {/if}
+      {initials(displayName)}
     </span>
     <div class="who">
-      <div class="title-row">
-        <h1>{profiles.active.name}</h1>
-        {#if profiles.active.kids}<span class="kid">Kids</span>{/if}
-      </div>
-      <p>
-        {savedCount} in Library · {profiles.list.length}/{MAX_PROFILES} profiles on this device
-      </p>
+      <h1>{displayName}</h1>
+      <p>{savedCount} saved in Library</p>
     </div>
-    <button type="button" class="btn btn-ghost edit-main" onclick={() => edit(profiles.active)}>Edit</button>
+    <button type="button" class="btn btn-ghost edit-main" onclick={openEditName}>Edit</button>
   </header>
 
-  {#if statusNotice}
-    <p class="notice glass" role="status">{statusNotice}</p>
-  {/if}
-
-  <section aria-labelledby="prof-h">
-    <div class="sec-head">
-      <span class="bar" aria-hidden="true"></span>
-      <h2 id="prof-h">Who's watching?</h2>
-    </div>
-    <ul class="picker">
-      {#each profiles.list as p (p.id)}
-        <li>
+  {#if spaces.length}
+    <section aria-labelledby="spaces-h">
+      <div class="sec-head">
+        <div class="head-left">
+          <span class="bar" aria-hidden="true"></span>
+          <h2 id="spaces-h">Spaces</h2>
+        </div>
+        {#if adultVisible && adult.unlocked}
           <button
             type="button"
-            class="pp"
-            class:current={p.id === profiles.activeId}
-            onclick={() => pick(p)}
-            aria-current={p.id === profiles.activeId ? 'true' : undefined}
-            aria-label="Switch to {p.name}{p.kids ? ' (Kids)' : ''}{p.pinHash ? ', PIN protected' : ''}"
+            class="chip"
+            onclick={() => adult.lock()}
           >
-            <span class="av" style:background={p.color}>
-              {initials(p.name)}
-              {#if p.pinHash}
-                <i class="lock-dot" aria-hidden="true">
-                  <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
-                    <rect x="5" y="11" width="14" height="10" rx="2.5" />
-                    <path d="M8 11V7a4 4 0 0 1 8 0v4" />
-                  </svg>
-                </i>
-              {/if}
-            </span>
-            <span class="nm">{p.name}</span>
-            {#if p.kids}<span class="kid">Kids</span>{/if}
+            Lock 18+
           </button>
-          {#if p.id !== profiles.activeId}
-            <button type="button" class="mini" onclick={() => edit(p)} aria-label="Edit {p.name}">
-              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                <path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z" />
-              </svg>
-            </button>
-          {/if}
-        </li>
-      {/each}
-      {#if profiles.canCreate}
-        <li>
-          <button type="button" class="pp add" onclick={() => edit(null)} aria-label="Add profile">
-            <span class="av">
-              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" aria-hidden="true">
-                <path d="M12 5v14M5 12h14" />
-              </svg>
-            </span>
-            <span class="nm">Add</span>
-          </button>
-        </li>
-      {/if}
-    </ul>
-  </section>
-
-  <section aria-labelledby="spaces-h">
-    <div class="sec-head">
-      <span class="bar" aria-hidden="true"></span>
-      <h2 id="spaces-h">Spaces</h2>
-    </div>
-    <p class="hint">Dedicated worlds with their own navigation and search — isolated from Home and global history.</p>
-    <ul class="spaces">
-      {#each spaces as e (e.space)}
-        {@const m = metaOf(e.space, e.label, e.blurb)}
-        <li>
-          <a class="space glass" class:adult-card={e.space === 'ADULT'} href={e.href} data-space={e.space}>
-            <div class="space-top">
-              <span class="ic"><Icon name={e.icon} size={22} /></span>
-              <div class="badges">
-                {#if m.badge}
-                  <span class="space-pill" class:danger={e.space === 'ADULT'}>{m.badge}</span>
-                {/if}
-                {#if e.space === 'ADULT'}
-                  <span class="pin-ic" aria-label="PIN protected">
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                      <rect x="5" y="11" width="14" height="10" rx="2.5" />
-                      <path d="M8 11V7a4 4 0 0 1 8 0v4" />
-                    </svg>
-                  </span>
-                {/if}
-              </div>
-            </div>
-            <div class="txt">
-              <b>{m.title}</b>
-              <small>{m.subtitle}</small>
-            </div>
-          </a>
-        </li>
-      {/each}
-    </ul>
-  </section>
-
-  <section aria-labelledby="prefs-h">
-    <div class="sec-head">
-      <span class="bar" aria-hidden="true"></span>
-      <h2 id="prefs-h">Profile preferences</h2>
-    </div>
-    <div class="prefs glass">
-      {#if !adult.canEnable}
-        <div class="pref-row">
-          <span class="pref-ic">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-              <path d="M12 3l8 3v6c0 4.5-3.4 8.3-8 9-4.6-.7-8-4.5-8-9V6z" />
-              <path d="m9 12 2 2 4-4" />
-            </svg>
-          </span>
-          <div class="pref-txt">
-            <b>Kids profile protection</b>
-            <small>18+ Adult space is unavailable while a Kids profile is active.</small>
-          </div>
-          <button type="button" class="btn btn-ghost sm" onclick={() => edit(profiles.active)}>Manage</button>
-        </div>
-      {:else}
-        <div class="pref-row">
-          <span class="pref-ic" class:active={adult.enabled}>
-            <Icon name="adult" size={20} />
-          </span>
-          <div class="pref-txt">
-            <b>18+ Adult Space</b>
-            <small>
-              {#if adult.enabled}
-                {adult.unlocked ? 'Unlocked for this session · Relocks after 5 min idle' : 'Enabled · Protected by 4-digit session PIN'}
-              {:else}
-                Show PIN-protected 18+ space in Me (18+ age confirmation required)
-              {/if}
-            </small>
-          </div>
-          <button
-            type="button"
-            class="switch"
-            class:on={adult.enabled}
-            role="switch"
-            aria-checked={adult.enabled}
-            aria-label="Enable 18+ Adult space"
-            onclick={toggleAdultSpace}
-          >
-            <span class="knob"></span>
-          </button>
-        </div>
-        {#if adult.enabled}
-          <div class="pref-actions">
-            <a class="chip" href="{base}/app/adult">Open 18+ Space</a>
-            <button type="button" class="chip" onclick={openChangeAdultPin}>Change PIN</button>
-            {#if adult.unlocked}
-              <button type="button" class="chip" onclick={() => { adult.lock(); statusNotice = '18+ Adult space locked.'; }}>Lock now</button>
-            {/if}
-          </div>
         {/if}
-      {/if}
-    </div>
-  </section>
+      </div>
+      <ul class="spaces">
+        {#each spaces as e (e.space)}
+          {@const m = metaOf(e.space, e.label, e.blurb)}
+          <li>
+            <a class="space glass" class:adult-card={e.space === 'ADULT'} href={e.href} data-space={e.space}>
+              <div class="space-top">
+                <span class="ic"><Icon name={e.icon} size={22} /></span>
+                <div class="badges">
+                  {#if m.badge}
+                    <span class="space-pill" class:danger={e.space === 'ADULT'}>{m.badge}</span>
+                  {/if}
+                  {#if e.space === 'ADULT'}
+                    <span class="pin-ic" aria-label="PIN protected">
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                        <rect x="5" y="11" width="14" height="10" rx="2.5" />
+                        <path d="M8 11V7a4 4 0 0 1 8 0v4" />
+                      </svg>
+                    </span>
+                  {/if}
+                </div>
+              </div>
+              <div class="txt">
+                <b>{m.title}</b>
+                <small>{m.subtitle}</small>
+              </div>
+            </a>
+          </li>
+        {/each}
+      </ul>
+    </section>
+  {/if}
 
   <nav class="links" aria-label="Me">
     {#each links as l (l.href)}
@@ -350,47 +157,46 @@
   <p class="brand"><Logo size={28} wordmark /></p>
 </div>
 
-<Sheet bind:open={editorOpen} title={editing ? `Edit ${editing.name}` : 'New profile'}>
-  <ProfileEditor profile={editing} onDone={() => (editorOpen = false)} />
-</Sheet>
-
-<Sheet bind:open={unlockOpen} title={unlockFor ? `Switch to ${unlockFor.name}` : 'Profile PIN'}>
-  <PinPad title="Profile PIN" hint="Enter the 4-digit PIN for this profile." onSubmit={tryProfilePin} />
-</Sheet>
-
-<Sheet bind:open={gateOpen} title="Enable 18+ Adult Space">
-  {#if gateStep === 'age'}
-    <div class="age-sheet">
-      <p>This space contains adult content restricted to viewers aged 18 and older. It stays isolated from Home, global search, and Continue Watching.</p>
-      <label class="age-toggle">
-        <input type="checkbox" bind:checked={ageOk} />
-        <span>I confirm I am 18 years or older</span>
-      </label>
-      <div class="age-actions">
-        <button type="button" class="btn btn-primary" disabled={!ageOk} onclick={() => (gateStep = 'pin')}>Continue</button>
-        <button type="button" class="btn btn-ghost" onclick={() => (gateOpen = false)}>Cancel</button>
+<Sheet bind:open={editOpen} title="Edit display name">
+  <form class="edit-form" onsubmit={saveEditName}>
+    <label class="field">
+      <span>Display name</span>
+      <input
+        type="text"
+        maxlength="24"
+        bind:value={draftName}
+        placeholder="Your name"
+        required
+      />
+    </label>
+    <div class="field">
+      <span>Avatar color</span>
+      <div class="color-row" role="radiogroup" aria-label="Avatar color">
+        {#each AVATAR_COLORS as col (col)}
+          <button
+            type="button"
+            class="col-dot"
+            style:background={col}
+            role="radio"
+            aria-checked={draftColor === col}
+            aria-label="Color {col}"
+            onclick={() => (draftColor = col)}
+          ></button>
+        {/each}
       </div>
     </div>
-  {:else if gateStep === 'pin'}
-    <PinPad title="Set a 4-digit PIN" hint="Required once per session; auto-locks after 5 minutes idle." onSubmit={onNewAdultPin} />
-  {:else}
-    <PinPad title="Confirm PIN" hint="Re-enter the same 4 digits to enable 18+." onSubmit={onConfirmAdultPin} />
-  {/if}
-</Sheet>
-
-<Sheet bind:open={changePinOpen} title="Change 18+ PIN">
-  {#if changePinStep === 'old'}
-    <PinPad title="Current PIN" hint="Verify your existing 4-digit PIN." onSubmit={onOldAdultPin} />
-  {:else}
-    <PinPad title="New PIN" hint="Choose your new 4-digit PIN." onSubmit={onSaveChangedPin} />
-  {/if}
+    <div class="form-acts">
+      <button type="submit" class="btn btn-primary" disabled={!draftName.trim()}>Save</button>
+      <button type="button" class="btn btn-ghost" onclick={() => (editOpen = false)}>Cancel</button>
+    </div>
+  </form>
 </Sheet>
 
 <style>
   .me {
     max-width: 920px;
     margin: 0 auto;
-    padding-bottom: 12px;
+    padding-bottom: 16px;
   }
   .profile {
     display: flex;
@@ -402,12 +208,6 @@
   }
   .who {
     flex: 1;
-    min-width: 0;
-  }
-  .title-row {
-    display: flex;
-    align-items: center;
-    gap: 8px;
     min-width: 0;
   }
   .who h1 {
@@ -429,19 +229,30 @@
     padding: 0 16px;
     font-size: 0.86rem;
   }
-  .notice {
-    margin: 12px 16px 0;
-    padding: 10px 16px;
-    border-radius: 16px;
-    font-size: 0.85rem;
-    font-weight: 600;
-    color: var(--text-primary);
+  .av {
+    width: 60px;
+    height: 60px;
+    display: grid;
+    place-items: center;
+    border-radius: 50%;
+    font-weight: 800;
+    font-size: 1.25rem;
+    color: #fff;
+    background: var(--glass-fill);
+    box-shadow: inset 0 0 0 1px var(--glass-stroke);
+    flex: none;
   }
   .sec-head {
     display: flex;
     align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    margin: 22px 16px 12px;
+  }
+  .head-left {
+    display: flex;
+    align-items: center;
     gap: 8px;
-    margin: 22px 16px 10px;
   }
   .sec-head .bar {
     width: 3px;
@@ -455,113 +266,6 @@
     font-size: 1.05rem;
     font-weight: 780;
     letter-spacing: -0.01em;
-  }
-  .av {
-    position: relative;
-    width: 62px;
-    height: 62px;
-    display: grid;
-    place-items: center;
-    border-radius: 50%;
-    font-weight: 800;
-    font-size: 1.25rem;
-    color: #fff;
-    background: var(--glass-fill);
-    box-shadow: inset 0 0 0 1px var(--glass-stroke);
-    flex: none;
-  }
-  .av.big {
-    width: 60px;
-    height: 60px;
-  }
-  .lock-dot {
-    position: absolute;
-    right: -2px;
-    bottom: -2px;
-    width: 22px;
-    height: 22px;
-    display: grid;
-    place-items: center;
-    border-radius: 50%;
-    background: var(--surface);
-    color: var(--text-primary);
-    box-shadow: 0 0 0 2px var(--bg);
-  }
-  .picker {
-    list-style: none;
-    margin: 0;
-    padding: 0 16px;
-    display: flex;
-    flex-wrap: wrap;
-    gap: 12px;
-  }
-  .picker li {
-    position: relative;
-  }
-  .pp {
-    display: grid;
-    justify-items: center;
-    gap: 6px;
-    width: 84px;
-    border: 0;
-    background: none;
-    cursor: pointer;
-    padding: 6px;
-    border-radius: 18px;
-    transition: transform 0.14s ease;
-  }
-  .pp:hover {
-    transform: translateY(-1px);
-  }
-  .pp.current .av {
-    box-shadow:
-      0 0 0 3px var(--bg),
-      0 0 0 5px var(--accent);
-  }
-  .pp.add .av {
-    color: var(--text-secondary);
-  }
-  .nm {
-    font-size: 0.82rem;
-    font-weight: 650;
-    max-width: 80px;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-  .kid {
-    font-size: 0.65rem;
-    font-weight: 800;
-    letter-spacing: 0.03em;
-    padding: 2px 7px;
-    border-radius: 999px;
-    background: color-mix(in srgb, var(--text-primary) 14%, var(--glass-fill));
-    color: var(--text-primary);
-    box-shadow: inset 0 0 0 1px var(--glass-stroke);
-  }
-  .mini {
-    position: absolute;
-    top: 2px;
-    right: 2px;
-    width: 26px;
-    height: 26px;
-    display: grid;
-    place-items: center;
-    border: 0;
-    border-radius: 50%;
-    background: var(--surface-elevated, var(--glass-fill));
-    box-shadow: inset 0 0 0 1px var(--glass-stroke);
-    color: var(--text-secondary);
-    cursor: pointer;
-  }
-  .mini:hover {
-    color: var(--text-primary);
-  }
-  .hint {
-    margin: -4px 16px 12px;
-    color: var(--text-secondary);
-    font-size: 0.83rem;
-    line-height: 1.4;
   }
   .spaces {
     list-style: none;
@@ -584,6 +288,7 @@
     padding: 16px;
     min-height: 108px;
     text-decoration: none;
+    color: var(--text-primary);
     border-radius: 22px;
     transition:
       transform calc(var(--dur-short, 140ms) * var(--dur-scale, 1)) var(--ease-emphasized, ease),
@@ -661,100 +366,12 @@
     font-size: 0.98rem;
     font-weight: 760;
     letter-spacing: -0.01em;
+    color: var(--text-primary);
   }
   .space small {
     color: var(--text-secondary);
     font-size: 0.78rem;
     line-height: 1.35;
-  }
-  .prefs {
-    margin: 0 16px;
-    padding: 14px 16px;
-    border-radius: 22px;
-    display: grid;
-    gap: 12px;
-  }
-  .pref-row {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-  }
-  .pref-ic {
-    width: 40px;
-    height: 40px;
-    flex: none;
-    display: grid;
-    place-items: center;
-    border-radius: 13px;
-    color: var(--text-secondary);
-    background: var(--glass-fill);
-    box-shadow: inset 0 0 0 1px var(--glass-stroke);
-  }
-  .pref-ic.active {
-    color: var(--accent);
-    background: color-mix(in srgb, var(--accent) 16%, var(--glass-fill));
-    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 38%, var(--glass-stroke));
-  }
-  .pref-txt {
-    flex: 1;
-    min-width: 0;
-    display: grid;
-    gap: 2px;
-  }
-  .pref-txt b {
-    font-size: 0.94rem;
-    font-weight: 730;
-  }
-  .pref-txt small {
-    color: var(--text-secondary);
-    font-size: 0.78rem;
-    line-height: 1.35;
-  }
-  .btn.sm {
-    min-height: 34px;
-    padding: 0 14px;
-    font-size: 0.8rem;
-  }
-  .switch {
-    position: relative;
-    width: 48px;
-    height: 28px;
-    flex: none;
-    padding: 3px;
-    border: 0;
-    border-radius: 999px;
-    background: var(--glass-fill);
-    box-shadow: inset 0 0 0 1px var(--glass-stroke);
-    cursor: pointer;
-    transition: background-color 0.18s ease, box-shadow 0.18s ease;
-  }
-  .switch.on {
-    background: linear-gradient(135deg, var(--accent), var(--accent-end));
-    box-shadow: 0 4px 14px -4px var(--accent-glow);
-  }
-  .switch .knob {
-    display: block;
-    width: 22px;
-    height: 22px;
-    border-radius: 50%;
-    background: #fff;
-    box-shadow: 0 2px 6px rgb(0 0 0 / 0.35);
-    transition: transform 0.18s var(--ease-emphasized, ease);
-  }
-  .switch.on .knob {
-    transform: translateX(20px);
-  }
-  .pref-actions {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 8px;
-    padding-top: 4px;
-    border-top: 1px solid var(--divider);
-  }
-  .pref-actions .chip {
-    min-height: 32px;
-    padding: 0 13px;
-    font-size: 0.8rem;
   }
   .links {
     display: grid;
@@ -768,6 +385,7 @@
     padding: 14px 16px;
     border-radius: 20px;
     text-decoration: none;
+    color: var(--text-primary);
     transition: transform calc(var(--dur-short, 140ms) * var(--dur-scale, 1)) ease;
   }
   .lnk:hover,
@@ -791,6 +409,9 @@
     display: grid;
     gap: 2px;
   }
+  .lnk-txt b {
+    color: var(--text-primary);
+  }
   .lnk small {
     color: var(--text-secondary);
     font-size: 0.79rem;
@@ -800,43 +421,66 @@
     color: var(--text-secondary);
   }
   .install {
-    margin: 18px 16px 0;
-  }
-  .brand {
+    margin: 20px 16px 0;
     display: flex;
     justify-content: center;
-    margin-top: 26px;
-    opacity: 0.85;
   }
-  .age-sheet {
+  .brand {
+    margin: 20px 0 4px;
+    display: flex;
+    justify-content: center;
+    opacity: 0.78;
+  }
+
+  .edit-form {
     display: grid;
-    gap: 14px;
+    gap: 16px;
   }
-  .age-sheet p {
-    margin: 0;
+  .field {
+    display: grid;
+    gap: 6px;
+    font-size: 0.85rem;
     color: var(--text-secondary);
-    font-size: 0.9rem;
-    line-height: 1.45;
   }
-  .age-toggle {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    padding: 12px 14px;
-    border-radius: 14px;
+  .field input {
+    min-height: 44px;
+    border-radius: 12px;
+    border: 0;
+    padding: 0 14px;
+    font: inherit;
+    font-size: 0.95rem;
     background: var(--glass-fill);
+    color: var(--text-primary);
     box-shadow: inset 0 0 0 1px var(--glass-stroke);
-    font-weight: 650;
+  }
+  :global([data-theme='pearl']) .field input {
+    background: var(--surface-elevated);
+    box-shadow: inset 0 0 0 1px rgb(20 20 22 / 0.16);
+  }
+  .field input:focus-visible {
+    outline: 2px solid var(--focus-ring);
+    outline-offset: 2px;
+  }
+  .color-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+  }
+  .col-dot {
+    width: 34px;
+    height: 34px;
+    border-radius: 50%;
+    border: 0;
     cursor: pointer;
+    box-shadow: inset 0 0 0 1px rgb(255 255 255 / 0.24);
   }
-  .age-toggle input {
-    width: 20px;
-    height: 20px;
-    accent-color: var(--accent);
+  .col-dot[aria-checked='true'] {
+    box-shadow:
+      0 0 0 3px var(--bg, #000),
+      0 0 0 5px var(--accent);
   }
-  .age-actions {
+  .form-acts {
     display: flex;
     gap: 10px;
-    flex-wrap: wrap;
   }
 </style>

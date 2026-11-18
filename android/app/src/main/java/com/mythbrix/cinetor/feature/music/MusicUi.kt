@@ -11,6 +11,8 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -23,6 +25,7 @@ import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.Download
 import androidx.compose.material.icons.rounded.GraphicEq
 import androidx.compose.material.icons.rounded.HighQuality
+import androidx.compose.material.icons.rounded.PlayArrow
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -58,6 +61,7 @@ import com.mythbrix.cinetor.design.Cinetor
 import com.mythbrix.cinetor.design.CinetorTokens
 import com.mythbrix.cinetor.design.GlassLevel
 import com.mythbrix.cinetor.design.glass
+import com.mythbrix.cinetor.design.hexColor
 import com.mythbrix.cinetor.feature.player.formatTime
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -416,5 +420,114 @@ fun TrackRow(
         }
         Text(durationText, color = tokens.textTertiary, style = MaterialTheme.typography.labelMedium)
         TrackDownloadIcon(dl, track.title, onDownload)
+    }
+}
+
+/**
+ * Shared square music thumbnail card (for albums, playlists/charts, and featured tracks) that
+ * always displays the full title clearly underneath the artwork with D-pad focus support.
+ */
+@Composable
+fun MusicThumbCard(
+    item: Item,
+    subtitle: String,
+    playing: Boolean,
+    semanticsPrefix: String,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    badge: String? = null,
+    fixedWidth: Dp? = null,
+) {
+    val tokens = Cinetor.tokens
+    val interaction = remember { MutableInteractionSource() }
+    val focused by interaction.collectIsFocusedAsState()
+    val scale by animateFloatAsState(if (focused) 1.05f else 1f, label = "musicThumbScale")
+    val shape = RoundedCornerShape(CinetorTokens.Shape.card)
+    val accent = remember(item.accentColor) { hexColor(item.accentColor) }
+    val imageSize = fixedWidth ?: 170.dp
+
+    Column(
+        modifier
+            .then(if (fixedWidth != null) Modifier.width(fixedWidth) else Modifier)
+            .graphicsLayer { scaleX = scale; scaleY = scale }
+            .clickable(interactionSource = interaction, indication = null, onClick = onClick)
+            .semantics { contentDescription = "$semanticsPrefix ${item.title}" },
+        verticalArrangement = Arrangement.spacedBy(6.dp),
+    ) {
+        Box(
+            Modifier
+                .fillMaxWidth()
+                .aspectRatio(1f)
+                .clip(shape)
+                .background(hexColor(item.dominantColor))
+                .border(
+                    when {
+                        focused -> 2.5.dp
+                        playing -> 2.dp
+                        else -> 1.dp
+                    },
+                    when {
+                        focused -> tokens.focusRing
+                        playing -> accent
+                        else -> tokens.glassStroke
+                    },
+                    shape,
+                ),
+        ) {
+            AsyncImage(
+                model = rememberSizedImage(item.poster, imageSize, imageSize),
+                contentDescription = null,
+                contentScale = ContentScale.Crop,
+                modifier = Modifier.fillMaxSize(),
+            )
+            if (!badge.isNullOrBlank()) {
+                Text(
+                    badge,
+                    color = Color.White,
+                    style = MaterialTheme.typography.labelSmall,
+                    fontWeight = FontWeight.SemiBold,
+                    maxLines = 1,
+                    modifier = Modifier
+                        .align(Alignment.TopStart)
+                        .padding(8.dp)
+                        .clip(RoundedCornerShape(CinetorTokens.Shape.pill))
+                        .background(Color.Black.copy(alpha = 0.62f))
+                        .padding(horizontal = 7.dp, vertical = 2.dp),
+                )
+            }
+            Box(
+                Modifier
+                    .align(Alignment.BottomEnd)
+                    .padding(8.dp)
+                    .size(28.dp)
+                    .clip(CircleShape)
+                    .background(if (playing) tokens.accent else Color.Black.copy(alpha = 0.6f)),
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(
+                    imageVector = if (playing) Icons.Rounded.GraphicEq else Icons.Rounded.PlayArrow,
+                    contentDescription = null,
+                    tint = if (playing) tokens.onAccent else Color.White,
+                    modifier = Modifier.size(16.dp),
+                )
+            }
+        }
+        Text(
+            item.title,
+            color = if (focused || playing) tokens.accent else tokens.textPrimary,
+            style = MaterialTheme.typography.titleSmall,
+            fontWeight = FontWeight.SemiBold,
+            maxLines = 2,
+            overflow = TextOverflow.Ellipsis,
+        )
+        if (subtitle.isNotBlank()) {
+            Text(
+                subtitle,
+                color = tokens.textSecondary,
+                style = MaterialTheme.typography.labelSmall,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
     }
 }

@@ -22,22 +22,25 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowRight
 import androidx.compose.material.icons.rounded.AutoStories
 import androidx.compose.material.icons.rounded.Download
+import androidx.compose.material.icons.rounded.Edit
 import androidx.compose.material.icons.rounded.Info
-import androidx.compose.material.icons.rounded.LiveTv
 import androidx.compose.material.icons.rounded.Lock
 import androidx.compose.material.icons.rounded.LockOpen
 import androidx.compose.material.icons.rounded.MusicNote
-import androidx.compose.material.icons.rounded.People
 import androidx.compose.material.icons.rounded.Settings
 import androidx.compose.material.icons.rounded.VideoLibrary
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -53,22 +56,17 @@ import com.mythbrix.cinetor.core.data.AppContainer
 import com.mythbrix.cinetor.core.data.Space
 import com.mythbrix.cinetor.core.download.DownloadStatus
 import com.mythbrix.cinetor.core.download.isActive
-import com.mythbrix.cinetor.core.perf.EffectsQuality
-import com.mythbrix.cinetor.core.perf.detectTier
 import com.mythbrix.cinetor.design.Cinetor
 import com.mythbrix.cinetor.design.GlassLevel
 import com.mythbrix.cinetor.design.glass
-import com.mythbrix.cinetor.feature.adult.AdultSetupAction
-import com.mythbrix.cinetor.feature.adult.AdultSetupFlowDialog
 import com.mythbrix.cinetor.navigation.spaceEntryLabel
-import java.util.Locale
+import kotlinx.coroutines.launch
 
 /**
- * More / Profile hub:
- * - Active profile Liquid Glass card (tap → profile switcher).
- * - Prominent 2-column Liquid Glass **More & Spaces** grid (`Live TV & Sports`, `Music`, `Comics`,
- *   and PIN-gated `18+ Adult` when enabled + quick inline opt-in/manage on non-Kids profiles).
- * - Unified Liquid Glass account & app menu (`Switch profile`, `Library`, `Downloads`, `Settings`, `About`).
+ * Single-profile Cinetor Beta `Me` hub:
+ * - Clean on-device profile summary card with inline display-name edit.
+ * - Dedicated **Spaces** grid (`Music`, `Comics`, and PIN-gated `18+` ONLY when enabled in Settings).
+ * - Unified Liquid Glass menu (`Library`, `Downloads`, `Settings`, `About`).
  */
 @Composable
 fun MeScreen(
@@ -77,121 +75,117 @@ fun MeScreen(
     onSettings: () -> Unit,
     onAbout: () -> Unit,
     onDownloads: () -> Unit = {},
-    onProfiles: () -> Unit = {},
+    @Suppress("UnusedParameter") onProfiles: () -> Unit = {},
     onLibrary: () -> Unit = {},
-    /** Isolated spaces (Live TV & Sports, Music, Comics, 18+ when enabled). */
+    /** Isolated spaces (`Music`, `Comics`, plus `18+` only when enabled in Settings). */
     spaces: List<Space> = emptyList(),
     onSpace: (Space) -> Unit = {},
 ) {
     val tokens = Cinetor.tokens
-    val effects by container.settings.effects.collectAsStateWithLifecycle(EffectsQuality.AUTO)
-    val device = container.deviceProfile
-    val autoTier = detectTier(device)
+    val scope = rememberCoroutineScope()
     val active by container.profiles.active.collectAsStateWithLifecycle()
-    val all by container.profiles.profiles.collectAsStateWithLifecycle()
     val watchlist by container.profiles.watchlist.collectAsStateWithLifecycle()
+    val history by container.profiles.history.collectAsStateWithLifecycle()
     val dl by container.downloads.visible.collectAsStateWithLifecycle()
     val comicsData by container.comics.store.data.collectAsStateWithLifecycle()
     val adultEnabled by container.adult.enabled.collectAsStateWithLifecycle()
     val adultUnlocked by container.adult.unlocked.collectAsStateWithLifecycle()
 
-    var adultSetupAction by remember { mutableStateOf<AdultSetupAction?>(null) }
+    var editingName by remember { mutableStateOf(false) }
+    var draftName by remember(active.name) { mutableStateOf(active.name) }
+
+    val visibleSpaces = remember(spaces, adultEnabled, active.kids) {
+        spaces.filter { sp ->
+            sp != Space.TV && (sp != Space.ADULT || (adultEnabled && !active.kids))
+        }
+    }
 
     val activeDl = dl.count { it.record.isActive }
     val doneDl = dl.count { it.record.status == DownloadStatus.COMPLETED }
+    val displayName = active.name.ifBlank { "Your Cinetor" }
 
     Column(
         Modifier
             .fillMaxSize()
             .verticalScroll(rememberScrollState())
             .padding(contentPadding)
-            .padding(horizontal = 16.dp),
+            .padding(horizontal = 16.dp, vertical = 6.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        // Active Profile Header
+        // On-device profile summary card (single profile — no profile switcher)
         Row(
             Modifier
                 .fillMaxWidth()
                 .glass(RoundedCornerShape(20.dp), GlassLevel.SURFACE)
-                .clickable(onClick = onProfiles)
                 .semantics { contentDescription = "Current profile" }
-                .padding(horizontal = 14.dp, vertical = 12.dp),
+                .padding(horizontal = 14.dp, vertical = 14.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(14.dp),
         ) {
-            ProfileAvatar(active, 54.dp)
+            ProfileAvatar(active, 56.dp)
             Column(Modifier.weight(1f)) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                ) {
-                    Text(
-                        active.name,
-                        style = MaterialTheme.typography.titleLarge,
-                        fontWeight = FontWeight.Bold,
-                        color = tokens.textPrimary,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-                    if (active.kids) {
-                        Text(
-                            "KIDS",
-                            style = MaterialTheme.typography.labelSmall,
-                            fontWeight = FontWeight.Bold,
-                            color = tokens.onAccent,
-                            modifier = Modifier
-                                .clip(CircleShape)
-                                .background(tokens.accent)
-                                .padding(horizontal = 8.dp, vertical = 2.dp),
-                        )
-                    }
-                }
                 Text(
-                    if (active.kids) {
-                        "Kids safe mode · ${watchlist.size} in My List"
-                    } else {
-                        "${watchlist.size} in My List · ${all.size} of ${ProfileManager.MAX_PROFILES} profiles"
-                    },
+                    displayName,
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.Bold,
+                    color = tokens.textPrimary,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                Text(
+                    "${watchlist.size} in My List · ${history.size} watched",
                     style = MaterialTheme.typography.bodySmall,
                     color = tokens.textSecondary,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                 )
             }
-            Icon(
-                Icons.AutoMirrored.Rounded.KeyboardArrowRight,
-                contentDescription = null,
-                tint = tokens.textSecondary,
-            )
+            Row(
+                Modifier
+                    .clip(CircleShape)
+                    .background(tokens.glassFill)
+                    .border(1.dp, tokens.glassStroke, CircleShape)
+                    .clickable {
+                        draftName = active.name
+                        editingName = true
+                    }
+                    .semantics { contentDescription = "Edit display name" }
+                    .padding(horizontal = 12.dp, vertical = 6.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(5.dp),
+            ) {
+                Icon(
+                    Icons.Rounded.Edit,
+                    contentDescription = null,
+                    tint = tokens.textPrimary,
+                    modifier = Modifier.size(14.dp),
+                )
+                Text(
+                    "Edit",
+                    style = MaterialTheme.typography.labelMedium,
+                    fontWeight = FontWeight.SemiBold,
+                    color = tokens.textPrimary,
+                )
+            }
         }
 
-        // More & Spaces 2-Column Liquid Glass Hub
-        if (spaces.isNotEmpty()) {
+        if (visibleSpaces.isNotEmpty()) {
             SpacesHubSection(
-                spaces = spaces,
-                isKids = active.kids,
-                adultEnabled = adultEnabled,
+                spaces = visibleSpaces,
+                adultEnabled = adultEnabled && !active.kids,
                 adultUnlocked = adultUnlocked,
                 comicsBookmarksCount = comicsData.bookmarks.size,
                 onSpace = onSpace,
                 onLockAdult = { container.adult.lock() },
-                onManageAdult = { action -> adultSetupAction = action },
             )
         }
 
-        // Grouped Account, Library & App Menu (single Liquid Glass container — zero nested cards)
+        // Grouped Library & App Menu (single Liquid Glass container — zero nested cards)
         Column(
             Modifier
                 .fillMaxWidth()
                 .glass(RoundedCornerShape(20.dp), GlassLevel.SURFACE),
         ) {
-            MeMenuItem(
-                icon = Icons.Rounded.People,
-                title = "Switch profile",
-                subtitle = "Add, edit or switch profiles",
-                onClick = onProfiles,
-            )
-            MenuDivider()
             MeMenuItem(
                 icon = Icons.Rounded.VideoLibrary,
                 title = "Library",
@@ -209,54 +203,68 @@ fun MeScreen(
             MeMenuItem(
                 icon = Icons.Rounded.Settings,
                 title = "Settings",
-                subtitle = "Appearance, playback & parental controls",
+                subtitle = "Appearance, player, downloads & privacy",
                 onClick = onSettings,
             )
             MenuDivider()
             MeMenuItem(
                 icon = Icons.Rounded.Info,
                 title = "About",
-                subtitle = "Cinetor · Credits & community",
+                subtitle = "Cinetor · Mythbrix & community",
                 onClick = onAbout,
             )
         }
 
-        Column(
-            Modifier.padding(horizontal = 4.dp, vertical = 2.dp),
-            verticalArrangement = Arrangement.spacedBy(2.dp),
-        ) {
-            Text(
-                "Effects ${effects.name.lowercase()} · tier ${Cinetor.tier.name} (auto ${autoTier.name})",
-                style = MaterialTheme.typography.bodySmall,
-                color = tokens.textTertiary,
-            )
-            Text(
-                "Device: ${"%.1f".format(Locale.US, device.totalRamBytes / 1_073_741_824.0)} GB RAM · API ${device.sdkInt} · " +
-                    "${device.cpuCores} cores${if (device.isTv) " · TV" else ""}",
-                style = MaterialTheme.typography.bodySmall,
-                color = tokens.textTertiary,
-            )
-        }
         Spacer(Modifier.height(4.dp))
     }
 
-    AdultSetupFlowDialog(
-        gate = container.adult,
-        action = adultSetupAction,
-        onDismiss = { adultSetupAction = null },
-    )
+    if (editingName) {
+        AlertDialog(
+            onDismissRequest = { editingName = false },
+            title = { Text("Display name") },
+            text = {
+                OutlinedTextField(
+                    value = draftName,
+                    onValueChange = { if (it.length <= 24) draftName = it },
+                    label = { Text("Name on this device") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            },
+            confirmButton = {
+                TextButton(
+                    enabled = draftName.trim().isNotEmpty(),
+                    onClick = {
+                        val trimmed = draftName.trim()
+                        editingName = false
+                        if (trimmed.isNotEmpty()) {
+                            scope.launch {
+                                runCatching { container.profiles.update(active.copy(name = trimmed)) }
+                            }
+                        }
+                    },
+                ) {
+                    Text("Save", color = tokens.accent, fontWeight = FontWeight.SemiBold)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { editingName = false }) {
+                    Text("Cancel", color = tokens.textSecondary)
+                }
+            },
+            containerColor = tokens.surfaceElevated,
+        )
+    }
 }
 
 @Composable
 private fun SpacesHubSection(
     spaces: List<Space>,
-    isKids: Boolean,
     adultEnabled: Boolean,
     adultUnlocked: Boolean,
     comicsBookmarksCount: Int,
     onSpace: (Space) -> Unit,
     onLockAdult: () -> Unit,
-    onManageAdult: (AdultSetupAction) -> Unit,
 ) {
     val tokens = Cinetor.tokens
     Column(
@@ -271,42 +279,29 @@ private fun SpacesHubSection(
             horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {
             Text(
-                "More & Spaces",
+                "Spaces",
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.SemiBold,
                 color = tokens.textPrimary,
                 modifier = Modifier.weight(1f),
             )
-            if (!isKids && adultEnabled) {
-                if (adultUnlocked) {
-                    Text(
-                        "Lock 18+",
-                        style = MaterialTheme.typography.labelMedium,
-                        color = tokens.accent,
-                        fontWeight = FontWeight.SemiBold,
-                        modifier = Modifier
-                            .clip(CircleShape)
-                            .background(tokens.glassFill)
-                            .clickable(onClick = onLockAdult)
-                            .padding(horizontal = 10.dp, vertical = 4.dp),
-                    )
-                }
+            if (adultEnabled && adultUnlocked) {
                 Text(
-                    "18+ On",
+                    "Lock 18+",
                     style = MaterialTheme.typography.labelMedium,
-                    color = tokens.textSecondary,
+                    color = tokens.accent,
+                    fontWeight = FontWeight.SemiBold,
                     modifier = Modifier
                         .clip(CircleShape)
                         .background(tokens.glassFill)
-                        .clickable { onManageAdult(AdultSetupAction.DISABLE) }
+                        .clickable(onClick = onLockAdult)
                         .padding(horizontal = 10.dp, vertical = 4.dp),
                 )
             }
         }
 
-        val showAdultOptInTile = !isKids && Space.ADULT !in spaces
         val rows = spaces.chunked(2)
-        rows.forEachIndexed { rowIndex, pair ->
+        rows.forEach { pair ->
             Row(
                 Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(10.dp),
@@ -326,11 +321,8 @@ private fun SpacesHubSection(
                         onClick = { onSpace(pair[1]) },
                         modifier = Modifier.weight(1f),
                     )
-                } else if (rowIndex == rows.lastIndex && showAdultOptInTile) {
-                    AdultOptInTile(
-                        onEnable = { onManageAdult(AdultSetupAction.ENABLE) },
-                        modifier = Modifier.weight(1f),
-                    )
+                } else {
+                    Spacer(Modifier.weight(1f))
                 }
             }
         }
@@ -346,22 +338,20 @@ private fun SpaceTile(
     modifier: Modifier = Modifier,
 ) {
     val tokens = Cinetor.tokens
-    // Keep exact `spaceEntryLabel(space).first` for `contentDescription = "Space $semanticTitle"`!
+    // Keep exact `spaceEntryLabel(space).first` for `contentDescription = "Space $semanticTitle"`.
     val (semanticTitle, defaultSub) = spaceEntryLabel(space)
     val displayTitle = if (space == Space.ADULT) "18+ Adult" else semanticTitle
     val subtitle = when (space) {
-        Space.TV -> "Channels, sports & EPG"
         Space.MUSIC -> "Streaming · FLAC · MP3"
         Space.COMICS -> if (comicsBookmarksCount > 0) "Manga · Manhwa · $comicsBookmarksCount saved" else "Manga · Manhwa · Manhua"
         Space.ADULT -> if (adultUnlocked) "Unlocked · Tap to open" else "PIN protected"
         else -> defaultSub
     }
     val icon = when (space) {
-        Space.TV -> Icons.Rounded.LiveTv
         Space.MUSIC -> Icons.Rounded.MusicNote
         Space.COMICS -> Icons.Rounded.AutoStories
         Space.ADULT -> if (adultUnlocked) Icons.Rounded.LockOpen else Icons.Rounded.Lock
-        else -> Icons.Rounded.LiveTv
+        else -> Icons.Rounded.MusicNote
     }
 
     Row(
@@ -417,54 +407,6 @@ private fun SpaceTile(
                 subtitle,
                 style = MaterialTheme.typography.bodySmall,
                 color = tokens.textSecondary,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
-        }
-    }
-}
-
-@Composable
-private fun AdultOptInTile(onEnable: () -> Unit, modifier: Modifier = Modifier) {
-    val tokens = Cinetor.tokens
-    val shape = RoundedCornerShape(18.dp)
-    Row(
-        modifier
-            .clip(shape)
-            .background(tokens.glassFill)
-            .border(1.dp, tokens.divider, shape)
-            .clickable(onClick = onEnable)
-            .semantics { contentDescription = "Enable 18+ space" }
-            .padding(horizontal = 12.dp, vertical = 12.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(10.dp),
-    ) {
-        Box(
-            Modifier
-                .size(36.dp)
-                .clip(RoundedCornerShape(11.dp))
-                .background(tokens.glassFill),
-            contentAlignment = Alignment.Center,
-        ) {
-            Icon(
-                Icons.Rounded.Lock,
-                contentDescription = null,
-                tint = tokens.textSecondary,
-                modifier = Modifier.size(18.dp),
-            )
-        }
-        Column(Modifier.weight(1f)) {
-            Text(
-                "18+ Adult",
-                style = MaterialTheme.typography.titleSmall,
-                fontWeight = FontWeight.Medium,
-                color = tokens.textSecondary,
-                maxLines = 1,
-            )
-            Text(
-                "Off · Tap to set PIN",
-                style = MaterialTheme.typography.bodySmall,
-                color = tokens.textTertiary,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )

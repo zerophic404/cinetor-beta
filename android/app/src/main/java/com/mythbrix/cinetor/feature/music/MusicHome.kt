@@ -52,7 +52,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.graphicsLayer
@@ -81,7 +80,6 @@ import com.mythbrix.cinetor.design.ShimmerHost
 import com.mythbrix.cinetor.design.SkeletonHero
 import com.mythbrix.cinetor.design.SkeletonPosterRow
 import com.mythbrix.cinetor.design.glass
-import com.mythbrix.cinetor.design.hexColor
 import com.mythbrix.cinetor.feature.home.CategoryTabs
 import com.mythbrix.cinetor.feature.home.HeroCarousel
 import com.mythbrix.cinetor.feature.home.TabSpec
@@ -431,6 +429,35 @@ fun MusicHome(container: AppContainer, contentPadding: PaddingValues, onOpenAlbu
                         }
 
                         if (filteredTracks.isNotEmpty()) {
+                            item(key = "quick_picks_header", contentType = "section_header") {
+                                SectionHeader(
+                                    title = "Quick Picks",
+                                    badge = ms.preferredQuality.shortLabel,
+                                )
+                            }
+                            item(key = "quick_picks_row", contentType = "quick_picks_row") {
+                                LazyRow(
+                                    contentPadding = PaddingValues(horizontal = 16.dp),
+                                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                                ) {
+                                    itemsIndexed(
+                                        filteredTracks.take(10),
+                                        key = { _, t -> "qp-${t.id}" },
+                                        contentType = { _, _ -> "track_card" },
+                                    ) { idx, t ->
+                                        MusicThumbCard(
+                                            item = t,
+                                            subtitle = t.artist?.takeIf { it.isNotBlank() } ?: t.album.orEmpty(),
+                                            playing = t.id == currentId,
+                                            semanticsPrefix = "Track",
+                                            fixedWidth = 148.dp,
+                                            badge = if (t.maturity == "320K") "320K" else "FLAC",
+                                            onClick = { music.playQueue(filteredTracks, idx) },
+                                        )
+                                    }
+                                }
+                            }
+
                             item(key = "trending_header", contentType = "section_header") {
                                 Row(
                                     Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, top = 6.dp),
@@ -742,134 +769,35 @@ private fun QuickFeedAction(
 
 @Composable
 private fun ChartCard(chart: Item, playing: Boolean, onClick: () -> Unit) {
-    val tokens = Cinetor.tokens
-    val interaction = remember { MutableInteractionSource() }
-    val focused by interaction.collectIsFocusedAsState()
-    val scale by animateFloatAsState(if (focused) 1.06f else 1f, label = "chartScale")
-    val cardShape = RoundedCornerShape(CinetorTokens.Shape.card)
-    val accent = remember(chart.accentColor) { hexColor(chart.accentColor) }
-
-    Column(
-        Modifier
-            .width(156.dp)
-            .graphicsLayer { scaleX = scale; scaleY = scale }
-            .clickable(interactionSource = interaction, indication = null, onClick = onClick)
-            .semantics { contentDescription = "Album ${chart.title}" },
-        verticalArrangement = Arrangement.spacedBy(6.dp),
-    ) {
-        Box(
-            Modifier
-                .size(156.dp)
-                .clip(cardShape)
-                .background(hexColor(chart.dominantColor))
-                .border(
-                    when {
-                        focused -> 2.5.dp
-                        playing -> 2.dp
-                        else -> 1.dp
-                    },
-                    when {
-                        focused -> tokens.focusRing
-                        playing -> accent
-                        else -> tokens.glassStroke
-                    },
-                    cardShape,
-                ),
-        ) {
-            AsyncImage(
-                model = rememberSizedImage(chart.poster, 156.dp, 156.dp),
-                contentDescription = null,
-                contentScale = ContentScale.Crop,
-                modifier = Modifier.fillMaxSize(),
-            )
-            Box(
-                Modifier
-                    .align(Alignment.BottomStart)
-                    .fillMaxWidth()
-                    .background(Brush.verticalGradient(listOf(Color.Transparent, Color.Black.copy(alpha = 0.72f))))
-                    .padding(horizontal = 8.dp, vertical = 6.dp),
-            ) {
-                Text(
-                    chart.altTitle ?: "HQ Lossless",
-                    color = Color.White,
-                    style = MaterialTheme.typography.labelSmall,
-                    fontWeight = FontWeight.SemiBold,
-                    maxLines = 1,
-                )
-            }
-        }
-        Text(
-            chart.title,
-            color = if (focused) tokens.accent else tokens.textPrimary,
-            style = MaterialTheme.typography.titleSmall,
-            fontWeight = FontWeight.SemiBold,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-        )
-        Text(
-            chart.artist.orEmpty(),
-            color = tokens.textSecondary,
-            style = MaterialTheme.typography.labelSmall,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-        )
-    }
+    val subtitle = chart.artist?.takeIf { it.isNotBlank() }
+        ?: chart.altTitle?.takeIf { it.isNotBlank() }
+        ?: "Lossless Collection"
+    val badge = chart.altTitle?.takeIf { it.isNotBlank() && it != subtitle }
+    MusicThumbCard(
+        item = chart,
+        subtitle = subtitle,
+        playing = playing,
+        semanticsPrefix = "Album",
+        fixedWidth = 156.dp,
+        badge = badge,
+        onClick = onClick,
+    )
 }
 
 @Composable
 private fun AlbumTile(album: Item, playing: Boolean, modifier: Modifier, onClick: () -> Unit) {
-    val tokens = Cinetor.tokens
-    val interaction = remember { MutableInteractionSource() }
-    val focused by interaction.collectIsFocusedAsState()
-    val scale by animateFloatAsState(if (focused) 1.05f else 1f, label = "albumTileScale")
-    val accent = remember(album.accentColor) { hexColor(album.accentColor) }
-    val shape = RoundedCornerShape(CinetorTokens.Shape.card)
-
-    Column(
-        modifier
-            .graphicsLayer { scaleX = scale; scaleY = scale }
-            .clickable(interactionSource = interaction, indication = null, onClick = onClick)
-            .semantics { contentDescription = "Album ${album.title}" },
-        verticalArrangement = Arrangement.spacedBy(6.dp),
-    ) {
-        AsyncImage(
-            model = rememberSizedImage(album.poster, 170.dp, 170.dp),
-            contentDescription = null,
-            contentScale = ContentScale.Crop,
-            modifier = Modifier
-                .fillMaxWidth()
-                .aspectRatio(1f)
-                .clip(shape)
-                .background(hexColor(album.dominantColor))
-                .border(
-                    when {
-                        focused -> 2.5.dp
-                        playing -> 2.dp
-                        else -> 1.dp
-                    },
-                    when {
-                        focused -> tokens.focusRing
-                        playing -> accent
-                        else -> tokens.glassStroke
-                    },
-                    shape,
-                ),
-        )
-        Text(
-            album.title,
-            color = if (focused) tokens.accent else tokens.textPrimary,
-            style = MaterialTheme.typography.titleSmall,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-        )
-        Text(
-            listOfNotNull(album.artist, album.year.takeIf { it > 0 }?.toString()).joinToString(" · "),
-            color = tokens.textSecondary,
-            style = MaterialTheme.typography.labelMedium,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-        )
-    }
+    val subtitle = listOfNotNull(
+        album.artist?.takeIf { it.isNotBlank() },
+        album.year.takeIf { it > 0 }?.toString(),
+    ).joinToString(" · ")
+    MusicThumbCard(
+        item = album,
+        subtitle = subtitle,
+        playing = playing,
+        semanticsPrefix = "Album",
+        modifier = modifier,
+        onClick = onClick,
+    )
 }
 
 @Composable

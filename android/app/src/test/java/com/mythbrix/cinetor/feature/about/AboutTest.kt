@@ -2,7 +2,7 @@ package com.mythbrix.cinetor.feature.about
 
 import com.mythbrix.cinetor.core.AppLinks
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertTrue
+import org.junit.Assert.assertFalse
 import org.junit.Test
 
 class AboutTest {
@@ -27,9 +27,10 @@ class AboutTest {
     }
 
     @Test
-    fun about_copyExact() {
+    fun about_copyExactAndRightsReservedWithoutOssList() {
         assertEquals("Cinetor", AboutCopy.APP_NAME)
         assertEquals("Developed By Mythbrix", AboutCopy.DEVELOPED_BY)
+        assertEquals("All rights reserved Mythbrix", AboutCopy.RIGHTS_RESERVED)
         assertEquals("Thanks to Ahmed Ishtiaq Zarir", AboutCopy.THANKS)
         assertEquals(
             "This product uses the TMDB API but is not endorsed or certified by TMDB.",
@@ -43,6 +44,9 @@ class AboutTest {
         assertEquals(t.text.length, t.end)
         assertEquals(AppLinks.ZARIR_URL, t.url)
         assertEquals("Version 1.0 (1) · Build 42", AboutCopy.versionLine("1.0", 1, "42"))
-        assertTrue(OSS_LICENSES.isNotEmpty())
+
+        // Verify open-source license list symbols were removed from AboutContent.
+        val fields = AboutCopy::class.java.declaredFields.map { it.name }
+        assertFalse(fields.any { it.contains("OSS", ignoreCase = true) || it.contains("LICENSE", ignoreCase = true) })
     }
 }
