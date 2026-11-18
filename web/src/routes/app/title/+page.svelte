@@ -180,6 +180,15 @@
     };
   }
 
+  function fallbackImgToRaw(e: Event, raw: string | undefined) {
+    if (!raw || !/^https?:\/\//i.test(raw)) return;
+    const el = e.currentTarget;
+    if (!(el instanceof HTMLImageElement) || !el.srcset) return;
+    el.removeAttribute('srcset');
+    el.removeAttribute('sizes');
+    el.src = raw;
+  }
+
   async function share() {
     if (!shown) return;
     const url = location.href;
@@ -231,14 +240,7 @@
         alt=""
         decoding="async"
         fetchpriority="high"
-        onerror={(e) => {
-          const el = e.currentTarget;
-          if (el.srcset && /^https?:\/\//i.test(rawBack)) {
-            el.removeAttribute('srcset');
-            el.removeAttribute('sizes');
-            el.src = rawBack;
-          }
-        }}
+        onerror={(e) => fallbackImgToRaw(e, rawBack)}
       />
       <div class="wash"></div>
     </div>
@@ -254,14 +256,7 @@
           decoding="async"
           width="300"
           height="450"
-          onerror={(e) => {
-            const el = e.currentTarget;
-            if (el.srcset && /^https?:\/\//i.test(rawPoster)) {
-              el.removeAttribute('srcset');
-              el.removeAttribute('sizes');
-              el.src = rawPoster;
-            }
-          }}
+          onerror={(e) => fallbackImgToRaw(e, rawPoster)}
         />
       </div>
       <div class="info">
@@ -407,14 +402,7 @@
                       decoding="async"
                       width="320"
                       height="180"
-                      onerror={(e) => {
-                        const el = e.currentTarget;
-                        if (el.srcset && /^https?:\/\//i.test(ep.still)) {
-                          el.removeAttribute('srcset');
-                          el.removeAttribute('sizes');
-                          el.src = ep.still;
-                        }
-                      }}
+                      onerror={(e) => fallbackImgToRaw(e, ep.still)}
                     />
                     <span class="still-play" aria-hidden="true">
                       <svg width="18" height="18" viewBox="0 0 24 24"><path fill="currentColor" d="M8 5.5v13l10.5-6.5z" /></svg>
