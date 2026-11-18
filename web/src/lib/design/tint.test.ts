@@ -21,14 +21,17 @@ describe('tint blending', () => {
   });
 
   it('theme tintStrength blends item color toward accent (red identity holds)', () => {
+    // Noir is strictly black / white / red: posters never tint the chrome, the glow stays the accent.
     const noir = themes.noir;
-    const out = parseHex(blendTint('#0000FF', noir.colors.accent, noir.tintStrength));
-    // 18% blue, 82% red.
-    expect(out.r).toBe(Math.round(229 * 0.82));
-    expect(out.b).toBe(Math.round(20 + (255 - 20) * 0.18));
+    expect(noir.tintStrength).toBe(0);
+    expect(blendTint('#0000FF', noir.colors.accent, noir.tintStrength).toUpperCase()).toBe(noir.colors.accent.toUpperCase());
+    // Obsidian keeps a share of the item color but stays red-dominant.
+    const obsidian = themes.obsidian;
+    const k = obsidian.tintStrength;
+    const accent = parseHex(obsidian.colors.accent);
+    const out = parseHex(blendTint('#0000FF', obsidian.colors.accent, k));
+    expect(out.r).toBe(Math.round(accent.r * (1 - k)));
+    expect(out.b).toBe(Math.round(accent.b + (255 - accent.b) * k));
     expect(out.r).toBeGreaterThan(out.b);
-    // Obsidian keeps more of the item color than Noir.
-    const obs = parseHex(blendTint('#0000FF', themes.obsidian.colors.accent, themes.obsidian.tintStrength));
-    expect(obs.b).toBeGreaterThan(out.b);
   });
 });
