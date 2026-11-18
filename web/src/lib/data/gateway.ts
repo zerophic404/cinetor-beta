@@ -5,9 +5,25 @@
 // fake fetch. Spec: docs/gateway.md · samples: docs/gateway-samples/*.json.
 import { fallbackColor } from './color';
 import type { PersistentCache } from './idb';
-import type { CatalogFile, Category, Episode, Item, Row, RowMore, RowStyle, Season, Source, Space } from './types';
+import {
+  fullLanguageName,
+  type CatalogFile,
+  type Category,
+  type DubOption,
+  type Episode,
+  type Item,
+  type Row,
+  type RowMore,
+  type RowStyle,
+  type Season,
+  type Source,
+  type Space
+} from './types';
+
+export { fullLanguageName, type DubOption };
 
 export const GATEWAY_DEFAULT = 'https://antiblock-gateway.vercel.app';
+export const GATEWAY_BASE = GATEWAY_DEFAULT;
 /** localStorage override (Settings → Developer). Empty string = gateway off. */
 export const GATEWAY_KEY = 'cinetor.gatewayBase';
 export const GW_API = '/api/public/v1';
@@ -222,10 +238,10 @@ export const isGatewayAdultId = (id: string): boolean => id.startsWith(GW_ADULT_
 export const gwItemId = (subjectId: string, space?: Space): string => `${space === 'ADULT' ? GW_ADULT_PREFIX : GW_PREFIX}${subjectId}`;
 export const gwEpisodeId = (itemId: string, se: number, ep: number): string => `${itemId}-s${se}e${ep}`;
 
-/** subject_id of an item / episode id ('gw:123', 'ad-gw:123', 'gw:123-s1e2'). */
+/** subject_id of an item / episode id ('gw:123', 'ad-gw:123', 'gw:123-s1e2', 'gw:tmdb-tv-293610-s1e3'). */
 export function subjectIdOf(id: string): string | null {
-  const m = /^(?:ad-gw:|gw:)([^-\s]+)/.exec(id);
-  return m ? m[1] : null;
+  const m = /^(?:ad-gw:|gw:)([^\s#]+?)(?:-s\d+e\d+)?$/i.exec(id.trim());
+  return m && m[1] ? m[1] : null;
 }
 
 // ------------------------------------------------------------------------------------ wire types
@@ -418,6 +434,30 @@ function mergeGenresWithDubs(baseGenres: string[], dubs: readonly string[]): str
   return out;
 }
 
+export function extractDubOptions(rawDubs: readonly unknown[] | null | undefined, selfSubjectId?: string | null): DubOption[] {
+  const out: DubOption[] = [];
+  const seen = new Set<string>();
+  for (const entry of rawDubs ?? []) {
+    if (!entry || typeof entry !== 'object') continue;
+    const d = entry as GwDubEntry;
+    if (typeof d.type === 'number' && d.type !== 0) continue;
+    const sid = (d.subject_id ?? d.subjectId ?? '').trim();
+    const slug = (d.slug ?? d.detailPath ?? sid).trim();
+    if (!sid || !slug || (selfSubjectId && sid === selfSubjectId)) continue;
+    if (seen.has(sid)) continue;
+    seen.add(sid);
+    const rawLang = (d.language_name ?? d.lanName ?? d.language ?? d.lan ?? '').trim();
+    const code = (d.lan ?? '').trim() || undefined;
+    out.push({
+      subjectId: sid,
+      slug,
+      languageName: fullLanguageName(rawLang || code),
+      ...(code ? { languageCode: code } : {})
+    });
+  }
+  return out;
+}
+
 // ------------------------------------------------------------------------------------ mapping
 
 export const splitGenres = (g?: string | null): string[] =>
@@ -443,8 +483,9 @@ export const isAdultish = (r: Pick<GwListItem, 'genre' | 'badge'>): boolean =>
   /erotic|adult/i.test(r.genre ?? '') || (r.badge ?? '').includes('18+');
 
 const ANIME_RE = /\b(anime|animation)\b/i;
-const DRAMA_COUNTRY_RE = /korea|china|japan|taiwan|hong ?kong|pakistan|thailand/i;
-const HOME_SKIP_RE = /anime|live|football|sport/i;
+const DRAMA_COUNTRY_RE = /korea|china|japan|taiwan|hong ?kong|pakistan|thailand|india/i;
+const HOME_SKIP_RE =
+  /anime|live|football|sport|indian\s*drama|zee\s*bangla|star\s*jalsha|star\s*jalsa|sony\s*aath|sony\s*ath|pakistan/i;
 
 export function isAnimeItem(r: { genre?: string | null; genres?: readonly string[] | null }): boolean {
   if (r.genre && ANIME_RE.test(r.genre)) return true;
@@ -460,7 +501,13 @@ function isSeriesWire(r: Pick<GwListItem, 'type' | 'subjectType'>): boolean {
 export function classifyGw(r: GwListItem): Exclude<GwSpace, 'ADULT'> | null {
   if (isAdultish(r)) return null;
   if (ANIME_RE.test(r.genre ?? '')) return 'ANIME';
-  if (isSeriesWire(r) && DRAMA_COUNTRY_RE.test(r.country ?? '')) return 'DRAMA';
+  if (
+    isSeriesWire(r) &&
+    (DRAMA_COUNTRY_RE.test(r.country ?? '') ||
+      /indian\s*drama|zee\s*bangla|star\s*jalsha|sony\s*aath|pakistan/i.test(`${r.genre ?? ''} ${r.badge ?? ''}`))
+  ) {
+    return 'DRAMA';
+  }
   return 'HOME';
 }
 
@@ -482,6 +529,7 @@ export function mapGwItem(r: GwListItem, space: GwSpace, opts: GwMapOptions = {}
   const poster = r.poster_url;
   const tv = isSeriesWire(r);
   const dubs = extractDubLanguages({ name: r.name, badge: r.badge, slug: r.slug, dubs: r.dubs });
+  const dubOptions = extractDubOptions(r.dubs, r.subject_id);
   const item: Item = {
     id,
     space,
@@ -498,7 +546,8 @@ export function mapGwItem(r: GwListItem, space: GwSpace, opts: GwMapOptions = {}
     dominantColor: opts.colorOf?.(poster) ?? fallbackColor(id),
     accentColor: '#FF2D3B',
     slug: r.slug,
-    country: r.country ?? undefined
+    country: r.country ?? undefined,
+    ...(dubOptions.length ? { dubs: dubOptions } : {})
   };
   if (r.duration) item.durationSec = r.duration;
   if (!tv) item.sources = [streamPlaceholder(r.subject_id, r.slug, 0, 0)];
@@ -519,6 +568,7 @@ export function mapGwDetail(d: GwDetail, space: GwSpace, opts: GwMapOptions & { 
   const rawSeasons = d.data?.resource?.seasons ?? [];
   const tv = s.subjectType === 2 || s.subjectType === 7 || rawSeasons.some((x) => (x.se || x.season || 0) > 0 && (x.maxEp > 0 || (x.episodes?.length ?? 0) > 0));
   const dubs = extractDubLanguages({ name: s.title, badge: s.corner, slug, dubs: s.dubs });
+  const dubOptions = extractDubOptions(s.dubs, s.subjectId);
   const item: Item = {
     id,
     space,
@@ -536,6 +586,7 @@ export function mapGwDetail(d: GwDetail, space: GwSpace, opts: GwMapOptions & { 
     accentColor: '#FF2D3B',
     slug,
     country: s.countryName || undefined,
+    ...(dubOptions.length ? { dubs: dubOptions } : {}),
     cast: (d.data?.stars ?? [])
       .filter((x) => x.name && x.staffType !== 2)
       .slice(0, 10)
@@ -663,11 +714,6 @@ export function gatewayPlan(space: GwSpace): GwCategorySpec[] {
           rows: [
             { kind: 'sections', match: 'all', limit: 40 },
             list('gw-home-short-tv', '🔥 Hot Short TV', '/short-tv', { sort: 'hottest' }),
-            list('gw-home-zee-bangla-serials', 'Zee Bangla Serials', '/zee-bangla'),
-            list('gw-home-zee-bangla', 'Zee Bangla Shows', '/tv-series', { sort: 'latest', genre: 'Zee Bangla', country: 'India' }),
-            list('gw-home-star-jalsha', 'Star Jalsha Shows', '/tv-series', { sort: 'latest', genre: 'Star Jalsha', country: 'India' }),
-            list('gw-home-sony-aath', 'Sony AATH Series', '/tv-series', { sort: 'latest', genre: 'Sony AATH', country: 'India' }),
-            list('gw-home-indian-dramas', 'Indian Dramas', '/tv-series', { sort: 'hottest', country: 'India' }),
             list('gw-home-latest-movies', 'Latest Movies', '/movies', { sort: 'latest' }),
             list('gw-home-latest-series', 'Latest Series', '/tv-series', { sort: 'latest' }),
             list('gw-home-hollywood', 'Hollywood', '/movies', { sort: 'hottest', country: 'United States' }),
@@ -699,10 +745,6 @@ export function gatewayPlan(space: GwSpace): GwCategorySpec[] {
           rows: [
             list('gw-series-latest', 'Latest Series', '/tv-series', { sort: 'latest' }),
             list('gw-series-crime', 'Crime Series', '/tv-series', { sort: 'hottest', genre: 'Crime' }),
-            list('gw-series-indian', 'Indian Dramas', '/tv-series', { sort: 'hottest', country: 'India' }),
-            list('gw-series-zee-bangla', 'Zee Bangla Shows', '/tv-series', { sort: 'latest', genre: 'Zee Bangla', country: 'India' }),
-            list('gw-series-star-jalsha', 'Star Jalsha Shows', '/tv-series', { sort: 'latest', genre: 'Star Jalsha', country: 'India' }),
-            list('gw-series-sony-aath', 'Sony AATH Series', '/tv-series', { sort: 'latest', genre: 'Sony AATH', country: 'India' }),
             { kind: 'sections', match: 'tv', limit: 12 }
           ]
         },
@@ -714,18 +756,6 @@ export function gatewayPlan(space: GwSpace): GwCategorySpec[] {
             list('gw-short-tv-latest', 'Trending Short TV', '/short-tv'),
             list('gw-short-tv-hot', '🔥 Hot Short TV', '/short-tv', { sort: 'hottest' }),
             { kind: 'sections', match: /short (drama|tv)/i, limit: 2 }
-          ]
-        },
-        {
-          id: 'gw-zee-bangla',
-          title: 'Zee Bangla',
-          hero: 'first',
-          rows: [
-            list('gw-zee-bangla-latest', 'Zee Bangla Serials', '/zee-bangla'),
-            list('gw-zee-bangla-shows', 'Zee Bangla Shows', '/tv-series', { sort: 'latest', genre: 'Zee Bangla', country: 'India' }),
-            list('gw-zee-bangla-jalsha', 'Star Jalsha Shows', '/tv-series', { sort: 'latest', genre: 'Star Jalsha', country: 'India' }),
-            list('gw-zee-bangla-aath', 'Sony AATH Series', '/tv-series', { sort: 'latest', genre: 'Sony AATH', country: 'India' }),
-            { kind: 'sections', match: /zee ?bangla|indian drama/i, limit: 2 }
           ]
         }
       ];
@@ -871,7 +901,8 @@ export function gatewayPlan(space: GwSpace): GwCategorySpec[] {
             list('gw-indrama-latest', 'Latest Indian Dramas', '/tv-series', { sort: 'latest', country: 'India' }),
             list('gw-indrama-zeebangla', 'Zee Bangla Serials', '/zee-bangla'),
             list('gw-indrama-zb-shows', 'Zee Bangla Shows', '/tv-series', { sort: 'latest', genre: 'Zee Bangla', country: 'India' }),
-            list('gw-indrama-jalsha', 'Star Jalsha Shows', '/tv-series', { sort: 'latest', genre: 'Star Jalsha', country: 'India' })
+            list('gw-indrama-jalsha', 'Star Jalsha Shows', '/tv-series', { sort: 'latest', genre: 'Star Jalsha', country: 'India' }),
+            list('gw-indrama-aath', 'Sony AATH Series', '/tv-series', { sort: 'latest', genre: 'Sony AATH', country: 'India' })
           ]
         },
         {
@@ -1224,20 +1255,99 @@ export class GatewayCatalogSource {
     const s = this.seen.get(id)?.slug ?? this.slugs.get(sid);
     if (s) return s;
     const stored = this.o.persist ? ((await this.o.persist.get(`gw:slug:${sid}`)) as string | undefined) : undefined;
-    return typeof stored === 'string' ? stored : undefined;
+    if (typeof stored === 'string' && stored) return stored;
+    const summary = await this.loadPersistedSummary(id);
+    return summary?.slug;
+  }
+
+  private async loadPersistedSummary(id: string): Promise<Item | undefined> {
+    if (isGatewayAdultId(id)) return this.seen.get(id);
+    const mem = this.seen.get(id);
+    if (mem) return mem;
+    if (!this.o.persist) return undefined;
+    const stored = (await this.o.persist.get(`gw:item:${id}`).catch(() => undefined)) as Item | undefined;
+    if (stored && typeof stored === 'object' && stored.id === id && stored.title) {
+      this.seen.set(id, stored);
+      if (stored.slug) {
+        const sid = subjectIdOf(id);
+        if (sid && !this.slugs.has(sid)) this.slugs.set(sid, stored.slug);
+      }
+      return stored;
+    }
+    return undefined;
   }
 
   private remember(items: Iterable<Item>): void {
     for (const i of items) {
-      if (!this.seen.has(i.id)) this.seen.set(i.id, i);
-      if (i.slug) {
-        const sid = subjectIdOf(i.id);
+      const prev = this.seen.get(i.id);
+      const merged = prev ? { ...prev, ...i, seasons: i.seasons ?? prev.seasons, sources: i.sources ?? prev.sources, dubs: i.dubs ?? prev.dubs } : i;
+      this.seen.set(i.id, merged);
+      if (merged.slug) {
+        const sid = subjectIdOf(merged.id);
         if (sid && !this.slugs.has(sid)) {
-          this.slugs.set(sid, i.slug);
-          if (this.o.persist) void this.o.persist.set(`gw:slug:${sid}`, i.slug);
+          this.slugs.set(sid, merged.slug);
+          if (this.o.persist) void this.o.persist.set(`gw:slug:${sid}`, merged.slug);
         }
       }
+      if (this.o.persist && !isGatewayAdultId(merged.id)) {
+        void this.o.persist.set(`gw:item:${merged.id}`, merged);
+      }
     }
+  }
+
+  private ensurePlayableSummary(summary: Item): Item {
+    const sid = subjectIdOf(summary.id) ?? summary.slug ?? summary.id;
+    const slug = summary.slug || sid;
+    const out: Item = { ...summary, slug };
+    if (out.type === 'SERIES') {
+      if (!out.seasons?.length) {
+        out.seasons = [
+          {
+            n: 1,
+            title: 'Season 1',
+            episodeCount: 1,
+            episodes: [
+              {
+                id: gwEpisodeId(out.id, 1, 1),
+                n: 1,
+                title: 'Episode 1',
+                durationSec: 0,
+                still: out.backdrop || out.poster,
+                sources: [streamPlaceholder(sid, slug, 1, 1)],
+                subtitles: []
+              }
+            ]
+          }
+        ];
+      }
+    } else if (!out.sources?.length) {
+      out.sources = [streamPlaceholder(sid, slug, 0, 0)];
+    }
+    return out;
+  }
+
+  /** Used by `StreamResolver` to recover missing `slug`, `title`, and `dubs` from memory / IndexedDB / `/detail/{subjectId}`. */
+  async resolveSubjectMeta(
+    subjectId: string,
+    signal?: AbortSignal
+  ): Promise<{ slug?: string; title?: string; dubs?: DubOption[] } | null> {
+    if (!subjectId) return null;
+    const itemId = gwItemId(subjectId);
+    const known = this.seen.get(itemId) ?? (await this.loadPersistedSummary(itemId));
+    const knownSlug = known?.slug ?? this.slugs.get(subjectId) ?? (await this.slugOf(itemId));
+    if (known?.title && knownSlug) {
+      return { slug: knownSlug, title: known.title, dubs: known.dubs };
+    }
+    const probe = knownSlug || subjectId;
+    const d = await this.o.client.get<GwDetail>(`/detail/${encodeURIComponent(probe)}`, {}, signal).catch(() => null);
+    const subj = d?.data?.subject;
+    if (subj?.title) {
+      const resolvedSlug = subj.detailPath || knownSlug || subjectId;
+      this.rememberSlug(itemId, resolvedSlug);
+      const dubs = extractDubOptions(subj.dubs, subjectId);
+      return { slug: resolvedSlug, title: subj.title, dubs };
+    }
+    return knownSlug || known?.title ? { slug: knownSlug, title: known?.title, dubs: known?.dubs } : null;
   }
 
   private map(raw: GwListItem[] | undefined, space: GwSpace, categoryId: string): Item[] {
@@ -1320,7 +1430,6 @@ export class GatewayCatalogSource {
 
     for (const c of plan) {
       const rows: Row[] = [];
-      let curatedAdded = 0;
       for (const spec of c.rows) {
         if (spec.kind === 'list') {
           const pg = pageByKey.get(listSpecKey(spec.path, spec.params));
@@ -1346,14 +1455,13 @@ export class GatewayCatalogSource {
           else if (spec.match instanceof RegExp) ok = spec.match.test(s.section);
           else {
             const same = raw.filter((x) => String(x.type ?? '').toLowerCase() === spec.match).length;
-            ok = same * 2 > raw.length && !/anime|k-?drama|c-?drama/i.test(s.section);
+            ok = same * 2 > raw.length && !HOME_SKIP_RE.test(s.section) && !/anime|k-?drama|c-?drama/i.test(s.section);
           }
           if (!ok) continue;
           const mapped = this.map(raw, space, c.id);
           if (!mapped.length) continue;
           usedSections.add(`${c.id}|${s.section}`);
-          const isTopChart =
-            (space === 'HOME' && c.id === 'gw-home' && curatedAdded === 0) || /^\W*(?:popular|top\s*10)/i.test(s.section);
+          const isTopChart = !/trending/i.test(s.section) && /^\W*(?:popular|top\s*10)\b/i.test(s.section);
           rows.push({
             id: `${c.id}-sec-${s.section.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')}`,
             title: s.section.trim(),
@@ -1361,7 +1469,6 @@ export class GatewayCatalogSource {
             itemIds: add(mapped.slice(0, isTopChart ? 10 : ROW_STYLE_LIMIT)),
             ...(isTopChart ? {} : { more: sectionMore(s.section) })
           });
-          curatedAdded++;
           n++;
         }
       }
@@ -1438,60 +1545,175 @@ export class GatewayCatalogSource {
     return res;
   }
 
-  item(id: string): Promise<Item | undefined> {
+  item(id: string, slugHint?: string): Promise<Item | undefined> {
     if (isGatewayAdultId(id) && this.o.adultUnlocked && !this.o.adultUnlocked()) {
       return Promise.resolve(undefined);
     }
+    if (slugHint) this.rememberSlug(id, slugHint);
     let p = this.details.get(id);
     if (!p) {
-      p = this.loadDetail(id);
+      p = this.loadDetail(id, slugHint);
       p.catch(() => this.details.delete(id));
       this.details.set(id, p);
     }
     return p;
   }
 
-  private async loadDetail(id: string): Promise<Item | undefined> {
+  private async loadDetail(id: string, slugHint?: string): Promise<Item | undefined> {
     const adultId = isGatewayAdultId(id);
     if (adultId && this.o.adultUnlocked && !this.o.adultUnlocked()) return undefined;
-    const slug = await this.slugOf(id);
-    const known = this.seen.get(id);
-    if (!slug) return known;
-    const d = await this.o.client.get<GwDetail>(`/detail/${encodeURIComponent(slug)}`);
-    const subj = d.data?.subject;
-    if (!adultId && subj && isAdultish({ genre: subj.genre, badge: subj.corner })) return undefined;
-    if (adultId && subj && !safeName(subj.title)) return undefined;
+    const known = this.seen.get(id) ?? (await this.loadPersistedSummary(id));
+    const sid = subjectIdOf(id);
+    let slug = slugHint?.trim() || (await this.slugOf(id)) || known?.slug;
+
+    const tryDetail = (pathKey: string) =>
+      this.o.client.get<GwDetail>(`/detail/${encodeURIComponent(pathKey)}`).catch(() => null);
+
+    let d: GwDetail | null = slug ? await tryDetail(slug) : null;
+    if (!d?.data?.subject && sid && sid !== slug) {
+      d = await tryDetail(sid);
+      if (d?.data?.subject?.detailPath) {
+        slug = d.data.subject.detailPath;
+        this.rememberSlug(id, slug);
+      }
+    }
+    if (!d?.data?.subject && known?.title && !adultId) {
+      const hits = await this.search(known.title).catch(() => [] as Item[]);
+      const normTitle = known.title.toLowerCase().replace(/[^a-z0-9]+/g, '');
+      const hit =
+        hits.find((h) => h.id === id) ??
+        hits.find((h) => h.title.toLowerCase().replace(/[^a-z0-9]+/g, '') === normTitle);
+      if (hit?.slug && hit.slug !== slug && hit.slug !== sid) {
+        slug = hit.slug;
+        this.rememberSlug(id, slug);
+        d = await tryDetail(slug);
+      }
+    }
+
+    const subj = d?.data?.subject;
+    if (!d || !subj) {
+      this.details.delete(id);
+      return known ? this.ensurePlayableSummary(known) : undefined;
+    }
+    if (!adultId && isAdultish({ genre: subj.genre, badge: subj.corner })) return undefined;
+    if (adultId && !safeName(subj.title)) return undefined;
     const space: GwSpace = adultId
       ? 'ADULT'
       : (known?.space as GwSpace | undefined) ??
-        classifyGw({ genre: subj?.genre, country: subj?.countryName, type: subj?.subjectType === 2 ? 'tv' : 'movie' }) ??
+        classifyGw({ genre: subj.genre, country: subj.countryName, type: subj.subjectType === 2 ? 'tv' : 'movie' }) ??
         'HOME';
-    const it = mapGwDetail(d, space, { slug, categoryId: known?.categoryId, colorOf: this.o.colorOf });
-    if (!it) return known;
-    if (it.id !== id) return known;
+    const effectiveSlug = slug || subj.detailPath || sid || '';
+    const it = mapGwDetail(d, space, { slug: effectiveSlug, categoryId: known?.categoryId, colorOf: this.o.colorOf });
+    if (!it) {
+      this.details.delete(id);
+      return known ? this.ensurePlayableSummary(known) : undefined;
+    }
+    if (it.id !== id) {
+      if (sid?.startsWith('tmdb-')) {
+        it.id = id;
+      } else {
+        this.details.delete(id);
+        return known ? this.ensurePlayableSummary(known) : undefined;
+      }
+    }
     if (known) {
       if (!it.synopsis) it.synopsis = known.synopsis;
+      if (!it.dubs?.length && known.dubs?.length) it.dubs = known.dubs;
       const knownDubs = known.genres.filter((g) => DUB_LANGUAGES.some((dl) => dl.toLowerCase() === g.toLowerCase()));
       it.genres = mergeGenresWithDubs(it.genres, knownDubs);
     }
-    this.seen.set(id, { ...known, ...it });
+    this.remember([it]);
     return it;
   }
 
-  /** `/search` → Home/Anime/Drama items (18+ strictly dropped). */
+  /** `/search` → Home/Anime/Drama items (18+ strictly dropped), with progressive token-reordered fallback. */
   async search(query: string, signal?: AbortSignal): Promise<Item[]> {
     const q = query.trim();
     if (!q) return [];
-    const pg = await this.o.client.get<GwPage>('/search', { q, page: 1 }, signal);
-    const out: Item[] = [];
-    for (const r of pg.items ?? []) {
-      const space = classifyGw(r);
-      if (!space || (r.subject_id && this.o.isDead?.(r.subject_id))) continue;
-      const it = mapGwItem(r, space, { colorOf: this.o.colorOf });
-      if (it && !out.some((x) => x.id === it.id)) out.push(it);
+
+    const tokenize = (s: string): string[] =>
+      s
+        .toLowerCase()
+        .replace(/\[[^\]]*\]|\([^)]*\)/g, ' ')
+        .split(/[^a-z0-9\u00c0-\u024f\u0980-\u09ff]+/i)
+        .filter(Boolean);
+
+    const fetchPage = async (subQ: string): Promise<Item[]> => {
+      const pg = await this.o.client.get<GwPage>('/search', { q: subQ, page: 1 }, signal);
+      const list: Item[] = [];
+      for (const r of pg.items ?? []) {
+        const space = classifyGw(r);
+        if (!space || (r.subject_id && this.o.isDead?.(r.subject_id))) continue;
+        const it = mapGwItem(r, space, { colorOf: this.o.colorOf });
+        if (it && !list.some((x) => x.id === it.id)) list.push(it);
+      }
+      return list;
+    };
+
+    const qTokens = tokenize(q);
+    const scoreOverlap = (it: Item): number => {
+      const hay = new Set(tokenize(`${it.title} ${it.altTitle ?? ''}`));
+      let matched = 0;
+      for (const t of qTokens) {
+        if (hay.has(t) || [...hay].some((w) => w.startsWith(t) || (t.length >= 3 && t.startsWith(w)))) matched++;
+      }
+      return matched;
+    };
+
+    const primary = await fetchPage(q);
+    const bestPrimaryOverlap = primary.reduce((max, it) => Math.max(max, scoreOverlap(it)), 0);
+    const needsFallback =
+      qTokens.length >= 2 && (primary.length === 0 || (qTokens.length >= 3 && bestPrimaryOverlap < Math.min(qTokens.length, 3)));
+
+    if (!needsFallback) {
+      this.remember(primary);
+      return primary;
     }
-    this.remember(out);
-    return out;
+
+    const qLower = q.toLowerCase();
+    const candidates = new Set<string>();
+    const addCandidate = (cand: string) => {
+      const trimmed = cand.trim();
+      if (trimmed && trimmed.toLowerCase() !== qLower && trimmed.length >= 2) candidates.add(trimmed);
+    };
+
+    addCandidate(qTokens.slice(0, 2).join(' '));
+    if (qTokens.length >= 3) {
+      addCandidate(qTokens.slice(0, 3).join(' '));
+      addCandidate(`${qTokens[0]} ${qTokens[qTokens.length - 1]}`);
+    } else if (qTokens[0].length >= 3) {
+      addCandidate(qTokens[0]);
+    }
+
+    const suggested = await this.suggest(q, signal).catch(() => [] as string[]);
+    if (suggested[0]) addCandidate(suggested[0]);
+
+    const fallbackLists = await Promise.all([...candidates].slice(0, 3).map((fq) => fetchPage(fq).catch(() => [] as Item[])));
+    const byId = new Map<string, { item: Item; isPrimary: boolean; overlap: number }>();
+    for (const it of primary) {
+      byId.set(it.id, { item: it, isPrimary: true, overlap: scoreOverlap(it) });
+    }
+    for (const list of fallbackLists) {
+      for (const it of list) {
+        if (byId.has(it.id)) continue;
+        const overlap = scoreOverlap(it);
+        if (overlap > 0) byId.set(it.id, { item: it, isPrimary: false, overlap });
+      }
+    }
+
+    const maxOverlap = [...byId.values()].reduce((m, v) => Math.max(m, v.overlap), 0);
+    const minFallbackOverlap = qTokens.length >= 3 && maxOverlap >= 2 ? 2 : 1;
+    const merged = [...byId.values()]
+      .filter((v) => v.isPrimary || v.overlap >= minFallbackOverlap)
+      .sort((a, b) => {
+        if (b.overlap !== a.overlap) return b.overlap - a.overlap;
+        if (a.isPrimary !== b.isPrimary) return a.isPrimary ? -1 : 1;
+        return b.item.rating - a.item.rating;
+      })
+      .map((v) => v.item);
+
+    this.remember(merged);
+    return merged;
   }
 
   /** Gated in-space 18+ search (only when unlocked, filtered through `safeName`, `ad-gw:` ids). */

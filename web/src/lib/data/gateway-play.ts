@@ -4,10 +4,21 @@
 // TMDB-origin items) are resolved right before play / download into ranked BDIX, proxy MP4, and
 // chromeless YouTube variants. Pure TS (vitest): fetch, network info + clock injected.
 import { normalize } from './search';
-import { GW_API, type GwListItem } from './gateway';
-import type { Source, SourceKind, Sub } from './types';
+import {
+  GW_API,
+  extractDubLanguages,
+  gatewayBase,
+  signedGatewayFetch,
+  subjectIdOf,
+  type GwListItem,
+  type GwPage,
+  type SignedResponseLike
+} from './gateway';
+import { fullLanguageName, type DubOption, type Source, type SourceKind, type Sub, type SubTrack } from './types';
 import type { Media } from '../player/sources';
 import { isTauriEnv } from '../desktop/env';
+
+export type { SubTrack };
 
 export const STREAM_SCHEME = 'gw-stream:';
 export const FIND_SCHEME = 'gw-find:';
@@ -417,6 +428,7 @@ export interface GwStreamSource {
   isBdix?: boolean;
   resolution?: string | number;
   format?: string;
+  kind?: string;
   codec?: string;
   url?: string;
   size?: number | string;
@@ -468,11 +480,16 @@ export function streamTrailerSource(st: GwStream | null | undefined): Source | n
   };
 }
 
+export interface StreamMapOptions extends RankOptions {
+  defaultAudioLang?: string;
+  includeLangInLabel?: boolean;
+}
+
 /**
  * Gateway `/stream/{id}` sources → ranked BDIX, proxy MP4, and chromeless YouTube variants.
  * Upstream DASH/HLS are dropped on web/desktop because the proxy cannot rewrite relative manifests.
  */
-export function streamToSources(base: string, subjectId: string, st: GwStream, opts: RankOptions = {}): Source[] {
+export function streamToSources(base: string, subjectId: string, st: GwStream, opts: StreamMapOptions = {}): Source[] {
   const browserMode = opts.browserMode ?? defaultBrowserMode();
   const candidates: RankableSource[] = [];
   const seenBuckets = new Set<string>();
@@ -480,7 +497,7 @@ export function streamToSources(base: string, subjectId: string, st: GwStream, o
   for (const s of st.sources ?? []) {
     if (!s.url) continue;
     const h = heightOf(s.resolution);
-    const fmt = String(s.format ?? '').toUpperCase();
+    const fmt = String(s.format ?? s.kind ?? '').toUpperCase();
     const srcName = String(s.source ?? '');
 
     const allowBareYt = fmt === 'YOUTUBE' || /^youtube$/i.test(srcName);
@@ -489,12 +506,14 @@ export function streamToSources(base: string, subjectId: string, st: GwStream, o
       const ytKey = `yt|${ytEmbed}`;
       if (seenBuckets.has(ytKey)) continue;
       seenBuckets.add(ytKey);
-      candidates.push({
+      const ytEntry: RankableSource = {
         url: ytEmbed,
         kind: 'MP4',
         label: cleanStreamLabel({ height: h || 720, youtube: true }),
         height: h || 720
-      });
+      };
+      if (opts.defaultAudioLang) ytEntry.audioLang = opts.defaultAudioLang;
+      candidates.push(ytEntry);
       continue;
     }
 
@@ -512,42 +531,49 @@ export function streamToSources(base: string, subjectId: string, st: GwStream, o
     }
 
     const dual = isDualAudio({ label: s.language ?? '', url: s.url, language: s.language });
-    const lang = (s.language ?? '').trim();
+    const rawLang = (s.language ?? '').trim();
+    const explicitLang = rawLang && !dual ? fullLanguageName(rawLang) : undefined;
+    const audioLang = explicitLang ?? opts.defaultAudioLang;
+    const labelLang = rawLang ? (dual ? rawLang : fullLanguageName(rawLang)) : opts.includeLangInLabel ? (opts.defaultAudioLang ?? '') : '';
     const sizeNum = typeof s.size === 'number' ? s.size : parseInt(String(s.size ?? ''), 10) || 0;
-    const bucketKey = `${bdix ? 'bdix' : 'proxy'}|${h}|${dual ? '1' : '0'}|${lang.toLowerCase()}`;
+    const bucketKey = `${bdix ? 'bdix' : 'proxy'}|${h}|${dual ? '1' : '0'}|${(audioLang ?? rawLang).toLowerCase()}`;
     if (seenBuckets.has(bucketKey)) continue;
     seenBuckets.add(bucketKey);
 
     const res = h ? `${h}p` : String(s.resolution ?? 'auto');
     if (bdix) {
       const kind: SourceKind = fmt === 'WEBM' ? 'WEBM' : fmt === 'MKV' ? 'MKV' : 'MP4';
-      candidates.push({
+      const entry: RankableSource = {
         url: s.url,
         kind,
-        label: cleanStreamLabel({ height: h, dual, language: lang, size: sizeNum, bdix: true }),
+        label: cleanStreamLabel({ height: h, dual, language: labelLang, size: sizeNum, bdix: true }),
         height: h || undefined,
         headers: s.headers ? { ...s.headers } : undefined,
         direct: { url: s.url, headers: { ...(s.headers ?? {}) } },
         isBdix: true,
         sizeBytes: sizeNum,
         codec: s.codec
-      });
+      };
+      if (audioLang) entry.audioLang = audioLang;
+      candidates.push(entry);
       continue;
     }
 
     const resolvedProxy = s.proxy_url ? absGateway(base, s.proxy_url) : proxyUrl(base, subjectId, s.url, res);
     if (browserMode && isCleartextRemoteHttp(resolvedProxy)) continue;
 
-    candidates.push({
+    const entry: RankableSource = {
       url: resolvedProxy,
       kind: 'MP4',
-      label: cleanStreamLabel({ height: h, dual, language: lang, size: sizeNum }),
+      label: cleanStreamLabel({ height: h, dual, language: labelLang, size: sizeNum }),
       height: h || undefined,
       direct: { url: s.url, headers: { ...(s.headers ?? {}) } },
       isBdix: false,
       sizeBytes: sizeNum,
       codec: s.codec
-    });
+    };
+    if (audioLang) entry.audioLang = audioLang;
+    candidates.push(entry);
   }
 
   return rankSources(candidates, { ...opts, browserMode });
@@ -557,9 +583,11 @@ export function captionsToSubs(base: string, c: GwCaptions | null | undefined): 
   const out: Sub[] = [];
   for (const x of c?.captions ?? []) {
     if (!x.url) continue;
-    const lang = (x.lan || 'und').toLowerCase();
-    if (out.some((s) => s.lang === lang && s.label === (x.lanName || lang))) continue;
-    out.push({ lang, label: x.lanName || lang, url: subtitleProxy(base, x.url), format: 'VTT' });
+    const rawCode = (x.lan || '').trim().toLowerCase();
+    const lang = rawCode || 'und';
+    const label = fullLanguageName(x.lanName?.trim() || rawCode);
+    if (out.some((s) => s.lang === lang && s.label === label)) continue;
+    out.push({ lang, label, url: subtitleProxy(base, x.url), format: 'VTT' });
   }
   return out;
 }
@@ -666,6 +694,7 @@ export function pickVariant(sources: Source[], prefHeight = 1080, health: LinkHe
 export interface Resolved {
   sources: Source[];
   subtitles: Sub[];
+  dubs?: DubOption[];
 }
 
 /** Media with the lazy placeholder swapped for a playable ranked variant (or noSource). */
@@ -682,15 +711,44 @@ export function applyResolved(m: Media, r: Resolved, prefHeight?: number): Media
   };
 }
 
+function stripDubAnnotations(title: string): string {
+  return title
+    .replace(/\[[^\]]*\]|\([^)]*\)/g, ' ')
+    .replace(/\b(?:hindi|bengali|bangla|tamil|telugu|english|urdu|malayalam|punjabi|arabic)\s*dub(?:bed)?\b/gi, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function withAudioLang(sources: Source[], audioLang: string): Source[] {
+  return sources.map((s) => {
+    if (s.audioLang) return s;
+    const hasLangInLabel =
+      isYouTubeUrl(s.url) || s.label.toLowerCase().includes(audioLang.toLowerCase()) || /dual audio/i.test(s.label);
+    return {
+      ...s,
+      audioLang,
+      label: hasLangInLabel ? s.label : `${s.label} · ${audioLang}`
+    };
+  });
+}
+
 // ------------------------------------------------------------------------------------ resolver
 
 export type JsonGet = <T>(url: string, signal?: AbortSignal, timeoutMs?: number) => Promise<T>;
 
+export interface SubjectLookupMeta {
+  slug?: string;
+  title?: string;
+  dubs?: DubOption[];
+}
+
 export interface ResolverDeps {
   base: () => string;
   getJson: JsonGet;
-  /** Gateway `/search` raw hits (TMDB title → subject). */
+  /** Gateway `/search` raw hits (TMDB title → subject + sibling audio dub discovery). */
   search: (q: string, signal?: AbortSignal) => Promise<GwListItem[]>;
+  /** Recovers missing `slug`, `title`, and `dubs` from memory / IndexedDB / `/detail/{subjectId}`. */
+  lookupSlug?: (subjectId: string, signal?: AbortSignal) => Promise<SubjectLookupMeta | null>;
   now?: () => number;
   /** Signed CDN links expire: never reuse a resolution longer than this. */
   ttlMs?: number;
@@ -744,6 +802,12 @@ export class StreamResolver {
     return p;
   }
 
+  /** Resolve directly by `gw:<id>` / numeric / `tmdb-tv-*` subject ID even without a `detail_path` slug. */
+  streamById(idOrSubjectId: string, se = 0, ep = 0, slug = '', signal?: AbortSignal): Promise<Resolved> {
+    const subjectId = subjectIdOf(idOrSubjectId) ?? idOrSubjectId.trim();
+    return this.stream({ subjectId, slug, se, ep }, signal);
+  }
+
   private async run(url: string, signal?: AbortSignal): Promise<Resolved> {
     const s = parseStreamRef(url);
     if (s) return this.stream(s, signal);
@@ -754,9 +818,16 @@ export class StreamResolver {
 
   async stream(r: StreamRef, signal?: AbortSignal): Promise<Resolved> {
     const base = this.d.base();
-    const id = encodeURIComponent(r.subjectId);
-    const queryFor = (se: number, ep: number) => new URLSearchParams({ detail_path: r.slug, se: String(se), ep: String(ep) });
-    const q = queryFor(r.se, r.ep);
+    let meta: SubjectLookupMeta | null = null;
+    if (!r.slug && this.d.lookupSlug) {
+      meta = await this.d.lookupSlug(r.subjectId, signal).catch(() => null);
+    }
+    const effectiveSlug = r.slug || meta?.slug || r.subjectId;
+    const effectiveRef: StreamRef = { ...r, slug: effectiveSlug };
+    const id = encodeURIComponent(effectiveRef.subjectId);
+    const queryFor = (se: number, ep: number) =>
+      new URLSearchParams({ detail_path: effectiveRef.slug, se: String(se), ep: String(ep) });
+    const q = queryFor(effectiveRef.se, effectiveRef.ep);
 
     // full=1 lists every MP4 + secondary BDIX/YouTube variant (the default list can be DASH-only).
     const [st, caps] = await Promise.all([
@@ -764,25 +835,25 @@ export class StreamResolver {
       this.d.getJson<GwCaptions>(`${base}${GW_API}/stream/${id}/captions?${q}`, signal, 15_000).catch(() => null)
     ]);
 
-    let sources = streamToSources(base, r.subjectId, st, this.rankOpts());
+    let sources = streamToSources(base, effectiveRef.subjectId, st, this.rankOpts());
     // Cinetor Beta fallback: some titles index movies under (1,1) or single-ep specials under (0,0).
     let altSt: GwStream | null = null;
-    if (!sources.length && ((r.se === 0 && r.ep === 0) || (r.se === 1 && r.ep === 1))) {
-      const altSe = r.se === 0 ? 1 : 0;
-      const altEp = r.ep === 0 ? 1 : 0;
+    if (!sources.length && ((effectiveRef.se === 0 && effectiveRef.ep === 0) || (effectiveRef.se === 1 && effectiveRef.ep === 1))) {
+      const altSe = effectiveRef.se === 0 ? 1 : 0;
+      const altEp = effectiveRef.ep === 0 ? 1 : 0;
       const altQ = queryFor(altSe, altEp);
       altSt = await this.d.getJson<GwStream>(`${base}${GW_API}/stream/${id}?${altQ}&full=1`, signal, 15_000).catch(() => null);
-      if (altSt) sources = streamToSources(base, r.subjectId, altSt, this.rankOpts());
+      if (altSt) sources = streamToSources(base, effectiveRef.subjectId, altSt, this.rankOpts());
     }
 
     if (!sources.length) {
       const trailer = streamTrailerSource(st) ?? streamTrailerSource(altSt);
       if (trailer) {
         sources = [trailer];
-      } else if (st?.has_resource === true && (st?.direct_play_url || r.slug)) {
+      } else if (st?.has_resource === true && (st?.direct_play_url || effectiveRef.slug)) {
         sources = [
           {
-            url: st.direct_play_url ? absGateway(base, st.direct_play_url) : directPlayUrl(base, r, '1080p'),
+            url: st.direct_play_url ? absGateway(base, st.direct_play_url) : directPlayUrl(base, effectiveRef, '1080p'),
             kind: 'MP4',
             label: '1080p FHD',
             height: 1080
@@ -791,8 +862,97 @@ export class StreamResolver {
       }
     }
 
-    if (!sources.length && r.se <= 1 && r.ep <= 1) this.d.onDead?.(r.subjectId);
-    return { sources, subtitles: captionsToSubs(base, caps) };
+    // Sibling audio dub discovery (Hindi, Bangla, English, Tamil, Telugu, etc.).
+    let discoveredDubs: DubOption[] | undefined;
+    if (sources.length) {
+      if (!meta && this.d.lookupSlug) {
+        meta = await this.d.lookupSlug(effectiveRef.subjectId, signal).catch(() => null);
+      }
+      const dubMap = new Map<string, DubOption>();
+      for (const d of meta?.dubs ?? []) {
+        if (!d.subjectId || d.subjectId === effectiveRef.subjectId) continue;
+        dubMap.set(d.subjectId, {
+          subjectId: d.subjectId,
+          slug: d.slug || d.subjectId,
+          languageName: fullLanguageName(d.languageName || d.languageCode),
+          languageCode: d.languageCode
+        });
+      }
+
+      const rawBaseTitle =
+        meta?.title ||
+        effectiveRef.slug
+          .replace(/-[A-Za-z0-9]{8,}$/, '')
+          .replace(/-/g, ' ')
+          .trim();
+      const baseTitle = stripDubAnnotations(rawBaseTitle);
+      if (baseTitle.length >= 2) {
+        const hits = await this.d.search(baseTitle, signal).catch(() => [] as GwListItem[]);
+        const wantNorm = normalize(baseTitle);
+        for (const hit of hits) {
+          if (!hit.subject_id || hit.subject_id === effectiveRef.subjectId || dubMap.has(hit.subject_id)) continue;
+          const hitNorm = normalize(stripDubAnnotations(hit.name ?? ''));
+          if (!hitNorm || (hitNorm !== wantNorm && !(wantNorm.length >= 4 && (hitNorm.startsWith(wantNorm) || wantNorm.startsWith(hitNorm))))) {
+            continue;
+          }
+          const detected = extractDubLanguages(hit)[0];
+          if (detected) {
+            dubMap.set(hit.subject_id, {
+              subjectId: hit.subject_id,
+              slug: hit.slug || hit.subject_id,
+              languageName: fullLanguageName(detected)
+            });
+          }
+          for (const hd of hit.dubs ?? []) {
+            const dSid = (hd.subject_id ?? '').trim();
+            if (!dSid || dSid === effectiveRef.subjectId || dubMap.has(dSid)) continue;
+            dubMap.set(dSid, {
+              subjectId: dSid,
+              slug: (hd.slug ?? hd.detail_path ?? dSid).trim() || dSid,
+              languageName: fullLanguageName(hd.language_name ?? hd.lanName ?? hd.language_code ?? hd.lan),
+              languageCode: (hd.language_code ?? hd.lan ?? '').trim() || undefined
+            });
+          }
+        }
+      }
+
+      if (dubMap.size > 0) {
+        const dubEntries = [...dubMap.values()].slice(0, 4);
+        discoveredDubs = dubEntries;
+        const dubStreams = await Promise.all(
+          dubEntries.map(async (dub) => {
+            const dubQ = new URLSearchParams({
+              detail_path: dub.slug || dub.subjectId,
+              se: String(effectiveRef.se),
+              ep: String(effectiveRef.ep)
+            });
+            const dubSt = await this.d
+              .getJson<GwStream>(`${base}${GW_API}/stream/${encodeURIComponent(dub.subjectId)}?${dubQ}&full=1`, signal, 10_000)
+              .catch(() => null);
+            if (!dubSt) return [] as Source[];
+            const lang = fullLanguageName(dub.languageName || dub.languageCode);
+            return streamToSources(base, dub.subjectId, dubSt, {
+              ...this.rankOpts(),
+              defaultAudioLang: lang,
+              includeLangInLabel: true
+            });
+          })
+        );
+        const extraSources = dubStreams.flat();
+        if (extraSources.length) {
+          const primaryDetected = meta?.title ? extractDubLanguages({ name: meta.title })[0] : undefined;
+          const primaryLang = primaryDetected ? fullLanguageName(primaryDetected) : 'Original';
+          sources = [...withAudioLang(sources, primaryLang), ...extraSources];
+        }
+      }
+    }
+
+    if (!sources.length && effectiveRef.se <= 1 && effectiveRef.ep <= 1) this.d.onDead?.(effectiveRef.subjectId);
+    return {
+      sources,
+      subtitles: captionsToSubs(base, caps),
+      ...(discoveredDubs?.length ? { dubs: discoveredDubs } : {})
+    };
   }
 
   async find(f: FindRef, signal?: AbortSignal): Promise<Resolved> {
@@ -816,4 +976,156 @@ export class StreamResolver {
       signal
     );
   }
+}
+
+// ------------------------------------------------------------------------------------ online subtitle search
+
+export interface SubtitleSearchOptions {
+  query: string;
+  itemId?: string;
+  subjectId?: string;
+  slug?: string;
+  season?: number;
+  episode?: number;
+  lang?: string;
+  signal?: AbortSignal;
+  /** Injectable overrides for unit tests (defaults to `gatewayBase()` + `signedGatewayFetch`). */
+  base?: string;
+  fetcher?: (url: string, init?: RequestInit) => Promise<SignedResponseLike>;
+}
+
+interface RawSubtitleHit {
+  lan?: string;
+  lang?: string;
+  language?: string;
+  lanName?: string;
+  label?: string;
+  url?: string;
+  vtt_url?: string;
+}
+
+interface GwSubtitleSearchPayload {
+  subtitles?: RawSubtitleHit[];
+  captions?: RawSubtitleHit[];
+  items?: RawSubtitleHit[];
+}
+
+/**
+ * Searches online subtitles via signed `/api/public/v1/subtitles/search` with an automatic
+ * client fallback querying top `/search` matches → `/stream/{id}/captions`, returning WebVTT `SubTrack`s.
+ */
+export async function searchOnlineSubtitles(
+  queryOrOpts: string | SubtitleSearchOptions,
+  extra?: Omit<SubtitleSearchOptions, 'query'>
+): Promise<SubTrack[]> {
+  const opts: SubtitleSearchOptions = typeof queryOrOpts === 'string' ? { ...extra, query: queryOrOpts } : queryOrOpts;
+  const q = (opts.query ?? '').trim();
+  const sid = opts.subjectId?.trim() || (opts.itemId ? subjectIdOf(opts.itemId) ?? undefined : undefined);
+  if (!q && !sid) return [];
+
+  const base = (opts.base ?? gatewayBase()).replace(/\/+$/, '');
+  if (!base) return [];
+  const doFetch = opts.fetcher ?? ((url: string, init?: RequestInit) => signedGatewayFetch(url, init, base));
+
+  const mapRawHit = (hit: RawSubtitleHit): SubTrack | null => {
+    const rawUrl = (hit.vtt_url ?? hit.url ?? '').trim();
+    if (!rawUrl) return null;
+    const url = rawUrl.includes(`${GW_API}/subtitle?`) ? absGateway(base, rawUrl) : subtitleProxy(base, rawUrl);
+    const rawCode = (hit.lan ?? hit.lang ?? hit.language ?? opts.lang ?? '').trim().toLowerCase();
+    const lang = rawCode || 'und';
+    const label = fullLanguageName((hit.lanName ?? hit.label ?? '').trim() || rawCode);
+    return { lang, label, url, format: 'VTT' };
+  };
+
+  const dedupTracks = (tracks: SubTrack[]): SubTrack[] => {
+    const seen = new Set<string>();
+    const out: SubTrack[] = [];
+    for (const t of tracks) {
+      if (seen.has(t.url)) continue;
+      seen.add(t.url);
+      out.push(t);
+    }
+    return out;
+  };
+
+  // 1. Primary signed gateway subtitle search endpoint.
+  const searchParams = new URLSearchParams();
+  if (q) searchParams.set('q', q);
+  if (sid) searchParams.set('subject_id', sid);
+  if (opts.slug) searchParams.set('detail_path', opts.slug);
+  if (opts.season !== undefined) searchParams.set('se', String(opts.season));
+  if (opts.episode !== undefined) searchParams.set('ep', String(opts.episode));
+  if (opts.lang) searchParams.set('lang', opts.lang);
+
+  try {
+    const res = await doFetch(`${base}${GW_API}/subtitles/search?${searchParams}`, {
+      signal: opts.signal,
+      headers: { accept: 'application/json' }
+    });
+    if (res.ok) {
+      const data = (await res.json()) as GwSubtitleSearchPayload;
+      const rawList = data.subtitles ?? data.captions ?? data.items ?? [];
+      const mapped = dedupTracks(rawList.map(mapRawHit).filter((x): x is SubTrack => x !== null));
+      if (mapped.length) return mapped;
+    }
+  } catch {
+    /* fall through to caption discovery fallback */
+  }
+
+  // 2. Fallback: direct subject + top 3 `/search` matches → `/stream/{id}/captions`.
+  const targets: { subjectId: string; slug: string }[] = [];
+  const seenSubjects = new Set<string>();
+  const addTarget = (subjectId?: string | null, slug?: string | null) => {
+    const s = (subjectId ?? '').trim();
+    if (!s || seenSubjects.has(s)) return;
+    seenSubjects.add(s);
+    targets.push({ subjectId: s, slug: (slug ?? '').trim() || s });
+  };
+
+  if (sid) addTarget(sid, opts.slug);
+  if (q && targets.length < 3) {
+    try {
+      const sRes = await doFetch(`${base}${GW_API}/search?${new URLSearchParams({ q, page: '1' })}`, {
+        signal: opts.signal,
+        headers: { accept: 'application/json' }
+      });
+      if (sRes.ok) {
+        const pg = (await sRes.json()) as GwPage;
+        for (const it of pg.items ?? []) {
+          addTarget(it.subject_id, it.slug);
+          if (targets.length >= 3) break;
+        }
+      }
+    } catch {
+      /* ignore */
+    }
+  }
+
+  if (!targets.length) return [];
+
+  const se = String(opts.season ?? 0);
+  const ep = String(opts.episode ?? 0);
+  const capLists = await Promise.all(
+    targets.slice(0, 3).map(async (t) => {
+      const cq = new URLSearchParams({ detail_path: t.slug, se, ep });
+      try {
+        const cRes = await doFetch(`${base}${GW_API}/stream/${encodeURIComponent(t.subjectId)}/captions?${cq}`, {
+          signal: opts.signal,
+          headers: { accept: 'application/json' }
+        });
+        if (!cRes.ok) return [] as SubTrack[];
+        const caps = (await cRes.json()) as GwCaptions;
+        return captionsToSubs(base, caps);
+      } catch {
+        return [] as SubTrack[];
+      }
+    })
+  );
+
+  const allTracks = dedupTracks(capLists.flat());
+  if (!opts.lang || !allTracks.length) return allTracks;
+  const wantCode = opts.lang.trim().toLowerCase();
+  const wantName = fullLanguageName(wantCode);
+  const filtered = allTracks.filter((t) => t.lang === wantCode || t.label === wantName);
+  return filtered.length ? filtered : allTracks;
 }
