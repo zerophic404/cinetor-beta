@@ -5,7 +5,7 @@
   import { base } from '$app/paths';
   import { installSpatialNav, restoreFocus } from '$lib/tv/spatial';
   import Nav from '$lib/components/Nav.svelte';
-  import { spaceFromSlug, isVideoSpace } from '$lib/data/types';
+  import { spaceFromSlug, isVideoSpace, type CatalogFile, type Item, type Space } from '$lib/data/types';
   import { ISOLATED_SPACE_ENTRIES, VIDEO_TABS, isolatedTabs, spaceOfPath } from '$lib/nav';
   import { bindTintToDocument } from '$lib/design/tint.svelte';
   import { perf } from '$lib/perf/tier.svelte';
@@ -18,7 +18,9 @@
   import MusicBar from '$lib/music/MusicBar.svelte';
   import NowPlaying from '$lib/music/NowPlaying.svelte';
   import { adult } from '$lib/adult/store.svelte';
-  import { setAdultGate } from '$lib/data/app-catalog';
+  import { catalog, setAdultGate } from '$lib/data/app-catalog';
+  import { imgAttrs } from '$lib/data/images';
+  import { repo } from '$lib/data/repo';
   import { settings } from '$lib/settings/store.svelte';
   import { desktop } from '$lib/desktop/desktop.svelte';
   import DesktopMini from '$lib/desktop/DesktopMini.svelte';
@@ -28,7 +30,7 @@
   setAdultGate(() => adult.enabled && adult.unlocked);
 
   const space = $derived(spaceFromSlug(page.params.space ?? '') ?? spaceOfPath(page.url.pathname));
-  const isolated = $derived(!isVideoSpace(space));
+  const isolated = $derived(!isVideoSpace(space) && space !== 'TV');
   const tabs = $derived(isolated ? isolatedTabs(space) : VIDEO_TABS);
   const watching = $derived(page.url.pathname.replace(/\/$/, '').endsWith('/app/watch'));
   /** Full-screen routes without the nav (player, comic reader). */
@@ -42,6 +44,93 @@
     return { destroy: () => engine.setPark(null) };
   }
   const spaceLabel = $derived(isolated ? (ISOLATED_SPACE_ENTRIES.find((e) => e.space === space)?.label ?? null) : null);
+
+  function sizedPosterUrl(raw: string): string {
+    return imgAttrs(raw, 'poster', perf.flags.tier, (p) => repo.asset(p)).src;
+  }
+
+  function sizedBackdropUrl(raw: string, hero = false): string {
+    return imgAttrs(raw, hero ? 'hero' : 'backdrop', perf.flags.tier, (p) => repo.asset(p)).src;
+  }
+
+  function extractAboveFoldUrls(file: CatalogFile, maxPerRow: number): string[] {
+    const byId = new Map<string, Item>();
+    for (const it of file.items) byId.set(it.id, it);
+    const cat = file.categories[0];
+    const urls: string[] = [];
+
+    const heroList: Item[] = [];
+    if (cat?.heroIds?.length) {
+      for (const id of cat.heroIds.slice(0, 5)) {
+        const it = byId.get(id);
+        if (it) heroList.push(it);
+      }
+    }
+    if (!heroList.length) heroList.push(...file.items.slice(0, 4));
+
+    for (const it of heroList) {
+      const heroRaw = it.backdrop || it.poster;
+      const posterRaw = it.poster || it.backdrop;
+      if (heroRaw) urls.push(sizedBackdropUrl(heroRaw, true));
+      if (posterRaw) urls.push(sizedPosterUrl(posterRaw));
+    }
+
+    for (const row of (cat?.rows ?? []).slice(0, 2)) {
+      const landscape = row.style === 'LANDSCAPE';
+      for (const id of row.itemIds.slice(0, maxPerRow)) {
+        const it = byId.get(id);
+        if (!it) continue;
+        const raw = landscape ? it.backdrop || it.poster : it.poster || it.backdrop;
+        if (raw) urls.push(landscape ? sizedBackdropUrl(raw, false) : sizedPosterUrl(raw));
+      }
+    }
+    return urls;
+  }
+
+  function predecodeImage(url: string): Promise<void> {
+    if (!url || typeof Image === 'undefined') return Promise.resolve();
+    return new Promise<void>((resolve) => {
+      const img = new Image();
+      img.referrerPolicy = 'no-referrer';
+      img.decoding = 'async';
+      const done = () => resolve();
+      img.onload = () => {
+        if (typeof img.decode === 'function') {
+          img.decode().then(done, done);
+        } else {
+          done();
+        }
+      };
+      img.onerror = done;
+      img.src = url;
+    });
+  }
+
+  function warmBootCatalogsAndThumbnails(): Promise<void> {
+    const bootSpaces: readonly Space[] = ['HOME', 'ANIME', 'DRAMA'];
+    const low = perf.flags.tier === 'LOW';
+    const maxPerRow = low ? 4 : 8;
+    const seen = new Set<string>();
+    const catWithSpace = catalog as typeof catalog & { space?: (s: Space) => Promise<CatalogFile> };
+    const fetchSpace = (s: Space): Promise<CatalogFile> =>
+      typeof catWithSpace.space === 'function' ? catWithSpace.space(s) : catalog.file(s);
+
+    const jobs = bootSpaces.map(async (s) => {
+      try {
+        const file = await fetchSpace(s);
+        const urls = extractAboveFoldUrls(file, maxPerRow).filter((u) => {
+          if (!u || seen.has(u)) return false;
+          seen.add(u);
+          return seen.size <= (low ? 14 : 42);
+        });
+        await Promise.all(urls.map(predecodeImage));
+      } catch {
+        /* offline / cold gateway — never block boot */
+      }
+    });
+
+    return Promise.allSettled(jobs).then(() => undefined);
+  }
 
   // Card → details morph via the View Transitions API (fallback: plain navigation + CSS fades).
   onNavigate((navigation) => {
@@ -67,10 +156,20 @@
         const p = location.pathname.replace(/\/$/, '');
         if (p === `${base}/app`) return;
         if (history.length > 1) history.back();
-        else goto(spaceOfPath(location.pathname) !== 'HOME' ? `${base}/app/me` : `${base}/app`);
+        else {
+          const curSpace = spaceOfPath(location.pathname);
+          const isIso = !isVideoSpace(curSpace) && curSpace !== 'TV';
+          goto(isIso ? `${base}/app/me` : `${base}/app`);
+        }
       }
     });
-    requestAnimationFrame(() => window.__cinetorReady?.());
+
+    // Warm HOME, ANIME, DRAMA catalogs + hero & first 2 rows' thumbnails before dismissing splash (900ms cap).
+    const splashCap = new Promise<void>((resolve) => setTimeout(resolve, 900));
+    void Promise.race([warmBootCatalogsAndThumbnails(), splashCap]).finally(() => {
+      requestAnimationFrame(() => window.__cinetorReady?.());
+    });
+
     // Resume downloads interrupted by a reload (after first paint).
     setTimeout(() => void downloads.init(), 1500);
     return () => {
@@ -89,7 +188,7 @@
 <div class="ambient" aria-hidden="true"></div>
 <a class="skip" href="#main">Skip to content</a>
 
-{#if !immersive}<Nav {tabs} {spaceLabel} />{/if}
+{#if !immersive}<Nav {tabs} {space} {spaceLabel} />{/if}
 
 <main id="main" class="app" class:watching={immersive} class:with-bar={barShown} tabindex="-1">
   {@render children()}
@@ -105,14 +204,24 @@
 <NowPlaying />
 
 <style>
+  :global(:root) {
+    --header-h: 56px;
+  }
   .app {
     min-height: 100dvh;
-    padding: calc(12px + var(--safe-t)) var(--safe-r) calc(var(--nav-h) + 28px + var(--safe-b)) var(--safe-l);
+    padding: calc(var(--header-h, 56px) + 12px + var(--safe-t)) var(--safe-r) calc(var(--nav-h) + 28px + var(--safe-b)) var(--safe-l);
     outline: none;
+  }
+  /* Keep /app/title's top inline player / backdrop flush below the 56px top header (never hidden behind it). */
+  .app:not(.watching) :global(.details) {
+    margin-top: -12px;
   }
   @media (min-width: 900px) {
     .app {
-      padding: calc(16px + var(--safe-t)) calc(8px + var(--safe-r)) calc(24px + var(--safe-b)) calc(var(--rail-w) + 24px + var(--safe-l));
+      padding: calc(var(--header-h, 56px) + 16px + var(--safe-t)) calc(8px + var(--safe-r)) calc(24px + var(--safe-b)) calc(var(--rail-w) + 24px + var(--safe-l));
+    }
+    .app:not(.watching) :global(.details) {
+      margin-top: -16px;
     }
   }
   .app.with-bar {
@@ -146,10 +255,11 @@
   .skip {
     position: absolute;
     left: -9999px;
-    top: 8px;
+    top: calc(var(--safe-t) + 8px);
     z-index: 100;
     padding: 8px 14px;
     background: var(--accent);
+    color: var(--on-accent);
     border-radius: 99px;
   }
   .skip:focus {
