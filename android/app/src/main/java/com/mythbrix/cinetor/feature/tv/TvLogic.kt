@@ -4,6 +4,8 @@ import com.mythbrix.cinetor.core.data.EventStatus
 import com.mythbrix.cinetor.core.data.Item
 import com.mythbrix.cinetor.core.data.ItemType
 import com.mythbrix.cinetor.core.data.Program
+import com.mythbrix.cinetor.core.data.Team
+import java.util.Locale
 
 /**
  * Mock guide clock. Programme offsets are relative to the file's `epgAnchor` and cover ~12.5 h, so the
@@ -72,7 +74,7 @@ fun filterChannels(
     favorites: Set<String>,
     nowGenre: (Item) -> String? = { null },
 ): List<Item> = channels.filter { ch ->
-    (group == null || ch.channelGroup == group) &&
+    (group == null || ch.channelGroup.equals(group, ignoreCase = true)) &&
         (genre == null || ch.genres.any { it.equals(genre, true) } || nowGenre(ch).equals(genre, true)) &&
         (!favoritesOnly || ch.id in favorites)
 }
@@ -83,6 +85,67 @@ enum class SportsTab(val title: String, val status: EventStatus) {
     RESULTS("Results", EventStatus.FINISHED),
 }
 
+/** PlayzTV sport category filter chips. */
+enum class SportFilter(val label: String, private val keywords: List<String>) {
+    ALL("All", emptyList()),
+    CRICKET("Cricket", listOf("cricket", "ipl", "t20", "odi", "bbl", "psl", "asia cup")),
+    FOOTBALL("Football", listOf("football", "soccer", "premier", "laliga", "champions", "serie a", "bundesliga", "uefa", "fifa", "isl")),
+    BASKETBALL("Basketball", listOf("basketball", "hoops", "nba", "euroleague", "fiba")),
+    COMBAT("Combat", listOf("combat", "ufc", "mma", "boxing", "wwe", "wrestling", "fight", "rugby")),
+    TENNIS("Tennis", listOf("tennis", "wimbledon", "atp", "wta", "open", "grand slam")),
+    MOTORSPORT("Motorsport", listOf("motorsport", "formula", "f1", "motogp", "nascar", "rally", "racing", "grand prix"));
+
+    fun matches(event: Item): Boolean {
+        if (keywords.isEmpty()) return true
+        val haystack = buildString {
+            append(event.title).append(' ')
+            event.league?.let { append(it).append(' ') }
+            event.genres.forEach { append(it).append(' ') }
+        }.lowercase(Locale.US)
+        return keywords.any { kw -> haystack.contains(kw) }
+    }
+}
+
+/** Parsed head-to-head teams for PlayzTV faceoff cards (`null` for tournament/non-VS events). */
+data class ParsedMatchup(val home: Team, val away: Team)
+
+private val VS_SPLIT_REGEX = Regex("""\s+(?:vs\.?|v\.?)\s+""", RegexOption.IGNORE_CASE)
+
+private val TEAM_PALETTE = listOf(
+    "#E11D2E", "#2563EB", "#16A34A", "#D97706", "#0891B2", "#DC2626", "#4F46E5", "#0D9488",
+)
+
+private fun teamMonogram(name: String): String {
+    val words = name.trim().split(Regex("\\s+")).filter { it.isNotEmpty() }
+    if (words.isEmpty()) return "TBD"
+    val raw = if (words.size >= 2) {
+        words.take(3).joinToString("") { it.first().uppercaseChar().toString() }
+    } else {
+        words[0].filter { it.isLetterOrDigit() }.take(3).uppercase(Locale.US)
+    }
+    return raw.ifEmpty { "TBD" }
+}
+
+private fun teamColorHex(name: String): String =
+    TEAM_PALETTE[(name.lowercase(Locale.US).hashCode() and 0x7fffffff) % TEAM_PALETTE.size]
+
+/** Extracts explicit [Item.homeTeam]/[Item.awayTeam] or parses `"Team A vs Team B"` / `"Team A v Team B"`. */
+fun parseMatchup(event: Item): ParsedMatchup? {
+    val explicitHome = event.homeTeam
+    val explicitAway = event.awayTeam
+    if (explicitHome != null && explicitAway != null) {
+        return ParsedMatchup(explicitHome, explicitAway)
+    }
+    val parts = VS_SPLIT_REGEX.split(event.title.trim(), limit = 2)
+    if (parts.size != 2) return null
+    val left = parts[0].trim().takeIf { it.isNotEmpty() } ?: return null
+    val right = parts[1].trim().takeIf { it.isNotEmpty() } ?: return null
+    return ParsedMatchup(
+        home = explicitHome ?: Team(name = left, short = teamMonogram(left), color = teamColorHex(left)),
+        away = explicitAway ?: Team(name = right, short = teamMonogram(right), color = teamColorHex(right)),
+    )
+}
+
 /** Events of a sports tab: live by kick-off, upcoming soonest first, results most recent first. */
 fun eventsFor(tab: SportsTab, events: List<Item>): List<Item> {
     val list = events.filter { it.type == ItemType.EVENT && it.status == tab.status }
@@ -91,6 +154,10 @@ fun eventsFor(tab: SportsTab, events: List<Item>): List<Item> {
         else -> list.sortedBy { it.startOffsetSec ?: 0 }
     }
 }
+
+/** Events filtered by both status tab and PlayzTV sport category. */
+fun filterSportsEvents(events: List<Item>, tab: SportsTab, sport: SportFilter): List<Item> =
+    eventsFor(tab, events).filter(sport::matches)
 
 /** Mock match clock: minutes since kick-off (live), capped by duration. */
 fun elapsedMinutes(event: Item, nowSec: Long, anchorSec: Long): Int {

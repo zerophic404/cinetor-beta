@@ -296,7 +296,7 @@ fun ReaderScreen(holder: ReaderStateHolder, downloads: ComicDownloads, onClose: 
                 style = MaterialTheme.typography.labelLarge,
                 modifier = Modifier
                     .align(Alignment.Center)
-                    .glass(RoundedCornerShape(16.dp), GlassLevel.SHEET)
+                    .glass(RoundedCornerShape(16.dp), GlassLevel.SURFACE)
                     .padding(horizontal = 20.dp, vertical = 12.dp),
             )
         }
@@ -325,7 +325,7 @@ private fun ChapterEmptyState(
     Column(
         modifier = modifier
             .padding(24.dp)
-            .glass(RoundedCornerShape(20.dp), GlassLevel.SHEET)
+            .glass(RoundedCornerShape(20.dp), GlassLevel.SURFACE)
             .padding(horizontal = 24.dp, vertical = 18.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(8.dp),
@@ -546,7 +546,7 @@ private fun ComicPageImage(
             Column(
                 Modifier
                     .padding(20.dp)
-                    .glass(RoundedCornerShape(18.dp), GlassLevel.SHEET)
+                    .glass(RoundedCornerShape(18.dp), GlassLevel.SURFACE)
                     .padding(horizontal = 20.dp, vertical = 16.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.spacedBy(8.dp),
@@ -610,7 +610,7 @@ private fun ReaderBars(
             Row(
                 Modifier
                     .fillMaxWidth()
-                    .glass(RoundedCornerShape(bottomStart = 20.dp, bottomEnd = 20.dp), GlassLevel.BAR)
+                    .glass(RoundedCornerShape(bottomStart = 20.dp, bottomEnd = 20.dp), GlassLevel.SURFACE)
                     .statusBarsPadding()
                     .padding(horizontal = 4.dp, vertical = 4.dp),
                 verticalAlignment = Alignment.CenterVertically,
@@ -654,7 +654,7 @@ private fun ReaderBars(
             Column(
                 Modifier
                     .fillMaxWidth()
-                    .glass(RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp), GlassLevel.BAR)
+                    .glass(RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp), GlassLevel.SURFACE)
                     .navigationBarsPadding()
                     .padding(horizontal = 8.dp, vertical = 6.dp),
             ) {
