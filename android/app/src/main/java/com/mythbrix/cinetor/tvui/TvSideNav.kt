@@ -5,6 +5,7 @@ import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -55,28 +56,80 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.StrokeJoin
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.drawscope.scale
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.graphics.vector.PathParser
+import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
 import com.mythbrix.cinetor.core.perf.PerformanceTier
 import com.mythbrix.cinetor.design.Cinetor
-import com.mythbrix.cinetor.design.CinetorMark
 import com.mythbrix.cinetor.design.CinetorTokens
 import com.mythbrix.cinetor.design.GlassLevel
-import com.mythbrix.cinetor.design.WordmarkStyle
 import com.mythbrix.cinetor.design.glass
 
 val TvNavCollapsed: Dp = 72.dp
 val TvNavExpanded: Dp = 252.dp
+
+private val TV_APERTURE_BLADES = listOf(
+    "M42.50,62.99L19.72,76.14A40,40 0,0 1,42.50,10.71L42.50,37.01Z",
+    "M42.50,37.01L42.50,10.71A40,40 0,0 1,87.78,63.15L65.00,50.00Z",
+    "M65.00,50.00L87.78,63.15A40,40 0,0 1,19.72,76.14L42.50,62.99Z",
+)
+private const val TV_APERTURE_PLAY = "M65.00,50.00L42.50,62.99L42.50,37.01Z"
+private val TV_APERTURE_COLORS = longArrayOf(0xFFE11D2E, 0xFFC8102E, 0xFFFF2D3F)
+private const val TV_APERTURE_SEAM = 3f
+
+/** Cinetor Beta 3-blade red Aperture iris with white play opening on a 100-unit grid. */
+@Composable
+fun TvApertureMark(size: Dp, modifier: Modifier = Modifier) {
+    val blades = remember { TV_APERTURE_BLADES.map { PathParser().parsePathString(it).toPath() } }
+    val play = remember { PathParser().parsePathString(TV_APERTURE_PLAY).toPath() }
+    val bladeColors = remember { TV_APERTURE_COLORS.map { Color(it) } }
+    val seamColor = Cinetor.tokens.bg
+    Canvas(modifier.size(size)) {
+        val k = this.size.minDimension / 100f
+        scale(k, k, pivot = Offset.Zero) {
+            blades.forEachIndexed { i, blade ->
+                drawPath(blade, bladeColors[i])
+                drawPath(blade, seamColor, style = Stroke(width = TV_APERTURE_SEAM, join = StrokeJoin.Round))
+            }
+            drawPath(play, Color.White)
+        }
+    }
+}
+
+/** Cinetor Beta header wordmark: `CINE` (`FontWeight.Light`) + `TOR` (`FontWeight.Bold`) tracked `0.34.em`. */
+@Composable
+fun TvCinetorWordmark(modifier: Modifier = Modifier) {
+    Text(
+        text = buildAnnotatedString {
+            withStyle(SpanStyle(fontWeight = FontWeight.Light)) { append("CINE") }
+            withStyle(SpanStyle(fontWeight = FontWeight.Bold)) { append("TOR") }
+        },
+        modifier = modifier,
+        color = Cinetor.tokens.textPrimary,
+        fontSize = 16.sp,
+        letterSpacing = 0.34.em,
+        maxLines = 1,
+    )
+}
 
 fun tvDestIcon(dest: TvDest): ImageVector = when (dest) {
     TvDest.SEARCH -> Icons.Rounded.Search
@@ -93,20 +146,21 @@ fun tvDestIcon(dest: TvDest): ImageVector = when (dest) {
     TvDest.SETTINGS -> Icons.Rounded.Settings
 }
 
-/** Group header label inside the expanded TV side-nav (`null` for top primary video items). */
+/** Group header label inside the expanded TV side-nav (`null` for top primary video + TV items). */
 fun tvNavGroupLabel(group: TvNavGroup): String? = when (group) {
     TvNavGroup.VIDEO -> null
-    TvNavGroup.PROFILE -> "PROFILE · SPACES"
+    TvNavGroup.PROFILE -> "SPACES"
     TvNavGroup.SYSTEM -> "MORE"
 }
 
 /**
  * Liquid Glass left side-nav dock:
  * - Collapsed to icons (`72.dp`); smoothly expands (`252.dp`) over content while focused.
- * - Houses primary items (`Search`, `Home`, `Anime`, `Drama`), `Profile · Spaces`
- *   (`Profiles`, `Live TV & Sports`, `Music`, `Comics`, `18+` when enabled), and `More`
- *   (`Downloads`, `Library`, `Settings`).
- * - Entering from content lands directly on [selected].
+ * - Renders Cinetor Beta's 3-blade red Aperture mark + `CINE`/`TOR` (`0.34.em`) wordmark.
+ * - Houses primary items (`Search`, `Home`, `Anime`, `Drama`, `TV`), `Spaces`
+ *   (`Music`, `Comics`, `18+` when enabled), and `More` (`Downloads`, `Library`, `Settings`).
+ * - Uses `GlassLevel.SURFACE` + opaque-backed glass tint so it is 100% immune to Android 12–15
+ *   `RenderNode` self-blur crashes inside `AppBackground(Modifier.haze)`.
  */
 @OptIn(ExperimentalComposeUiApi::class)
 @Composable
@@ -141,7 +195,9 @@ fun TvSideNav(
                 ambientColor = Color.Black,
                 spotColor = tokens.accent.copy(alpha = 0.35f),
             )
-            .glass(railShape, GlassLevel.BAR)
+            .clip(railShape)
+            .background(tokens.surface.copy(alpha = if (expanded) 0.94f else 0.86f))
+            .glass(railShape, GlassLevel.SURFACE)
             .onFocusChanged { expanded = it.hasFocus }
             .focusProperties { if (target != null) enter = { target } }
             .focusGroup()
@@ -152,22 +208,18 @@ fun TvSideNav(
         Row(
             Modifier
                 .fillMaxWidth()
-                .padding(start = 8.dp, end = 8.dp, bottom = 10.dp),
+                .padding(start = 9.dp, end = 8.dp, bottom = 10.dp)
+                .clearAndSetSemantics { contentDescription = "Cinetor" },
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(12.dp),
+            horizontalArrangement = Arrangement.spacedBy(11.dp),
         ) {
-            CinetorMark(Modifier.size(34.dp))
+            TvApertureMark(size = 32.dp)
             androidx.compose.animation.AnimatedVisibility(
                 visible = expanded,
                 enter = fadeIn(tween(animMs)),
                 exit = fadeOut(tween(animMs / 2)),
             ) {
-                Text(
-                    text = "CINETOR",
-                    style = WordmarkStyle.copy(fontSize = 14.sp),
-                    color = tokens.textPrimary,
-                    maxLines = 1,
-                )
+                TvCinetorWordmark()
             }
         }
 

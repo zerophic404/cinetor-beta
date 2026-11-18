@@ -69,12 +69,11 @@ class TvFocusRegistry {
 }
 
 /**
- * Resolves the exact deduplicated items rendered for a TV shelf:
- * - `TOP10` caps strictly at 10 ranked chart entries (`1`–`10`).
+ * Resolves deduplicated items rendered for a TV shelf:
+ * - `TOP10` (`Trending Now`) renders clean unnumbered poster cards without artificial truncation.
  * - `CONTINUE` prepends active profile resume entries for the space before fallback items.
  */
 fun tvRowItems(row: RowUi, resumeEntries: List<ResumeEntry> = emptyList()): List<Item> = when (row.style) {
-    RowStyle.TOP10 -> row.items.distinctBy { it.id }.take(10)
     RowStyle.CONTINUE -> {
         val space = row.items.firstOrNull()?.space
         val resumed = space?.let { s -> continueEntries(resumeEntries, s).map { it.toCardItem() } }.orEmpty()
@@ -86,14 +85,13 @@ fun tvRowItems(row: RowUi, resumeEntries: List<ResumeEntry> = emptyList()): List
 /** True when D-pad focus or visible scroll nears the end of a pageable shelf (`PagedCatalog`). */
 fun tvShouldLoadMore(index: Int, totalCount: Int, style: RowStyle): Boolean {
     if (totalCount < 6) return false
-    if (style == RowStyle.TOP10 || style == RowStyle.CONTINUE || style == RowStyle.CHANNEL) return false
+    if (style == RowStyle.CONTINUE || style == RowStyle.CHANNEL) return false
     return index >= totalCount - 4
 }
 
 /**
- * One Movira-headed shelf of [TvCard]s / [TvTop10Card]s on Android TV.
- * Reports card focus to [onFocus] (→ [FocusMemory] + ambient tint) and triggers [onNearEnd]
- * for endless `PagedCatalog` row pagination as D-pad focus approaches the end of the row.
+ * One Movira-headed shelf of unnumbered [TvCard]s on Android TV, with visible titles underneath
+ * every thumbnail card and endless `PagedCatalog` row loading near the row end.
  */
 @Composable
 fun TvRow(
@@ -130,13 +128,11 @@ fun TvRow(
     }
 
     val tokens = Cinetor.tokens
-    val isTop10 = row.style == RowStyle.TOP10
     val landscape = row.style == RowStyle.LANDSCAPE || row.style == RowStyle.CONTINUE || row.style == RowStyle.CHANNEL
     val width = if (landscape) 256.dp else 148.dp
     val resumeMap = remember(resumeEntries) { progressByItem(resumeEntries) }
 
     Column(modifier, verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        // Movira-style shelf header: vertical Cinema Red accent bar + bold title.
         Row(
             Modifier
                 .fillMaxWidth()
@@ -162,7 +158,7 @@ fun TvRow(
         LazyRow(
             state = state,
             contentPadding = PaddingValues(horizontal = startPadding, vertical = 10.dp),
-            horizontalArrangement = Arrangement.spacedBy(if (isTop10) 12.dp else 18.dp),
+            horizontalArrangement = Arrangement.spacedBy(18.dp),
             modifier = Modifier.focusGroup(),
         ) {
             itemsIndexed(items, key = { _, it -> it.id }, contentType = { _, _ -> row.style }) { i, item ->
@@ -178,30 +174,19 @@ fun TvRow(
                         latestNearEnd?.invoke()
                     }
                 }
-                if (isTop10) {
-                    TvTop10Card(
-                        rank = i + 1,
-                        item = item,
-                        onClick = { onOpen(item) },
-                        onFocused = handleFocused,
-                        modifier = Modifier.focusRequester(requester),
-                        posterWidth = width,
-                    )
-                } else {
-                    TvCard(
-                        item = item,
-                        onClick = { onOpen(item) },
-                        onFocused = handleFocused,
-                        modifier = Modifier.focusRequester(requester),
-                        width = width,
-                        landscape = landscape,
-                        progress = if (row.style == RowStyle.CONTINUE) {
-                            resumeMap[item.id] ?: mockProgress(item.id)
-                        } else {
-                            null
-                        },
-                    )
-                }
+                TvCard(
+                    item = item,
+                    onClick = { onOpen(item) },
+                    onFocused = handleFocused,
+                    modifier = Modifier.focusRequester(requester),
+                    width = width,
+                    landscape = landscape,
+                    progress = if (row.style == RowStyle.CONTINUE) {
+                        resumeMap[item.id] ?: mockProgress(item.id)
+                    } else {
+                        null
+                    },
+                )
             }
         }
     }
