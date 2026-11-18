@@ -245,7 +245,7 @@ class GatewaySourceResolver(
 
             GatewayMapper.parseTmdbSubjectId(sid)?.let { (media, tmdbId) ->
                 val tmdbMedia = if (media == "tv") TmdbMapper.TV else "movie"
-                resolveByTmdbId(tmdbId, tmdbMedia, se, ep, item.title, item.year, adultItem)?.let { return it }
+                resolveByTmdbId(tmdbId.toLong(), tmdbMedia, se, ep, item.title, item.year, adultItem)?.let { return it }
                 val match = tmdbMatches[item.id] ?: searchMatch(item)?.also { tmdbMatches[item.id] = it } ?: return null
                 return streamFor(match.first, match.second, se, ep, fresh, adultItem, item.dubs, primaryAudio)
             }
