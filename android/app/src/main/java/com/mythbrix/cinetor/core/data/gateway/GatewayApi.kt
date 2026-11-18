@@ -1,5 +1,7 @@
 package com.mythbrix.cinetor.core.data.gateway
 
+import com.mythbrix.cinetor.core.data.DubOption
+import com.mythbrix.cinetor.core.data.fullLanguageName
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.suspendCancellableCoroutine
@@ -300,8 +302,11 @@ class GatewayCache(
 @Serializable
 data class GwItem(
     val name: String? = null,
+    val title: String? = null,
+    @SerialName("base_title") val baseTitle: String? = null,
     @SerialName("poster_url") val posterUrl: String? = null,
     val slug: String? = null,
+    @SerialName("detail_path") val detailPath: String? = null,
     @SerialName("subject_id") val subjectId: String? = null,
     val badge: String? = null,
     val rating: String? = null,
@@ -316,7 +321,13 @@ data class GwItem(
     val subtitles: JsonElement? = null,
     val dubs: JsonElement? = null,
     val duration: Int? = null,
-)
+) {
+    val resolvedName: String?
+        get() = (name ?: title)?.trim()?.takeIf { it.isNotEmpty() }
+
+    val resolvedSlug: String?
+        get() = (slug ?: detailPath)?.trim()?.takeIf { it.isNotEmpty() }
+}
 
 @Serializable
 data class GwPage(
@@ -480,6 +491,21 @@ data class GwResolveSource(
 @Serializable
 data class GwResolve(val ok: Boolean = false, val sources: List<GwResolveSource> = emptyList())
 
+@Serializable
+data class GwSubtitleResult(
+    val id: String? = null,
+    val language: String? = null,
+    val label: String? = null,
+    @SerialName("vtt_url") val vttUrl: String? = null,
+    val url: String? = null,
+)
+
+@Serializable
+data class GwSubtitleSearch(
+    val count: Int = 0,
+    val subtitles: List<GwSubtitleResult> = emptyList(),
+)
+
 /** `subtitles` / `dubs` are lists of strings in search results, or lists of objects in browse/detail. */
 internal fun JsonElement?.stringList(): List<String> = when (this) {
     is JsonArray -> mapNotNull { el ->
@@ -492,7 +518,7 @@ internal fun JsonElement?.stringList(): List<String> = when (this) {
                 if (typeInt != 0 || isOriginal) {
                     null
                 } else {
-                    listOf("language_name", "lanName", "language", "name")
+                    listOf("language_name", "lanName", "language", "name", "lanCode", "language_code")
                         .firstNotNullOfOrNull { k -> (el[k] as? JsonPrimitive)?.contentOrNull?.takeIf { it.isNotBlank() } }
                 }
             }
@@ -501,6 +527,205 @@ internal fun JsonElement?.stringList(): List<String> = when (this) {
     }
     is JsonPrimitive -> contentOrNull?.split(',')?.map { it.trim() }?.filter { it.isNotEmpty() }.orEmpty()
     else -> emptyList()
+}
+
+/** Extracts structured [DubOption] entries from `/detail` (`subjectId`/`detailPath`/`lanName`) or `/search` (`subject_id`/`slug`/`language_name`). */
+internal fun JsonElement?.dubOptionList(excludeSubjectId: String? = null): List<DubOption> {
+    val arr = this as? JsonArray ?: return emptyList()
+    val seen = LinkedHashSet<String>()
+    val out = ArrayList<DubOption>()
+    for (el in arr) {
+        val obj = el as? JsonObject ?: continue
+        val typeInt = (obj["type"] as? JsonPrimitive)?.intOrNull ?: 0
+        if (typeInt != 0) continue
+        val isOriginal = (obj["original"] as? JsonPrimitive)?.booleanOrNull == true
+        val sid = listOf("subjectId", "subject_id")
+            .firstNotNullOfOrNull { k -> (obj[k] as? JsonPrimitive)?.contentOrNull?.trim()?.takeIf { it.isNotEmpty() } }
+            ?: continue
+        if (excludeSubjectId != null && sid == excludeSubjectId) continue
+        if (!seen.add(sid)) continue
+        val slug = listOf("detailPath", "detail_path", "slug")
+            .firstNotNullOfOrNull { k -> (obj[k] as? JsonPrimitive)?.contentOrNull?.trim()?.takeIf { it.isNotEmpty() } }
+            ?: sid
+        val rawCode = listOf("lanCode", "language_code", "lan", "code")
+            .firstNotNullOfOrNull { k -> (obj[k] as? JsonPrimitive)?.contentOrNull?.trim()?.takeIf { it.isNotEmpty() } }
+            .orEmpty()
+        val rawName = listOf("lanName", "language_name", "language", "name")
+            .firstNotNullOfOrNull { k -> (obj[k] as? JsonPrimitive)?.contentOrNull?.trim()?.takeIf { it.isNotEmpty() } }
+            .orEmpty()
+        val langName = if (isOriginal && (rawName.isEmpty() || rawName.contains("original", ignoreCase = true))) {
+            "Original"
+        } else {
+            fullLanguageName(rawName.ifBlank { rawCode })
+        }
+        out += DubOption(
+            subjectId = sid,
+            slug = slug,
+            languageName = langName,
+            languageCode = rawCode.lowercase(Locale.US),
+        )
+    }
+    return out
+}
+
+// ------------------------------------------------------------------------------- TMDB Metadata Bridge
+
+data class TmdbCandidate(
+    val tmdbId: Int,
+    val mediaType: String,
+    val title: String,
+    val originalTitle: String? = null,
+    val year: Int = 0,
+    val rating: Double = 0.0,
+    val posterUrl: String = "",
+    val backdropUrl: String = "",
+    val synopsis: String = "",
+)
+
+interface GatewayTmdbBridge {
+    val isConfigured: Boolean
+    suspend fun searchMulti(query: String): List<TmdbCandidate>
+    suspend fun personCredits(personName: String): List<TmdbCandidate>
+    suspend fun detail(mediaType: String, tmdbId: Int): TmdbCandidate?
+}
+
+object NoGatewayTmdbBridge : GatewayTmdbBridge {
+    override val isConfigured: Boolean = false
+    override suspend fun searchMulti(query: String): List<TmdbCandidate> = emptyList()
+    override suspend fun personCredits(personName: String): List<TmdbCandidate> = emptyList()
+    override suspend fun detail(mediaType: String, tmdbId: Int): TmdbCandidate? = null
+}
+
+/**
+ * Lightweight TMDB v3/v4 helper for hybrid search, cold deep-links (`gw:tmdb-tv-*` / `gw:tmdb-movie-*`),
+ * and actor filmographies (`castWorks`). Supports both Bearer `TMDB_TOKEN` and v3 `TMDB_API_KEY`.
+ */
+class HttpGatewayTmdbBridge(
+    private val client: OkHttpClient,
+    private val bearerToken: () -> String = { "" },
+    private val apiKey: () -> String = { "" },
+    private val apiBase: String = "https://api.themoviedb.org/3",
+    private val imageBase: String = "https://image.tmdb.org/t/p",
+) : GatewayTmdbBridge {
+
+    override val isConfigured: Boolean
+        get() = bearerToken().isNotBlank() || apiKey().isNotBlank()
+
+    private suspend fun getJson(path: String, params: Map<String, String> = emptyMap()): JsonObject? {
+        val token = bearerToken().trim()
+        val key = apiKey().trim()
+        if (token.isEmpty() && key.isEmpty()) return null
+        val allParams = LinkedHashMap<String, String>(params)
+        if (token.isEmpty() && key.isNotEmpty()) {
+            allParams["api_key"] = key
+        }
+        val query = allParams.entries
+            .filter { it.value.isNotBlank() }
+            .joinToString("&") { (k, v) -> URLEncoder.encode(k, "UTF-8") + "=" + URLEncoder.encode(v, "UTF-8") }
+        val fullUrl = apiBase.trimEnd('/') + "/" + path.trimStart('/') + (if (query.isEmpty()) "" else "?$query")
+        val body = withContext(Dispatchers.IO) {
+            suspendCancellableCoroutine<String?> { cont ->
+                val reqBuilder = Request.Builder()
+                    .url(fullUrl)
+                    .header("Accept", "application/json")
+                if (token.isNotEmpty()) {
+                    reqBuilder.header("Authorization", "Bearer $token")
+                }
+                val call = client.newCall(reqBuilder.build())
+                cont.invokeOnCancellation { call.cancel() }
+                call.enqueue(object : Callback {
+                    override fun onFailure(call: Call, e: IOException) {
+                        if (cont.isActive) cont.resume(null)
+                    }
+
+                    override fun onResponse(call: Call, response: Response) {
+                        response.use { r ->
+                            val str = if (r.code in 200..299) runCatching { r.body?.string() }.getOrNull() else null
+                            if (cont.isActive) cont.resume(str)
+                        }
+                    }
+                })
+            }
+        } ?: return null
+        return runCatching { GatewayApi.json.parseToJsonElement(body) as? JsonObject }.getOrNull()
+    }
+
+    private fun JsonObject.str(key: String): String? =
+        (this[key] as? JsonPrimitive)?.contentOrNull?.trim()?.takeIf { it.isNotEmpty() }
+
+    private fun JsonObject.numDouble(key: String): Double =
+        (this[key] as? JsonPrimitive)?.contentOrNull?.toDoubleOrNull() ?: 0.0
+
+    private fun parseCandidate(obj: JsonObject, forcedMediaType: String? = null): TmdbCandidate? {
+        if ((obj["adult"] as? JsonPrimitive)?.booleanOrNull == true) return null
+        val media = (forcedMediaType ?: obj.str("media_type"))?.lowercase(Locale.US) ?: return null
+        if (media != "movie" && media != "tv") return null
+        val id = (obj["id"] as? JsonPrimitive)?.intOrNull?.takeIf { it > 0 } ?: return null
+        val title = (if (media == "tv") obj.str("name") ?: obj.str("title") else obj.str("title") ?: obj.str("name"))
+            ?: return null
+        val origTitle = if (media == "tv") obj.str("original_name") else obj.str("original_title")
+        val dateStr = if (media == "tv") obj.str("first_air_date") else obj.str("release_date")
+        val year = dateStr?.take(4)?.toIntOrNull() ?: 0
+        val poster = obj.str("poster_path")?.let { p -> if (p.startsWith("http")) p else "$imageBase/w500/${p.trimStart('/')}" }.orEmpty()
+        val backdrop = obj.str("backdrop_path")?.let { b -> if (b.startsWith("http")) b else "$imageBase/w780/${b.trimStart('/')}" }
+            ?: poster
+        return TmdbCandidate(
+            tmdbId = id,
+            mediaType = media,
+            title = title,
+            originalTitle = origTitle,
+            year = year,
+            rating = obj.numDouble("vote_average"),
+            posterUrl = poster,
+            backdropUrl = backdrop,
+            synopsis = obj.str("overview").orEmpty(),
+        )
+    }
+
+    override suspend fun searchMulti(query: String): List<TmdbCandidate> {
+        val q = query.trim()
+        if (q.isEmpty() || !isConfigured) return emptyList()
+        val root = getJson(
+            "search/multi",
+            mapOf("query" to q, "include_adult" to "false", "language" to "en-US", "page" to "1"),
+        ) ?: return emptyList()
+        val results = root["results"] as? JsonArray ?: return emptyList()
+        return results.mapNotNull { (it as? JsonObject)?.let { o -> parseCandidate(o) } }.take(12)
+    }
+
+    override suspend fun personCredits(personName: String): List<TmdbCandidate> {
+        val q = personName.trim()
+        if (q.isEmpty() || !isConfigured) return emptyList()
+        val searchRoot = getJson(
+            "search/person",
+            mapOf("query" to q, "include_adult" to "false", "language" to "en-US", "page" to "1"),
+        ) ?: return emptyList()
+        val personObj = (searchRoot["results"] as? JsonArray)?.firstOrNull() as? JsonObject ?: return emptyList()
+        val personId = (personObj["id"] as? JsonPrimitive)?.intOrNull?.takeIf { it > 0 } ?: return emptyList()
+        val creditsRoot = getJson("person/$personId/combined_credits", mapOf("language" to "en-US")) ?: return emptyList()
+        val castArr = (creditsRoot["cast"] as? JsonArray).orEmpty()
+        val crewArr = (creditsRoot["crew"] as? JsonArray).orEmpty().filter { el ->
+            val job = ((el as? JsonObject)?.get("job") as? JsonPrimitive)?.contentOrNull.orEmpty()
+            job.equals("Director", ignoreCase = true) || job.equals("Creator", ignoreCase = true)
+        }
+        return (castArr + crewArr)
+            .mapNotNull { el ->
+                val obj = el as? JsonObject ?: return@mapNotNull null
+                val pop = obj.numDouble("popularity")
+                parseCandidate(obj)?.let { pop to it }
+            }
+            .sortedByDescending { it.first }
+            .map { it.second }
+            .distinctBy { "${it.mediaType}:${it.tmdbId}" }
+            .take(24)
+    }
+
+    override suspend fun detail(mediaType: String, tmdbId: Int): TmdbCandidate? {
+        if (tmdbId <= 0 || !isConfigured) return null
+        val kind = if (mediaType.equals("tv", ignoreCase = true)) "tv" else "movie"
+        val obj = getJson("$kind/$tmdbId", mapOf("language" to "en-US")) ?: return null
+        return parseCandidate(obj, forcedMediaType = kind)
+    }
 }
 
 // -------------------------------------------------------------------------------------------- API
@@ -586,6 +811,38 @@ class GatewayApi(
             GwCaptions.serializer(),
             http.get(url("stream/$subjectId/captions", mapOf("detail_path" to slug, "se" to "$se", "ep" to "$ep")), GatewayConfig.STREAM_TIMEOUT_MS),
         )
+
+    /** `/api/public/v1/subtitles/search` online WebVTT subtitle lookup. */
+    suspend fun subtitleSearch(
+        q: String,
+        subjectId: String? = null,
+        slug: String? = null,
+        se: Int = 0,
+        ep: Int = 0,
+        lang: String? = null,
+    ): GwSubtitleSearch {
+        val params = LinkedHashMap<String, String?>()
+        if (q.isNotBlank()) params["q"] = q
+        if (!subjectId.isNullOrBlank()) params["subject_id"] = subjectId
+        if (!slug.isNullOrBlank()) params["detail_path"] = slug
+        params["se"] = "$se"
+        params["ep"] = "$ep"
+        if (!lang.isNullOrBlank()) params["lang"] = lang
+        return off {
+            json.decodeFromString(
+                GwSubtitleSearch.serializer(),
+                http.get(url("subtitles/search", params), GatewayConfig.STREAM_TIMEOUT_MS),
+            )
+        }
+    }
+
+    /** Wraps an external SRT/VTT URL through `/api/public/v1/subtitle?url=...` for CORS-safe WebVTT conversion. */
+    fun subtitleProxyUrl(rawUrl: String): String {
+        val trimmed = rawUrl.trim()
+        if (trimmed.isEmpty()) return ""
+        if (trimmed.contains("/api/public/v1/subtitle?") || trimmed.startsWith(base)) return absolute(trimmed)
+        return url("subtitle", mapOf("url" to trimmed))
+    }
 
     /** `/api/v1/resolve` (secondary, for TMDB-origin items). */
     suspend fun resolve(tmdbId: String, type: String, s: Int?, e: Int?, title: String, year: Int?): GwResolve {

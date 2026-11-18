@@ -74,6 +74,15 @@ data class Category(
 
 @Immutable
 @Serializable
+data class DubOption(
+    val subjectId: String,
+    val slug: String,
+    val languageName: String,
+    val languageCode: String = "",
+)
+
+@Immutable
+@Serializable
 data class Source(
     val url: String,
     val kind: SourceKind,
@@ -84,6 +93,8 @@ data class Source(
     /** Real file size in bytes when known (gateway `size`). */
     val sizeBytes: Long? = null,
     val codec: String? = null,
+    /** Normalized full audio/dub language name (e.g. `"Original"`, `"Hindi"`, `"Bangla"`, `"English"`). */
+    val audioLang: String? = null,
 )
 
 @Immutable
@@ -198,6 +209,8 @@ data class Item(
     val studio: String? = null,
     /** Gateway `detail_path` (needed for /detail + /stream); null for mock/TMDB items. */
     val slug: String? = null,
+    /** Sibling dubbed editions resolved from `/detail` + `/search` (`Hindi`, `Bangla`, `English`, etc.). */
+    val dubs: List<DubOption> = emptyList(),
 )
 
 @Immutable
@@ -242,4 +255,254 @@ object AssetUris {
         if (isRemote(relativePath)) relativePath else MOCK_ROOT + relativePath
 
     fun isRemote(path: String): Boolean = path.startsWith("https://") || path.startsWith("http://")
+}
+
+private val LANGUAGE_CODE_MAP: Map<String, String> = mapOf(
+    "" to "Original",
+    "und" to "Original",
+    "unknown" to "Original",
+    "original" to "Original",
+    "orig" to "Original",
+    "default" to "Original",
+    "mul" to "Original",
+    "zxx" to "Original",
+    "none" to "Original",
+    "bn" to "Bangla",
+    "ben" to "Bangla",
+    "bengali" to "Bangla",
+    "bangla" to "Bangla",
+    "en" to "English",
+    "eng" to "English",
+    "english" to "English",
+    "hi" to "Hindi",
+    "hin" to "Hindi",
+    "hindi" to "Hindi",
+    "ur" to "Urdu",
+    "urd" to "Urdu",
+    "urdu" to "Urdu",
+    "zh" to "Chinese",
+    "chi" to "Chinese",
+    "zho" to "Chinese",
+    "zh-cn" to "Chinese",
+    "zh-tw" to "Chinese",
+    "zh-hk" to "Chinese",
+    "zh-sg" to "Chinese",
+    "zh-hans" to "Chinese",
+    "zh-hant" to "Chinese",
+    "cmn" to "Chinese",
+    "yue" to "Chinese",
+    "chinese" to "Chinese",
+    "mandarin" to "Chinese",
+    "cantonese" to "Chinese",
+    "ar" to "Arabic",
+    "ara" to "Arabic",
+    "arabic" to "Arabic",
+    "ko" to "Korean",
+    "kor" to "Korean",
+    "korean" to "Korean",
+    "ja" to "Japanese",
+    "jpn" to "Japanese",
+    "japanese" to "Japanese",
+    "es" to "Spanish",
+    "spa" to "Spanish",
+    "spanish" to "Spanish",
+    "espanol" to "Spanish",
+    "español" to "Spanish",
+    "fr" to "French",
+    "fre" to "French",
+    "fra" to "French",
+    "french" to "French",
+    "francais" to "French",
+    "français" to "French",
+    "id" to "Indonesian",
+    "ind" to "Indonesian",
+    "in" to "Indonesian",
+    "indonesian" to "Indonesian",
+    "bahasa indonesia" to "Indonesian",
+    "tr" to "Turkish",
+    "tur" to "Turkish",
+    "turkish" to "Turkish",
+    "turkce" to "Turkish",
+    "türkçe" to "Turkish",
+    "ta" to "Tamil",
+    "tam" to "Tamil",
+    "tamil" to "Tamil",
+    "te" to "Telugu",
+    "tel" to "Telugu",
+    "telugu" to "Telugu",
+    "ml" to "Malayalam",
+    "mal" to "Malayalam",
+    "malayalam" to "Malayalam",
+    "pa" to "Punjabi",
+    "pan" to "Punjabi",
+    "punjabi" to "Punjabi",
+    "ru" to "Russian",
+    "rus" to "Russian",
+    "russian" to "Russian",
+    "pt" to "Portuguese",
+    "por" to "Portuguese",
+    "pt-br" to "Portuguese",
+    "pt-pt" to "Portuguese",
+    "portuguese" to "Portuguese",
+    "portugues" to "Portuguese",
+    "português" to "Portuguese",
+    "ms" to "Malay",
+    "may" to "Malay",
+    "msa" to "Malay",
+    "malay" to "Malay",
+    "bahasa melayu" to "Malay",
+    "th" to "Thai",
+    "tha" to "Thai",
+    "thai" to "Thai",
+    "vi" to "Vietnamese",
+    "vie" to "Vietnamese",
+    "vietnamese" to "Vietnamese",
+    "tiếng việt" to "Vietnamese",
+    "tl" to "Filipino",
+    "fil" to "Filipino",
+    "tgl" to "Filipino",
+    "filipino" to "Filipino",
+    "tagalog" to "Filipino",
+    "de" to "German",
+    "ger" to "German",
+    "deu" to "German",
+    "german" to "German",
+    "deutsch" to "German",
+    "it" to "Italian",
+    "ita" to "Italian",
+    "italian" to "Italian",
+    "italiano" to "Italian",
+    "nl" to "Dutch",
+    "dut" to "Dutch",
+    "nld" to "Dutch",
+    "dutch" to "Dutch",
+    "pl" to "Polish",
+    "pol" to "Polish",
+    "polish" to "Polish",
+    "uk" to "Ukrainian",
+    "ukr" to "Ukrainian",
+    "ukrainian" to "Ukrainian",
+    "el" to "Greek",
+    "gre" to "Greek",
+    "ell" to "Greek",
+    "greek" to "Greek",
+    "he" to "Hebrew",
+    "iw" to "Hebrew",
+    "heb" to "Hebrew",
+    "hebrew" to "Hebrew",
+    "fa" to "Persian",
+    "per" to "Persian",
+    "fas" to "Persian",
+    "persian" to "Persian",
+    "sv" to "Swedish",
+    "swe" to "Swedish",
+    "swedish" to "Swedish",
+    "no" to "Norwegian",
+    "nor" to "Norwegian",
+    "nb" to "Norwegian",
+    "nn" to "Norwegian",
+    "norwegian" to "Norwegian",
+    "da" to "Danish",
+    "dan" to "Danish",
+    "danish" to "Danish",
+    "fi" to "Finnish",
+    "fin" to "Finnish",
+    "finnish" to "Finnish",
+    "cs" to "Czech",
+    "cze" to "Czech",
+    "ces" to "Czech",
+    "czech" to "Czech",
+    "ro" to "Romanian",
+    "rum" to "Romanian",
+    "ron" to "Romanian",
+    "romanian" to "Romanian",
+    "hu" to "Hungarian",
+    "hun" to "Hungarian",
+    "hungarian" to "Hungarian",
+    "mr" to "Marathi",
+    "mar" to "Marathi",
+    "marathi" to "Marathi",
+    "kn" to "Kannada",
+    "kan" to "Kannada",
+    "kannada" to "Kannada",
+    "gu" to "Gujarati",
+    "guj" to "Gujarati",
+    "gujarati" to "Gujarati",
+    "ne" to "Nepali",
+    "nep" to "Nepali",
+    "nepali" to "Nepali",
+    "si" to "Sinhala",
+    "sin" to "Sinhala",
+    "sinhala" to "Sinhala",
+    "my" to "Burmese",
+    "bur" to "Burmese",
+    "mya" to "Burmese",
+    "burmese" to "Burmese",
+    "km" to "Khmer",
+    "khm" to "Khmer",
+    "khmer" to "Khmer",
+)
+
+private val LANGUAGE_NOISE_SUFFIX = Regex(
+    """(?i)\b(dubbed|dub|subtitles?|subs?|audio|track|official|sdh|cc|forced)\b""",
+)
+
+/**
+ * Pure human-readable language mapper across ISO-639-1/2/3 codes, BCP-47 tags, native scripts,
+ * and dub/subtitle labels (`"bn"`/`"bengali"` -> `"Bangla"`, `"hi"` -> `"Hindi"`, `"und"`/`""` -> `"Original"`).
+ * Never emits 2- or 3-letter codes.
+ */
+fun fullLanguageName(raw: String): String {
+    val trimmed = raw.trim().trim('[', ']', '(', ')', '-', '_', '·', '|', '/').trim()
+    if (trimmed.isEmpty()) return "Original"
+    when {
+        trimmed.contains("বাংলা") -> return "Bangla"
+        trimmed.contains("हिन्दी") || trimmed.contains("हिंदी") -> return "Hindi"
+        trimmed.contains("اردو") -> return "Urdu"
+        trimmed.contains("العربية") -> return "Arabic"
+        trimmed.contains("한국어") -> return "Korean"
+        trimmed.contains("日本語") -> return "Japanese"
+        trimmed.contains("தமிழ்") -> return "Tamil"
+        trimmed.contains("తెలుగు") -> return "Telugu"
+        trimmed.contains("മലയാളം") -> return "Malayalam"
+        trimmed.contains("ਪੰਜਾਬੀ") -> return "Punjabi"
+        trimmed.contains("русский", ignoreCase = true) -> return "Russian"
+        trimmed.contains("ไทย") -> return "Thai"
+        trimmed.any { it in '\u4E00'..'\u9FFF' } -> return "Chinese"
+    }
+    val lower = trimmed.lowercase(java.util.Locale.US).replace('_', '-')
+    LANGUAGE_CODE_MAP[lower]?.let { return it }
+
+    val stripped = LANGUAGE_NOISE_SUFFIX.replace(lower, " ")
+        .replace(Regex("""\s+"""), " ")
+        .trim()
+        .trim('-', '·', '|', '/')
+        .trim()
+    LANGUAGE_CODE_MAP[stripped]?.let { return it }
+
+    val baseTag = stripped.substringBefore('-').trim()
+    if (baseTag.isNotEmpty()) {
+        LANGUAGE_CODE_MAP[baseTag]?.let { return it }
+    }
+    val firstWord = stripped.substringBefore(' ').substringBefore('-').trim()
+    if (firstWord.isNotEmpty()) {
+        LANGUAGE_CODE_MAP[firstWord]?.let { return it }
+    }
+
+    if (stripped.length <= 3) {
+        val localeName = runCatching {
+            java.util.Locale(baseTag.ifEmpty { stripped }).getDisplayLanguage(java.util.Locale.ENGLISH)
+        }.getOrDefault("")
+        return if (localeName.length > 3 && !localeName.equals(baseTag, ignoreCase = true) && !localeName.equals(stripped, ignoreCase = true)) {
+            localeName
+        } else {
+            "Original"
+        }
+    }
+
+    return stripped.split(' ')
+        .filter { it.isNotEmpty() }
+        .joinToString(" ") { word -> word.replaceFirstChar { c -> c.titlecase(java.util.Locale.US) } }
+        .takeIf { it.length > 3 }
+        ?: "Original"
 }

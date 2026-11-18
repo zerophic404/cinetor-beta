@@ -2,6 +2,7 @@ package com.mythbrix.cinetor.core.data.gateway
 
 import com.mythbrix.cinetor.core.data.CatalogRepository
 import com.mythbrix.cinetor.core.data.Category
+import com.mythbrix.cinetor.core.data.DubOption
 import com.mythbrix.cinetor.core.data.Episode
 import com.mythbrix.cinetor.core.data.Item
 import com.mythbrix.cinetor.core.data.ItemType
@@ -11,10 +12,15 @@ import com.mythbrix.cinetor.core.data.Row
 import com.mythbrix.cinetor.core.data.RowStyle
 import com.mythbrix.cinetor.core.data.Season
 import com.mythbrix.cinetor.core.data.Space
+import com.mythbrix.cinetor.core.data.fullLanguageName
 import com.mythbrix.cinetor.core.data.tmdb.TmdbMapper
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
 import kotlinx.serialization.json.JsonElement
 import java.net.URLDecoder
 import java.net.URLEncoder
+import java.util.Locale
 import java.util.concurrent.ConcurrentHashMap
 
 /** One page of a row ("load more"). */
@@ -189,12 +195,13 @@ object GatewayMapper {
         // Every visible title must be playable: the gateway says up front which ones have no stream.
         if (!g.hasResource) return null
         val sid = g.subjectId?.takeIf { it.isNotBlank() } ?: return null
-        val title = g.name?.trim()?.takeIf { it.isNotEmpty() } ?: return null
+        val title = g.resolvedName ?: return null
+        val resolvedSlug = g.resolvedSlug
         val baseGenres = genresOf(g.genre)
         val isTv = isSeriesItem(g)
         val sp = space ?: inferSpace(baseGenres, if (isTv) "tv" else "movie", g.country, g.badge)
         if (sp == Space.ADULT && !safeName(title)) return null
-        val dubs = dubLanguagesOf(title, g.badge, g.slug, g.dubs)
+        val dubs = dubLanguagesOf(title, g.badge, resolvedSlug, g.dubs)
         val genres = mergeGenresAndDubs(baseGenres, dubs)
         val poster = g.posterUrl.orEmpty()
         val id = idOf(sid, sp)
@@ -214,7 +221,93 @@ object GatewayMapper {
             dominantColor = (if (poster.isNotEmpty()) colors.colorFor(poster) else null) ?: TmdbMapper.fallbackColor(id),
             accentColor = ACCENT,
             durationSec = g.duration?.takeIf { it > 0 },
-            slug = g.slug,
+            slug = resolvedSlug ?: sid,
+            dubs = g.dubs.dubOptionList(excludeSubjectId = sid),
+        )
+    }
+
+    /** Strips bracketed/parenthesized dub & quality suffixes (`"Pushpa [Hindi]"` -> `"Pushpa"`). */
+    fun cleanBaseTitle(raw: String): String =
+        raw.replace(Regex("""\s*\[[^]]*]"""), "")
+            .replace(Regex("""(?i)\s*\([^)]*\b(dub(?:bed)?|hindi|bangla|bengali|english|tamil|telugu|dual\s*audio)\b[^)]*\)"""), "")
+            .replace(Regex("""(?i)\s*[-–:]\s*(hindi|bangla|bengali|english|tamil|telugu)\s+dub(?:bed)?\s*$"""), "")
+            .trim()
+
+    fun normalizeTitleKey(raw: String): String =
+        cleanBaseTitle(raw).lowercase(Locale.US).replace(Regex("""[^\p{L}\p{N}]+"""), " ").trim()
+
+    /** Extracts a normalized full dub language name when a sibling title/badge/slug explicitly names a dub. */
+    fun explicitDubLanguageOf(title: String?, badge: String?, slug: String?): String? {
+        val t = title.orEmpty()
+        Regex("""\[\s*([^\]]+?)\s*]""").findAll(t).forEach { m ->
+            val token = m.groupValues[1].trim()
+            val mapped = fullLanguageName(token)
+            if (mapped != "Original" && !token.matches(Regex("""(?i)^(4k|hd|cam|imax|\d+p)$"""))) {
+                return mapped
+            }
+        }
+        val combined = listOfNotNull(t, badge, slug?.replace('-', ' ')).joinToString(" ")
+        for ((canonical, regex) in CANONICAL_DUBS) {
+            if (regex.containsMatchIn(combined)) return fullLanguageName(canonical)
+        }
+        return null
+    }
+
+    /** Parses `tmdb-tv-293610` / `tmdb-movie-27205` -> `("tv", 293610)` or null. */
+    fun parseTmdbSubjectId(subjectId: String?): Pair<String, Int>? {
+        val m = Regex("""(?i)^tmdb-(tv|movie)-(\d+)$""").find(subjectId?.trim() ?: return null) ?: return null
+        val id = m.groupValues[2].toIntOrNull()?.takeIf { it > 0 } ?: return null
+        return m.groupValues[1].lowercase(Locale.US) to id
+    }
+
+    /** Maps a [TmdbCandidate] into a playable `gw:tmdb-{tv|movie}-{id}` [Item]. */
+    fun tmdbCandidateToItem(c: TmdbCandidate, colors: DominantColors = NoDominantColors): Item {
+        val media = if (c.mediaType.equals("tv", ignoreCase = true)) "tv" else "movie"
+        val sid = "tmdb-$media-${c.tmdbId}"
+        val id = idOf(sid, Space.HOME)
+        val poster = c.posterUrl
+        val backdrop = c.backdropUrl.ifBlank { poster }
+        return Item(
+            id = id,
+            space = Space.HOME,
+            categoryId = "gw:tmdb",
+            type = if (media == "tv") ItemType.SERIES else ItemType.MOVIE,
+            title = c.title,
+            altTitle = c.originalTitle?.takeIf { !it.equals(c.title, ignoreCase = true) },
+            year = c.year,
+            rating = c.rating,
+            maturity = "NR",
+            genres = emptyList(),
+            synopsis = c.synopsis,
+            poster = poster,
+            backdrop = backdrop,
+            dominantColor = (if (poster.isNotEmpty()) colors.colorFor(poster) else null) ?: TmdbMapper.fallbackColor(id),
+            accentColor = ACCENT,
+            slug = sid,
+        )
+    }
+
+    /** Guarantees a `SERIES` item always has at least Season 1 Episode 1 (`s1e1`) so Details & Player never stall. */
+    fun ensurePlayableSeasons(item: Item): Item {
+        if (item.type != ItemType.SERIES || item.seasons.isNotEmpty()) return item
+        val still = item.backdrop.ifBlank { item.poster }
+        return item.copy(
+            seasons = listOf(
+                Season(
+                    n = 1,
+                    title = "Season 1",
+                    episodes = listOf(
+                        Episode(
+                            id = episodeId(1, 1),
+                            n = 1,
+                            title = "Episode 1",
+                            durationSec = item.durationSec ?: 0,
+                            still = still,
+                            sources = emptyList(),
+                        ),
+                    ),
+                ),
+            ),
         )
     }
 
@@ -229,13 +322,13 @@ object GatewayMapper {
     /** `/detail/{slug}` → full item (seasons/episodes for tv; sources are resolved at play time). */
     fun detailToItem(d: GwDetailData, slug: String, summary: Item?, colors: DominantColors = NoDominantColors): Item? {
         val s = d.subject ?: return null
-        val sid = s.subjectId.takeIf { it.isNotBlank() } ?: return null
+        val sid = s.subjectId.takeIf { it.isNotBlank() } ?: summary?.let { subjectIdOf(it.id) } ?: return null
         val baseGenres = genresOf(s.genre).ifEmpty { summary?.genres.orEmpty() }
         val rawSeasons = d.resource?.seasons.orEmpty()
         val isTv = s.subjectType == 2 || s.subjectType == 7 || summary?.type == ItemType.SERIES ||
             rawSeasons.any { (it.season ?: it.se) > 0 && (it.maxEp > 0 || it.episodes.isNotEmpty() || !it.allEp.isNullOrBlank()) }
         val space = summary?.space ?: inferSpace(baseGenres, if (isTv) "tv" else "movie", s.countryName, s.corner)
-        val resolvedTitle = s.title.ifBlank { summary?.title.orEmpty() }
+        val resolvedTitle = s.title.ifBlank { summary?.title.orEmpty() }.takeIf { it.isNotBlank() } ?: return null
         if (space == Space.ADULT && !safeName(resolvedTitle)) return null
         val detailDubs = dubLanguagesOf(resolvedTitle, s.corner, s.detailPath ?: slug, s.dubs)
         val summaryDubs = summary?.let { listOfNotNull(extractDubBadge(it)) }.orEmpty()
@@ -244,7 +337,7 @@ object GatewayMapper {
         val poster = s.cover?.url?.takeIf { it.isNotBlank() } ?: summary?.poster.orEmpty()
         val backdrop = s.stills?.url?.takeIf { it.isNotBlank() } ?: summary?.backdrop?.takeIf { it.isNotBlank() } ?: poster
         val epDuration = s.duration?.takeIf { it > 0 } ?: 0
-        val seasons = if (isTv) {
+        val parsedSeasons = if (isTv) {
             rawSeasons.mapNotNull { r ->
                 val seasonNum = (r.season ?: r.se).takeIf { it > 0 } ?: return@mapNotNull null
                 val epMap = r.episodes.mapNotNull { e -> e.episode?.let { n -> n to e } }.toMap()
@@ -278,26 +371,32 @@ object GatewayMapper {
         val color = s.cover?.avgHueDark?.takeIf { it.matches(Regex("^#[0-9a-fA-F]{6}$")) }
             ?: (if (poster.isNotEmpty()) colors.colorFor(poster) else null)
             ?: summary?.dominantColor ?: TmdbMapper.fallbackColor(id)
-        return Item(
-            id = id,
-            space = space,
-            categoryId = summary?.categoryId ?: "gw:detail",
-            type = if (isTv) ItemType.SERIES else ItemType.MOVIE,
-            title = resolvedTitle,
-            year = year(null, s.releaseDate).takeIf { it > 0 } ?: summary?.year ?: 0,
-            rating = s.imdbRatingValue?.toDoubleOrNull() ?: summary?.rating ?: 0.0,
-            maturity = if (space == Space.ADULT) "18+" else "NR",
-            genres = genres,
-            synopsis = s.description.orEmpty().ifBlank { summary?.synopsis.orEmpty() },
-            poster = poster,
-            backdrop = backdrop,
-            dominantColor = color,
-            accentColor = ACCENT,
-            durationSec = if (isTv) null else epDuration.takeIf { it > 0 },
-            seasons = seasons,
-            cast = d.stars.filter { it.staffType == 1 }.map { it.name }.filter { it.isNotBlank() }.take(12),
-            studio = d.stars.firstOrNull { it.staffType == 2 }?.name?.let { "Dir. $it" },
-            slug = s.detailPath?.takeIf { it.isNotBlank() } ?: slug,
+        val structuredDubs = (s.dubs.dubOptionList(excludeSubjectId = sid) + summary?.dubs.orEmpty())
+            .filter { it.subjectId != sid }
+            .distinctBy { it.subjectId }
+        return ensurePlayableSeasons(
+            Item(
+                id = id,
+                space = space,
+                categoryId = summary?.categoryId ?: "gw:detail",
+                type = if (isTv) ItemType.SERIES else ItemType.MOVIE,
+                title = resolvedTitle,
+                year = year(null, s.releaseDate).takeIf { it > 0 } ?: summary?.year ?: 0,
+                rating = s.imdbRatingValue?.toDoubleOrNull() ?: summary?.rating ?: 0.0,
+                maturity = if (space == Space.ADULT) "18+" else "NR",
+                genres = genres,
+                synopsis = s.description.orEmpty().ifBlank { summary?.synopsis.orEmpty() },
+                poster = poster,
+                backdrop = backdrop,
+                dominantColor = color,
+                accentColor = ACCENT,
+                durationSec = if (isTv) null else epDuration.takeIf { it > 0 },
+                seasons = parsedSeasons,
+                cast = d.stars.filter { it.staffType == 1 }.map { it.name }.filter { it.isNotBlank() }.take(12),
+                studio = d.stars.firstOrNull { it.staffType == 2 }?.name?.let { "Dir. $it" },
+                slug = s.detailPath?.takeIf { it.isNotBlank() } ?: slug,
+                dubs = structuredDubs,
+            ),
         )
     }
 }
@@ -309,7 +408,9 @@ object GatewayLayout {
     const val HOME_SECTION = "home"
     const val BANNER = "Banner"
 
-    private val HOME_SKIP = Regex("""(?i)\b(anime|live|football|sport)\b""")
+    /** Excludes anime/live/sports and regional Indian/Bengali/Pakistani drama serials from `Space.HOME` (kept in `Space.DRAMA`). */
+    internal val HOME_REGIONAL_DRAMA = Regex("""(?i)(indian\s*dramas?|zee\s*bangla|star\s*jalsha|star\s*jalsa|sony\s*aa?th|pakistani?)""")
+    private val HOME_SKIP = Regex("""(?i)(\b(anime|live|football|sport)\b|indian\s*dramas?|zee\s*bangla|star\s*jalsha|star\s*jalsa|sony\s*aa?th|pakistani?)""")
 
     data class RowSpec(val space: Space, val path: String, val params: Map<String, String>, val title: String, val style: RowStyle) {
         val id: String
@@ -346,16 +447,11 @@ object GatewayLayout {
         else -> emptyList()
     }
 
-    /** Cinetor Beta pageable extra shelves on Home (`For You`). */
+    /** Pageable extra shelves on Home (`For You`) — regional Indian/Bengali/Pakistani dramas live in `Space.DRAMA`. */
     fun homeExtraShelves(): List<RowSpec> {
         val s = Space.HOME
         return listOf(
             row(s, "short-tv", "🔥 Hot Short TV", RowStyle.POSTER, "sort" to "hottest"),
-            row(s, "zee-bangla", "Zee Bangla Serials", RowStyle.POSTER),
-            row(s, "tv-series", "Zee Bangla Shows", RowStyle.POSTER, "genre" to "Zee Bangla", "country" to "India", "sort" to "latest"),
-            row(s, "tv-series", "Star Jalsha Shows", RowStyle.POSTER, "genre" to "Star Jalsha", "country" to "India", "sort" to "latest"),
-            row(s, "tv-series", "Sony AATH Series", RowStyle.POSTER, "genre" to "Sony AATH", "country" to "India", "sort" to "latest"),
-            row(s, "tv-series", "Indian Dramas", RowStyle.POSTER, "country" to "India", "sort" to "hottest"),
             row(s, "movies", "Latest Movies", RowStyle.POSTER, "sort" to "latest"),
             row(s, "tv-series", "Latest Series", RowStyle.POSTER, "sort" to "latest"),
             row(s, "movies", "Hollywood", RowStyle.POSTER, "country" to "United States", "sort" to "hottest"),
@@ -397,24 +493,22 @@ object GatewayLayout {
     }
 
     private fun hasPlayableHomeCard(sec: GwSection): Boolean = sec.items.any { item ->
-        if (!item.hasResource || item.name.isNullOrBlank()) return@any false
+        if (!item.hasResource || item.resolvedName == null) return@any false
         val g = GatewayMapper.genresOf(item.genre)
         !GatewayMapper.isAdult(g, item.badge) && !GatewayMapper.isAnime(g)
     }
 
     /**
-     * Home "For You" tab: curated `/home` sections (excluding `Banner`, anime/sport sections, and
-     * sections with no non-anime/non-adult playable cards), with index 0 (first curated row / `/home`
-     * index 1) styled as [RowStyle.TOP10] and poster shelves as [RowStyle.POSTER], followed by
-     * Cinetor Beta's pageable extra shelves.
+     * Home "For You" tab: curated `/home` sections (excluding `Banner`, anime/sport, and regional
+     * Indian/Bengali/Pakistani dramas), rendered cleanly as unnumbered [RowStyle.POSTER] rows,
+     * followed by pageable Home extra shelves.
      */
     fun homeFeatured(sections: List<GwSection>): CatSpec {
         val s = Space.HOME
         val curated = sections
             .filter { !it.section.equals(BANNER, ignoreCase = true) && !HOME_SKIP.containsMatchIn(it.section) && hasPlayableHomeCard(it) }
-            .mapIndexed { i, sec ->
-                val style = if (i == 0) RowStyle.TOP10 else RowStyle.POSTER
-                row(s, HOME_SECTION, sec.section, style, "section" to sec.section)
+            .map { sec ->
+                row(s, HOME_SECTION, sec.section, RowStyle.POSTER, "section" to sec.section)
             }
         return CatSpec("gw:home-featured", "For You", curated + homeExtraShelves())
     }
@@ -438,7 +532,9 @@ object GatewayLayout {
     fun shortTv(sections: List<GwSection>): CatSpec {
         val s = Space.HOME
         val curated = sections.filter { sec ->
-            hasPlayableHomeCard(sec) && (sec.section.contains("Short Drama", true) || sec.section.contains("Short TV", true))
+            !HOME_SKIP.containsMatchIn(sec.section) &&
+                hasPlayableHomeCard(sec) &&
+                (sec.section.contains("Short Drama", true) || sec.section.contains("Short TV", true))
         }.map { sec -> row(s, HOME_SECTION, sec.section, RowStyle.POSTER, "section" to sec.section) }
         return CatSpec(
             "gw:short-tv",
@@ -446,23 +542,6 @@ object GatewayLayout {
             listOf(
                 row(s, "short-tv", "Latest Short TV", RowStyle.POSTER),
                 row(s, "short-tv", "🔥 Hot Short TV", RowStyle.POSTER, "sort" to "hottest"),
-            ) + curated,
-        )
-    }
-
-    /** `/zee-bangla` Bengali 59-show TV integration + Zee Bangla, Star Jalsha & Sony AATH shelves. */
-    fun zeeBangla(sections: List<GwSection>): CatSpec {
-        val s = Space.HOME
-        val curated = sections.filter { hasPlayableHomeCard(it) && it.section.contains("Zee Bangla", true) }
-            .map { sec -> row(s, HOME_SECTION, sec.section, RowStyle.POSTER, "section" to sec.section) }
-        return CatSpec(
-            "gw:zee-bangla",
-            "Zee Bangla",
-            listOf(
-                row(s, "zee-bangla", "Zee Bangla Serials", RowStyle.POSTER),
-                row(s, "tv-series", "Zee Bangla Shows", RowStyle.POSTER, "genre" to "Zee Bangla", "country" to "India", "sort" to "latest"),
-                row(s, "tv-series", "Star Jalsha Shows", RowStyle.POSTER, "genre" to "Star Jalsha", "country" to "India", "sort" to "latest"),
-                row(s, "tv-series", "Sony AATH Series", RowStyle.POSTER, "genre" to "Sony AATH", "country" to "India", "sort" to "latest"),
             ) + curated,
         )
     }
@@ -475,11 +554,6 @@ object GatewayLayout {
             listOf(
                 row(s, "tv-series", "Latest Series", RowStyle.POSTER),
                 row(s, "tv-series", "Popular Series", RowStyle.POSTER, "sort" to "hottest"),
-                row(s, "zee-bangla", "Zee Bangla Serials", RowStyle.POSTER),
-                row(s, "tv-series", "Zee Bangla Shows", RowStyle.POSTER, "genre" to "Zee Bangla", "country" to "India", "sort" to "latest"),
-                row(s, "tv-series", "Star Jalsha Shows", RowStyle.POSTER, "genre" to "Star Jalsha", "country" to "India", "sort" to "latest"),
-                row(s, "tv-series", "Sony AATH Series", RowStyle.POSTER, "genre" to "Sony AATH", "country" to "India", "sort" to "latest"),
-                row(s, "tv-series", "Indian Dramas", RowStyle.POSTER, "country" to "India", "sort" to "hottest"),
             ) + HOME_SERIES_GENRES.map { g -> row(s, "tv-series", "$g Series", RowStyle.POSTER, "genre" to g) },
         )
     }
@@ -670,6 +744,7 @@ class GatewayCatalogSource(
     private val slugs: SlugStore = InMemorySlugStore(),
     private val colors: DominantColors = NoDominantColors,
     private val adultAllowed: () -> Boolean = { false },
+    private val tmdbBridge: GatewayTmdbBridge = NoGatewayTmdbBridge,
 ) : CatalogRepository, RemoteSearch, PagedCatalog, RoutedCatalog, SearchSuggestions {
 
     private val summaries = ConcurrentHashMap<String, Item>()
@@ -716,7 +791,10 @@ class GatewayCatalogSource(
             return false
         }
         if (fromHomeCurated && space == Space.HOME) {
-            return !GatewayMapper.isAnime(rawGenres)
+            if (GatewayMapper.isAnime(rawGenres)) return false
+            val regionalSignal = listOfNotNull(raw.badge, raw.genre, raw.resolvedSlug).joinToString(" ")
+            if (GatewayLayout.HOME_REGIONAL_DRAMA.containsMatchIn(regionalSignal)) return false
+            return true
         }
         return when (space) {
             Space.DRAMA -> !(GatewayMapper.isAnime(rawGenres) && rawGenres.none { it.equals("Drama", true) || it.equals("Romance", true) })
@@ -745,7 +823,6 @@ class GatewayCatalogSource(
                     GatewayLayout.homeMovies(),
                     GatewayLayout.homeSeries(),
                     GatewayLayout.shortTv(home.sections),
-                    GatewayLayout.zeeBangla(home.sections),
                 ) to map(banner, Space.HOME, "gw:home-featured", fromHomeCurated = true)
             }
             Space.ANIME -> GatewayLayout.anime() to emptyList()
@@ -768,26 +845,128 @@ class GatewayCatalogSource(
         }
     }
 
+    private fun dubPriority(lang: String): Int = when {
+        lang.equals("Hindi", ignoreCase = true) -> 0
+        lang.equals("Bangla", ignoreCase = true) -> 1
+        lang.equals("English", ignoreCase = true) -> 2
+        lang.equals("Tamil", ignoreCase = true) -> 3
+        lang.equals("Telugu", ignoreCase = true) -> 4
+        else -> 5
+    }
+
+    private suspend fun discoverSiblingDubs(baseItem: Item, currentSubjectId: String?): List<DubOption> {
+        if (baseItem.space == Space.ADULT) return baseItem.dubs
+        val baseTitle = GatewayMapper.cleanBaseTitle(baseItem.title)
+        if (baseTitle.isBlank()) return baseItem.dubs
+        val normTarget = GatewayMapper.normalizeTitleKey(baseTitle)
+        val wantSeries = baseItem.type == ItemType.SERIES
+        val hits = runCatching { api.search(baseTitle).items }.getOrDefault(emptyList())
+        val merged = LinkedHashMap<String, DubOption>()
+        for (d in baseItem.dubs) {
+            if (d.subjectId.isNotBlank() && d.subjectId != currentSubjectId) {
+                merged[d.subjectId] = d.copy(languageName = fullLanguageName(d.languageName))
+            }
+        }
+        for (hit in hits) {
+            if (!hit.hasResource) continue
+            val hitName = hit.resolvedName ?: continue
+            val hitNorm = GatewayMapper.normalizeTitleKey(hit.baseTitle ?: hitName)
+            if (hitNorm != normTarget) continue
+            val hitIsSeries = hit.type.equals("tv", true) || hit.type == "2" || hit.type == "7" || hit.subjectType == 2 || hit.subjectType == 7
+            if (hitIsSeries != wantSeries) continue
+            val hitYear = hit.year?.take(4)?.toIntOrNull() ?: hit.releaseDate?.take(4)?.toIntOrNull() ?: 0
+            if (baseItem.year > 0 && hitYear > 0 && kotlin.math.abs(baseItem.year - hitYear) > 1) continue
+
+            for (nested in hit.dubs.dubOptionList(excludeSubjectId = currentSubjectId)) {
+                merged.putIfAbsent(nested.subjectId, nested)
+            }
+            val hitSid = hit.subjectId?.takeIf { it.isNotBlank() && it != currentSubjectId } ?: continue
+            val explicitLang = GatewayMapper.explicitDubLanguageOf(hitName, hit.badge, hit.resolvedSlug) ?: continue
+            merged.putIfAbsent(
+                hitSid,
+                DubOption(
+                    subjectId = hitSid,
+                    slug = hit.resolvedSlug ?: hitSid,
+                    languageName = explicitLang,
+                ),
+            )
+        }
+        return merged.values.sortedBy { dubPriority(it.languageName) }
+    }
+
+    private fun alignItemIdAndSpace(item: Item, requestedId: String, summary: Item?): Item {
+        val targetSpace = summary?.space ?: if (requestedId.startsWith(GatewayMapper.ADULT_PREFIX)) Space.ADULT else item.space
+        return if (item.id != requestedId || item.space != targetSpace) {
+            item.copy(id = requestedId, space = targetSpace)
+        } else {
+            item
+        }
+    }
+
     override suspend fun item(id: String): Item {
         val summary = summaries[id]
         if (summary?.space == Space.ADULT || id.startsWith(GatewayMapper.ADULT_PREFIX)) check(Space.ADULT)
         details[id]?.let { return it }
-        val slug = slugOf(id) ?: throw NotFoundException(id)
-        val d = api.detail(slug).data ?: throw NotFoundException(id)
-        val item = GatewayMapper.detailToItem(d, slug, summary, colors)?.let {
-            // Keep the id the card used (adult prefix etc.) even if the detail infers another space.
-            if (it.id != id) {
-                it.copy(
-                    id = id,
-                    space = summary?.space ?: if (id.startsWith(GatewayMapper.ADULT_PREFIX)) Space.ADULT else it.space,
-                )
-            } else {
-                it
+
+        val sid = GatewayMapper.subjectIdOf(id)
+        val primarySlug = slugOf(id) ?: sid
+
+        var resolved: Item? = primarySlug?.let { slug ->
+            runCatching { api.detail(slug).data }.getOrNull()?.let { d ->
+                GatewayMapper.detailToItem(d, slug, summary, colors)?.let { alignItemIdAndSpace(it, id, summary) }
             }
-        } ?: throw NotFoundException(id)
-        details[id] = item
-        item.slug?.let { slugs.put(id, it) }
-        return item
+        }
+
+        if (resolved == null && sid != null) {
+            GatewayMapper.parseTmdbSubjectId(sid)?.let { (media, tmdbId) ->
+                runCatching { tmdbBridge.detail(media, tmdbId) }.getOrNull()?.let { c ->
+                    resolved = alignItemIdAndSpace(GatewayMapper.tmdbCandidateToItem(c, colors), id, summary)
+                }
+            }
+        }
+
+        if (resolved == null && summary != null) {
+            resolved = summary
+        }
+
+        if (resolved == null && (!primarySlug.isNullOrBlank() || !sid.isNullOrBlank())) {
+            val hint = (primarySlug ?: sid.orEmpty())
+                .replace(Regex("""-[A-Za-z0-9]{8,}$"""), "")
+                .replace(Regex("""[-_]+"""), " ")
+                .trim()
+            if (hint.isNotEmpty()) {
+                val hits = runCatching { api.search(hint).items }.getOrDefault(emptyList())
+                val matchedRaw = (if (sid != null) hits.firstOrNull { it.subjectId == sid } else null)
+                    ?: hits.firstOrNull { it.hasResource }
+                if (matchedRaw != null) {
+                    val mapped = GatewayMapper.toItem(
+                        matchedRaw,
+                        if (id.startsWith(GatewayMapper.ADULT_PREFIX)) Space.ADULT else null,
+                        "gw:detail",
+                        colors,
+                    )?.let { alignItemIdAndSpace(it, id, summary) }
+                    val altSlug = matchedRaw.resolvedSlug?.takeIf { it != primarySlug }
+                    val altDetail = altSlug?.let { s ->
+                        runCatching { api.detail(s).data }.getOrNull()?.let { d ->
+                            GatewayMapper.detailToItem(d, s, mapped, colors)?.let { alignItemIdAndSpace(it, id, mapped) }
+                        }
+                    }
+                    resolved = altDetail ?: mapped
+                }
+            }
+        }
+
+        val base = resolved ?: throw NotFoundException(id)
+        if (base.space == Space.ADULT) check(Space.ADULT)
+
+        val enrichedDubs = discoverSiblingDubs(base, sid)
+        val playable = GatewayMapper.ensurePlayableSeasons(
+            if (enrichedDubs.isNotEmpty() && enrichedDubs != base.dubs) base.copy(dubs = enrichedDubs) else base,
+        )
+        details[id] = playable
+        summaries.putIfAbsent(id, playable)
+        playable.slug?.let { slugs.put(id, it) }
+        return playable
     }
 
     override suspend fun row(rowId: String): List<Item> = rowPage(rowId, 1).items
@@ -857,22 +1036,142 @@ class GatewayCatalogSource(
         return summaries.values.filter { it.space == space }
     }
 
-    /** Global search: video spaces only — adult results are dropped (never in global search). */
-    override suspend fun search(query: String): List<Item> {
+    private fun cleanQueryWords(q: String): String =
+        q.replace(Regex("""[^\p{L}\p{N}\s]+"""), " ").replace(Regex("""\s+"""), " ").trim()
+
+    /** Global search: video spaces only — combines gateway `/search`, progressive/token fallback, and TMDB `/search/multi`. */
+    override suspend fun search(query: String): List<Item> = coroutineScope {
         val trimmed = query.trim()
-        if (trimmed.isEmpty()) return emptyList()
-        var results = map(api.search(trimmed).items, null, "gw:search").filter { it.space.isVideo }
-        if (results.isEmpty()) {
-            // Typo recovery matching Cinetor Beta: retry once with top suggestion stripped of bracket tags.
-            val suggestion = runCatching { api.suggest(trimmed).firstOrNull() }.getOrNull()
+        if (trimmed.isEmpty()) return@coroutineScope emptyList()
+
+        val primaryDeferred = async { map(api.search(trimmed).items, null, "gw:search").filter { it.space.isVideo } }
+        val tmdbDeferred = async {
+            if (tmdbBridge.isConfigured) runCatching { tmdbBridge.searchMulti(trimmed) }.getOrDefault(emptyList()) else emptyList()
+        }
+
+        val triedQueries = LinkedHashSet<String>().apply { add(trimmed.lowercase(Locale.US)) }
+        var gwResults = primaryDeferred.await()
+        val tmdbHits = tmdbDeferred.await()
+
+        if (gwResults.isEmpty()) {
+            val fallbackQueries = ArrayList<String>(5)
+            val cleaned = cleanQueryWords(trimmed)
+            if (cleaned.isNotEmpty() && triedQueries.add(cleaned.lowercase(Locale.US))) {
+                fallbackQueries += cleaned
+            }
+            runCatching { api.suggest(trimmed).firstOrNull() }.getOrNull()
                 ?.replace(Regex("""\s*\[[^]]*]"""), "")
                 ?.trim()
-                ?.takeIf { it.isNotEmpty() && !it.equals(trimmed, ignoreCase = true) }
-            if (suggestion != null) {
-                results = map(api.search(suggestion).items, null, "gw:search").filter { it.space.isVideo }
+                ?.takeIf { it.isNotEmpty() && triedQueries.add(it.lowercase(Locale.US)) }
+                ?.let { fallbackQueries += it }
+
+            for (t in tmdbHits.take(2)) {
+                for (candidateTitle in listOfNotNull(cleanQueryWords(t.title), t.title.trim(), t.originalTitle?.let(::cleanQueryWords))) {
+                    if (candidateTitle.isNotEmpty() && triedQueries.add(candidateTitle.lowercase(Locale.US))) {
+                        fallbackQueries += candidateTitle
+                    }
+                }
+            }
+
+            val words = cleaned.split(' ').filter { it.isNotEmpty() }
+            if (words.size >= 3) {
+                val twoWordPrefix = words.take(2).joinToString(" ")
+                if (triedQueries.add(twoWordPrefix.lowercase(Locale.US))) fallbackQueries += twoWordPrefix
+                val reordered = "${words.first()} ${words.last()}"
+                if (triedQueries.add(reordered.lowercase(Locale.US))) fallbackQueries += reordered
+            }
+
+            for (altQuery in fallbackQueries.take(4)) {
+                val found = runCatching { map(api.search(altQuery).items, null, "gw:search").filter { it.space.isVideo } }
+                    .getOrDefault(emptyList())
+                if (found.isNotEmpty()) {
+                    gwResults = found
+                    break
+                }
+            }
+        } else if (tmdbHits.isNotEmpty()) {
+            val topTmdb = tmdbHits.first()
+            val topNorm = GatewayMapper.normalizeTitleKey(topTmdb.title)
+            if (gwResults.none { GatewayMapper.normalizeTitleKey(it.title) == topNorm }) {
+                val canonicalClean = cleanQueryWords(topTmdb.title)
+                if (canonicalClean.isNotEmpty() && triedQueries.add(canonicalClean.lowercase(Locale.US))) {
+                    val canonicalGw = runCatching {
+                        map(api.search(canonicalClean).items, null, "gw:search").filter { it.space.isVideo }
+                    }.getOrDefault(emptyList())
+                    if (canonicalGw.isNotEmpty()) {
+                        gwResults = (canonicalGw + gwResults).distinctBy { it.id }
+                    }
+                }
             }
         }
-        return results
+
+        if (tmdbHits.isEmpty()) return@coroutineScope gwResults
+
+        val seenNorm = gwResults.map { "${it.type}:${GatewayMapper.normalizeTitleKey(it.title)}" }.toMutableSet()
+        val tmdbExtras = remember(
+            tmdbHits.mapNotNull { c ->
+                val mapped = GatewayMapper.tmdbCandidateToItem(c, colors)
+                val key = "${mapped.type}:${GatewayMapper.normalizeTitleKey(mapped.title)}"
+                if (mapped.id in unplayable || !seenNorm.add(key)) null else mapped
+            },
+        )
+        (gwResults + tmdbExtras).distinctBy { it.id }
+    }
+
+    override suspend fun castWorks(personName: String): List<Item> = coroutineScope {
+        val q = personName.trim()
+        if (q.isEmpty()) return@coroutineScope emptyList()
+        val gwDeferred = async {
+            runCatching { map(api.search(q).items, null, "gw:cast").filter { it.space.isVideo } }.getOrDefault(emptyList())
+        }
+        val tmdbDeferred = async {
+            if (tmdbBridge.isConfigured) runCatching { tmdbBridge.personCredits(q) }.getOrDefault(emptyList()) else emptyList()
+        }
+        val cachedCastMatches = details.values.filter { item ->
+            item.space.isVideo && item.id !in unplayable && item.cast.any { it.equals(q, ignoreCase = true) }
+        }
+        val gwItems = gwDeferred.await()
+        val tmdbItems = remember(tmdbDeferred.await().map { GatewayMapper.tmdbCandidateToItem(it, colors) })
+
+        val seenNorm = LinkedHashSet<String>()
+        val seenIds = LinkedHashSet<String>()
+        val combined = ArrayList<Item>()
+        for (candidate in gwItems + cachedCastMatches + tmdbItems) {
+            if (!candidate.space.isVideo || candidate.id in unplayable) continue
+            val normKey = GatewayMapper.normalizeTitleKey(candidate.title).ifEmpty { candidate.id }
+            if (seenIds.add(candidate.id) && seenNorm.add(normKey)) {
+                combined += candidate
+            }
+        }
+        combined
+    }
+
+    override suspend fun warmStartupSpaces(): List<String> = coroutineScope {
+        val targetSpaces = listOf(Space.HOME, Space.ANIME, Space.DRAMA)
+        val perSpaceItems = targetSpaces.map { sp ->
+            async {
+                runCatching {
+                    val cats = categories(sp)
+                    val firstCat = cats.firstOrNull() ?: return@runCatching emptyList<Item>()
+                    val heroes = firstCat.heroIds.mapNotNull { summary(it) }
+                    val rowItems = firstCat.rows.take(2).map { r ->
+                        async { runCatching { row(r.id) }.getOrDefault(emptyList()) }
+                    }.awaitAll().flatten()
+                    heroes + rowItems
+                }.getOrDefault(emptyList())
+            }
+        }.awaitAll().flatten()
+
+        val urls = LinkedHashSet<String>()
+        for (item in perSpaceItems) {
+            for (u in listOf(item.backdrop, item.poster)) {
+                if (u.startsWith("https://") || u.startsWith("http://")) {
+                    urls += u
+                    if (urls.size >= 24) return@coroutineScope urls.toList()
+                }
+            }
+        }
+        urls.toList()
     }
 
     override suspend fun suggest(query: String): List<String> =

@@ -21,4 +21,10 @@ interface CatalogRepository {
 
     /** Every item of a space (used to build search indexes). */
     suspend fun allItems(space: Space): List<Item>
+
+    /** Filmography works for [personName] across gateway search + TMDB person credits. */
+    suspend fun castWorks(personName: String): List<Item> = emptyList()
+
+    /** Concurrently warms `HOME`, `ANIME`, and `DRAMA` and returns up to 24 hero/row image URLs. */
+    suspend fun warmStartupSpaces(): List<String> = emptyList()
 }

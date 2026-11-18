@@ -3,6 +3,7 @@ package com.mythbrix.cinetor.core.data.gateway
 import com.mythbrix.cinetor.TestFiles
 import com.mythbrix.cinetor.core.data.CatalogRepository
 import com.mythbrix.cinetor.core.data.Category
+import com.mythbrix.cinetor.core.data.DubOption
 import com.mythbrix.cinetor.core.data.HybridCatalog
 import com.mythbrix.cinetor.core.data.Item
 import com.mythbrix.cinetor.core.data.ItemType
@@ -11,7 +12,9 @@ import com.mythbrix.cinetor.core.data.SearchEngine
 import com.mythbrix.cinetor.core.data.SearchRepository
 import com.mythbrix.cinetor.core.data.SourceKind
 import com.mythbrix.cinetor.core.data.Space
+import com.mythbrix.cinetor.core.data.fullLanguageName
 import com.mythbrix.cinetor.core.player.GatewaySourceResolver
+import com.mythbrix.cinetor.core.player.KnownSubtitle
 import com.mythbrix.cinetor.core.player.SourceResolver
 import com.mythbrix.cinetor.core.player.StreamType
 import kotlinx.coroutines.test.runTest
@@ -116,14 +119,15 @@ class GatewayTest {
         val (http, _, gw) = env()
         val cats = gw.categories(Space.HOME)
         assertEquals(
-            listOf("gw:home-featured", "gw:home-movies", "gw:home-series", "gw:short-tv", "gw:zee-bangla"),
+            listOf("gw:home-featured", "gw:home-movies", "gw:home-series", "gw:short-tv"),
             cats.map { it.id },
         )
         val featured = cats.first()
         assertEquals(3, featured.heroIds.size) // Banner section (sample trimmed to 3) → hero carousel
         assertTrue("heroes ${featured.heroIds}", featured.heroIds.all { it.startsWith("gw:") })
         assertFalse("rows ${featured.rows.map { it.title }}", featured.rows.any { it.title == "Banner" })
-        assertEquals(RowStyle.TOP10, featured.rows[0].style)
+        assertEquals(RowStyle.POSTER, featured.rows[0].style)
+        assertTrue(featured.rows.none { it.style == RowStyle.TOP10 })
         val popular = gw.row(featured.rows.first().id)
         assertEquals(3, popular.size)
         assertEquals(1, http.urls.count { it.endsWith("/home") }) // cached for the section row
@@ -141,9 +145,9 @@ class GatewayTest {
         assertEquals(first.poster, first.backdrop)
     }
 
-    /** Curated `/home` sections (minus Banner & anime/sport) render in order, followed by Beta pageable shelves. */
+    /** Curated `/home` sections (minus Banner, anime/sport & regional Indian/Bengali/Pakistani dramas) render in order, followed by pageable Home shelves. */
     @Test
-    fun home_rendersCuratedSectionsInOrder_plusBetaShelvesShortTvAndZeeBangla() = runTest {
+    fun home_rendersCuratedSectionsInOrder_excludesRegionalDramasToDramaSpace_andUsesPosterStyle() = runTest {
         val http = FakeGatewayHttp(GatewayFixtures.fullHomeRoutes())
         val api = GatewayApi(http, GatewayCache(clock = { 0L }))
         val gw = GatewayCatalogSource(api)
@@ -154,13 +158,19 @@ class GatewayTest {
             .filter { sec ->
                 !sec.section.equals("Banner", true) &&
                     !sec.section.contains("Anime", true) &&
+                    !sec.section.contains("Zee Bangla", true) &&
+                    !sec.section.contains("Indian Drama", true) &&
+                    !sec.section.contains("Star Jalsha", true) &&
+                    !sec.section.contains("Sony AATH", true) &&
+                    !sec.section.contains("Pakistani", true) &&
                     sec.items.any { it.hasResource && !GatewayMapper.isAnime(GatewayMapper.genresOf(it.genre)) }
             }
             .map { it.section }
         val featured = cats.first { it.id == "gw:home-featured" }
         assertEquals(expectedCurated, featured.rows.take(expectedCurated.size).map { it.title })
         assertEquals(expectedCurated.size + GatewayLayout.homeExtraShelves().size, featured.rows.size)
-        assertEquals(RowStyle.TOP10, featured.rows.first().style)
+        assertEquals(RowStyle.POSTER, featured.rows.first().style)
+        assertTrue(featured.rows.none { it.style == RowStyle.TOP10 })
         assertEquals(2, featured.heroIds.size)
 
         // Coming Soon's first fixture item is has_resource=false → never listed.
@@ -170,12 +180,14 @@ class GatewayTest {
         val short = cats.first { it.id == "gw:short-tv" }
         assertEquals(3, gw.rowPage(short.rows.first().id, 1).items.size)
         assertTrue(http.urls.last(), http.urls.last().contains("short-tv?page=1"))
-        val zee = cats.first { it.id == "gw:zee-bangla" }
-        assertTrue(gw.rowPage(zee.rows.first().id, 1).items.isNotEmpty())
-        assertTrue(http.urls.last(), http.urls.last().contains("zee-bangla?page=1"))
-        // Curated short / Zee sections also appear inside their own tabs.
         assertTrue(short.rows.any { it.title.contains("Short Drama") || it.title.contains("Short TV") })
-        assertTrue(zee.rows.any { it.title.contains("Zee Bangla") })
+
+        // Zee Bangla & Indian Dramas stay rich inside Space.DRAMA rather than Space.HOME.
+        assertFalse(cats.any { it.id == "gw:zee-bangla" })
+        val dramaIn = gw.categories(Space.DRAMA).first { it.id == "gw:drama-in" }
+        val zeeRow = dramaIn.rows.first { it.id.contains(":zee-bangla?") }
+        assertTrue(gw.rowPage(zeeRow.id, 1).items.isNotEmpty())
+        assertTrue(http.urls.last(), http.urls.last().contains("zee-bangla?page=1"))
     }
 
     @Test
@@ -527,5 +539,428 @@ class GatewaySigningTest {
         val parsedDate = GatewaySigner.parseServerEpochSec("""{"error":"unauthorized"}""", "Wed, 18 Nov 2026 08:00:00 GMT")
         assertNotNull(parsedDate)
         assertEquals(1794988800L, parsedDate)
+    }
+}
+
+class GatewayV21FeaturesTest {
+
+    @Test
+    fun fullLanguageName_mapsAllIsoCodesVariants_andNeverOutputsShortCodes() {
+        val cases = mapOf(
+            "bn" to "Bangla",
+            "ben" to "Bangla",
+            "bengali" to "Bangla",
+            "bangla" to "Bangla",
+            "বাংলা" to "Bangla",
+            "bn-BD" to "Bangla",
+            "en" to "English",
+            "eng" to "English",
+            "en-US" to "English",
+            "hi" to "Hindi",
+            "hin" to "Hindi",
+            "Hindi Dub" to "Hindi",
+            "ur" to "Urdu",
+            "urd" to "Urdu",
+            "zh" to "Chinese",
+            "chi" to "Chinese",
+            "zho" to "Chinese",
+            "zh-cn" to "Chinese",
+            "zh-tw" to "Chinese",
+            "ar" to "Arabic",
+            "ara" to "Arabic",
+            "ko" to "Korean",
+            "kor" to "Korean",
+            "ja" to "Japanese",
+            "jpn" to "Japanese",
+            "es" to "Spanish",
+            "spa" to "Spanish",
+            "fr" to "French",
+            "fre" to "French",
+            "fra" to "French",
+            "French dub" to "French",
+            "id" to "Indonesian",
+            "ind" to "Indonesian",
+            "in" to "Indonesian",
+            "tr" to "Turkish",
+            "tur" to "Turkish",
+            "ta" to "Tamil",
+            "tam" to "Tamil",
+            "te" to "Telugu",
+            "tel" to "Telugu",
+            "ml" to "Malayalam",
+            "pa" to "Punjabi",
+            "ru" to "Russian",
+            "pt" to "Portuguese",
+            "ms" to "Malay",
+            "th" to "Thai",
+            "vi" to "Vietnamese",
+            "tl" to "Filipino",
+            "fil" to "Filipino",
+            "de" to "German",
+            "it" to "Italian",
+            "und" to "Original",
+            "" to "Original",
+            "   " to "Original",
+            "Original Audio" to "Original",
+        )
+        for ((input, expected) in cases) {
+            val actual = fullLanguageName(input)
+            assertEquals("Failed for input='$input'", expected, actual)
+            assertTrue("Short code leaked for '$input': '$actual'", actual.length > 3)
+        }
+        // Unknown 2/3-letter codes must never pass through as raw 2/3-letter codes.
+        assertTrue(fullLanguageName("qzx").length > 3)
+        assertTrue(fullLanguageName("zz").length > 3)
+    }
+
+    @Test
+    fun homeCleanup_removesIndianBengaliPakistaniFromHome_keepsThemInDrama_andUsesPosterForTrending() = runTest {
+        val customHome = """{"status":"success","sections":[
+          {"section":"Banner","items":[
+            {"name":"Dune Part Two","slug":"dune-2","subject_id":"101","poster_url":"https://img.test/101.jpg","genre":"Sci-Fi,Action","type":"movie","has_resource":true}
+          ]},
+          {"section":"Trending Now","items":[
+            {"name":"Gladiator II","slug":"glad-2","subject_id":"102","poster_url":"https://img.test/102.jpg","genre":"Action,Drama","type":"movie","has_resource":true}
+          ]},
+          {"section":"Indian Dramas","items":[
+            {"name":"Anupamaa","slug":"anu-1","subject_id":"103","poster_url":"https://img.test/103.jpg","genre":"Drama","type":"tv","country":"India","has_resource":true}
+          ]},
+          {"section":"Zee Bangla Shows","items":[
+            {"name":"Jagaddhatri","slug":"jag-1","subject_id":"104","poster_url":"https://img.test/104.jpg","genre":"Drama","type":"tv","country":"India","has_resource":true}
+          ]},
+          {"section":"Star Jalsha Hits","items":[
+            {"name":"Geeta LLB","slug":"geeta-1","subject_id":"105","poster_url":"https://img.test/105.jpg","genre":"Drama","type":"tv","country":"India","has_resource":true}
+          ]},
+          {"section":"Sony AATH Classics","items":[
+            {"name":"Gopal Bhar","slug":"gopal-1","subject_id":"106","poster_url":"https://img.test/106.jpg","genre":"Comedy","type":"tv","country":"India","has_resource":true}
+          ]},
+          {"section":"Pakistani Blockbusters","items":[
+            {"name":"Tere Bin","slug":"terebin-1","subject_id":"107","poster_url":"https://img.test/107.jpg","genre":"Drama,Romance","type":"tv","country":"Pakistan","has_resource":true}
+          ]}
+        ]}"""
+        val http = FakeGatewayHttp(GatewayFixtures.routes() + mapOf("home" to customHome))
+        val api = GatewayApi(http, GatewayCache(clock = { 0L }))
+        val gw = GatewayCatalogSource(api)
+
+        val homeCats = gw.categories(Space.HOME)
+        val allHomeRows = homeCats.flatMap { it.rows }
+        val bannedTokens = listOf("indian drama", "zee bangla", "star jalsha", "sony aath", "pakistani")
+        for (cat in homeCats) {
+            for (token in bannedTokens) {
+                assertFalse("Banned category '$token' on HOME: ${cat.title}", cat.title.contains(token, ignoreCase = true))
+            }
+        }
+        for (row in allHomeRows) {
+            for (token in bannedTokens) {
+                assertFalse("Banned row '$token' on HOME: ${row.title}", row.title.contains(token, ignoreCase = true))
+            }
+            assertFalse("RowStyle.TOP10 must not be used on HOME: ${row.title}", row.style == RowStyle.TOP10)
+        }
+        val trending = homeCats.first().rows.first { it.title == "Trending Now" }
+        assertEquals(RowStyle.POSTER, trending.style)
+
+        // All regional drama categories & shelves remain rich inside Space.DRAMA.
+        val dramaCats = gw.categories(Space.DRAMA)
+        assertTrue(dramaCats.any { it.title == "Indian Drama" })
+        assertTrue(dramaCats.any { it.title == "Pakistani Drama" })
+        val dramaRowTitles = dramaCats.flatMap { it.rows }.map { it.title }
+        assertTrue(dramaRowTitles.any { it.contains("Indian Dramas", ignoreCase = true) })
+        assertTrue(dramaRowTitles.any { it.contains("Zee Bangla", ignoreCase = true) })
+        assertTrue(dramaRowTitles.any { it.contains("Star Jalsha", ignoreCase = true) })
+        assertTrue(dramaRowTitles.any { it.contains("Sony AATH", ignoreCase = true) })
+        assertTrue(dramaRowTitles.any { it.contains("Pakistani", ignoreCase = true) })
+    }
+
+    @Test
+    fun item_neverThrowsTitleNotFoundWhenSummaryOrSearchOrTmdbResolves_andSynthesizesSeason1Ep1() = runTest {
+        val sparseHome = """{"status":"success","sections":[
+          {"section":"Popular Series","items":[
+            {"name":"Broken Detail Show","slug":"broken-detail-show","subject_id":"88801","poster_url":"https://img.test/88801.jpg","genre":"Drama","type":"tv","has_resource":true}
+          ]}
+        ]}"""
+        val emptySeasonDetail = """{"code":0,"data":{"subject":{"subjectId":"88802","subjectType":2,"title":"Empty Seasons Series","releaseDate":"2025-05-01","genre":"Thriller","detailPath":"empty-seasons-88802"},"stars":[],"resource":{"seasons":[]}}}"""
+        val http = GatewayHttp { url, _ ->
+            when {
+                url.endsWith("/home") -> sparseHome
+                url.contains("/detail/broken-detail-show") -> throw GatewayHttpException(404, "missing detail")
+                url.contains("/detail/empty-seasons-88802") -> emptySeasonDetail
+                url.contains("/search?") -> """{"page":1,"has_more":false,"items":[]}"""
+                else -> throw GatewayHttpException(404, "not found")
+            }
+        }
+        val fakeTmdb = object : GatewayTmdbBridge {
+            override val isConfigured: Boolean = true
+            override suspend fun searchMulti(query: String): List<TmdbCandidate> = emptyList()
+            override suspend fun personCredits(personName: String): List<TmdbCandidate> = emptyList()
+            override suspend fun detail(mediaType: String, tmdbId: Int): TmdbCandidate? =
+                if (mediaType == "tv" && tmdbId == 293610) {
+                    TmdbCandidate(
+                        tmdbId = 293610,
+                        mediaType = "tv",
+                        title = "Doctor X: Mafia in White",
+                        year = 2025,
+                        rating = 8.1,
+                        posterUrl = "https://image.tmdb.org/t/p/w500/doc-x.jpg",
+                        backdropUrl = "https://image.tmdb.org/t/p/w780/doc-x-bg.jpg",
+                        synopsis = "Medical crime drama.",
+                    )
+                } else {
+                    null
+                }
+        }
+        val api = GatewayApi(http, GatewayCache(clock = { 0L }))
+        val gw = GatewayCatalogSource(api, tmdbBridge = fakeTmdb)
+
+        // 1. Card loaded from row whose /detail throws 404 still opens from summary with synthesized S1E1!
+        val cats = gw.categories(Space.HOME)
+        val cards = gw.row(cats.first().rows.first().id)
+        val brokenCard = cards.single { it.id == "gw:88801" }
+        val synthesized = gw.item(brokenCard.id)
+        assertEquals("Broken Detail Show", synthesized.title)
+        assertEquals(ItemType.SERIES, synthesized.type)
+        assertEquals(1, synthesized.seasons.size)
+        assertEquals("s1e1", synthesized.seasons.first().episodes.single().id)
+
+        // 2. Detail returning subjectType=2 with empty seasons also synthesizes S1E1 so playback works!
+        val slugs = InMemorySlugStore().apply { put("gw:88802", "empty-seasons-88802") }
+        val gw2 = GatewayCatalogSource(api, slugs = slugs, tmdbBridge = fakeTmdb)
+        val fromEmptyDetail = gw2.item("gw:88802")
+        assertEquals("Empty Seasons Series", fromEmptyDetail.title)
+        assertEquals(1, fromEmptyDetail.seasons.size)
+        assertEquals("s1e1", fromEmptyDetail.seasons.first().episodes.single().id)
+
+        // 3. Cold deep-link to gw:tmdb-tv-293610 resolves via GatewayTmdbBridge with S1E1!
+        val tmdbItem = gw2.item("gw:tmdb-tv-293610")
+        assertEquals("Doctor X: Mafia in White", tmdbItem.title)
+        assertEquals("s1e1", tmdbItem.seasons.first().episodes.single().id)
+
+        // 4. Lenient DTO deserialization handles missing/null fields cleanly.
+        val sparseDetail = GatewayApi.json.decodeFromString(GwDetail.serializer(), """{"code":null,"data":{"subject":{"subjectId":null,"title":null}}}""")
+        assertNotNull(sparseDetail)
+    }
+
+    @Test
+    fun hybridSearch_resolvesBiggBossAndDoctorXWhiteMafia_andHttpBridgeSupportsBearerAndApiKey() = runTest {
+        val http = GatewayHttp { url, _ ->
+            when {
+                url.contains("/search?") && url.contains("Doctor%20X%20Mafia%20in%20White", ignoreCase = true) ->
+                    """{"page":1,"has_more":false,"items":[{"name":"Doctor X: Mafia in White","slug":"doctor-x-mafia-in-white","subject_id":"99100","poster_url":"https://img.test/dx.jpg","genre":"Drama,Crime","type":"tv","country":"Korea","year":"2025","has_resource":true}]}"""
+                url.contains("/search?") -> """{"page":1,"has_more":false,"items":[]}"""
+                url.contains("/search/suggest?") -> """{"suggestions":[]}"""
+                url.contains("/stream/tmdb-tv-19668") ->
+                    """{"subject_id":"tmdb-tv-19668","se":1,"ep":1,"has_resource":true,"sources":[{"source":"YouTube","resolution":"720p","format":"YOUTUBE","url":"https://www.youtube.com/watch?v=dQw4w9WgXcQ"}]}"""
+                url.contains("/captions") -> """{"count":0,"captions":[]}"""
+                else -> throw GatewayHttpException(404, "no route")
+            }
+        }
+        val mockTmdbClient = OkHttpClient.Builder()
+            .addInterceptor { chain ->
+                val req = chain.request()
+                val q = req.url.queryParameter("query").orEmpty()
+                val body = when {
+                    q.contains("Doctor X", ignoreCase = true) ->
+                        """{"results":[{"id":293610,"media_type":"tv","name":"Doctor X: Mafia in White","first_air_date":"2025-01-10","vote_average":8.2,"poster_path":"/dx.jpg","backdrop_path":"/dx_bg.jpg","overview":"Surgeon noir."}]}"""
+                    q.contains("Bigg Boss", ignoreCase = true) ->
+                        """{"results":[{"id":19668,"media_type":"tv","name":"Bigg Boss","first_air_date":"2006-11-03","vote_average":6.8,"poster_path":"/bb.jpg","backdrop_path":"/bb_bg.jpg","overview":"Reality TV show."}]}"""
+                    else -> """{"results":[]}"""
+                }
+                Response.Builder()
+                    .request(req)
+                    .protocol(Protocol.HTTP_1_1)
+                    .code(200)
+                    .message("OK")
+                    .body(body.toResponseBody("application/json".toMediaType()))
+                    .build()
+            }
+            .build()
+
+        val bridge = HttpGatewayTmdbBridge(
+            client = mockTmdbClient,
+            bearerToken = { "" },
+            apiKey = { "test-v3-api-key" },
+        )
+        assertTrue(bridge.isConfigured)
+        val api = GatewayApi(http, GatewayCache(clock = { 0L }))
+        val gw = GatewayCatalogSource(api, tmdbBridge = bridge)
+
+        // "Doctor X: White Mafia" resolves via TMDB -> canonical title "Doctor X: Mafia in White" -> native gateway subject!
+        val docResults = gw.search("Doctor X: White Mafia")
+        assertTrue(docResults.isNotEmpty())
+        assertEquals("Doctor X: Mafia in White", docResults.first().title)
+        assertEquals("gw:99100", docResults.first().id)
+
+        // "Bigg Boss" resolves via TMDB fallback -> gw:tmdb-tv-19668, opens via item(id), and plays via GatewaySourceResolver!
+        val bbResults = gw.search("Bigg Boss")
+        assertTrue(bbResults.isNotEmpty())
+        val bb = bbResults.first()
+        assertEquals("gw:tmdb-tv-19668", bb.id)
+        assertEquals("Bigg Boss", bb.title)
+        val fullBb = gw.item(bb.id)
+        assertEquals(1, fullBb.seasons.size)
+        val resolver = GatewaySourceResolver(api, slugOf = { gw.slugOf(it) })
+        val playableBb = resolver.attach(fullBb, "s1e1")
+        val req = SourceResolver.request(playableBb, "s1e1")
+        assertNotNull(req)
+        assertEquals("https://www.youtube-nocookie.com/embed/dQw4w9WgXcQ", req!!.plan.url)
+    }
+
+    @Test
+    fun castWorks_combinesGatewayAndTmdbPersonCredits_deduplicatesAndPopulatesSummaries() = runTest {
+        val http = GatewayHttp { url, _ ->
+            when {
+                url.contains("/search?") && url.contains("Shah", ignoreCase = true) ->
+                    """{"page":1,"has_more":false,"items":[
+                      {"name":"Jawan [Hindi]","slug":"jawan-hi","subject_id":"501","poster_url":"https://img.test/501.jpg","genre":"Action,Thriller","type":"movie","year":"2023","has_resource":true},
+                      {"name":"Adult Cast Noise","slug":"bad-cast","subject_id":"502","poster_url":"https://img.test/502.jpg","genre":"Adult,Erotic","type":"movie","year":"2023","has_resource":true}
+                    ]}"""
+                else -> """{"page":1,"has_more":false,"items":[]}"""
+            }
+        }
+        val fakeTmdb = object : GatewayTmdbBridge {
+            override val isConfigured: Boolean = true
+            override suspend fun searchMulti(query: String): List<TmdbCandidate> = emptyList()
+            override suspend fun detail(mediaType: String, tmdbId: Int): TmdbCandidate? = null
+            override suspend fun personCredits(personName: String): List<TmdbCandidate> = listOf(
+                // Duplicate of Jawan -> must be deduplicated in favor of native gateway gw:501
+                TmdbCandidate(tmdbId = 872906, mediaType = "movie", title = "Jawan", year = 2023, rating = 7.2, posterUrl = "https://image.tmdb.org/t/p/w500/jawan.jpg"),
+                TmdbCandidate(tmdbId = 783461, mediaType = "movie", title = "Pathaan", year = 2023, rating = 6.7, posterUrl = "https://image.tmdb.org/t/p/w500/pathaan.jpg"),
+            )
+        }
+        val api = GatewayApi(http, GatewayCache(clock = { 0L }))
+        val gw = GatewayCatalogSource(api, tmdbBridge = fakeTmdb)
+        val hybrid = HybridCatalog(listOf(gw), TestFiles.catalog())
+
+        val works = hybrid.castWorks("Shah Rukh Khan")
+        assertEquals(2, works.size)
+        assertEquals("gw:501", works[0].id)
+        assertEquals("gw:tmdb-movie-783461", works[1].id)
+        assertTrue(works.none { it.space == Space.ADULT })
+        // Every returned work is remembered in summaries so item(id) opens without "Title not found"!
+        for (work in works) {
+            assertEquals(work.title, hybrid.item(work.id).title)
+        }
+    }
+
+    @Test
+    fun warmStartupSpaces_fetchesHomeAnimeDramaConcurrently_andReturnsCappedImageUrls() = runTest {
+        val http = FakeGatewayHttp(GatewayFixtures.fullHomeRoutes())
+        val api = GatewayApi(http, GatewayCache(clock = { 0L }))
+        val gw = GatewayCatalogSource(api)
+        val hybrid = HybridCatalog(listOf(gw), TestFiles.catalog())
+
+        val urls = hybrid.warmStartupSpaces()
+        assertTrue("Expected non-empty image URLs", urls.isNotEmpty())
+        assertTrue("Expected <= 24 URLs, got ${urls.size}", urls.size <= 24)
+        assertEquals(urls.size, urls.distinct().size)
+        assertTrue(urls.all { it.startsWith("https://") || it.startsWith("http://") })
+        // Confirmed HOME, ANIME, and DRAMA endpoints were all warmed.
+        assertTrue(http.urls.any { it.endsWith("/home") })
+        assertTrue(http.urls.any { it.contains("genre=Anime") || it.contains("/animation") })
+        assertTrue(http.urls.any { it.contains("country=Korea") })
+    }
+
+    @Test
+    fun audioDubs_discoversSiblingDubs_populatesItemDubs_andAttachesPlayableDubSources() = runTest {
+        val mainDetail = """{"code":0,"data":{"subject":{"subjectId":"7001","subjectType":1,"title":"Pushpa: The Rise","releaseDate":"2021-12-17","duration":10500,"genre":"Action,Drama","cover":{"url":"https://img.test/p.jpg"},"detailPath":"pushpa-orig","dubs":[
+          {"subjectId":"7001","lanName":"Original Audio","lanCode":"te","original":true,"type":0,"detailPath":"pushpa-orig"},
+          {"subjectId":"7002","lanName":"hi","lanCode":"hi","original":false,"type":0,"detailPath":"pushpa-hindi"},
+          {"subjectId":"7099","lanName":"ar","lanCode":"ar","original":false,"type":1,"detailPath":"pushpa-ar-sub"}
+        ]},"stars":[],"resource":{"seasons":[]}}}"""
+        val siblingSearch = """{"page":1,"has_more":false,"items":[
+          {"name":"Pushpa: The Rise","slug":"pushpa-orig","subject_id":"7001","type":"movie","year":"2021","has_resource":true},
+          {"name":"Pushpa: The Rise [Bangla]","slug":"pushpa-bangla","subject_id":"7003","type":"movie","year":"2021","has_resource":true},
+          {"name":"Pushpa: The Rise [English]","slug":"pushpa-eng","subject_id":"7004","type":"movie","year":"2021","has_resource":true}
+        ]}"""
+        val http = GatewayHttp { url, _ ->
+            when {
+                url.contains("/detail/pushpa-orig") -> mainDetail
+                url.contains("/search?") -> siblingSearch
+                url.contains("/stream/7001/captions") -> """{"count":0,"captions":[]}"""
+                url.contains("/stream/7001?") -> """{"subject_id":"7001","se":0,"ep":0,"has_resource":true,"sources":[{"source":"MovieBox","resolution":"1080p","format":"MP4","url":"https://cdn.test/7001-orig.mp4","codec":"h264"}]}"""
+                url.contains("/stream/7002?") -> """{"subject_id":"7002","se":0,"ep":0,"has_resource":true,"sources":[{"source":"MovieBox","resolution":"1080p","format":"MP4","url":"https://cdn.test/7002-hi.mp4","codec":"h264"}]}"""
+                url.contains("/stream/7003?") -> """{"subject_id":"7003","se":0,"ep":0,"has_resource":true,"sources":[{"source":"MovieBox","resolution":"720p","format":"MP4","url":"https://cdn.test/7003-bn.mp4","codec":"h264"}]}"""
+                url.contains("/stream/7004?") -> """{"subject_id":"7004","se":0,"ep":0,"has_resource":true,"sources":[{"source":"MovieBox","resolution":"1080p","format":"MP4","url":"https://cdn.test/7004-en.mp4","codec":"h264"}]}"""
+                else -> throw GatewayHttpException(404, "no route for $url")
+            }
+        }
+        val slugs = InMemorySlugStore().apply { put("gw:7001", "pushpa-orig") }
+        val api = GatewayApi(http, GatewayCache(clock = { 0L }))
+        val gw = GatewayCatalogSource(api, slugs = slugs)
+
+        val item = gw.item("gw:7001")
+        val dubLangs = item.dubs.map { it.languageName }
+        assertTrue("Expected Hindi, Bangla, English in $dubLangs", dubLangs.containsAll(listOf("Hindi", "Bangla", "English")))
+        assertFalse("Burnt-in sub (type=1) must not appear in dubs: $dubLangs", dubLangs.contains("Arabic"))
+        assertTrue(item.dubs.all { it.languageName.length > 3 })
+
+        val resolver = GatewaySourceResolver(api, slugOf = { gw.slugOf(it) }, isMobile = { false })
+        val attached = resolver.attach(item, null)
+        val audioLangs = attached.sources.mapNotNull { it.audioLang }.toSet()
+        assertTrue("Expected Original, Hindi, Bangla, English in $audioLangs", audioLangs.containsAll(listOf("Original", "Hindi", "Bangla", "English")))
+        val hindiSrc = attached.sources.first { it.audioLang == "Hindi" }
+        assertEquals("https://cdn.test/7002-hi.mp4", hindiSrc.url)
+        assertTrue(hindiSrc.label.orEmpty().contains("Hindi"))
+        val banglaSrc = attached.sources.first { it.audioLang == "Bangla" }
+        assertEquals("https://cdn.test/7003-bn.mp4", banglaSrc.url)
+        assertTrue(banglaSrc.label.orEmpty().contains("Bangla"))
+    }
+
+    @Test
+    fun onlineSubtitles_queriesEndpointAndFallbackCaptions_withFullLanguageNames() = runTest {
+        var failPrimaryEndpoint = false
+        val http = GatewayHttp { url, _ ->
+            when {
+                url.contains("/subtitles/search?") -> {
+                    if (failPrimaryEndpoint) throw GatewayHttpException(404, "endpoint unavailable")
+                    """{"count":3,"subtitles":[
+                      {"id":"sub-en","language":"en","label":"en","vtt_url":"/api/public/v1/subtitle?url=https%3A%2F%2Fsubs.test%2Fen.srt"},
+                      {"id":"sub-bn","language":"bn","label":"বাংলা","vtt_url":"/api/public/v1/subtitle?url=https%3A%2F%2Fsubs.test%2Fbn.srt"},
+                      {"id":"sub-zh","language":"zh-cn","label":"zh-cn","vtt_url":"/api/public/v1/subtitle?url=https%3A%2F%2Fsubs.test%2Fzh.srt"}
+                    ]}"""
+                }
+                url.contains("/search?") ->
+                    """{"page":1,"has_more":false,"items":[
+                      {"name":"Avengers","slug":"avengers-1","subject_id":"9101","type":"movie","has_resource":true},
+                      {"name":"Avengers Age","slug":"avengers-2","subject_id":"9102","type":"movie","has_resource":true}
+                    ]}"""
+                url.contains("/stream/9101/captions") ->
+                    """{"count":2,"captions":[
+                      {"lan":"hi","lanName":"hi","url":"https://subs.test/9101-hi.srt"},
+                      {"lan":"bn","lanName":"ben","url":"https://subs.test/9101-bn.srt"}
+                    ]}"""
+                url.contains("/stream/9102/captions") ->
+                    """{"count":1,"captions":[
+                      {"lan":"ur","lanName":"urd","url":"https://subs.test/9102-ur.vtt"}
+                    ]}"""
+                else -> throw GatewayHttpException(404, "no route for $url")
+            }
+        }
+        val api = GatewayApi(http, GatewayCache(clock = { 0L }), baseUrl = { "https://gw.example" })
+        val resolver = GatewaySourceResolver(api)
+        val previousDelegate = SourceResolver.onlineSubtitleDelegate
+        try {
+            SourceResolver.onlineSubtitleDelegate = { q, id, se, ep, l ->
+                resolver.searchOnlineSubtitles(q, id, se, ep, l)
+            }
+
+            // 1. Primary /subtitles/search endpoint with lang="bn" prioritizes Bangla first & resolves absolute URLs.
+            val primary: List<KnownSubtitle> = SourceResolver.searchOnlineSubtitles("Avengers", itemId = "gw:9101", lang = "bn")
+            assertEquals(3, primary.size)
+            assertEquals("Bangla", primary.first().language)
+            assertEquals("Bangla", primary.first().label)
+            assertTrue(primary.first().url.startsWith("https://gw.example/api/public/v1/subtitle?url="))
+            assertEquals(setOf("Bangla", "English", "Chinese"), primary.map { it.language }.toSet())
+            assertTrue(primary.all { it.label.length > 3 && it.language.length > 3 })
+
+            // 2. Fallback path when /subtitles/search throws -> top search subjects -> /captions wrapped via /subtitle?url=...
+            failPrimaryEndpoint = true
+            val fallback = resolver.searchOnlineSubtitles("Avengers", lang = "ur")
+            assertEquals(3, fallback.size)
+            assertEquals("Urdu", fallback.first().language)
+            assertEquals(setOf("Hindi", "Bangla", "Urdu"), fallback.map { it.language }.toSet())
+            assertTrue(fallback.all { it.url.startsWith("https://gw.example/api/public/v1/subtitle?url=") })
+        } finally {
+            SourceResolver.onlineSubtitleDelegate = previousDelegate
+        }
     }
 }

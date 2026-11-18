@@ -66,6 +66,19 @@ data class PlaybackRequest(
 object SourceResolver {
     const val USER_AGENT = "Cinetor/1.0 (Android; Media3)"
 
+    /** Wired by [com.mythbrix.cinetor.core.data.AppContainer] to `GatewaySourceResolver.searchOnlineSubtitles`. */
+    @Volatile
+    var onlineSubtitleDelegate: (suspend (String, String?, Int, Int, String?) -> List<KnownSubtitle>)? = null
+
+    /** Searches online WebVTT subtitles by title/episode/language; returns `emptyList()` when unwired. */
+    suspend fun searchOnlineSubtitles(
+        query: String,
+        itemId: String? = null,
+        season: Int = 0,
+        episode: Int = 0,
+        lang: String? = null,
+    ): List<KnownSubtitle> = onlineSubtitleDelegate?.invoke(query, itemId, season, episode, lang) ?: emptyList()
+
     /** Pure MIME/type decision: explicit kind first, then URL extension. */
     fun streamTypeOf(source: Source): StreamType {
         when (source.kind) {
@@ -186,7 +199,14 @@ object SourceResolver {
     /** Pure: subs usable offline = bundled/local ones from the plan + downloaded sidecar files. */
     fun offlineSubs(plan: PlaybackPlan, sidecars: List<SidecarSub>): List<SubPlan> =
         plan.subtitles.filter { OfflineResolver.isOfflineSubUrl(it.url) } +
-            sidecars.map { SubPlan("file://" + it.path, subtitleMimeOfExt(it.ext), it.lang, it.lang.uppercase()) }
+            sidecars.map {
+                SubPlan(
+                    "file://" + it.path,
+                    subtitleMimeOfExt(it.ext),
+                    it.lang,
+                    com.mythbrix.cinetor.core.data.fullLanguageName(it.lang),
+                )
+            }
 
     private fun subConfigs(subs: List<SubPlan>): List<MediaItem.SubtitleConfiguration> = subs.map { s ->
         MediaItem.SubtitleConfiguration.Builder(Uri.parse(s.url))

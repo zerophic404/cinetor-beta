@@ -70,27 +70,24 @@ class GatewayBetaParityTest {
         val (http, _, gw) = env(extraRoutes = mapOf("home" to customHome))
         val cats = gw.categories(Space.HOME)
 
-        assertTrue(cats.map { it.title }.containsAll(listOf("For You", "Movies", "Series", "Short TV", "Zee Bangla")))
+        assertEquals(listOf("For You", "Movies", "Series", "Short TV"), cats.map { it.title })
+        assertFalse(cats.any { it.title.contains("Zee Bangla", ignoreCase = true) || it.title.contains("Indian", ignoreCase = true) })
         val featured = cats.first { it.id == "gw:home-featured" }
         assertEquals(listOf("gw:10"), featured.heroIds)
 
         assertFalse(featured.rows.any { it.title.equals("Banner", ignoreCase = true) })
         assertFalse(featured.rows.any { it.title.contains("Anime", ignoreCase = true) })
 
-        // Index 1 of /home (first curated row after Banner) is styled TOP10; poster shelves use POSTER.
+        // v2.1.0: Trending / first curated row uses clean unnumbered POSTER style (no TOP10 numbering).
         assertEquals("Trending Short Drama", featured.rows[0].title)
-        assertEquals(RowStyle.TOP10, featured.rows[0].style)
+        assertEquals(RowStyle.POSTER, featured.rows[0].style)
+        assertTrue(featured.rows.none { it.style == RowStyle.TOP10 })
         val topRowItems = gw.row(featured.rows[0].id)
         assertEquals(listOf("Rank One"), topRowItems.map { it.title })
 
         val titles = featured.rows.map { it.title }
         val expectedExtra = listOf(
             "Hot Short TV",
-            "Zee Bangla Serials",
-            "Zee Bangla Shows",
-            "Star Jalsha Shows",
-            "Sony AATH Series",
-            "Indian Dramas",
             "Latest Movies",
             "Latest Series",
             "Hollywood",
@@ -103,6 +100,10 @@ class GatewayBetaParityTest {
         expectedExtra.forEach { shelf ->
             assertTrue("Missing Home shelf '$shelf' in $titles", titles.any { it.contains(shelf, ignoreCase = true) })
         }
+        val excludedHomeRegional = listOf("Indian Drama", "Zee Bangla", "Star Jalsha", "Sony AATH", "Pakistani")
+        excludedHomeRegional.forEach { banned ->
+            assertFalse("Home leaked '$banned' in $titles", titles.any { it.contains(banned, ignoreCase = true) })
+        }
 
         // All row IDs in For You are strictly unique (prevents Compose LazyColumn duplicate key crashes).
         assertEquals(featured.rows.size, featured.rows.map { it.id }.toSet().size)
@@ -114,8 +115,10 @@ class GatewayBetaParityTest {
         assertEquals(2, page2.page)
         assertTrue(http.urls.last().contains("short-tv?"))
 
-        // Zee Bangla 59-show integration hits /zee-bangla endpoint.
-        val zeeRow = featured.rows.first { it.id.contains(":zee-bangla?") }
+        // Zee Bangla 59-show integration lives inside Space.DRAMA -> Indian Drama tab and hits /zee-bangla.
+        val dramaCats = gw.categories(Space.DRAMA)
+        val indianDramaCat = dramaCats.first { it.id == "gw:drama-in" }
+        val zeeRow = indianDramaCat.rows.first { it.id.contains(":zee-bangla?") }
         val zeeItems = gw.rowPage(zeeRow.id, 1)
         assertTrue(zeeItems.items.isNotEmpty())
         assertTrue(http.urls.last().contains("zee-bangla?"))

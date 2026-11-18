@@ -77,4 +77,39 @@ class HybridCatalog(
     override suspend fun genres(space: Space): List<String> = spaceCall(space) { it.genres(space) }
 
     override suspend fun allItems(space: Space): List<Item> = spaceCall(space) { it.allItems(space) }
+
+    override suspend fun castWorks(personName: String): List<Item> {
+        val q = personName.trim()
+        if (q.isEmpty()) return emptyList()
+        for (r in chain) {
+            try {
+                val found = r.castWorks(q)
+                if (found.isNotEmpty()) return found
+            } catch (e: CancellationException) {
+                throw e
+            } catch (_: Exception) {
+                // try next remote
+            }
+        }
+        if (!mockFallback(Space.HOME)) return emptyList()
+        return Space.VIDEO.flatMap { sp ->
+            runCatching { mock.allItems(sp) }.getOrDefault(emptyList())
+        }.filter { item ->
+            item.cast.any { it.equals(q, ignoreCase = true) || it.contains(q, ignoreCase = true) }
+        }.distinctBy { it.id }
+    }
+
+    override suspend fun warmStartupSpaces(): List<String> {
+        for (r in chain) {
+            try {
+                val urls = r.warmStartupSpaces()
+                if (urls.isNotEmpty()) return urls.take(24)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (_: Exception) {
+                // try next remote
+            }
+        }
+        return emptyList()
+    }
 }
