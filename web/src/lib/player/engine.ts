@@ -18,7 +18,7 @@ import {
 } from './youtube';
 import type { EngineLike, LoadOpts } from './types';
 import type { Source } from '../data/types';
-import { isLazySource } from '../data/gateway-play';
+import { isLazySource, linkHealth } from '../data/gateway-play';
 
 interface ShakaTrack {
   id: number;
@@ -122,7 +122,7 @@ export function describeError(code: number | undefined, category?: number): { ms
   if (code === 4032 || code === 3016 || code === 3014 || code === 3015 || code === 4040 || code === 4000 || code === 4001)
     return { msg: "This format or codec isn't supported by your browser.", unsupported: true };
   if (category === 6) return { msg: 'Protected content is not supported here.', unsupported: true };
-  return { msg: `Playback error (${code}).`, unsupported: false };
+  return { msg: "This stream isn't available right now. Retry in a moment or pick another quality.", unsupported: false };
 }
 
 class Engine implements EngineLike {
@@ -161,6 +161,7 @@ class Engine implements EngineLike {
   private current: Source | null = null;
   private media: Media | null = null;
   private recovering = false;
+  private loadingInFlight = false;
   /** Re-resolve a failing gateway stream (expired signed link) — wired by the controller. */
   recover: ((m: Media) => Promise<Media | null>) | null = null;
   /** Manual quality picks are remembered here (controller sets localStorage). */
@@ -226,9 +227,11 @@ class Engine implements EngineLike {
     }
     v.addEventListener('error', () => {
       if (this.ytActive) return;
-      if (this.tryRecover()) return;
       const code = v.error?.code;
-      if (code === 4 || code === 3) void this.explainMediaError(v.currentSrc, code);
+      this.recordMediaFailure(this.current, code);
+      if (this.loadingInFlight) return;
+      if (this.tryRecover()) return;
+      if (code === 4 || code === 3) void this.explainMediaError(v.currentSrc || this.current?.url || '', code);
       else if (code === 2) this._error.set({ msg: 'Network error — check your connection and retry.', unsupported: false });
     });
     this.video = v;
@@ -285,19 +288,48 @@ class Engine implements EngineLike {
     this.place();
   }
 
-  /** MEDIA_ERR_SRC_NOT_SUPPORTED is also what browsers report for HTTP 403/404/429 — tell the two apart. */
+  private recordMediaFailure(src: Source | null | undefined, mediaErrCode?: number): void {
+    const failedUrl = src?.url || this.video?.currentSrc || '';
+    if (!failedUrl || extractYouTubeVideoId(failedUrl) || /^(?:offline:|blob:|file:|asset:)/i.test(failedUrl)) return;
+    linkHealth.failed(failedUrl, 404);
+    if (src?.direct?.url) linkHealth.failed(src.direct.url, 404);
+    if (mediaErrCode === 3 || mediaErrCode === 4) {
+      const isProxy = /\/api\/(?:public\/)?v1\/(?:stream\/[^/]+\/)?play\b/i.test(failedUrl);
+      const hevcNamed = /\b(?:x265|h\.?265|hevc|10bit|hdr)\b/i.test(
+        [src?.label ?? '', failedUrl, src?.direct?.url ?? ''].join(' ')
+      );
+      if (!isProxy || hevcNamed) {
+        linkHealth.hevcFailed = true;
+      }
+    }
+  }
+
+  /** MEDIA_ERR_SRC_NOT_SUPPORTED is also what browsers report for HTTP 4xx/5xx — keep messages generic and host/status-free. */
   private async explainMediaError(src: string, code: number): Promise<void> {
+    const unavailable = {
+      msg: "This stream isn't available right now. Retry in a moment or pick another quality.",
+      unsupported: false
+    };
     const unsupported = { msg: "This format or codec isn't supported by your browser.", unsupported: true };
-    if (!/^https?:/i.test(src)) return void this._error.set(unsupported);
+    if (!/^https?:/i.test(src)) {
+      this._error.set(code === 3 ? { msg: 'Playback was interrupted — retry.', unsupported: false } : unsupported);
+      return;
+    }
+    const isGatewayPlay = /\/api\/(?:public\/)?v1\/(?:stream\/[^/]+\/)?play\b/i.test(src);
     try {
       const r = await fetch(src, { headers: { Range: 'bytes=0-0' }, cache: 'no-store' });
       void r.body?.cancel();
       if (r.status >= 400) {
-        this._error.set({ msg: `The stream isn't available right now (HTTP ${r.status}). Retry in a moment or pick another quality.`, unsupported: false });
+        if (r.status === 403 || r.status === 429 || r.status === 451) linkHealth.failed(src, r.status);
+        else linkHealth.failed(src, 404);
+        this._error.set(unavailable);
         return;
       }
     } catch {
-      /* cross-origin without CORS / offline → fall through */
+      if (isGatewayPlay) {
+        this._error.set(unavailable);
+        return;
+      }
     }
     this._error.set(code === 3 ? { msg: 'Playback was interrupted — retry.', unsupported: false } : unsupported);
   }
@@ -365,6 +397,8 @@ class Engine implements EngineLike {
       if (this.ytActive) return;
       const d = e.detail;
       if (d?.code === 7000) return; // LOAD_INTERRUPTED: newer load won
+      this.recordMediaFailure(this.current);
+      if (this.loadingInFlight) return;
       if (this.tryRecover()) return;
       this._error.set(describeError(d?.code, d?.category));
     });
@@ -395,18 +429,23 @@ class Engine implements EngineLike {
     this.variants = this.allSourcesOf(media);
     this.current = src;
     v.preload = opts.buffer ? 'auto' : 'metadata';
+    this.loadingInFlight = true;
     try {
-      await this.loadSrc(src, startSec, opts);
-    } catch (e) {
-      if (opts.signal?.aborted || (e as Error)?.name === 'AbortError' || (!this.variants.length && !this.recover)) throw e;
-      this.failedUrls.add(src.url);
-      // Gateway / YouTube fallback: try alternate streams, then fresh resolution before giving up.
-      const ok = await this.fallback(media, src, startSec, opts);
-      if (!ok) throw e;
+      try {
+        await this.loadSrc(src, startSec, opts);
+      } catch (e) {
+        if (opts.signal?.aborted || (e as Error)?.name === 'AbortError' || (!this.variants.length && !this.recover)) throw e;
+        this.failedUrls.add(src.url);
+        // Gateway / YouTube fallback: try alternate streams, then fresh resolution before giving up.
+        const ok = await this.fallback(media, src, startSec, opts);
+        if (!ok) throw e;
+      }
+      if (opts.signal?.aborted) throw new DOMException('aborted', 'AbortError');
+      this.loadedKey = media.key;
+      this.refreshTracks();
+    } finally {
+      this.loadingInFlight = false;
     }
-    if (opts.signal?.aborted) throw new DOMException('aborted', 'AbortError');
-    this.loadedKey = media.key;
-    this.refreshTracks();
   }
 
   private async fallback(media: Media, failed: Source, startSec: number, opts: LoadOpts): Promise<boolean> {
@@ -439,52 +478,74 @@ class Engine implements EngineLike {
     }
   }
 
-  /** Mid-playback failure of a gateway or YouTube stream: switch alternate or re-resolve at current position. */
+  /** Mid-playback or post-attach failure of a gateway or YouTube stream: step through remaining variants, then re-resolve. */
   private tryRecover(): boolean {
     const m = this.media;
-    if (!m || !this.loadedKey || (!this.variants.length && !this.recover) || this.recovering) return false;
+    if (!m || (this.variants.length <= 1 && !this.recover) || this.recovering) return false;
+    if (this.current?.url) this.failedUrls.add(this.current.url);
+    const hasRemainingVariant = !!pickAlternateSource(this.variants, this.failedUrls);
+    if (!hasRemainingVariant && !this.recover) return false;
+
     this.recovering = true;
     const t = this.currentTime;
     const wasPlaying = !this.isPaused || this.ytWantPlay;
-    const key = this.loadedKey;
-    if (this.current?.url) this.failedUrls.add(this.current.url);
+    const targetKey = this.loadedKey ?? m.key;
     void (async () => {
+      this.loadingInFlight = true;
       try {
-        const alt = pickAlternateSource(this.variants, this.failedUrls);
-        if (alt) {
-          await this.loadSrc(alt, t, { buffer: true });
-          if (this.loadedKey !== key) return;
-          this.current = alt;
-          this._error.set(null);
-          this.refreshTracks();
-          if (wasPlaying) await this.play().catch(() => {});
-          return;
+        while (true) {
+          const alt = pickAlternateSource(this.variants, this.failedUrls);
+          if (!alt) break;
+          try {
+            await this.loadSrc(alt, t, { buffer: true });
+            if (this.media?.key !== m.key) return;
+            this.current = alt;
+            this.loadedKey = targetKey;
+            this._error.set(null);
+            this.refreshTracks();
+            if (wasPlaying) await this.play().catch(() => {});
+            return;
+          } catch {
+            this.failedUrls.add(alt.url);
+            if (this.media?.key !== m.key) return;
+          }
         }
         if (!this.recover) throw new Error('No source available');
         const fresh = await this.recover(m);
-        if (!fresh?.source || this.loadedKey !== key) throw new Error('No source available');
+        if (!fresh?.source || this.media?.key !== m.key) throw new Error('No source available');
         const h = this.current?.height;
         const freshList = fresh.variants ?? [fresh.source];
-        const src = freshList.find((x) => !this.failedUrls.has(x.url) && x.height === h) ?? pickAlternateSource(freshList, this.failedUrls) ?? fresh.source;
+        const src =
+          freshList.find((x) => !this.failedUrls.has(x.url) && x.height === h) ??
+          pickAlternateSource(freshList, this.failedUrls) ??
+          fresh.source;
         await this.loadSrc(src, t, { buffer: true });
+        if (this.media?.key !== m.key) return;
         this.variants = fresh.variants ?? [];
         this.current = src;
+        this.loadedKey = targetKey;
         this._error.set(null);
         this.refreshTracks();
         if (wasPlaying) await this.play().catch(() => {});
       } catch {
-        this._error.set({ msg: 'This stream is unavailable right now — retry or pick another quality.', unsupported: false });
+        this._error.set({
+          msg: "This stream isn't available right now. Retry in a moment or pick another quality.",
+          unsupported: false
+        });
       } finally {
-        setTimeout(() => (this.recovering = false), 8_000);
+        this.loadingInFlight = false;
+        this.recovering = false;
       }
     })();
     return true;
   }
 
   private async loadSrc(src: Source, startSec: number, opts: LoadOpts): Promise<void> {
+    this.current = src;
     const v = this.ensureVideo();
     const kind = playbackOf(src, (m) => this.canPlay(m));
     if (kind === 'unsupported') {
+      this.recordMediaFailure(src, 4);
       this._error.set({ msg: "This format isn't supported by your browser.", unsupported: true });
       throw new Error('unsupported');
     }
@@ -513,7 +574,11 @@ class Engine implements EngineLike {
         await p.load(src.url, startSec > 0 ? startSec : null, src.url.startsWith('offline:') ? undefined : MIME[src.kind]);
         return;
       } catch (e) {
-        if (opts.signal?.aborted || !canFallBack) throw e;
+        if (opts.signal?.aborted) throw e;
+        if (!canFallBack) {
+          this.recordMediaFailure(src, v.error?.code);
+          throw e;
+        }
         // Progressive file / Safari HLS: the browser's own decoder is the most compatible path.
         this._error.set(null);
         await this.player?.unload().catch(() => {});
@@ -524,7 +589,12 @@ class Engine implements EngineLike {
       this._error.set({ msg: "This browser can't play adaptive streams (no MediaSource). Update it, or try Chrome, Edge, Firefox or Safari 17.1+.", unsupported: true });
       throw new Error('unsupported');
     }
-    await nativeLoad(v, src.url, startSec, opts.signal);
+    try {
+      await nativeLoad(v, src.url, startSec, opts.signal);
+    } catch (e) {
+      if (!opts.signal?.aborted) this.recordMediaFailure(src, v.error?.code);
+      throw e;
+    }
   }
 
   private async loadYouTubeSrc(videoId: string, startSec: number, opts: LoadOpts): Promise<void> {
@@ -948,8 +1018,10 @@ class Engine implements EngineLike {
   }
 
   private async reloadTarget(target: Source, key: string, autoOverride: boolean | undefined): Promise<void> {
+    const prev = this.current;
     const t = this.currentTime;
     const wasPlaying = !this.isPaused;
+    this.loadingInFlight = true;
     try {
       await this.loadSrc(target, t, { buffer: true });
       if (this.loadedKey !== key) return;
@@ -958,7 +1030,11 @@ class Engine implements EngineLike {
       this.refreshTracks();
       if (wasPlaying) await this.play().catch(() => {});
     } catch {
-      this._error.set({ msg: `Couldn't switch to ${target.label ?? 'that stream'}.`, unsupported: false });
+      this.current = prev;
+      this.failedUrls.add(target.url);
+      this._error.set({ msg: "Couldn't switch to that quality. Try another option.", unsupported: false });
+    } finally {
+      this.loadingInFlight = false;
     }
   }
 

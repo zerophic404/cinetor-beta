@@ -31,6 +31,7 @@
   const err = engine.error;
   let stage: HTMLDivElement | undefined = $state();
   let countdown = $state<number | null>(null);
+  let triedUrls = $state.raw<string[]>([]);
   const iosVolume = volumeReadOnly();
 
   const intro = $derived<[number, number] | null>(
@@ -47,9 +48,25 @@
       lastKey = media.key;
       ui.reset();
       countdown = null;
+      triedUrls = [];
       autoSubs();
     }
   });
+
+  function tryAnotherSource() {
+    const variants = media.variants ?? [];
+    const curUrl = $sess.media?.source?.url ?? media.source?.url ?? '';
+    const seen = curUrl && !triedUrls.includes(curUrl) ? [...triedUrls, curUrl] : triedUrls;
+    triedUrls = seen;
+    const alt = variants.find((v) => v.url && !seen.includes(v.url)) ?? variants.find((v) => v.url && v.url !== curUrl);
+    session.clearError();
+    if (alt) {
+      void session.play({ ...media, source: alt, playable: true }, { start: engine.currentTime });
+    } else {
+      triedUrls = [];
+      void session.play(media, { start: engine.currentTime });
+    }
+  }
 
   /** Settings → Subtitles → turn on automatically in the preferred language. */
   function autoSubs() {
@@ -299,13 +316,16 @@
   {:else if unsupported}
     <div class="msg glass" data-no-gesture role="alert">
       <strong>Can't play this format here</strong>
-      <p>{$err?.msg ?? 'This browser cannot decode this file (e.g. MKV / HEVC).'}</p>
+      <p>{$err?.msg ?? 'This browser cannot decode this stream format.'}</p>
       {#if media.source}
         <div class="acts">
+          {#if media.variants && media.variants.length > 1}
+            <button class="btn btn-primary" onclick={tryAnotherSource}>Try another source</button>
+          {/if}
           {#if extOk}
             <a class="btn btn-primary" href={ext} target="_blank" rel="noopener noreferrer">Open in external player</a>
           {:else}
-            <a class="btn btn-primary" href="{base}/app/downloads">Downloads</a>
+            <a class="btn {media.variants && media.variants.length > 1 ? 'btn-ghost' : 'btn-primary'}" href="{base}/app/downloads">Downloads</a>
           {/if}
           <button class="btn btn-ghost" onclick={copyAppLink}>{copied ? 'Link copied' : 'Copy app link'}</button>
         </div>
@@ -318,7 +338,12 @@
     <div class="msg glass" data-no-gesture role="alert">
       <strong>Playback problem</strong>
       <p>{errorMsg}</p>
-      <div class="acts"><button class="btn btn-primary" onclick={() => session.play(media, { start: engine.currentTime })}>Retry</button></div>
+      <div class="acts">
+        <button class="btn btn-primary" onclick={() => session.play(media, { start: engine.currentTime })}>Retry</button>
+        {#if media.variants && media.variants.length > 1}
+          <button class="btn btn-ghost" onclick={tryAnotherSource}>Try another source</button>
+        {/if}
+      </div>
     </div>
   {:else if $sess.error === 'gesture'}
     <button

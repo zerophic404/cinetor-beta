@@ -44,8 +44,9 @@ export function pickSource(
   pref?: PlaybackPref | null,
   globalPref?: PlaybackPref | null
 ): { source?: Source; playable: boolean } {
+  if (!sources.length) return { source: undefined, playable: false };
   const ok = sources.filter((s) => playbackOf(s, canPlay) !== 'unsupported');
-  if (ok.length) {
+  if (ok.length > 0) {
     const hasPref = !!(pref?.dub || pref?.height || globalPref?.dub || globalPref?.height);
     if (hasPref && ok.length > 1) {
       const preferred = pickPreferredSource(ok, pref, globalPref);
@@ -84,6 +85,7 @@ export function buildMedia(
   globalPref?: PlaybackPref | null
 ): Media {
   const sources = episode?.sources?.length ? episode.sources : (item.sources ?? []);
+  const empty = sources.length === 0;
   const { source, playable } = pickSource(sources, canPlay, pref, globalPref);
   const playableVariants = sources.filter((s) => playbackOf(s, canPlay) !== 'unsupported');
   const subs = (episode?.subtitles?.length ? episode.subtitles : (item.subtitles ?? [])).map((s) => ({ ...s, url: /^(https?:|blob:|data:)/.test(s.url) ? s.url : asset(s.url) }));
@@ -95,6 +97,7 @@ export function buildMedia(
     source,
     variants: playableVariants.length > 1 ? playableVariants : undefined,
     playable,
+    noSource: empty ? true : undefined,
     title: item.title,
     subtitle: episode ? `${season ? `S${season.n} ` : ''}E${episode.n} · ${episode.title}` : undefined,
     subtitles: subs,
