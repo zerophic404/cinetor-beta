@@ -34,6 +34,9 @@ class CinetorApplication : Application(), SingletonImageLoader.Factory {
     override fun newImageLoader(context: PlatformContext): ImageLoader {
         val tier = detectTier(container.deviceProfile)
         return ImageLoader.Builder(context)
+            .components {
+                add(coil3.network.okhttp.OkHttpNetworkFetcherFactory(callFactory = { container.httpClient }))
+            }
             .memoryCache {
                 MemoryCache.Builder().maxSizePercent(context, tier.memCachePercent).build()
             }

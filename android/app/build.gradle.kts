@@ -24,6 +24,10 @@ android {
         // TMDB v4 read token from CI secret (never committed). Empty → mock catalog only.
         val tmdbToken = (System.getenv("TMDB_TOKEN") ?: "").trim().replace("\"", "")
         buildConfigField("String", "TMDB_TOKEN", "\"$tmdbToken\"")
+        val tmdbApiKey = (System.getenv("TMDB_API_KEY") ?: "").trim().replace("\"", "")
+        buildConfigField("String", "TMDB_API_KEY", "\"$tmdbApiKey\"")
+        val gatewaySecret = (System.getenv("GATEWAY_SIGNING_SECRET") ?: "").trim().replace("\"", "")
+        buildConfigField("String", "GATEWAY_SIGNING_SECRET", "\"$gatewaySecret\"")
         // CI run number shown in About (Task 5.3); "local" outside Actions.
         val buildNumber = (System.getenv("GITHUB_RUN_NUMBER") ?: "local").trim()
         buildConfigField("String", "BUILD_NUMBER", "\"$buildNumber\"")

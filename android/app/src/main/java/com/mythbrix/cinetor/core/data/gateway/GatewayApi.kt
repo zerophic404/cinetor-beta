@@ -3,6 +3,8 @@ package com.mythbrix.cinetor.core.data.gateway
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.suspendCancellableCoroutine
+import kotlinx.coroutines.sync.Semaphore
+import kotlinx.coroutines.sync.withPermit
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
@@ -21,10 +23,16 @@ import okhttp3.Request
 import okhttp3.Response
 import java.io.File
 import java.io.IOException
+import java.net.URI
 import java.net.URLEncoder
 import java.security.MessageDigest
+import java.text.SimpleDateFormat
+import java.util.Locale
+import java.util.TimeZone
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.TimeUnit
+import javax.crypto.Mac
+import javax.crypto.spec.SecretKeySpec
 import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
 
@@ -59,41 +67,171 @@ fun interface GatewayHttp {
     suspend fun get(url: String, timeoutMs: Long): String
 }
 
+/** Pure HMAC-SHA256 request signer & User-Agent router for gateway endpoints. */
+object GatewaySigner {
+    const val BROWSER_USER_AGENT =
+        "Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Mobile Safari/537.36 Cinetor/2.0"
+    const val MANGADEX_USER_AGENT = "CinetorApp/1.0"
+
+    private val SERVER_TIME_RE = Regex(""""serverTime"\s*:\s*(\d+)""")
+
+    private data class Origin(val scheme: String, val host: String, val port: Int)
+
+    private fun parseOrigin(url: String): Origin? = runCatching {
+        val trimmed = url.trim()
+        val schemeEnd = trimmed.indexOf("://")
+        if (schemeEnd <= 0) return null
+        val rest = trimmed.substring(schemeEnd + 3)
+        val authorityEnd = listOf(rest.indexOf('/'), rest.indexOf('?'), rest.indexOf('#')).filter { it >= 0 }.minOrNull() ?: rest.length
+        val originOnly = trimmed.substring(0, schemeEnd + 3 + authorityEnd)
+        val u = URI(originOnly)
+        val scheme = u.scheme?.lowercase(Locale.US)?.takeIf { it == "https" || it == "http" } ?: return null
+        val host = u.host?.lowercase(Locale.US)?.takeIf { it.isNotEmpty() } ?: return null
+        val port = when {
+            u.port > 0 -> u.port
+            scheme == "https" -> 443
+            else -> 80
+        }
+        Origin(scheme, host, port)
+    }.getOrNull()
+
+    private fun hostOf(url: String): String =
+        url.substringAfter("://", "").substringBefore('/').substringBefore(':').lowercase(Locale.US)
+
+    /** Exact encoded URL pathname before `?` or `#` (e.g. `/api/public/v1/home`). */
+    fun encodedPathOf(url: String): String {
+        val withoutScheme = url.substringAfter("://", "")
+        val slash = withoutScheme.indexOf('/')
+        if (slash < 0) return "/"
+        val pathAndRest = withoutScheme.substring(slash)
+        val q = pathAndRest.indexOf('?')
+        val h = pathAndRest.indexOf('#')
+        val end = listOf(q, h).filter { it >= 0 }.minOrNull() ?: pathAndRest.length
+        return pathAndRest.substring(0, end).ifEmpty { "/" }
+    }
+
+    /**
+     * Returns `true` ONLY when [url] matches the exact scheme+host(+port) of `GatewayConfig.normalize(gatewayBase)`
+     * AND its path starts with `/api/` (excluding `/api/public/v1/health` and `/api/v1/health`).
+     * Never signs `mangadex.org` or third-party hosts.
+     */
+    fun shouldSign(url: String, gatewayBase: String): Boolean {
+        val target = parseOrigin(url) ?: return false
+        val base = parseOrigin(GatewayConfig.normalize(gatewayBase)) ?: return false
+        if (target != base) return false
+        val path = encodedPathOf(url)
+        if (!path.startsWith("/api/")) return false
+        val clean = path.trimEnd('/')
+        return clean != "/api/public/v1/health" && clean != "/api/v1/health"
+    }
+
+    fun userAgentFor(url: String, @Suppress("UNUSED_PARAMETER") gatewayBase: String = GatewayConfig.BASE_URL): String {
+        val host = hostOf(url)
+        return if (host == "mangadex.org" || host.endsWith(".mangadex.org")) MANGADEX_USER_AGENT else BROWSER_USER_AGENT
+    }
+
+    fun signHeaders(secret: String, method: String, url: String, nowEpochSec: Long): Map<String, String> {
+        if (secret.isBlank()) return emptyMap()
+        val encodedPath = encodedPathOf(url)
+        val ts = nowEpochSec.toString()
+        val payload = "${method.uppercase(Locale.US)}:$encodedPath:$ts"
+        val mac = Mac.getInstance("HmacSHA256")
+        mac.init(SecretKeySpec(secret.toByteArray(Charsets.UTF_8), "HmacSHA256"))
+        val sigHex = mac.doFinal(payload.toByteArray(Charsets.UTF_8)).joinToString("") { "%02x".format(it) }
+        return mapOf(
+            "X-App-Timestamp" to ts,
+            "X-App-Signature" to sigHex,
+        )
+    }
+
+    /** Extracts server epoch seconds from JSON `"serverTime"` or RFC 1123 HTTP `Date` header. */
+    fun parseServerEpochSec(errorBody: String?, dateHeader: String?): Long? {
+        errorBody?.let { body ->
+            SERVER_TIME_RE.find(body)?.groupValues?.get(1)?.toLongOrNull()?.let { raw ->
+                return if (raw > 100_000_000_000L) raw / 1000L else raw
+            }
+        }
+        val d = dateHeader?.trim()?.takeIf { it.isNotEmpty() } ?: return null
+        return runCatching {
+            val fmt = SimpleDateFormat("EEE, dd MMM yyyy HH:mm:ss zzz", Locale.US).apply {
+                timeZone = TimeZone.getTimeZone("GMT")
+            }
+            fmt.parse(d)?.let { it.time / 1000L }
+        }.getOrNull()
+    }
+}
+
 /** OkHttp transport (same style as the TMDB client); cancelling the coroutine cancels the call. */
-class OkHttpGatewayHttp(private val client: OkHttpClient) : GatewayHttp {
+class OkHttpGatewayHttp(
+    private val client: OkHttpClient,
+    private val signingSecret: () -> String = { "" },
+    private val gatewayBase: () -> String = { GatewayConfig.BASE_URL },
+    private val nowMs: () -> Long = System::currentTimeMillis,
+) : GatewayHttp {
+    private data class RawReply(val code: Int, val body: String?, val dateHeader: String?)
+
     private val clients = ConcurrentHashMap<Long, OkHttpClient>()
 
-    override suspend fun get(url: String, timeoutMs: Long): String = suspendCancellableCoroutine { cont ->
-        val c = clients.getOrPut(timeoutMs) {
-            client.newBuilder()
-                .callTimeout(timeoutMs, TimeUnit.MILLISECONDS)
-                .readTimeout(timeoutMs, TimeUnit.MILLISECONDS)
-                .build()
-        }
-        val request = Request.Builder().url(url)
-            .header("Accept", "application/json")
-            // MangaDex rejects browser-like agents; the gateway does not care (docs/gateway.md).
-            .header("User-Agent", "CinetorApp/1.0")
-            .build()
-        val call = c.newCall(request)
-        cont.invokeOnCancellation { call.cancel() }
-        call.enqueue(object : Callback {
-            override fun onFailure(call: Call, e: IOException) {
-                if (cont.isActive) cont.resumeWithException(e)
-            }
+    @Volatile
+    private var clockOffsetSec: Long = 0L
 
-            override fun onResponse(call: Call, response: Response) {
-                response.use { r ->
-                    val result = runCatching {
-                        if (!r.isSuccessful) throw GatewayHttpException(r.code, "Gateway HTTP ${r.code}")
-                        r.body?.string() ?: throw IOException("Gateway empty body")
-                    }
-                    if (!cont.isActive) return
-                    result.fold({ cont.resume(it) }, { cont.resumeWithException(it) })
+    override suspend fun get(url: String, timeoutMs: Long): String {
+        val base = gatewayBase()
+        val secret = signingSecret()
+        val sign = secret.isNotBlank() && GatewaySigner.shouldSign(url, base)
+        val first = executeOnce(url, timeoutMs, base, if (sign) secret else "")
+        if (first.code == 401 && sign) {
+            val serverSec = GatewaySigner.parseServerEpochSec(first.body, first.dateHeader)
+            if (serverSec != null) {
+                clockOffsetSec = serverSec - (nowMs() / 1000L)
+                val retry = executeOnce(url, timeoutMs, base, secret)
+                if (retry.code in 200..299) {
+                    return retry.body ?: throw IOException("Gateway empty body")
+                }
+                throw GatewayHttpException(retry.code, "Gateway HTTP ${retry.code}")
+            }
+        }
+        if (first.code !in 200..299) {
+            throw GatewayHttpException(first.code, "Gateway HTTP ${first.code}")
+        }
+        return first.body ?: throw IOException("Gateway empty body")
+    }
+
+    private suspend fun executeOnce(url: String, timeoutMs: Long, base: String, secret: String): RawReply =
+        suspendCancellableCoroutine { cont ->
+            val c = clients.getOrPut(timeoutMs) {
+                client.newBuilder()
+                    .callTimeout(timeoutMs, TimeUnit.MILLISECONDS)
+                    .readTimeout(timeoutMs, TimeUnit.MILLISECONDS)
+                    .build()
+            }
+            val builder = Request.Builder().url(url)
+                .header("Accept", "application/json")
+                .header("User-Agent", GatewaySigner.userAgentFor(url, base))
+            if (secret.isNotBlank()) {
+                val epochSec = (nowMs() / 1000L) + clockOffsetSec
+                GatewaySigner.signHeaders(secret, "GET", url, epochSec).forEach { (k, v) ->
+                    builder.header(k, v)
                 }
             }
-        })
-    }
+            val call = c.newCall(builder.build())
+            cont.invokeOnCancellation { call.cancel() }
+            call.enqueue(object : Callback {
+                override fun onFailure(call: Call, e: IOException) {
+                    if (cont.isActive) cont.resumeWithException(e)
+                }
+
+                override fun onResponse(call: Call, response: Response) {
+                    response.use { r ->
+                        val result = runCatching {
+                            RawReply(r.code, r.body?.string(), r.header("Date"))
+                        }
+                        if (!cont.isActive) return
+                        result.fold({ cont.resume(it) }, { cont.resumeWithException(it) })
+                    }
+                }
+            })
+        }
 }
 
 /** Disk layer of [GatewayCache] (files in the app cache dir; in-memory map in tests). */
@@ -385,6 +523,8 @@ class GatewayApi(
     fun absolute(pathOrUrl: String): String =
         if (pathOrUrl.startsWith("http://") || pathOrUrl.startsWith("https://")) pathOrUrl else base + "/" + pathOrUrl.trimStart('/')
 
+    private val catalogPermits = Semaphore(5)
+
     /** Disk cache + JSON decoding never run on the main thread (scroll jank). */
     private suspend fun <T> off(block: suspend () -> T): T = withContext(Dispatchers.IO) { block() }
 
@@ -392,17 +532,20 @@ class GatewayApi(
 
     private suspend fun cachedNow(url: String): String {
         cache?.get(url)?.let { return it }
-        val body = try {
-            http.get(url, GatewayConfig.CATALOG_TIMEOUT_MS)
-        } catch (e: CancellationException) {
-            throw e
-        } catch (e: Exception) {
-            if (e is GatewayHttpException && e.code == 451) throw e
-            // Offline / gateway down: last cached copy of any age, else the error (→ retry UI).
-            return cache?.getStale(url) ?: throw e
+        return catalogPermits.withPermit {
+            cache?.get(url)?.let { return@withPermit it }
+            val body = try {
+                http.get(url, GatewayConfig.CATALOG_TIMEOUT_MS)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                if (e is GatewayHttpException && e.code == 451) throw e
+                // Offline / gateway down: last cached copy of any age, else the error (→ retry UI).
+                return@withPermit cache?.getStale(url) ?: throw e
+            }
+            cache?.put(url, body)
+            body
         }
-        cache?.put(url, body)
-        return body
     }
 
     suspend fun home(): GwHome = off { json.decodeFromString(GwHome.serializer(), cachedNow(url("home"))) }
