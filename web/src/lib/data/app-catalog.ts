@@ -8,7 +8,15 @@ import { ColorCache } from './color';
 import { ComicsSource, type JsonFetch } from '../comics/mangadex';
 import { isTauriEnv } from '../desktop/env';
 import { invoke } from '../desktop/tauri';
-import { DeadTitles, GatewayCatalogSource, GatewayClient, gatewayBase } from './gateway';
+import {
+  DeadTitles,
+  GatewayCatalogSource,
+  GatewayClient,
+  gatewayBase,
+  gatewaySecret,
+  shouldSignGatewayUrl,
+  signedGatewayFetch
+} from './gateway';
 import { StreamResolver } from './gateway-play';
 import { idbCache } from './idb';
 import { colorSampleUrl } from './images';
@@ -24,7 +32,7 @@ const colorOf = (poster: string) => colors.peek(colorSampleUrl(poster, repo.asse
 export const deadTitles = new DeadTitles();
 
 /** Gateway base is read on every request (Settings → Developer override applies without reload). */
-export const gatewayClient = new GatewayClient({ base: () => gatewayBase(), persist });
+export const gatewayClient = new GatewayClient({ base: () => gatewayBase(), secret: () => gatewaySecret(), persist });
 export const gatewaySource = new GatewayCatalogSource({ client: gatewayClient, colorOf, persist, isDead: (id) => deadTitles.has(id) });
 
 let adultGate: () => boolean = () => false;
@@ -40,7 +48,12 @@ export function setAdultGate(fn: () => boolean): void {
  * headers for allow-listed origins; browsers therefore fall back to the bundled offline library.
  */
 const webJson: JsonFetch = async (url, init) => {
-  const res = await fetch(url, { signal: init?.signal, headers: { accept: 'application/json' } });
+  const base = gatewayBase();
+  const reqInit: RequestInit = {
+    signal: init?.signal,
+    headers: { ...(init?.headers ?? {}), accept: 'application/json' }
+  };
+  const res = shouldSignGatewayUrl(url, base) ? await signedGatewayFetch(url, reqInit, base) : await fetch(url, reqInit);
   if (!res.ok) throw new Error(`Comics HTTP ${res.status}`);
   return res.json();
 };

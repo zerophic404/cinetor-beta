@@ -98,19 +98,24 @@ function idle(): Promise<void> {
 
 /** Browser-only: draw a CORS image into a 64px canvas and average it. Runs at idle time. */
 export async function canvasColor(url: string): Promise<string | null> {
-  if (typeof document === 'undefined' || typeof Image === 'undefined') return null;
+  if (!url || typeof document === 'undefined' || typeof Image === 'undefined') return null;
   await idle();
-  const imgEl = new Image();
-  imgEl.crossOrigin = 'anonymous';
-  imgEl.decoding = 'async';
-  imgEl.src = url;
-  await imgEl.decode();
-  const size = 64;
-  const canvas = document.createElement('canvas');
-  canvas.width = size;
-  canvas.height = size;
-  const ctx = canvas.getContext('2d', { willReadFrequently: true });
-  if (!ctx) return null;
-  ctx.drawImage(imgEl, 0, 0, size, size);
-  return averageColor(ctx.getImageData(0, 0, size, size).data);
+  try {
+    const imgEl = new Image();
+    imgEl.referrerPolicy = 'no-referrer';
+    imgEl.crossOrigin = 'anonymous';
+    imgEl.decoding = 'async';
+    imgEl.src = url;
+    await imgEl.decode();
+    const size = 64;
+    const canvas = document.createElement('canvas');
+    canvas.width = size;
+    canvas.height = size;
+    const ctx = canvas.getContext('2d', { willReadFrequently: true });
+    if (!ctx) return null;
+    ctx.drawImage(imgEl, 0, 0, size, size);
+    return averageColor(ctx.getImageData(0, 0, size, size).data);
+  } catch {
+    return null;
+  }
 }

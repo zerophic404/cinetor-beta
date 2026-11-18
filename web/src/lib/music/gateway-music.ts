@@ -3,7 +3,7 @@
 // Live Gateway Music API client + defensive JSON parsers + IndexedDB/LRU cache + offline fallback.
 // Pure TS (relative imports only, zero framework aliases) so Vitest drives it directly.
 import { fallbackColor } from '../data/color';
-import { GW_API, gatewayBase } from '../data/gateway';
+import { GW_API, gatewayBase, gatewaySecret, signedGatewayFetch, type SignedResponseLike } from '../data/gateway';
 import type { PersistentCache } from '../data/idb';
 import { Lru } from '../data/lru';
 import type { CatalogFile, Item, Source, SourceKind } from '../data/types';
@@ -563,14 +563,12 @@ interface CachedEntry<T = unknown> {
   v: T;
 }
 
-export type MusicFetcher = (
-  url: string,
-  init?: RequestInit
-) => Promise<{ ok: boolean; status: number; json(): Promise<unknown> }>;
+export type MusicFetcher = (url: string, init?: RequestInit) => Promise<SignedResponseLike>;
 
 export interface GatewayMusicOptions {
   base?: () => string;
   fetcher?: MusicFetcher;
+  secret?: () => string;
   persist?: PersistentCache | null;
   offlineCatalog?: () => Promise<CatalogFile>;
   asset?: (path: string) => string;
@@ -586,6 +584,7 @@ export class GatewayMusicClient {
   private inflight = new Map<string, Promise<unknown>>();
   private readonly getBase: () => string;
   private readonly fetcher: MusicFetcher;
+  private readonly getSecret: () => string;
   private readonly persist: PersistentCache | null;
   private readonly offlineCatalog?: () => Promise<CatalogFile>;
   private readonly asset: (p: string) => string;
@@ -597,6 +596,7 @@ export class GatewayMusicClient {
   constructor(opts: GatewayMusicOptions = {}) {
     this.getBase = opts.base ?? (() => gatewayBase());
     this.fetcher = opts.fetcher ?? ((u, init) => fetch(u, init));
+    this.getSecret = opts.secret ?? (() => gatewaySecret());
     this.persist = opts.persist ?? null;
     this.offlineCatalog = opts.offlineCatalog;
     this.asset = opts.asset ?? ((p) => p);
@@ -628,10 +628,16 @@ export class GatewayMusicClient {
     const onAbort = () => ctl.abort();
     signal?.addEventListener('abort', onAbort);
     try {
-      const res = await this.fetcher(url, {
-        signal: ctl.signal,
-        headers: { accept: 'application/json' }
-      });
+      const res = await signedGatewayFetch(
+        url,
+        {
+          signal: ctl.signal,
+          headers: { accept: 'application/json' }
+        },
+        this.base,
+        this.fetcher,
+        this.getSecret()
+      );
       if (!res.ok) throw new Error(`Music HTTP ${res.status}`);
       return (await res.json()) as T;
     } finally {

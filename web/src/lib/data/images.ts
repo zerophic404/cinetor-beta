@@ -30,6 +30,22 @@ export function gwImgUrl(p: string, w: number): string {
   return `${p}${p.includes('?') ? '&' : '?'}${proc}`;
 }
 
+/** Remove `x-oss-process` query parameter cleanly while preserving any other query params and hash. */
+export function stripOssProcess(url: string): string {
+  if (!url || !/x-oss-process=/i.test(url)) return url;
+  const hashIdx = url.indexOf('#');
+  const beforeHash = hashIdx >= 0 ? url.slice(0, hashIdx) : url;
+  const hash = hashIdx >= 0 ? url.slice(hashIdx) : '';
+  const qIdx = beforeHash.indexOf('?');
+  if (qIdx < 0) return url;
+  const base = beforeHash.slice(0, qIdx);
+  const rest = beforeHash
+    .slice(qIdx + 1)
+    .split('&')
+    .filter((part) => part.length > 0 && !/^x-oss-process=/i.test(part));
+  return rest.length ? `${base}?${rest.join('&')}${hash}` : `${base}${hash}`;
+}
+
 function defaultDpr(): number {
   if (typeof devicePixelRatio === 'number' && Number.isFinite(devicePixelRatio) && devicePixelRatio > 0) {
     return devicePixelRatio;
@@ -183,9 +199,9 @@ export function imgAttrs(
   return { src: asset(path) };
 }
 
-/** Small image URL used for dominant-color sampling (64px canvas). */
+/** Small image URL used for dominant-color sampling (64px canvas — distinct size from Poster src/srcset). */
 export function colorSampleUrl(path: string, asset: (p: string) => string): string {
-  if (isTmdbPath(path)) return tmdbUrl(path, 'w185');
+  if (isTmdbPath(path)) return tmdbUrl(path, 'w92');
   if (isGwImage(path)) return gwImgUrl(path, 100);
   return isAbsolute(path) ? path : asset(path);
 }

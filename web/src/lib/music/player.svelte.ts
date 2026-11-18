@@ -5,7 +5,7 @@
 import { goto } from '$app/navigation';
 import { base } from '$app/paths';
 import { colors, persist } from '$lib/data/app-catalog';
-import { gatewayBase } from '$lib/data/gateway';
+import { gatewayBase, gatewaySecret } from '$lib/data/gateway';
 import { colorSampleUrl } from '$lib/data/images';
 import { localKV } from '$lib/data/kv';
 import { img, repo } from '$lib/data/repo';
@@ -36,6 +36,7 @@ const QUALITY_STORAGE_KEY = 'cinetor.music.quality';
 
 export const musicApi = new GatewayMusicClient({
   base: () => gatewayBase(),
+  secret: () => gatewaySecret(),
   persist,
   offlineCatalog: () => repo.file('MUSIC'),
   asset: (p) => img(p)

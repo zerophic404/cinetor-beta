@@ -7,8 +7,11 @@ const scope = `${base}/`;
 const esc = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
 export default defineConfig(({ command }) => ({
-  // TMDB v4 read token baked in at build (CI secret TMDB_TOKEN → PUBLIC_TMDB_TOKEN). Empty → mock catalog.
-  define: { __TMDB_TOKEN__: JSON.stringify(process.env.PUBLIC_TMDB_TOKEN ?? '') },
+  // TMDB v4 read token + gateway HMAC signing secret baked in at build.
+  define: {
+    __TMDB_TOKEN__: JSON.stringify(process.env.PUBLIC_TMDB_TOKEN ?? ''),
+    __GATEWAY_SECRET__: JSON.stringify(process.env.PUBLIC_GATEWAY_SECRET ?? '')
+  },
   worker: { format: 'es' },
   // Hardening (docs/requirements-hardening.md §1/§2): production bundle is minified, carries no
   // source maps and no console.*/debugger statements that could expose URLs or internals.
@@ -86,6 +89,8 @@ export default defineConfig(({ command }) => ({
         navigateFallback: `${base}/app`,
         navigateFallbackAllowlist: [new RegExp(`^${esc(base)}/app(/|$)`)],
         cleanupOutdatedCaches: true,
+        skipWaiting: true,
+        clientsClaim: true,
         runtimeCaching: [
           {
             // Non-app navigations (landing etc.) offline → offline page. /app/* uses the SPA shell above.
@@ -115,12 +120,12 @@ export default defineConfig(({ command }) => ({
             }
           },
           {
-            urlPattern: ({ request }) => request.destination === 'image',
+            urlPattern: ({ request, url }) => request.destination === 'image' && url.origin === self.location.origin,
             handler: 'StaleWhileRevalidate',
             options: {
               cacheName: 'cinetor-images',
               expiration: { maxEntries: 300, maxAgeSeconds: 7 * 24 * 3600 },
-              cacheableResponse: { statuses: [0, 200] }
+              cacheableResponse: { statuses: [200] }
             }
           }
         ]
