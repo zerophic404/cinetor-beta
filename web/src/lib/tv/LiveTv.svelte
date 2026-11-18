@@ -35,7 +35,7 @@
 
   let playingItem = $state.raw<Item | null>(null);
   let activeMedia = $state.raw<Media | null>(null);
-  let stageWrap = $state<HTMLDivElement>();
+  let stageWrap = $state<HTMLElement>();
   const sess = session.state;
 
   $effect(() => {

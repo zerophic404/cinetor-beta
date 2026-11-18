@@ -203,7 +203,7 @@
         height="225"
         referrerpolicy="no-referrer"
         onerror={() => {
-          if (!coverProxy && /^https?:\/\//i.test(item.poster) && gatewayBase()) coverProxy = true;
+          if (!coverProxy && /^https?:\/\//i.test(item?.poster ?? '') && gatewayBase()) coverProxy = true;
           else coverFailed = true;
         }}
       />

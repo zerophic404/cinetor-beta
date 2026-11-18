@@ -510,7 +510,7 @@
               {:else}
                 <div class="card-ph" aria-hidden="true">♪</div>
               {/if}
-              <span class="play-badge" aria-hidden="true">{music.current?.id === trk.id && !music.paused ? '❚❚' : '▶'}</span>
+              <span class="play-badge" aria-hidden="true">{music.current?.id === trk.id && music.playing ? '❚❚' : '▶'}</span>
             </div>
             <span class="card-title">{trk.title}</span>
             <small class="card-sub">{trk.artist}</small>

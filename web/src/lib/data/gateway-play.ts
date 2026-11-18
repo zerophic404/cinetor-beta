@@ -722,12 +722,13 @@ function stripDubAnnotations(title: string): string {
 function withAudioLang(sources: Source[], audioLang: string): Source[] {
   return sources.map((s) => {
     if (s.audioLang) return s;
+    const lbl = s.label ?? '';
     const hasLangInLabel =
-      isYouTubeUrl(s.url) || s.label.toLowerCase().includes(audioLang.toLowerCase()) || /dual audio/i.test(s.label);
+      isYouTubeUrl(s.url) || lbl.toLowerCase().includes(audioLang.toLowerCase()) || /dual audio/i.test(lbl);
     return {
       ...s,
       audioLang,
-      label: hasLangInLabel ? s.label : `${s.label} · ${audioLang}`
+      label: hasLangInLabel ? lbl : `${lbl || 'Auto'} · ${audioLang}`
     };
   });
 }
@@ -903,7 +904,16 @@ export class StreamResolver {
               languageName: fullLanguageName(detected)
             });
           }
-          for (const hd of hit.dubs ?? []) {
+          const rawHitDubs = (hit.dubs ?? []) as Array<{
+            subject_id?: string;
+            slug?: string;
+            detail_path?: string;
+            language_name?: string;
+            lanName?: string;
+            language_code?: string;
+            lan?: string;
+          }>;
+          for (const hd of rawHitDubs) {
             const dSid = (hd.subject_id ?? '').trim();
             if (!dSid || dSid === effectiveRef.subjectId || dubMap.has(dSid)) continue;
             dubMap.set(dSid, {

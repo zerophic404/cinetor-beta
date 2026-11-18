@@ -30,8 +30,10 @@ export class AppRepository extends CatalogRepository {
     if (this.bound) return this.bound.castWorks(personName, signal);
     const want = normalize(personName);
     if (!want) return [];
-    const all = await this.allItems().catch(() => [] as Item[]);
-    return all.filter((i) => i.cast?.some((c) => normalize(c) === want));
+    const lists = await Promise.all((['TV', 'MUSIC', 'COMICS'] as const).map((s) => this.items(s).catch(() => [] as Item[])));
+    return lists.flat().filter((i: Item) =>
+      i.cast?.some((c) => normalize(typeof c === 'string' ? c : (c as { name?: string }).name ?? '') === want)
+    );
   }
 
   async warmStartupSpaces(): Promise<string[]> {

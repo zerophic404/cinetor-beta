@@ -26,6 +26,23 @@
 
   // Confirmation sheets (no browser window.confirm prompts)
   let confirmAction = $state<'search' | 'watch' | 'reset' | null>(null);
+  let confirmOpen = $state(false);
+
+  function openConfirm(action: 'search' | 'watch' | 'reset') {
+    confirmAction = action;
+    confirmOpen = true;
+  }
+
+  function closeConfirm() {
+    confirmOpen = false;
+    confirmAction = null;
+  }
+
+  $effect(() => {
+    if (!confirmOpen && confirmAction !== null) {
+      confirmAction = null;
+    }
+  });
 
   // 18+ PIN gate & change sheets
   let gateOpen = $state(false);
@@ -90,13 +107,13 @@
   async function clearSearchHistoryNow() {
     const id = profiles.activeId;
     await Promise.all(SEARCH_SCOPES.map((s) => history.clear(id, s).catch(() => undefined)));
-    confirmAction = null;
+    closeConfirm();
     notice = 'Search history cleared.';
   }
 
   async function clearWatchHistoryNow() {
     await resume.clearProfile(profiles.activeId).catch(() => 0);
-    confirmAction = null;
+    closeConfirm();
     notice = 'Watch history cleared.';
   }
 
@@ -120,7 +137,7 @@
     }
     perf.setOverride('AUTO');
     writeJSON(localKV(), `cinetor.substyle.${profiles.activeId}`, { ...DEFAULT_SUB_STYLE, bg: 0 });
-    confirmAction = null;
+    closeConfirm();
     notice = 'Settings restored to default.';
   }
 
@@ -420,7 +437,7 @@
 
     <div class="sep"></div>
 
-    <button type="button" class="action-row" onclick={() => (confirmAction = 'search')}>
+    <button type="button" class="action-row" onclick={() => openConfirm('search')}>
       <span class="row-copy">
         <b>Clear search history</b>
         <small>Remove recent search queries across all sections</small>
@@ -430,7 +447,7 @@
 
     <div class="sep"></div>
 
-    <button type="button" class="action-row" onclick={() => (confirmAction = 'watch')}>
+    <button type="button" class="action-row" onclick={() => openConfirm('watch')}>
       <span class="row-copy">
         <b>Clear watch history</b>
         <small>Remove Continue Watching items and saved playback positions</small>
@@ -449,7 +466,7 @@
     </button>
   </section>
 
-  <button type="button" class="reset-card glass" onclick={() => (confirmAction = 'reset')}>
+  <button type="button" class="reset-card glass" onclick={() => openConfirm('reset')}>
     <span class="reset-ic" aria-hidden="true">↺</span>
     <span class="row-copy">
       <b>Reset settings</b>
@@ -487,32 +504,31 @@
 </Sheet>
 
 <Sheet
-  open={confirmAction !== null}
+  bind:open={confirmOpen}
   title={confirmAction === 'search'
     ? 'Clear search history?'
     : confirmAction === 'watch'
       ? 'Clear watch history?'
       : 'Reset settings?'}
-  onClose={() => (confirmAction = null)}
 >
   <div class="sheet-body">
     {#if confirmAction === 'search'}
       <p>Recent searches across Home, Anime, Drama, Music, Comics, and 18+ will be removed.</p>
       <div class="acts">
         <button type="button" class="btn btn-primary" onclick={clearSearchHistoryNow}>Clear search history</button>
-        <button type="button" class="btn btn-ghost" onclick={() => (confirmAction = null)}>Cancel</button>
+        <button type="button" class="btn btn-ghost" onclick={closeConfirm}>Cancel</button>
       </div>
     {:else if confirmAction === 'watch'}
       <p>Continue Watching items and saved playback positions will be removed. Your saved My List stays intact.</p>
       <div class="acts">
         <button type="button" class="btn btn-primary" onclick={clearWatchHistoryNow}>Clear watch history</button>
-        <button type="button" class="btn btn-ghost" onclick={() => (confirmAction = null)}>Cancel</button>
+        <button type="button" class="btn btn-ghost" onclick={closeConfirm}>Cancel</button>
       </div>
     {:else if confirmAction === 'reset'}
       <p>Appearance, player gestures, floating mini-player, and Wi-Fi download settings return to their defaults.</p>
       <div class="acts">
         <button type="button" class="btn btn-primary" onclick={resetAllSettingsNow}>Reset settings</button>
-        <button type="button" class="btn btn-ghost" onclick={() => (confirmAction = null)}>Cancel</button>
+        <button type="button" class="btn btn-ghost" onclick={closeConfirm}>Cancel</button>
       </div>
     {/if}
   </div>

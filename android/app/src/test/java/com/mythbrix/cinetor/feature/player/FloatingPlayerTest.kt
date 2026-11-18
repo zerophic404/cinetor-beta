@@ -58,7 +58,7 @@ class FloatingPlayerTest {
         e.fake.setPhase(PlaybackPhase.READY)
         e.holder.minimize()
         // Browse: open Details of b (warms) then go back (cancels) while the mini plays a.
-        val details = DetailsStateHolder(MapCatalog(listOf(a, b)), e.pre, backgroundScope) { id -> if (id == "b") b else null }
+        val details = DetailsStateHolder(MapCatalog(listOf(a, b)), e.pre, backgroundScope, peek = { id -> if (id == "b") b else null })
         details.open("b")
         advanceTimeBy(100)
         runCurrent()

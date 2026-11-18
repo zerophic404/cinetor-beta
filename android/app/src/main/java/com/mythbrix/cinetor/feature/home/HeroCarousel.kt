@@ -223,7 +223,8 @@ fun HeroCarousel(
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         BoxWithConstraints(Modifier.fillMaxWidth()) {
-            val wide = maxWidth > 600.dp
+            val containerWidth = maxWidth
+            val wide = containerWidth > 600.dp
             val showcaseHeight = if (wide) 320.dp else 428.dp
             val backdropPath = settledHero.backdrop.ifBlank { settledHero.poster }
 
@@ -241,7 +242,7 @@ fun HeroCarousel(
                     CinetorArtwork(
                         seedKey = heroId,
                         path = path,
-                        width = maxWidth,
+                        width = containerWidth,
                         height = showcaseHeight,
                         large = true,
                         modifier = Modifier

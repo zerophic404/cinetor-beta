@@ -268,7 +268,7 @@ class GatewaySourceResolver(
     }
 
     private suspend fun resolveByTmdbId(
-        tmdbId: Int,
+        tmdbId: Long,
         media: String,
         se: Int,
         ep: Int,
