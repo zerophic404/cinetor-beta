@@ -57,8 +57,7 @@
 
   function primaryPagesFor(c: Chapter | undefined): string[] {
     const s = pageSetFor(c);
-    if (!s) return [];
-    return dataSaver && s.backup.length ? s.backup : s.primary;
+    return s ? s.primary : [];
   }
 
   function pageUrlAt(c: Chapter | undefined, pi: number): string | null {
