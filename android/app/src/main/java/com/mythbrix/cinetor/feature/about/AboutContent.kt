@@ -2,10 +2,11 @@ package com.mythbrix.cinetor.feature.about
 
 import com.mythbrix.cinetor.core.AppLinks
 
-/** Exact About copy (Task 5.3) — covered by AboutTest; the UI renders only these strings. */
+/** Exact About copy — covered by AboutTest; the UI renders only these strings. */
 object AboutCopy {
     const val APP_NAME = "Cinetor"
     const val DEVELOPED_BY = "Developed By Mythbrix"
+    const val RIGHTS_RESERVED = "All rights reserved Mythbrix"
     const val THANKS_PREFIX = "Thanks to "
     const val THANKS_NAME = "Ahmed Ishtiaq Zarir"
     const val THANKS = THANKS_PREFIX + THANKS_NAME
@@ -39,18 +40,4 @@ fun thanksText(): LinkedText = LinkedText(
     start = AboutCopy.THANKS_PREFIX.length,
     end = AboutCopy.THANKS.length,
     url = AppLinks.ZARIR_URL,
-)
-
-data class OssLicense(val name: String, val license: String)
-
-/** Open-source components bundled in the APK (static list). */
-val OSS_LICENSES: List<OssLicense> = listOf(
-    OssLicense("AndroidX (Core, Activity, Lifecycle, Navigation, DataStore, Room, WorkManager)", "Apache License 2.0"),
-    OssLicense("Jetpack Compose & Material 3", "Apache License 2.0"),
-    OssLicense("Media3 ExoPlayer", "Apache License 2.0"),
-    OssLicense("Kotlin, kotlinx.coroutines, kotlinx.serialization", "Apache License 2.0"),
-    OssLicense("Coil 3", "Apache License 2.0"),
-    OssLicense("OkHttp", "Apache License 2.0"),
-    OssLicense("Haze (Chris Banes)", "Apache License 2.0"),
-    OssLicense("Palette", "Apache License 2.0"),
 )

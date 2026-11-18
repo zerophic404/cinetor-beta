@@ -321,13 +321,16 @@
           <div class="card-grid">
             {#each foundAlbums as al (al.id)}
               <a class="chart-card glass" href={albumHref(al.id)}>
-                {#if al.artwork}
-                  <img referrerpolicy="no-referrer" src={al.artwork} alt="" width="164" height="164" loading="lazy" decoding="async" />
-                {:else}
-                  <div class="card-ph" aria-hidden="true">♪</div>
-                {/if}
-                <b>{al.title}</b>
-                <small>{al.artist}{al.year ? ` · ${al.year}` : ''}</small>
+                <div class="art-box">
+                  {#if al.artwork}
+                    <img referrerpolicy="no-referrer" src={al.artwork} alt="" width="164" height="164" loading="lazy" decoding="async" />
+                  {:else}
+                    <div class="card-ph" aria-hidden="true">♪</div>
+                  {/if}
+                  <span class="play-badge" aria-hidden="true">▶</span>
+                </div>
+                <span class="card-title">{al.title}</span>
+                <small class="card-sub">{al.artist}{al.year ? ` · ${al.year}` : ''}</small>
               </a>
             {/each}
           </div>
@@ -339,13 +342,16 @@
           <div class="card-grid">
             {#each foundPlaylists as pl (pl.id)}
               <a class="chart-card glass" href={chartHref(pl.id)}>
-                {#if pl.artwork}
-                  <img referrerpolicy="no-referrer" src={pl.artwork} alt="" width="164" height="164" loading="lazy" decoding="async" />
-                {:else}
-                  <div class="card-ph" aria-hidden="true">♪</div>
-                {/if}
-                <b>{pl.title}</b>
-                <small>{pl.count ? `${pl.count} tracks` : (pl.subtitle ?? 'Playlist')}</small>
+                <div class="art-box">
+                  {#if pl.artwork}
+                    <img referrerpolicy="no-referrer" src={pl.artwork} alt="" width="164" height="164" loading="lazy" decoding="async" />
+                  {:else}
+                    <div class="card-ph" aria-hidden="true">♪</div>
+                  {/if}
+                  <span class="play-badge" aria-hidden="true">▶</span>
+                </div>
+                <span class="card-title">{pl.title}</span>
+                <small class="card-sub">{pl.count ? `${pl.count} tracks` : (pl.subtitle ?? 'Playlist')}</small>
               </a>
             {/each}
           </div>
@@ -377,13 +383,16 @@
           <div class="h-scroll">
             {#each chipCharts as pl (pl.id)}
               <a class="chart-card glass carousel-card" href={chartHref(pl.id)}>
-                {#if pl.artwork}
-                  <img referrerpolicy="no-referrer" src={pl.artwork} alt="" width="156" height="156" loading="lazy" decoding="async" />
-                {:else}
-                  <div class="card-ph" aria-hidden="true">♪</div>
-                {/if}
-                <b>{pl.title}</b>
-                <small>{pl.count ? `${pl.count} tracks` : 'Lossless Mix'}</small>
+                <div class="art-box">
+                  {#if pl.artwork}
+                    <img referrerpolicy="no-referrer" src={pl.artwork} alt="" width="156" height="156" loading="lazy" decoding="async" />
+                  {:else}
+                    <div class="card-ph" aria-hidden="true">♪</div>
+                  {/if}
+                  <span class="play-badge" aria-hidden="true">▶</span>
+                </div>
+                <span class="card-title">{pl.title}</span>
+                <small class="card-sub">{pl.count ? `${pl.count} tracks` : 'Lossless Mix'}</small>
               </a>
             {/each}
           </div>
@@ -457,8 +466,8 @@
                 {/if}
                 <span class="play-badge" aria-hidden="true">▶</span>
               </div>
-              <b>{chart.title}</b>
-              <small>{chart.count ? `${chart.count} tracks` : (chart.subtitle ?? 'Curated Chart')}</small>
+              <span class="card-title">{chart.title}</span>
+              <small class="card-sub">{chart.count ? `${chart.count} tracks` : (chart.subtitle ?? 'Curated Chart')}</small>
             </a>
           {/each}
         </div>
@@ -474,12 +483,40 @@
                 {/if}
                 <span class="play-badge" aria-hidden="true">▶</span>
               </div>
-              <b>{chart.title}</b>
-              <small>{chart.count ? `${chart.count} tracks` : (chart.subtitle ?? 'Curated Chart')}</small>
+              <span class="card-title">{chart.title}</span>
+              <small class="card-sub">{chart.count ? `${chart.count} tracks` : (chart.subtitle ?? 'Curated Chart')}</small>
             </a>
           {/each}
         </div>
       {/if}
+    {/if}
+
+    {#if !albumsTabActive && !tracksTabActive && trendingTracks.length}
+      <div class="sec-bar">
+        <h2 class="section-title">Quick Picks</h2>
+        <span class="sec-tag">{music.quality === 'flac' ? 'FLAC' : '320K'}</span>
+      </div>
+      <div class="h-scroll">
+        {#each trendingTracks.slice(0, 12) as trk, idx (trk.id)}
+          <button
+            type="button"
+            class="chart-card track-thumb glass carousel-card"
+            class:is-playing={music.current?.id === trk.id}
+            onclick={() => music.playQueue(trendingTracks, idx)}
+          >
+            <div class="art-box">
+              {#if trk.art}
+                <img referrerpolicy="no-referrer" src={trk.art} alt="" width="156" height="156" loading="lazy" decoding="async" />
+              {:else}
+                <div class="card-ph" aria-hidden="true">♪</div>
+              {/if}
+              <span class="play-badge" aria-hidden="true">{music.current?.id === trk.id && !music.paused ? '❚❚' : '▶'}</span>
+            </div>
+            <span class="card-title">{trk.title}</span>
+            <small class="card-sub">{trk.artist}</small>
+          </button>
+        {/each}
+      </div>
     {/if}
 
     {#if !albumsTabActive || selectedChip === 'Top Charts'}
@@ -694,11 +731,22 @@
   }
   .chart-card {
     display: grid;
+    align-content: start;
     gap: 6px;
     padding: 10px;
     border-radius: 18px;
     text-decoration: none;
+    color: var(--text-primary);
     transition: transform calc(var(--dur-short, 150ms) * var(--dur-scale, 1)) var(--ease-emphasized, ease);
+  }
+  .track-thumb {
+    border: 0;
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
+  }
+  .track-thumb.is-playing {
+    box-shadow: 0 0 0 2px var(--accent);
   }
   .chart-card:hover {
     transform: translateY(-2px);
@@ -708,6 +756,7 @@
   }
   .chart-card img,
   .card-ph {
+    display: block;
     width: 100%;
     aspect-ratio: 1;
     height: auto;
@@ -736,16 +785,23 @@
     box-shadow: 0 6px 16px rgb(0 0 0 / 0.45);
     opacity: 0.92;
   }
-  .chart-card b,
-  .chart-card small {
+  .card-title {
+    font-size: 0.88rem;
+    font-weight: 700;
+    line-height: 1.3;
+    color: var(--text-primary);
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+  .track-thumb.is-playing .card-title {
+    color: var(--accent);
+  }
+  .card-sub {
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
-  }
-  .chart-card b {
-    font-size: 0.88rem;
-  }
-  .chart-card small {
     color: var(--text-secondary);
     font-size: 0.76rem;
   }

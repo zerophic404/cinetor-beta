@@ -1,5 +1,7 @@
 package com.mythbrix.cinetor.feature.settings
 
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -24,9 +26,11 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowRight
 import androidx.compose.material.icons.rounded.Check
+import androidx.compose.material.icons.rounded.RestartAlt
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Switch
@@ -55,12 +59,10 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.mythbrix.cinetor.core.data.AppContainer
-import com.mythbrix.cinetor.core.perf.EffectsQuality
+import com.mythbrix.cinetor.core.data.Space
+import com.mythbrix.cinetor.core.download.DownloadLocations
+import com.mythbrix.cinetor.core.download.StorageInfo
 import com.mythbrix.cinetor.core.prefs.AppSettings
-import com.mythbrix.cinetor.core.prefs.ImageQuality
-import com.mythbrix.cinetor.core.prefs.MaturityLimit
-import com.mythbrix.cinetor.core.prefs.SettingsOptions
-import com.mythbrix.cinetor.core.prefs.VideoQuality
 import com.mythbrix.cinetor.design.AppTheme
 import com.mythbrix.cinetor.design.Cinetor
 import com.mythbrix.cinetor.design.CinetorTokens
@@ -68,11 +70,12 @@ import com.mythbrix.cinetor.design.GlassLevel
 import com.mythbrix.cinetor.design.glass
 import com.mythbrix.cinetor.design.themeUsesSpecularShine
 import com.mythbrix.cinetor.feature.adult.AdultGate
-import com.mythbrix.cinetor.feature.adult.AdultSettingsBlock
+import com.mythbrix.cinetor.feature.adult.AdultSetupAction
+import com.mythbrix.cinetor.feature.adult.AdultSetupFlowDialog
 import com.mythbrix.cinetor.feature.adult.EnableResult
 import com.mythbrix.cinetor.feature.adult.UnlockResult
-import com.mythbrix.cinetor.feature.profile.ProfileAvatar
 import com.mythbrix.cinetor.feature.profile.ProfilePinDialog
+import java.util.Locale
 import kotlinx.coroutines.launch
 
 /** Curated display order: Cinetor Beta's 5 material themes first, followed by the 3 classic dark palettes. */
@@ -86,6 +89,8 @@ internal val ThemeDisplayOrder: List<AppTheme> = listOf(
     AppTheme.OBSIDIAN,
     AppTheme.EMBER,
 )
+
+internal val DoubleTapChoices: List<Int> = listOf(5, 10, 15, 30)
 
 internal fun themeBadge(theme: AppTheme): String = when (theme) {
     AppTheme.GLASS -> "Liquid Glass"
@@ -110,191 +115,372 @@ internal fun themeDescription(theme: AppTheme): String = when (theme) {
 }
 
 /**
- * Settings (Task 5.2): Appearance · Playback · Subtitles & audio · Data & storage · Content · Profiles · TV ·
- * Developer · About. Every change goes through [SettingsStateHolder] → the root recomposes in place (no restart).
+ * Cinetor Beta streamlined Settings:
+ * Appearance · Player · Downloads · Content & Privacy · Reset settings.
+ * Audio, subtitle, and quality pickers live inside the player controls where they are used.
  */
 @Composable
 fun SettingsScreen(
     container: AppContainer,
     contentPadding: PaddingValues,
-    onProfiles: () -> Unit,
-    onAbout: () -> Unit,
+    @Suppress("UnusedParameter") onProfiles: () -> Unit = {},
+    @Suppress("UnusedParameter") onAbout: () -> Unit = {},
 ) {
+    val tokens = Cinetor.tokens
     val holder = container.settingsState
     val s by holder.state.collectAsStateWithLifecycle()
     val theme by holder.theme.collectAsStateWithLifecycle()
-    val profile by container.profiles.active.collectAsStateWithLifecycle()
+    val sub by container.subtitles.state.collectAsStateWithLifecycle()
+    val dlPolicy by container.downloads.prefs.policy.collectAsStateWithLifecycle()
+    val dlStorage by container.downloads.storage.collectAsStateWithLifecycle()
+    val dlLocation by container.downloads.location.collectAsStateWithLifecycle()
     val scope = rememberCoroutineScope()
     val set: ((AppSettings) -> AppSettings) -> Unit = { f -> holder.update(f) }
 
+    var confirmClearSearch by remember { mutableStateOf(false) }
+    var confirmClearWatch by remember { mutableStateOf(false) }
+    var confirmReset by remember { mutableStateOf(false) }
+    var searchStatus by remember { mutableStateOf<String?>(null) }
+    var watchStatus by remember { mutableStateOf<String?>(null) }
+    var resetStatus by remember { mutableStateOf<String?>(null) }
+
+    LaunchedEffect(Unit) {
+        runCatching { container.downloads.refreshStorage() }
+    }
+
+    val pickFolder = rememberLauncherForActivityResult(
+        ActivityResultContracts.OpenDocumentTree(),
+    ) { uri ->
+        if (uri != null) {
+            scope.launch {
+                runCatching { container.downloads.setLocation(uri) }
+                runCatching { container.downloads.refreshStorage() }
+            }
+        }
+    }
+
     Column(
-        Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(contentPadding).padding(16.dp),
+        Modifier
+            .fillMaxSize()
+            .verticalScroll(rememberScrollState())
+            .padding(contentPadding)
+            .padding(horizontal = 16.dp, vertical = 12.dp),
         verticalArrangement = Arrangement.spacedBy(14.dp),
     ) {
-        Text("Settings", style = MaterialTheme.typography.headlineMedium, color = Cinetor.tokens.textPrimary)
+        Text(
+            "Settings",
+            style = MaterialTheme.typography.headlineMedium,
+            fontWeight = FontWeight.Bold,
+            color = tokens.textPrimary,
+        )
 
-        Group(null) {
-            // Content first: parental controls at a glance (and the 18+ toggle stays on the first screen for smoke/TV).
-            // 18+ toggle → age confirm → PIN (Task 4.4 gate). Greyed on Kids profiles.
-            AdultSettingsBlock(container.adult)
-            ChangeAdultPin(container.adult)
-            Choice("Maturity limit", MaturityLimit.entries, s.maturityLimit, { it.label }) { v -> set { it.copy(maturityLimit = v) } }
+        resetStatus?.let { msg ->
+            Text(
+                msg,
+                style = MaterialTheme.typography.bodySmall,
+                color = tokens.accent,
+                fontWeight = FontWeight.Medium,
+            )
         }
 
         Group("Appearance") {
-            Label("Theme · ${profile.name}")
             ThemeGridPicker(selected = theme, onSelect = holder::setTheme)
             ActiveThemeSummary(theme = theme)
-            Choice("Effects quality", EffectsQuality.entries, s.effects, { it.name.lowercase().replaceFirstChar { c -> c.uppercase() } }) { v ->
-                set { it.copy(effects = v) }
-            }
-            Toggle("Reduce motion", "Shorter animations, banner stays still", s.reduceMotion) { v -> set { it.copy(reduceMotion = v) } }
-            Toggle("Dynamic color", "Tint the background from the artwork", s.dynamicColor) { v -> set { it.copy(dynamicColor = v) } }
         }
 
-        Group("Playback") {
-            Choice("Default quality · Wi-Fi", VideoQuality.entries, s.qualityWifi, { it.label }) { v -> set { it.copy(qualityWifi = v) } }
-            Choice("Default quality · Mobile data", VideoQuality.entries, s.qualityMobile, { it.label }) { v -> set { it.copy(qualityMobile = v) } }
-            Toggle("Autoplay next episode", "10 s countdown at the end of an episode", s.autoplayNext) { v -> set { it.copy(autoplayNext = v) } }
-            Toggle("Skip intro automatically", "Jump past marked intros", s.skipIntroAuto) { v -> set { it.copy(skipIntroAuto = v) } }
-            Choice("Double-tap seek", SettingsOptions.DOUBLE_TAP_SEC, s.doubleTapSec, { "$it s" }) { v -> set { it.copy(doubleTapSec = v) } }
-            Choice("Hold speed", SettingsOptions.HOLD_SPEEDS, s.holdSpeed, ::speedLabel) { v -> set { it.copy(holdSpeed = v) } }
-            Toggle("Player gestures", "Double-tap seek, hold for speed, swipe brightness/volume", s.gestures) { v -> set { it.copy(gestures = v) } }
-            Toggle("Picture-in-picture", "Float the video when you leave the app while it plays", s.autoPip) { v -> set { it.copy(autoPip = v) } }
-            Toggle("Background play", "Keep video audio playing with the screen off / app in background", s.backgroundPlay) { v ->
-                set { it.copy(backgroundPlay = v) }
+        Group("Player") {
+            val activeSkip = if (s.doubleTapSec in DoubleTapChoices) s.doubleTapSec else 10
+            Choice(
+                title = "Double-tap skip",
+                options = DoubleTapChoices,
+                selected = activeSkip,
+                label = { "${it}s" },
+            ) { v ->
+                set { it.copy(doubleTapSec = v) }
             }
-        }
-
-        Group("Subtitles & audio") {
-            Toggle("Subtitles on by default", "Pick the preferred language when available", s.subtitlesOn) { v -> set { it.copy(subtitlesOn = v) } }
-            Choice("Subtitle language", SettingsOptions.LANGUAGES.drop(1).map { it.first }, s.subtitleLang, ::langLabel) { v ->
-                set { it.copy(subtitleLang = v) }
+            SectionDivider()
+            val holdEnabled = s.gestures && s.holdSpeed >= 1.9f
+            Toggle(
+                title = "Hold for 2× speed",
+                subtitle = "Press and hold the video to play at 2× speed",
+                checked = holdEnabled,
+            ) { v ->
+                set { it.copy(gestures = true, holdSpeed = if (v) 2f else 1.25f) }
             }
-            Choice("Audio language", SettingsOptions.LANGUAGES.map { it.first }, s.audioLang, ::langLabel) { v -> set { it.copy(audioLang = v) } }
-            val sub by container.subtitles.state.collectAsStateWithLifecycle()
-            Choice("Subtitle size · ${profile.name}", listOf(75, 100, 125, 150), sub.style.sizePercent, { "$it%" }) { v ->
-                container.subtitles.setStyle(sub.style.copy(sizePercent = v))
-            }
-            Choice("Subtitle background", listOf(0f, 0.35f, 0.7f), sub.style.bgOpacity, { if (it == 0f) "None" else "${(it * 100).toInt()}%" }) { v ->
-                container.subtitles.setStyle(sub.style.copy(bgOpacity = v))
-            }
-            Hint("Profiles can override languages in Edit profile.")
-        }
-
-        Group("Data & storage") {
-            Toggle("Data saver", "Lower quality, no pre-buffering", s.dataSaver) { v -> set { it.copy(dataSaver = v) } }
-            Choice("Image quality", ImageQuality.entries, s.imageQuality, { it.label }) { v -> set { it.copy(imageQuality = v) } }
-            Toggle("Preload on details", "Warm the stream while you read details (instant play)", s.preloadDetails) { v ->
-                set { it.copy(preloadDetails = v) }
-            }
-            Choice("Video cache size", SettingsOptions.CACHE_MB, s.cacheSizeMb, { if (it >= 1000) "${it / 1000} GB" else "$it MB" }) { v ->
-                set { it.copy(cacheSizeMb = v) }
-            }
-            Hint("Cache size applies after restart.")
-            CacheRow(container)
-            var confirmClear by remember { mutableStateOf(false) }
-            ActionRow("Clear watch history", "History, resume points and recent searches of ${profile.name}") { confirmClear = true }
-            if (confirmClear) {
-                AlertDialog(
-                    onDismissRequest = { confirmClear = false },
-                    title = { Text("Clear history?") },
-                    text = { Text("Continue Watching, history and recent searches of ${profile.name} are removed.") },
-                    confirmButton = {
-                        TextButton(onClick = { confirmClear = false; scope.launch { container.clearHistory() } }) {
-                            Text("Clear", color = Cinetor.tokens.accent)
-                        }
-                    },
-                    dismissButton = { TextButton(onClick = { confirmClear = false }) { Text("Cancel") } },
-                    containerColor = Cinetor.tokens.surfaceElevated,
-                )
+            SectionDivider()
+            Toggle(
+                title = "Floating Mini-Player / PiP",
+                subtitle = "Keep video playing in a small floating window when browsing or leaving the app",
+                checked = s.autoPip,
+            ) { v ->
+                set { it.copy(autoPip = v) }
             }
         }
 
         Group("Downloads") {
-            // Hardening §4: SAF folder picker, remembered as the default and changeable here.
-            val dlLocation by container.downloads.location.collectAsStateWithLifecycle()
-            val pickFolder = androidx.activity.compose.rememberLauncherForActivityResult(
-                androidx.activity.result.contract.ActivityResultContracts.OpenDocumentTree(),
-            ) { uri -> if (uri != null) scope.launch { container.downloads.setLocation(uri) } }
-            ActionRow(
-                "Download location",
-                com.mythbrix.cinetor.core.download.DownloadLocations.label(dlLocation, adult = false),
-            ) { runCatching { pickFolder.launch(null) } }
-            if (dlLocation.chosen) {
-                ActionRow("Use app storage", "Stop copying finished downloads to the chosen folder") {
-                    scope.launch { container.downloads.clearLocation() }
-                }
-            }
-        }
-
-        Group("Profiles") {
-            Row(
-                Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).clickable(onClick = onProfiles)
-                    .semantics { contentDescription = "Manage profiles" }.padding(vertical = 6.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(12.dp),
-            ) {
-                ProfileAvatar(profile, 40.dp)
-                Column(Modifier.weight(1f)) {
-                    Text(profile.name, color = Cinetor.tokens.textPrimary, style = MaterialTheme.typography.bodyLarge)
-                    Text("Switch, add or edit profiles", color = Cinetor.tokens.textSecondary, style = MaterialTheme.typography.bodySmall)
-                }
-                Icon(Icons.AutoMirrored.Rounded.KeyboardArrowRight, contentDescription = null, tint = Cinetor.tokens.textSecondary)
-            }
-        }
-
-        Group("TV") {
-            Toggle("Focus sounds", "Click sound when moving focus with the remote", s.tvFocusSounds) { v -> set { it.copy(tvFocusSounds = v) } }
-            Toggle("Banner autoplay", "Hero banner advances by itself", s.bannerAutoplay) { v -> set { it.copy(bannerAutoplay = v) } }
-        }
-
-        Group("Developer") {
-            Toggle("Mock latency", "Simulated 0.3–1.2 s delay on the mock catalog (shows skeletons)", s.mockLatency) { v ->
-                set { it.copy(mockLatency = v) }
-            }
-            var gatewayUrl by androidx.compose.runtime.saveable.rememberSaveable { androidx.compose.runtime.mutableStateOf(s.gatewayUrl) }
-            // Hardening §2: the override value is masked until the user asks to see it, and the real
-            // default base URL is never printed as a placeholder / supporting text.
-            var reveal by androidx.compose.runtime.saveable.rememberSaveable { androidx.compose.runtime.mutableStateOf(false) }
-            androidx.compose.material3.OutlinedTextField(
-                value = gatewayUrl,
-                onValueChange = { v -> gatewayUrl = v; set { it.copy(gatewayUrl = v.trim()) } },
-                label = { Text("Gateway URL override") },
-                visualTransformation = if (reveal) {
-                    androidx.compose.ui.text.input.VisualTransformation.None
-                } else {
-                    androidx.compose.ui.text.input.PasswordVisualTransformation()
-                },
-                trailingIcon = {
-                    androidx.compose.material3.TextButton(onClick = { reveal = !reveal }) {
-                        Text(if (reveal) "Hide" else "Show", color = Cinetor.tokens.accent)
-                    }
-                },
-                supportingText = { Text("Blank = built-in default. Catalog + streams for Home, Anime, Drama, 18+") },
-                singleLine = true,
-                modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp).semantics { contentDescription = "Gateway URL" },
-            )
             Toggle(
-                "Debug log",
-                "Keep request detail in a local log for troubleshooting. Off by default, never sent anywhere.",
-                s.debugLog,
+                title = "Download on Wi-Fi only",
+                subtitle = "Pause queued downloads while on mobile data",
+                checked = dlPolicy.wifiOnly,
             ) { v ->
-                com.mythbrix.cinetor.core.legal.DebugLog.setEnabled(v)
-                set { it.copy(debugLog = v) }
+                scope.launch { container.downloads.prefs.update { it.copy(wifiOnly = v) } }
+            }
+            SectionDivider()
+            StorageSummaryRow(dlStorage)
+            SectionDivider()
+            ActionRow(
+                title = "Download folder",
+                subtitle = DownloadLocations.label(dlLocation, adult = false),
+            ) {
+                runCatching { pickFolder.launch(null) }
+            }
+            if (dlLocation.chosen) {
+                ActionRow(
+                    title = "Use app storage",
+                    subtitle = "Save future downloads inside Cinetor app storage",
+                ) {
+                    scope.launch {
+                        runCatching { container.downloads.clearLocation() }
+                        runCatching { container.downloads.refreshStorage() }
+                    }
+                }
             }
         }
 
-        Group("About") {
-            ActionRow("About Cinetor", "Version, links, credits, licenses", onAbout)
+        Group("Content & Privacy") {
+            AdultPrivacyToggleRow(container.adult)
+            ChangeAdultPin(container.adult)
+            SectionDivider()
+            ActionRow(
+                title = "Clear search history",
+                subtitle = searchStatus ?: "Remove recent search queries across all sections",
+            ) {
+                confirmClearSearch = true
+            }
+            SectionDivider()
+            ActionRow(
+                title = "Clear watch history",
+                subtitle = watchStatus ?: "Remove Continue Watching and saved playback positions",
+            ) {
+                confirmClearWatch = true
+            }
+            SectionDivider()
+            CacheRow(container)
         }
+
+        Row(
+            Modifier
+                .fillMaxWidth()
+                .glass(Cinetor.cardShape, GlassLevel.SURFACE)
+                .clickable { confirmReset = true }
+                .semantics { contentDescription = "Reset settings" }
+                .padding(horizontal = 14.dp, vertical = 13.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            Box(
+                Modifier
+                    .size(36.dp)
+                    .clip(RoundedCornerShape(10.dp))
+                    .background(tokens.error.copy(alpha = 0.14f)),
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(
+                    Icons.Rounded.RestartAlt,
+                    contentDescription = null,
+                    tint = tokens.error,
+                    modifier = Modifier.size(20.dp),
+                )
+            }
+            Column(Modifier.weight(1f)) {
+                Text(
+                    "Reset settings",
+                    style = MaterialTheme.typography.bodyLarge,
+                    fontWeight = FontWeight.SemiBold,
+                    color = tokens.error,
+                )
+                Text(
+                    "Restore theme, player, and download preferences to default. History and My List are kept.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = tokens.textSecondary,
+                )
+            }
+        }
+
+        Spacer(Modifier.height(8.dp))
+    }
+
+    if (confirmClearSearch) {
+        AlertDialog(
+            onDismissRequest = { confirmClearSearch = false },
+            title = { Text("Clear search history?") },
+            text = { Text("Recent searches across Home, Anime, Drama, Music, Comics, and 18+ will be removed.") },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        confirmClearSearch = false
+                        scope.launch {
+                            val id = container.activeProfileId
+                            runCatching { container.searchHistory.clear(id, null) }
+                            Space.entries.forEach { sp -> runCatching { container.searchHistory.clear(id, sp) } }
+                            searchStatus = "Search history cleared"
+                        }
+                    },
+                ) {
+                    Text("Clear", color = tokens.error, fontWeight = FontWeight.SemiBold)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { confirmClearSearch = false }) {
+                    Text("Cancel", color = tokens.textSecondary)
+                }
+            },
+            containerColor = tokens.surfaceElevated,
+        )
+    }
+
+    if (confirmClearWatch) {
+        AlertDialog(
+            onDismissRequest = { confirmClearWatch = false },
+            title = { Text("Clear watch history?") },
+            text = { Text("Continue Watching items and saved playback positions will be removed. My List is kept.") },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        confirmClearWatch = false
+                        scope.launch {
+                            val id = container.activeProfileId
+                            runCatching { container.profiles.clearHistory(id) }
+                            runCatching { container.resume.clearProfile(id) }
+                            watchStatus = "Watch history cleared"
+                        }
+                    },
+                ) {
+                    Text("Clear", color = tokens.error, fontWeight = FontWeight.SemiBold)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { confirmClearWatch = false }) {
+                    Text("Cancel", color = tokens.textSecondary)
+                }
+            },
+            containerColor = tokens.surfaceElevated,
+        )
+    }
+
+    if (confirmReset) {
+        AlertDialog(
+            onDismissRequest = { confirmReset = false },
+            title = { Text("Reset settings?") },
+            text = { Text("Appearance, player gestures, floating mini-player, and Wi-Fi download settings return to their defaults.") },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        confirmReset = false
+                        holder.resetToDefaults()
+                        container.subtitles.setStyle(
+                            sub.style.copy(bgOpacity = SettingsStateHolder.DEFAULT_SUBTITLE_BG_OPACITY),
+                        )
+                        scope.launch {
+                            runCatching { container.downloads.prefs.update { it.copy(wifiOnly = false) } }
+                        }
+                        resetStatus = "Settings restored to default."
+                    },
+                ) {
+                    Text("Reset", color = tokens.error, fontWeight = FontWeight.SemiBold)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { confirmReset = false }) {
+                    Text("Cancel", color = tokens.textSecondary)
+                }
+            },
+            containerColor = tokens.surfaceElevated,
+        )
     }
 }
 
-private fun langLabel(code: String): String = SettingsOptions.LANGUAGES.firstOrNull { it.first == code }?.second ?: code
+@Composable
+private fun AdultPrivacyToggleRow(gate: AdultGate) {
+    val tokens = Cinetor.tokens
+    val enabled by gate.enabled.collectAsStateWithLifecycle()
+    val kids = !gate.canEnable
+    var setupAction by remember { mutableStateOf<AdultSetupAction?>(null) }
 
-private fun speedLabel(speed: Float): String =
-    (if (speed % 1f == 0f) speed.toInt().toString() else speed.toString()) + "×"
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .semantics { contentDescription = "Show 18+ section" },
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Column(Modifier.weight(1f)) {
+            Text(
+                "Show 18+ section",
+                style = MaterialTheme.typography.bodyLarge,
+                color = tokens.textPrimary,
+            )
+            Text(
+                if (kids) {
+                    "Unavailable while Kids mode is active"
+                } else if (enabled) {
+                    "PIN-protected Adult space visible under Me · Spaces"
+                } else {
+                    "Hidden everywhere until enabled with age confirmation and a 4-digit PIN"
+                },
+                style = MaterialTheme.typography.bodySmall,
+                color = tokens.textSecondary,
+            )
+        }
+        Switch(
+            checked = enabled,
+            enabled = !kids,
+            onCheckedChange = { on ->
+                setupAction = if (on) AdultSetupAction.ENABLE else AdultSetupAction.DISABLE
+            },
+            colors = SwitchDefaults.colors(checkedTrackColor = tokens.accent),
+            modifier = Modifier.semantics { contentDescription = "Toggle 18+ section" },
+        )
+    }
+
+    AdultSetupFlowDialog(
+        gate = gate,
+        action = setupAction,
+        onDismiss = { setupAction = null },
+    )
+}
+
+@Composable
+private fun StorageSummaryRow(storage: StorageInfo) {
+    val tokens = Cinetor.tokens
+    val usedText = formatStorageBytes(storage.usedByCinetor)
+    val freeText = if (storage.freeBytes > 0 && storage.freeBytes < Long.MAX_VALUE / 2) {
+        "${formatStorageBytes(storage.freeBytes)} free on device"
+    } else {
+        "Offline media storage"
+    }
+    Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+        Text(
+            "Downloaded media storage",
+            style = MaterialTheme.typography.bodyLarge,
+            color = tokens.textPrimary,
+        )
+        Text(
+            "$usedText used by Cinetor · $freeText",
+            style = MaterialTheme.typography.bodySmall,
+            color = tokens.textSecondary,
+        )
+    }
+}
+
+private fun formatStorageBytes(bytes: Long): String {
+    if (bytes <= 0L) return "0 MB"
+    val mb = bytes / 1_048_576.0
+    return if (mb >= 1024.0) {
+        String.format(Locale.US, "%.1f GB", mb / 1024.0)
+    } else {
+        String.format(Locale.US, "%.1f MB", mb)
+    }
+}
 
 /**
  * Multi-column grid of all 8 themes (`Glass`, `Matte`, `Material`, `Aura`, `Pearl`, `Noir`, `Obsidian`, `Ember`)
@@ -518,8 +704,8 @@ private fun CacheRow(container: AppContainer) {
     var bytes by remember { mutableLongStateOf(-1L) }
     var refresh by remember { mutableIntStateOf(0) }
     LaunchedEffect(refresh) { bytes = runCatching { container.cacheBytes() }.getOrDefault(0L) }
-    val label = if (bytes < 0) "Calculating…" else "%.1f MB used".format(bytes / 1_048_576.0)
-    ActionRow("Clear cache", "Images & temporary files · $label") {
+    val label = if (bytes < 0) "Calculating…" else String.format(Locale.US, "%.1f MB used", bytes / 1_048_576.0)
+    ActionRow("Clear image & stream cache", "Artwork & temporary stream cache · $label") {
         scope.launch {
             runCatching { container.clearImageCache() }
             refresh++
@@ -581,46 +767,55 @@ private suspend fun changePinStep(
 }
 
 @Composable
-private fun Group(title: String?, content: @Composable ColumnScope.() -> Unit) {
+private fun Group(title: String, content: @Composable ColumnScope.() -> Unit) {
     Column(
         Modifier.fillMaxWidth().glass(Cinetor.cardShape, GlassLevel.SURFACE).padding(14.dp),
         verticalArrangement = Arrangement.spacedBy(10.dp),
     ) {
-        if (title != null) Text(title, style = MaterialTheme.typography.titleMedium, color = Cinetor.tokens.textPrimary)
+        Text(
+            title,
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.SemiBold,
+            color = Cinetor.tokens.textPrimary,
+        )
         content()
     }
 }
 
 @Composable
-private fun Label(text: String) {
-    Text(text, style = MaterialTheme.typography.bodyMedium, color = Cinetor.tokens.textSecondary)
-}
-
-@Composable
-private fun Hint(text: String) {
-    Text(text, style = MaterialTheme.typography.bodySmall, color = Cinetor.tokens.textTertiary)
+private fun SectionDivider() {
+    HorizontalDivider(color = Cinetor.tokens.divider, thickness = 1.dp)
 }
 
 @Composable
 private fun Toggle(title: String, subtitle: String, checked: Boolean, onChange: (Boolean) -> Unit) {
     val tokens = Cinetor.tokens
     Row(
-        Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).clickable { onChange(!checked) }
-            .semantics { contentDescription = title },
+        Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(12.dp))
+            .clickable { onChange(!checked) }
+            .semantics { contentDescription = title }
+            .padding(vertical = 2.dp),
         verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         Column(Modifier.weight(1f)) {
             Text(title, style = MaterialTheme.typography.bodyLarge, color = tokens.textPrimary)
             Text(subtitle, style = MaterialTheme.typography.bodySmall, color = tokens.textSecondary)
         }
-        Switch(checked = checked, onCheckedChange = onChange, colors = SwitchDefaults.colors(checkedTrackColor = tokens.accent))
+        Switch(
+            checked = checked,
+            onCheckedChange = onChange,
+            colors = SwitchDefaults.colors(checkedTrackColor = tokens.accent),
+        )
     }
 }
 
 @Composable
 private fun <T> Choice(title: String, options: List<T>, selected: T, label: (T) -> String, onPick: (T) -> Unit) {
     val tokens = Cinetor.tokens
-    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
         Text(title, style = MaterialTheme.typography.bodyLarge, color = tokens.textPrimary)
         Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             options.forEach { o ->
@@ -629,7 +824,10 @@ private fun <T> Choice(title: String, options: List<T>, selected: T, label: (T) 
                     selected = o == selected,
                     onClick = { onPick(o) },
                     label = { Text(l) },
-                    colors = FilterChipDefaults.filterChipColors(selectedContainerColor = tokens.accent, selectedLabelColor = tokens.onAccent),
+                    colors = FilterChipDefaults.filterChipColors(
+                        selectedContainerColor = tokens.accent,
+                        selectedLabelColor = tokens.onAccent,
+                    ),
                     modifier = Modifier.semantics { contentDescription = "$title $l" },
                 )
             }
@@ -641,9 +839,14 @@ private fun <T> Choice(title: String, options: List<T>, selected: T, label: (T) 
 private fun ActionRow(title: String, subtitle: String, onClick: () -> Unit) {
     val tokens = Cinetor.tokens
     Row(
-        Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).clickable(onClick = onClick)
-            .semantics { contentDescription = title }.padding(vertical = 6.dp),
+        Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(12.dp))
+            .clickable(onClick = onClick)
+            .semantics { contentDescription = title }
+            .padding(vertical = 4.dp),
         verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         Column(Modifier.weight(1f)) {
             Text(title, style = MaterialTheme.typography.bodyLarge, color = tokens.textPrimary)

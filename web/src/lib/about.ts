@@ -15,6 +15,7 @@ const ext = (label: string, href: string): ExtLink => ({ label, href, target: '_
 export const ABOUT = {
   name: 'Cinetor',
   version: APP_VERSION,
+  rightsReserved: 'All rights reserved Mythbrix',
   community: [ext('Telegram Channel', TELEGRAM_CHANNEL_URL), ext('Telegram Group', TELEGRAM_GROUP_URL)],
   developedBy: `Developed By ${DEVELOPER}`,
   /** "Thanks to " + linked name — only the name is a link. */

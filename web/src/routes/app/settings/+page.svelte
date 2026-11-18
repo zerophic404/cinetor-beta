@@ -1,86 +1,33 @@
 <script lang="ts">
-  import { base } from '$app/paths';
+  import { onMount } from 'svelte';
   import Sheet from '$lib/components/Sheet.svelte';
   import PinPad from '$lib/adult/PinPad.svelte';
   import { adult } from '$lib/adult/store.svelte';
   import { THEME_NAMES, theme, themeDescriptor } from '$lib/design/theme.svelte';
   import { themes, type ThemeName } from '$lib/design/tokens';
   import { perf } from '$lib/perf/tier.svelte';
-  import type { TierOverride } from '$lib/perf/tier';
-  import { repo, setSimulatedLatency } from '$lib/data/repo';
-  import { localKV, readJSON, writeJSON } from '$lib/data/kv';
-  import { profiles, clearProfileHistory } from '$lib/profile/store.svelte';
-  import { initials } from '$lib/profile/profiles';
+  import { localKV, writeJSON } from '$lib/data/kv';
+  import { history } from '$lib/data/search-client';
+  import { downloads } from '$lib/download/manager.svelte';
+  import { formatBytes } from '$lib/download/math';
+  import { isTauriEnv, locationInfo, saveCopySupported } from '$lib/desktop/env';
+  import { resume } from '$lib/player/controller';
+  import { DEFAULT_SUB_STYLE } from '$lib/player/subs';
+  import { profiles } from '$lib/profile/store.svelte';
   import { settings } from '$lib/settings/store.svelte';
-  import { DOUBLE_TAP_OPTIONS, HOLD_SPEED_OPTIONS, SUB_LANGS } from '$lib/settings/settings';
-  import { DEFAULT_SUB_STYLE, type SubStyle } from '$lib/player/subs';
-  import { gatewayBase, normalizeBase, setGatewayBase } from '$lib/data/gateway';
-  import { debugLog } from '$lib/errors';
+  import { DEFAULT_SETTINGS, DOUBLE_TAP_OPTIONS, type Settings } from '$lib/settings/settings';
 
-  const tiers: { v: TierOverride; l: string }[] = [
-    { v: 'AUTO', l: 'Auto' },
-    { v: 'LOW', l: 'Low' },
-    { v: 'MID', l: 'Medium' },
-    { v: 'HIGH', l: 'High' }
-  ];
-  let latencyOn = $state(repo.latency.enabled);
+  const SEARCH_SCOPES = ['global', 'tv', 'music', 'comics', 'adult'] as const;
+
   let notice = $state('');
+  let tauri = $state(false);
+  let dlDir = $state<string | null>(null);
+  let pickingDir = $state(false);
 
-  // ---- Developer: gateway base URL (value hidden by default, never logged) ----
-  let gw = $state(gatewayBase());
-  let gwShow = $state(false);
-  let gwMsg = $state('');
-  let devLog = $state(debugLog.enabled);
-  let logOpen = $state(false);
-  function toggleDevLog(on: boolean) {
-    debugLog.setEnabled(on);
-    devLog = debugLog.enabled;
-    if (!on) logOpen = false;
-  }
-  function saveGateway(v: string | null) {
-    if (v !== null && normalizeBase(v) === null) {
-      gwMsg = 'Enter an http(s) URL (empty = off)';
-      return;
-    }
-    setGatewayBase(v);
-    gw = gatewayBase();
-    gwMsg = 'Saved — reloading…';
-    setTimeout(() => location.reload(), 400);
-  }
+  // Confirmation sheets (no browser window.confirm prompts)
+  let confirmAction = $state<'search' | 'watch' | 'reset' | null>(null);
 
-  function pickTheme(name: ThemeName) {
-    theme.set(name);
-    profiles.rememberTheme(name);
-  }
-
-  const activeThemeNote = $derived(themeDescriptor(theme.current).note);
-
-  // ---- subtitles (per-profile style shared with the player) ----
-  const styleKey = `cinetor.substyle.${profiles.activeId}`;
-  let sub = $state<SubStyle>({ ...DEFAULT_SUB_STYLE, ...readJSON<Partial<SubStyle>>(localKV(), styleKey, {}) });
-  function setSub(patch: Partial<SubStyle>) {
-    sub = { ...sub, ...patch };
-    writeJSON(localKV(), styleKey, sub);
-  }
-  const SUB_COLORS = ['#ffffff', '#ffe14d', '#7ef9ff', '#a6ff7e'];
-
-  // ---- data ----
-  async function clearCache() {
-    try {
-      if (typeof caches !== 'undefined') for (const k of await caches.keys()) if (k.startsWith('cinetor-')) await caches.delete(k);
-      if (typeof indexedDB !== 'undefined') indexedDB.deleteDatabase('cinetor');
-      notice = 'Cache cleared — catalog and images reload from the network.';
-    } catch {
-      notice = "Couldn't clear the cache.";
-    }
-  }
-  async function clearHistory() {
-    if (!confirm('Clear watch history and search recents for this profile?')) return;
-    await clearProfileHistory(profiles.activeId);
-    notice = 'History cleared.';
-  }
-
-  // ---- content: 18+ ----
+  // 18+ PIN gate & change sheets
   let gateOpen = $state(false);
   let step = $state<'age' | 'pin' | 'confirm'>('age');
   let ageOk = $state(false);
@@ -89,7 +36,96 @@
   let changeStep = $state<'old' | 'new'>('old');
   let oldPin = '';
 
+  const activeThemeNote = $derived(themeDescriptor(theme.current).note);
+  const loc = $derived(locationInfo({ tauri, dir: dlDir, saveCopy: saveCopySupported() }));
+  const usedLabel = $derived(formatBytes(downloads.usedBytes));
+  const freeBytes = $derived(Math.max(0, downloads.quota.quota - downloads.quota.usage));
+  const storageSub = $derived(
+    downloads.quota.quota > 0
+      ? `${usedLabel} used by Cinetor · ${formatBytes(freeBytes)} free`
+      : `${usedLabel} used by Cinetor`
+  );
+
+  onMount(() => {
+    tauri = isTauriEnv();
+    void downloads.init().then(() => downloads.refreshQuota());
+    if (tauri) void loadDesktopDir();
+  });
+
+  async function loadDesktopDir() {
+    try {
+      const { downloadsDir } = await import('$lib/desktop/native-dl');
+      dlDir = await downloadsDir();
+    } catch {
+      dlDir = null;
+    }
+  }
+
+  async function chooseDesktopDir() {
+    pickingDir = true;
+    try {
+      const { pickDownloadsDir } = await import('$lib/desktop/native-dl');
+      const picked = await pickDownloadsDir();
+      if (picked) {
+        dlDir = picked;
+        notice = 'Download folder updated.';
+      }
+    } catch {
+      notice = "Couldn't open the folder picker.";
+    } finally {
+      pickingDir = false;
+    }
+  }
+
+  function pickTheme(name: ThemeName) {
+    theme.set(name);
+    profiles.rememberTheme(name);
+  }
+
+  function toggleHoldSpeed(on: boolean) {
+    settings.set('holdForSpeed', on);
+    settings.set('holdSpeed', on ? 2 : 1);
+  }
+
+  async function clearSearchHistoryNow() {
+    const id = profiles.activeId;
+    await Promise.all(SEARCH_SCOPES.map((s) => history.clear(id, s).catch(() => undefined)));
+    confirmAction = null;
+    notice = 'Search history cleared.';
+  }
+
+  async function clearWatchHistoryNow() {
+    await resume.clearProfile(profiles.activeId).catch(() => 0);
+    confirmAction = null;
+    notice = 'Watch history cleared.';
+  }
+
+  async function clearCache() {
+    try {
+      if (typeof caches !== 'undefined') {
+        for (const k of await caches.keys()) {
+          if (k.startsWith('cinetor-')) await caches.delete(k);
+        }
+      }
+      if (typeof indexedDB !== 'undefined') indexedDB.deleteDatabase('cinetor');
+      notice = 'Image and stream cache cleared.';
+    } catch {
+      notice = "Couldn't clear the cache.";
+    }
+  }
+
+  function resetAllSettingsNow() {
+    for (const k of Object.keys(DEFAULT_SETTINGS) as (keyof Settings)[]) {
+      settings.set(k, DEFAULT_SETTINGS[k]);
+    }
+    perf.setOverride('AUTO');
+    writeJSON(localKV(), `cinetor.substyle.${profiles.activeId}`, { ...DEFAULT_SUB_STYLE, bg: 0 });
+    confirmAction = null;
+    notice = 'Settings restored to default.';
+  }
+
   function toggleAdult() {
+    if (!adult.canEnable) return;
     if (adult.enabled) {
       adult.disable();
       notice = '18+ section hidden.';
@@ -97,13 +133,16 @@
     }
     step = 'age';
     ageOk = false;
+    firstPin = '';
     gateOpen = true;
   }
+
   function pinStep(pin: string): true | string {
     firstPin = pin;
     step = 'confirm';
     return true;
   }
+
   async function confirmStep(pin: string): Promise<true | string> {
     if (pin !== firstPin) {
       step = 'pin';
@@ -112,18 +151,22 @@
     const r = await adult.enable(ageOk, pin);
     if (!r.ok) return r.error;
     gateOpen = false;
-    notice = '18+ section enabled. It now appears in the Spaces menu.';
+    notice = '18+ section enabled under Me · Spaces.';
     return true;
   }
+
   function openChange() {
     changeStep = 'old';
+    oldPin = '';
     changeOpen = true;
   }
+
   async function changeOld(pin: string): Promise<true | string> {
     oldPin = pin;
     changeStep = 'new';
     return true;
   }
+
   async function changeNew(pin: string): Promise<true | string> {
     const r = await adult.changePin(oldPin, pin);
     if (!r.ok) {
@@ -131,7 +174,7 @@
       return r.error;
     }
     changeOpen = false;
-    notice = 'PIN changed.';
+    notice = '18+ PIN updated.';
     return true;
   }
 </script>
@@ -163,6 +206,7 @@
           data-theme={name}
           role="radio"
           aria-checked={selected}
+          aria-label="Theme {t.name}"
           style:--pv-bg={t.colors.bg}
           style:--pv-surface={t.colors.surface}
           style:--pv-elev={t.colors.surfaceElevated}
@@ -214,135 +258,221 @@
         </button>
       {/each}
     </div>
-
-    <h3>Effects quality</h3>
-    <div class="row-chips" role="radiogroup" aria-label="Effects quality">
-      {#each tiers as t (t.v)}
-        <button type="button" class="chip" class:active={perf.override === t.v} role="radio" aria-checked={perf.override === t.v} onclick={() => perf.setOverride(t.v)}>{t.l}</button>
-      {/each}
-    </div>
-    <p class="note">Active: <b>{perf.flags.tier}</b> · blur {perf.flags.blurScope} · animations ×{perf.flags.durationScale}</p>
-    <label class="toggle"><input type="checkbox" checked={settings.s.reduceMotion} onchange={(e) => settings.set('reduceMotion', e.currentTarget.checked)} /><span>Reduce motion</span></label>
   </section>
 
-  <section aria-labelledby="pb-h" class="card glass">
-    <h2 id="pb-h">Playback</h2>
-    <label class="toggle"><input type="checkbox" checked={settings.s.autoplayNext} onchange={(e) => settings.set('autoplayNext', e.currentTarget.checked)} /><span>Autoplay next episode</span></label>
-    <label class="toggle"><input type="checkbox" checked={settings.s.gestures} onchange={(e) => settings.set('gestures', e.currentTarget.checked)} /><span>Player gestures (double-tap seek, swipe brightness/volume, hold for speed)</span></label>
-    <h3>Double-tap seek</h3>
-    <div class="row-chips" role="radiogroup" aria-label="Double-tap seconds">
-      {#each DOUBLE_TAP_OPTIONS as s (s)}
-        <button type="button" class="chip" class:active={settings.s.doubleTapSec === s} role="radio" aria-checked={settings.s.doubleTapSec === s} onclick={() => settings.set('doubleTapSec', s)}>{s}s</button>
-      {/each}
-    </div>
-    <h3>Hold speed</h3>
-    <div class="row-chips" role="radiogroup" aria-label="Hold speed">
-      {#each HOLD_SPEED_OPTIONS as s (s)}
-        <button type="button" class="chip" class:active={settings.s.holdSpeed === s} role="radio" aria-checked={settings.s.holdSpeed === s} onclick={() => settings.set('holdSpeed', s)}>{s}×</button>
-      {/each}
-    </div>
-  </section>
+  <section aria-labelledby="pl-h" class="card glass">
+    <h2 id="pl-h">Player</h2>
 
-  <section aria-labelledby="sb-h" class="card glass">
-    <h2 id="sb-h">Subtitles</h2>
-    <label class="toggle"><input type="checkbox" checked={settings.s.subsAuto} onchange={(e) => settings.set('subsAuto', e.currentTarget.checked)} /><span>Turn on automatically</span></label>
-    <label class="field"><span>Preferred language</span>
-      <select value={settings.s.subLang} onchange={(e) => settings.set('subLang', e.currentTarget.value)}>
-        {#each SUB_LANGS as l (l.code)}<option value={l.code}>{l.label}</option>{/each}
-      </select>
-    </label>
-    <label class="field"><span>Size · {sub.size}%</span><input type="range" min="50" max="200" step="10" value={sub.size} oninput={(e) => setSub({ size: Number(e.currentTarget.value) })} /></label>
-    <div class="row-chips" role="radiogroup" aria-label="Subtitle colour">
-      {#each SUB_COLORS as c (c)}
-        <button type="button" class="sw" style:background={c} role="radio" aria-checked={sub.color === c} aria-label="Colour {c}" onclick={() => setSub({ color: c })}></button>
-      {/each}
-    </div>
-    <label class="field"><span>Background · {Math.round(sub.bg * 100)}%</span><input type="range" min="0" max="1" step="0.1" value={sub.bg} oninput={(e) => setSub({ bg: Number(e.currentTarget.value) })} /></label>
-    <div class="sample"><span style:font-size="{sub.size / 100}rem" style:color={sub.color} style:background="rgb(0 0 0 / {sub.bg})">The night is young, and so are we.</span></div>
-  </section>
-
-  <section aria-labelledby="dt-h" class="card glass">
-    <h2 id="dt-h">Data</h2>
-    <label class="toggle"><input type="checkbox" checked={settings.s.preloadDetails} onchange={(e) => settings.set('preloadDetails', e.currentTarget.checked)} /><span>Preload video on the details page (instant play)</span></label>
-    <label class="toggle"><input type="checkbox" bind:checked={latencyOn} onchange={() => setSimulatedLatency(latencyOn)} /><span>Simulated network latency (skeleton preview)</span></label>
-    <div class="acts">
-      <button type="button" class="btn btn-ghost" onclick={clearCache}>Clear cache</button>
-      <button type="button" class="btn btn-ghost" onclick={clearHistory}>Clear history</button>
-    </div>
-  </section>
-
-  <section id="developer" aria-labelledby="dev-h" class="card glass">
-    <h2 id="dev-h">Developer</h2>
-    <label class="field">
-      <span>Streaming gateway (catalog + sources for Home, Anime, Drama, 18+)</span>
-      <input class="txt-in" type={gwShow ? 'url' : 'password'} inputmode="url" spellcheck="false" autocomplete="off" bind:value={gw} placeholder="Leave empty to turn the gateway off" />
-    </label>
-    <div class="acts">
-      <button type="button" class="btn btn-ghost" onclick={() => (gwShow = !gwShow)} aria-pressed={gwShow}>{gwShow ? 'Hide' : 'Show'}</button>
-      <button type="button" class="btn btn-ghost" onclick={() => saveGateway(gw)}>Save</button>
-      <button type="button" class="btn btn-ghost" onclick={() => saveGateway(null)}>Reset to default</button>
-    </div>
-    {#if gwMsg}<p class="note" role="status">{gwMsg}</p>{/if}
-    <label class="toggle">
-      <input type="checkbox" checked={devLog} onchange={(e) => toggleDevLog(e.currentTarget.checked)} />
-      <span>Keep a local debug log</span>
-    </label>
-    <p class="note">Off by default. Technical detail stays on this device and is never sent anywhere.</p>
-    {#if devLog}
-      <div class="acts">
-        <button type="button" class="btn btn-ghost" onclick={() => (logOpen = !logOpen)} aria-expanded={logOpen}>{logOpen ? 'Hide log' : `Show log (${debugLog.entries.length})`}</button>
-        <button type="button" class="btn btn-ghost" onclick={() => debugLog.clear()}>Clear log</button>
+    <div class="choice-row">
+      <div class="row-copy">
+        <b>Double-tap skip</b>
+        <small>Jump backward or forward when double-tapping the video</small>
       </div>
-      {#if logOpen}
-        <ul class="log">
-          {#each debugLog.entries.slice(-40) as e (e.t + e.tag + e.text)}
-            <li><b>{e.tag}</b> {new Date(e.t).toLocaleTimeString()} — {e.text}</li>
-          {:else}
-            <li class="note">Nothing logged yet.</li>
-          {/each}
-        </ul>
+      <div class="row-chips" role="radiogroup" aria-label="Double-tap skip">
+        {#each DOUBLE_TAP_OPTIONS as sec (sec)}
+          <button
+            type="button"
+            class="chip"
+            class:active={settings.s.doubleTapSec === sec}
+            role="radio"
+            aria-checked={settings.s.doubleTapSec === sec}
+            onclick={() => settings.set('doubleTapSec', sec)}
+          >
+            {sec}s
+          </button>
+        {/each}
+      </div>
+    </div>
+
+    <div class="sep"></div>
+
+    <div class="switch-row">
+      <div class="row-copy">
+        <b>Hold for 2× speed</b>
+        <small>Press and hold anywhere on the video to play at 2× speed</small>
+      </div>
+      <button
+        type="button"
+        class="switch"
+        class:on={settings.s.holdForSpeed}
+        role="switch"
+        aria-checked={settings.s.holdForSpeed}
+        aria-label="Hold for 2× speed"
+        onclick={() => toggleHoldSpeed(!settings.s.holdForSpeed)}
+      >
+        <span class="knob"></span>
+      </button>
+    </div>
+
+    <div class="sep"></div>
+
+    <div class="switch-row">
+      <div class="row-copy">
+        <b>Floating Mini-Player / PiP</b>
+        <small>Keep video playing in a floating corner window while browsing</small>
+      </div>
+      <button
+        type="button"
+        class="switch"
+        class:on={settings.s.autoPip}
+        role="switch"
+        aria-checked={settings.s.autoPip}
+        aria-label="Floating Mini-Player / PiP"
+        onclick={() => settings.set('autoPip', !settings.s.autoPip)}
+      >
+        <span class="knob"></span>
+      </button>
+    </div>
+  </section>
+
+  <section aria-labelledby="dl-h" class="card glass">
+    <h2 id="dl-h">Downloads</h2>
+
+    <div class="switch-row">
+      <div class="row-copy">
+        <b>Download on Wi-Fi only</b>
+        <small>Pause queued downloads on metered mobile connections</small>
+      </div>
+      <button
+        type="button"
+        class="switch"
+        class:on={settings.s.wifiOnly}
+        role="switch"
+        aria-checked={settings.s.wifiOnly}
+        aria-label="Download on Wi-Fi only"
+        onclick={() => settings.set('wifiOnly', !settings.s.wifiOnly)}
+      >
+        <span class="knob"></span>
+      </button>
+    </div>
+
+    <div class="sep"></div>
+
+    <div class="info-row">
+      <div class="row-copy">
+        <b>Downloaded media storage</b>
+        <small>{storageSub}</small>
+      </div>
+    </div>
+
+    <div class="sep"></div>
+
+    <div class="info-row">
+      <div class="row-copy">
+        <b>Download location · {loc.label}</b>
+        <small>{loc.note}</small>
+      </div>
+      {#if loc.changeable}
+        <button type="button" class="btn btn-ghost sm" disabled={pickingDir} onclick={chooseDesktopDir}>
+          {pickingDir ? 'Opening…' : 'Change folder'}
+        </button>
       {/if}
-    {/if}
+    </div>
   </section>
 
   <section id="content" aria-labelledby="ct-h" class="card glass">
-    <h2 id="ct-h">Content</h2>
-    <label class="toggle" class:off={!adult.canEnable}>
-      <input type="checkbox" checked={adult.enabled} disabled={!adult.canEnable} onchange={(e) => { e.currentTarget.checked = adult.enabled; toggleAdult(); }} />
-      <span>Show 18+ section</span>
-    </label>
-    {#if !adult.canEnable}
-      <p class="note">Not available on Kids profiles.</p>
-    {:else if adult.enabled}
-      <p class="note">PIN required once per session; locks again after 5 minutes in the background. Never in search, recents or continue watching.</p>
+    <h2 id="ct-h">Content &amp; Privacy</h2>
+
+    <div class="switch-row" class:disabled-row={!adult.canEnable}>
+      <div class="row-copy">
+        <b>Show 18+ section</b>
+        <small>
+          {#if !adult.canEnable}
+            Unavailable while Kids mode is active
+          {:else if adult.enabled}
+            PIN-protected Adult space visible under Me · Spaces
+          {:else}
+            Hidden everywhere until enabled with age confirmation and a 4-digit PIN
+          {/if}
+        </small>
+      </div>
+      <button
+        type="button"
+        class="switch"
+        class:on={adult.enabled}
+        disabled={!adult.canEnable}
+        role="switch"
+        aria-checked={adult.enabled}
+        aria-label="Toggle 18+ section"
+        onclick={toggleAdult}
+      >
+        <span class="knob"></span>
+      </button>
+    </div>
+
+    {#if adult.enabled && adult.canEnable}
       <div class="acts">
-        <button type="button" class="btn btn-ghost" onclick={openChange}>Change PIN</button>
-        {#if adult.unlocked}<button type="button" class="btn btn-ghost" onclick={() => adult.lock()}>Lock now</button>{/if}
+        <button type="button" class="btn btn-ghost sm" onclick={openChange}>Change 18+ PIN</button>
+        {#if adult.unlocked}
+          <button
+            type="button"
+            class="btn btn-ghost sm"
+            onclick={() => {
+              adult.lock();
+              notice = '18+ section locked.';
+            }}
+          >
+            Lock now
+          </button>
+        {/if}
       </div>
     {/if}
+
+    <div class="sep"></div>
+
+    <button type="button" class="action-row" onclick={() => (confirmAction = 'search')}>
+      <span class="row-copy">
+        <b>Clear search history</b>
+        <small>Remove recent search queries across all sections</small>
+      </span>
+      <span class="chev" aria-hidden="true">›</span>
+    </button>
+
+    <div class="sep"></div>
+
+    <button type="button" class="action-row" onclick={() => (confirmAction = 'watch')}>
+      <span class="row-copy">
+        <b>Clear watch history</b>
+        <small>Remove Continue Watching items and saved playback positions</small>
+      </span>
+      <span class="chev" aria-hidden="true">›</span>
+    </button>
+
+    <div class="sep"></div>
+
+    <button type="button" class="action-row" onclick={clearCache}>
+      <span class="row-copy">
+        <b>Clear image &amp; stream cache</b>
+        <small>Clear cached artwork and temporary catalog data</small>
+      </span>
+      <span class="chev" aria-hidden="true">›</span>
+    </button>
   </section>
 
-  <section aria-labelledby="pf-h" class="card glass">
-    <h2 id="pf-h">Profiles</h2>
-    <a class="prof" href="{base}/app/me">
-      <span class="av" style:background={profiles.active.color}>{initials(profiles.active.name)}</span>
-      <span><b>{profiles.active.name}</b><small>{profiles.list.length} of 5 profiles · switch, add or edit</small></span>
-      <span aria-hidden="true">›</span>
-    </a>
-  </section>
-
-  <a class="about card glass" href="{base}/app/about"><b>About Cinetor</b><span aria-hidden="true">›</span></a>
+  <button type="button" class="reset-card glass" onclick={() => (confirmAction = 'reset')}>
+    <span class="reset-ic" aria-hidden="true">↺</span>
+    <span class="row-copy">
+      <b>Reset settings</b>
+      <small>Restore theme, player, and download preferences to default. History and My List are kept.</small>
+    </span>
+  </button>
 </div>
 
 <Sheet bind:open={gateOpen} title="Show 18+ section">
   {#if step === 'age'}
-    <div class="age">
-      <p>This section contains mature content intended for adults only.</p>
-      <label class="toggle"><input type="checkbox" bind:checked={ageOk} /><span>I confirm I am 18 years or older</span></label>
-      <button type="button" class="btn btn-primary" disabled={!ageOk} onclick={() => (step = 'pin')}>Continue</button>
+    <div class="sheet-body">
+      <p>This section contains mature content intended for adults aged 18 and older.</p>
+      <label class="age-check">
+        <input type="checkbox" bind:checked={ageOk} />
+        <span>I confirm I am 18 years or older</span>
+      </label>
+      <div class="acts">
+        <button type="button" class="btn btn-primary" disabled={!ageOk} onclick={() => (step = 'pin')}>I am 18 or older</button>
+        <button type="button" class="btn btn-ghost" onclick={() => (gateOpen = false)}>Cancel</button>
+      </div>
     </div>
   {:else if step === 'pin'}
-    <PinPad title="Set a 4-digit PIN" hint="You'll need it to open the 18+ section." onSubmit={pinStep} />
+    <PinPad title="Set a 4-digit PIN" hint="Required once per session to open the 18+ section." onSubmit={pinStep} />
   {:else}
     <PinPad title="Confirm PIN" onSubmit={confirmStep} />
   {/if}
@@ -356,10 +486,43 @@
   {/if}
 </Sheet>
 
+<Sheet
+  open={confirmAction !== null}
+  title={confirmAction === 'search'
+    ? 'Clear search history?'
+    : confirmAction === 'watch'
+      ? 'Clear watch history?'
+      : 'Reset settings?'}
+  onClose={() => (confirmAction = null)}
+>
+  <div class="sheet-body">
+    {#if confirmAction === 'search'}
+      <p>Recent searches across Home, Anime, Drama, Music, Comics, and 18+ will be removed.</p>
+      <div class="acts">
+        <button type="button" class="btn btn-primary" onclick={clearSearchHistoryNow}>Clear search history</button>
+        <button type="button" class="btn btn-ghost" onclick={() => (confirmAction = null)}>Cancel</button>
+      </div>
+    {:else if confirmAction === 'watch'}
+      <p>Continue Watching items and saved playback positions will be removed. Your saved My List stays intact.</p>
+      <div class="acts">
+        <button type="button" class="btn btn-primary" onclick={clearWatchHistoryNow}>Clear watch history</button>
+        <button type="button" class="btn btn-ghost" onclick={() => (confirmAction = null)}>Cancel</button>
+      </div>
+    {:else if confirmAction === 'reset'}
+      <p>Appearance, player gestures, floating mini-player, and Wi-Fi download settings return to their defaults.</p>
+      <div class="acts">
+        <button type="button" class="btn btn-primary" onclick={resetAllSettingsNow}>Reset settings</button>
+        <button type="button" class="btn btn-ghost" onclick={() => (confirmAction = null)}>Cancel</button>
+      </div>
+    {/if}
+  </div>
+</Sheet>
+
 <style>
   .settings {
     max-width: 860px;
-    padding: 0 16px;
+    margin: 0 auto;
+    padding: 0 16px 24px;
     display: grid;
     gap: 14px;
   }
@@ -373,10 +536,12 @@
     color: var(--text-primary);
     background: color-mix(in srgb, var(--accent) 16%, var(--surface-elevated));
     box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 36%, transparent);
+    font-size: 0.86rem;
+    font-weight: 600;
   }
   .card {
     display: grid;
-    gap: 10px;
+    gap: 12px;
     padding: 16px 18px;
     border-radius: 22px;
   }
@@ -393,14 +558,14 @@
     color: var(--text-secondary);
   }
   h2 {
-    margin: 0 0 4px;
+    margin: 0;
     font-size: 1.05rem;
+    font-weight: 760;
+    letter-spacing: -0.01em;
   }
-  h3 {
-    margin: 6px 0 0;
-    font-size: 0.85rem;
-    color: var(--text-secondary);
-    font-weight: 650;
+  .sep {
+    height: 1px;
+    background: var(--divider);
   }
 
   /* 8-theme responsive showcase grid: 2×4 on mobile, 4×2 on tablet/desktop. */
@@ -447,7 +612,6 @@
       0 10px 28px -12px var(--accent-glow);
   }
 
-  /* Miniature cinema viewport rendered in each theme's true material & palette. */
   .preview {
     position: relative;
     display: block;
@@ -545,7 +709,6 @@
       0 2px 6px -2px rgb(28 22 18 / 0.1),
       inset 0 0 0 1px rgb(20 20 22 / 0.1);
   }
-
   .pv-actions {
     display: flex;
     align-items: center;
@@ -567,8 +730,6 @@
     background: color-mix(in srgb, var(--pv-elev) 85%, transparent);
     box-shadow: inset 0 0 0 1px var(--pv-stroke);
   }
-
-  /* Mini Liquid Glass bottom dock (and compact floating capsule on Aura). */
   .pv-glass {
     position: absolute;
     left: 7%;
@@ -624,7 +785,6 @@
     background: var(--pv-accent);
     opacity: 1;
   }
-
   .meta-row {
     display: flex;
     align-items: center;
@@ -674,142 +834,160 @@
     overflow: hidden;
   }
 
+  .choice-row {
+    display: grid;
+    gap: 8px;
+  }
+  .switch-row,
+  .info-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 14px;
+  }
+  .disabled-row {
+    opacity: 0.55;
+  }
+  .row-copy {
+    flex: 1;
+    min-width: 0;
+    display: grid;
+    gap: 2px;
+  }
+  .row-copy b {
+    font-size: 0.94rem;
+    font-weight: 700;
+    color: var(--text-primary);
+  }
+  .row-copy small {
+    font-size: 0.79rem;
+    line-height: 1.38;
+    color: var(--text-secondary);
+  }
   .row-chips {
     display: flex;
     flex-wrap: wrap;
     gap: 8px;
   }
-  .note {
-    margin: 0;
-    font-size: 0.78rem;
-    color: var(--text-secondary);
-  }
-  .log {
-    list-style: none;
-    margin: 8px 0 0;
-    padding: 8px 10px;
-    max-height: 220px;
-    overflow: auto;
-    display: grid;
-    gap: 4px;
-    border-radius: 12px;
-    background: var(--surface-elevated);
-    color: var(--text-primary);
-    box-shadow: inset 0 0 0 1px var(--divider);
-    font-size: 0.72rem;
-    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-    overflow-wrap: anywhere;
-  }
-  .toggle {
-    display: flex;
-    gap: 12px;
-    align-items: center;
+  .switch {
+    position: relative;
+    width: 48px;
+    height: 28px;
+    flex: none;
+    padding: 3px;
+    border: 0;
+    border-radius: 999px;
+    background: var(--glass-fill);
+    box-shadow: inset 0 0 0 1px var(--glass-stroke);
     cursor: pointer;
+    transition: background-color 0.18s ease, box-shadow 0.18s ease;
   }
-  .toggle.off {
-    opacity: 0.5;
+  .switch:disabled {
     cursor: not-allowed;
   }
-  .toggle input {
-    flex: none;
-    width: 20px;
-    height: 20px;
-    accent-color: var(--accent);
+  .switch.on {
+    background: linear-gradient(135deg, var(--accent), var(--accent-end));
+    box-shadow: 0 4px 14px -4px var(--accent-glow);
   }
-  .field {
-    display: grid;
-    gap: 6px;
-    font-size: 0.85rem;
-    color: var(--text-secondary);
-  }
-  select,
-  .txt-in {
-    min-height: 42px;
-    border-radius: 12px;
-    border: 0;
-    padding: 0 12px;
-    font: inherit;
-    font-size: 0.9rem;
-    background: var(--glass-fill);
-    color: var(--text-primary);
-    box-shadow: inset 0 0 0 1px var(--glass-stroke);
-  }
-  :global([data-theme='pearl']) select,
-  :global([data-theme='pearl']) .txt-in {
-    background: var(--surface-elevated);
-    box-shadow: inset 0 0 0 1px rgb(20 20 22 / 0.16);
-  }
-  select:focus-visible,
-  .txt-in:focus-visible {
-    outline: 2px solid var(--focus-ring);
-    outline-offset: 2px;
-  }
-  .txt-in::placeholder {
-    color: var(--text-tertiary);
-  }
-  input[type='range'] {
-    accent-color: var(--accent);
-  }
-  .sw {
-    width: 32px;
-    height: 32px;
+  .switch .knob {
+    display: block;
+    width: 22px;
+    height: 22px;
     border-radius: 50%;
+    background: #fff;
+    box-shadow: 0 2px 6px rgb(0 0 0 / 0.35);
+    transition: transform 0.18s var(--ease-emphasized, ease);
+  }
+  .switch.on .knob {
+    transform: translateX(20px);
+  }
+
+  .action-row {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 4px 0;
     border: 0;
-    box-shadow: inset 0 0 0 1px rgb(20 20 22 / 0.24);
+    background: none;
+    color: inherit;
+    text-align: left;
+    font: inherit;
     cursor: pointer;
   }
-  .sw[aria-checked='true'] {
-    box-shadow:
-      inset 0 0 0 1px rgb(20 20 22 / 0.24),
-      0 0 0 3px var(--bg, #000),
-      0 0 0 5px var(--accent);
+  .action-row:hover .row-copy b {
+    color: var(--accent);
   }
-  .sample {
+  .chev {
+    flex: none;
+    font-size: 1.2rem;
+    color: var(--text-secondary);
+  }
+
+  .reset-card {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 15px 18px;
+    border: 0;
+    border-radius: 22px;
+    text-align: left;
+    font: inherit;
+    color: inherit;
+    cursor: pointer;
+    transition: transform calc(var(--dur-short, 140ms) * var(--dur-scale, 1)) ease;
+  }
+  .reset-card:hover {
+    transform: translateY(-1px);
+  }
+  .reset-card .row-copy b {
+    color: var(--error, var(--accent));
+  }
+  .reset-ic {
+    width: 38px;
+    height: 38px;
+    flex: none;
     display: grid;
     place-items: center;
-    min-height: 90px;
-    border-radius: 14px;
-    background: linear-gradient(135deg, #2a1a1a, #101820);
-    padding: 10px;
+    border-radius: 12px;
+    font-size: 1.15rem;
+    font-weight: 800;
+    color: var(--error, var(--accent));
+    background: color-mix(in srgb, var(--error, var(--accent)) 14%, transparent);
   }
-  .sample span {
-    padding: 2px 8px;
-    border-radius: 4px;
-    text-align: center;
+
+  .btn.sm {
+    min-height: 34px;
+    padding: 0 13px;
+    font-size: 0.8rem;
   }
   .acts {
     display: flex;
     gap: 10px;
     flex-wrap: wrap;
   }
-  .age {
+  .sheet-body {
     display: grid;
     gap: 14px;
   }
-  .prof,
-  .about {
+  .sheet-body p {
+    margin: 0;
+    color: var(--text-secondary);
+    font-size: 0.9rem;
+    line-height: 1.45;
+  }
+  .age-check {
     display: flex;
     align-items: center;
-    gap: 12px;
-    text-decoration: none;
+    gap: 10px;
+    cursor: pointer;
+    font-weight: 600;
   }
-  .prof span:nth-child(2) {
-    flex: 1;
-    display: grid;
-  }
-  .prof small {
-    color: var(--text-secondary);
-  }
-  .about {
-    justify-content: space-between;
-  }
-  .av {
-    width: 44px;
-    height: 44px;
-    display: grid;
-    place-items: center;
-    border-radius: 50%;
-    font-weight: 800;
-    color: #fff;
+  .age-check input {
+    width: 18px;
+    height: 18px;
+    accent-color: var(--accent);
   }
 </style>
