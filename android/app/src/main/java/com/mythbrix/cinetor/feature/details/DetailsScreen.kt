@@ -1,7 +1,6 @@
 package com.mythbrix.cinetor.feature.details
 
 import android.annotation.SuppressLint
-import android.content.Intent
 import android.graphics.Color as AndroidColor
 import android.view.TextureView
 import android.webkit.WebView
@@ -25,16 +24,22 @@ import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.asPaddingValues
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -42,17 +47,20 @@ import androidx.compose.material.icons.automirrored.rounded.VolumeOff
 import androidx.compose.material.icons.automirrored.rounded.VolumeUp
 import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.Check
-import androidx.compose.material.icons.rounded.Download
+import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.PlayArrow
-import androidx.compose.material.icons.rounded.Share
+import androidx.compose.material.icons.rounded.SkipNext
 import androidx.compose.material.icons.rounded.Star
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.SnackbarDuration
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.SnackbarResult
 import androidx.compose.material3.Text
+import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -61,11 +69,11 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusProperties
@@ -73,13 +81,14 @@ import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.lifecycle.Lifecycle
@@ -101,6 +110,7 @@ import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import coil3.compose.AsyncImage
 import com.mythbrix.cinetor.core.data.AppContainer
+import com.mythbrix.cinetor.core.data.Episode
 import com.mythbrix.cinetor.core.data.Item
 import com.mythbrix.cinetor.core.data.ItemType
 import com.mythbrix.cinetor.core.data.Source
@@ -109,11 +119,11 @@ import com.mythbrix.cinetor.core.download.DownloadInfo
 import com.mythbrix.cinetor.core.download.DownloadStatus
 import com.mythbrix.cinetor.core.download.downloadIdFor
 import com.mythbrix.cinetor.core.download.isDownloadable
-import com.mythbrix.cinetor.core.download.nextUnwatched
 import com.mythbrix.cinetor.core.perf.PerformanceTier
 import com.mythbrix.cinetor.core.player.Readiness
 import com.mythbrix.cinetor.core.player.ResumeEntry
 import com.mythbrix.cinetor.core.player.SourceResolver
+import com.mythbrix.cinetor.core.ui.CinetorArtwork
 import com.mythbrix.cinetor.core.ui.LocalResumeEntries
 import com.mythbrix.cinetor.core.ui.posterKey
 import com.mythbrix.cinetor.core.ui.rememberSizedImage
@@ -136,6 +146,9 @@ import com.mythbrix.cinetor.feature.downloads.DownloadTarget
 import com.mythbrix.cinetor.feature.downloads.EpisodeDownloadButton
 import com.mythbrix.cinetor.feature.downloads.batchQueuedSnackbarMessage
 import com.mythbrix.cinetor.feature.home.PosterCard
+import com.mythbrix.cinetor.feature.player.HostMode
+import com.mythbrix.cinetor.feature.player.InlinePlayerSlot
+import com.mythbrix.cinetor.feature.player.gestures.GesturePrefs
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -143,24 +156,24 @@ import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
 import java.util.Locale
 
-private val HeaderHeight = 292.dp
-private val PosterW = 118.dp
-private val PosterH = 177.dp
+private val ReadyGreen = Color(0xFF22C55E)
+private val PosterThumbW = 76.dp
+private val PosterThumbH = 114.dp
 private const val PREVIEW_DELAY_MS = 1_400L
 private const val PREVIEW_FIND_TIMEOUT_MS = 8_000L
 private const val PREVIEW_MOVIE_START_MS = 300_000L
 private const val PREVIEW_SERIES_START_MS = 150_000L
 private const val PREVIEW_WINDOW_MS = 90_000L
 private const val PREVIEW_MAX_HEIGHT = 480
+private const val INITIAL_EPISODE_LIMIT = 12
 
 /**
- * Shiopa-style Details screen:
- * - Shimmer skeleton while loading (peek poster/header shown immediately when known)
- * - Muted inline backdrop clip/trailer preview on MID/HIGH tiers (strictly off on LOW & Data Saver)
- * - 4K UHD, ★ rating, dub language, year, maturity & runtime pills
- * - Liquid Glass action bar with Play/Resume + live ReadyDot, Multi-Season Batch Download (series) /
- *   Single Download (movies), My List, and Share
- * - Season selector tabs, episode cards with per-episode download buttons, and More Like This.
+ * Cinetor v2.1.0 Title Details screen:
+ * - Concurrent stream pre-warming during shimmer load + synthesized fallback so titles never fail with "Title not found"
+ * - Top 16:9 thumbnail slot that transforms IN PLACE into [InlinePlayerSlot] on Play / Episode tap / [autoPlay]
+ * - Docks existing `HostMode.MINI` into `HostMode.INLINE` on open, and minimizes `HostMode.INLINE` -> `HostMode.MINI` on leave
+ * - Strictly 3 action buttons (`Play` with `8.dp` green dot only, `Download`, `My List`)
+ * - Always-visible `Seasons & Episodes`, clickable `Cast` (opening Filmography sheet), and `For You` below.
  */
 @Composable
 fun DetailsScreen(
@@ -171,16 +184,36 @@ fun DetailsScreen(
     onOpenItem: (Item, String?) -> Unit,
     /** "Show downloads" action of the download-started snackbar (hardening §4). */
     onOpenDownloads: () -> Unit = {},
+    /** True when opened from Hero Play -> starts inline playback in top 16:9 slot immediately. */
+    autoPlay: Boolean = false,
 ) {
+    val resumeEntries = LocalResumeEntries.current
+    val latestResumes by rememberUpdatedState(resumeEntries)
+
     val vm: DetailsViewModel = viewModel(
         key = "details-$id",
         factory = viewModelFactory {
-            initializer { DetailsViewModel(id, container.catalog, container.preloader, container.peek::get) }
+            initializer {
+                DetailsViewModel(
+                    id = id,
+                    catalog = container.catalog,
+                    preloader = container.preloader,
+                    peek = { lookupId -> container.peek.get(lookupId) ?: container.gateway.summary(lookupId) },
+                    resumeEpisodeOf = { itemId ->
+                        latestResumes.firstOrNull { it.itemId == itemId && !it.finished && it.positionMs >= 3_000 }?.episodeId
+                    },
+                    searchFallback = { q ->
+                        container.remoteSearch?.search(q).orEmpty().ifEmpty { container.search.search(q) }
+                    },
+                    onItemsDiscovered = { items -> items.forEach(container.peek::put) },
+                )
+            }
         },
     )
     val holder = vm.holder
     val state by holder.state.collectAsStateWithLifecycle()
     val readiness by holder.readiness.collectAsStateWithLifecycle()
+    val castState by vm.castState.collectAsStateWithLifecycle()
     val myList by container.myList.collectAsStateWithLifecycle()
     val settings by container.settingsState.state.collectAsStateWithLifecycle()
     val playerState by container.playback.state.collectAsStateWithLifecycle()
@@ -198,9 +231,23 @@ fun DetailsScreen(
         onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
     }
 
+    // Leaving Details while playing inline -> seamlessly continue in floating free-drag PiP MiniPlayer.
+    DisposableEffect(id) {
+        onDispose {
+            val st = container.playback.state.value
+            if (st.mode == HostMode.INLINE && st.item?.id == id) {
+                container.playback.minimize()
+            }
+        }
+    }
+
     val tint = Cinetor.tint
     val tier = Cinetor.tier
     val isTv = container.deviceProfile.isTv
+    val configuration = LocalConfiguration.current
+    val listState = rememberLazyListState()
+    val uiScope = rememberCoroutineScope()
+
     val headerItem = when (val s = state) {
         is DetailsUiState.Ready -> s.ui.item
         is DetailsUiState.Loading -> s.peek
@@ -214,21 +261,66 @@ fun DetailsScreen(
     val dlMap = remember(downloadsById) { downloadsById.associateBy { it.record.id } }
     var optionsTarget by remember { mutableStateOf<DownloadTarget?>(null) }
     var batchSheetSeason by remember { mutableStateOf<Int?>(null) }
-    var batchPreselectedIds by remember { mutableStateOf<Set<String>?>(null) }
     var previewStopEpoch by remember { mutableIntStateOf(0) }
+    var expandAllEpisodes by rememberSaveable(id) { mutableStateOf(false) }
 
     val snackbar = remember { SnackbarHostState() }
-    val snackScope = rememberCoroutineScope()
     var dlDetailsId by rememberSaveable { mutableStateOf<String?>(null) }
     var season by rememberSaveable(id) { mutableIntStateOf(0) }
-    val context = LocalContext.current
-    val resumeEntries = LocalResumeEntries.current
+    var initialSeasonSynced by rememberSaveable(id) { mutableStateOf(false) }
     val playFocusRequester = remember { FocusRequester() }
 
     val readyItem = (state as? DetailsUiState.Ready)?.ui?.item
     var resolvedExtraSources by remember(id) { mutableStateOf<List<Source>>(emptyList()) }
 
-    val itemReadiness = readyItem?.let { readiness[it.id] }
+    val isInlineHere = playerState.mode == HostMode.INLINE &&
+        (playerState.item?.id == id || (readyItem != null && playerState.item?.id == readyItem.id))
+
+    // Dock existing MiniPlayer (or collapse from Fullscreen) for this title right into HostMode.INLINE.
+    var lastSeenMode by remember(id) { mutableStateOf<HostMode?>(null) }
+    LaunchedEffect(id, readyItem?.id, playerState.mode, playerState.item?.id) {
+        val prev = lastSeenMode
+        lastSeenMode = playerState.mode
+        val matchesItem = playerState.item?.id == id || (readyItem != null && playerState.item?.id == readyItem.id)
+        if (matchesItem && playerState.mode == HostMode.MINI && (prev == null || prev == HostMode.FULL)) {
+            previewStopEpoch++
+            container.playback.enterInline()
+        }
+    }
+
+    // Hero Play (`autoPlay = true`) -> start inline playback in the top 16:9 slot immediately.
+    var autoPlayConsumed by rememberSaveable(id) { mutableStateOf(false) }
+    val immediatePlayable = readyItem ?: (state as? DetailsUiState.Loading)?.peek?.let(::ensurePlayableItem)
+    LaunchedEffect(id, autoPlay, immediatePlayable?.id) {
+        if (autoPlay && !autoPlayConsumed && immediatePlayable != null) {
+            autoPlayConsumed = true
+            previewStopEpoch++
+            val matchesActive = playerState.item?.id == id || playerState.item?.id == immediatePlayable.id
+            if (matchesActive && (playerState.mode == HostMode.MINI || playerState.mode == HostMode.INLINE)) {
+                container.playback.enterInline()
+            } else {
+                val resEp = resumeEntries.firstOrNull {
+                    it.itemId == immediatePlayable.id && !it.finished && it.positionMs >= 3_000
+                }?.episodeId
+                val (se, ep) = resolvePlayTarget(immediatePlayable, resEp)
+                container.playback.open(immediatePlayable, se, ep, true)
+            }
+        }
+    }
+
+    // Sync initial season tab to the user's resumed season when opening a multi-season series.
+    LaunchedEffect(readyItem?.id) {
+        val target = readyItem ?: return@LaunchedEffect
+        if (!initialSeasonSynced && target.seasons.size > 1) {
+            initialSeasonSynced = true
+            val resEp = resumeEntries.firstOrNull { it.itemId == target.id && !it.finished && it.positionMs >= 3_000 }?.episodeId
+            val (se, _) = resolvePlayTarget(target, resEp)
+            val idx = target.seasons.indexOfFirst { it.n == se }
+            if (idx >= 0) season = idx
+        }
+    }
+
+    val itemReadiness = readyItem?.let { readiness[it.id] } ?: readiness[id]
     LaunchedEffect(readyItem?.id, itemReadiness) {
         val targetItem = readyItem ?: return@LaunchedEffect
         if (itemReadiness == Readiness.READY && container.streams.handles(targetItem)) {
@@ -247,7 +339,7 @@ fun DetailsScreen(
     }
 
     LaunchedEffect(readyItem?.id, isTv) {
-        if (isTv && readyItem != null) {
+        if (isTv && readyItem != null && !isInlineHere) {
             runCatching { playFocusRequester.requestFocus() }
         }
     }
@@ -258,11 +350,28 @@ fun DetailsScreen(
         bannerAutoplay = settings.bannerAutoplay,
         reduceMotion = settings.reduceMotion,
         isTv = isTv,
-        playerActive = playerState.active,
+        playerActive = playerState.active || isInlineHere,
     )
 
+    val gesturePrefs = remember(settings.doubleTapSec, settings.holdSpeed, settings.gestures) {
+        GesturePrefs(settings.doubleTapSec, settings.holdSpeed, settings.gestures)
+    }
+
+    val statusTop = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
+    val topSafeInset = maxOf(contentPadding.calculateTopPadding(), statusTop)
+    val pinInlineSlot = isInlineHere && configuration.screenHeightDp >= 520 && !isTv
+
+    fun startInlinePlayback(targetItem: Item, seasonNumber: Int?, episodeNumber: Int?) {
+        previewStopEpoch++
+        val playable = ensurePlayableItem(targetItem)
+        container.playback.open(playable, seasonNumber, episodeNumber, true)
+        if (!pinInlineSlot) {
+            uiScope.launch { runCatching { listState.animateScrollToItem(0) } }
+        }
+    }
+
     fun showQueuedSnackbar(message: String, withDownloadsAction: Boolean = true) {
-        snackScope.launch {
+        uiScope.launch {
             val result = snackbar.showSnackbar(
                 message = message,
                 actionLabel = if (withDownloadsAction) "Show downloads" else null,
@@ -272,166 +381,276 @@ fun DetailsScreen(
         }
     }
 
-    LazyColumn(
-        contentPadding = PaddingValues(bottom = contentPadding.calculateBottomPadding()),
-        modifier = Modifier.fillMaxSize(),
-    ) {
-        when (val s = state) {
-            is DetailsUiState.Error -> item(key = "error") {
-                Text(
-                    "Title not found (${s.id})",
-                    color = Cinetor.tokens.textSecondary,
-                    modifier = Modifier
-                        .padding(top = contentPadding.calculateTopPadding())
-                        .padding(24.dp),
-                )
-            }
-            is DetailsUiState.Loading -> {
-                val peek = s.peek
-                if (peek == null) {
-                    item(key = "skeleton", contentType = "skeleton") {
-                        ShimmerHost {
-                            Column(
-                                Modifier.padding(top = contentPadding.calculateTopPadding()),
-                                verticalArrangement = Arrangement.spacedBy(24.dp),
-                            ) {
-                                SkeletonDetails()
-                                SkeletonEpisodeList()
-                            }
-                        }
-                    }
-                } else {
-                    item(key = "header", contentType = "header") {
-                        DetailsHeader(
-                            item = peek,
-                            origin = origin,
-                            extraSources = emptyList(),
-                            enableInlinePreview = false,
-                            previewStopEpoch = previewStopEpoch,
-                            container = container,
-                        )
-                    }
-                    item(key = "skeleton", contentType = "skeleton") { BodySkeleton() }
-                }
-            }
-            is DetailsUiState.Ready -> {
-                val ui = s.ui
-                val item = ui.item
-                val isSeriesWithSeasons = item.type == ItemType.SERIES && item.seasons.isNotEmpty()
-                val selectedSeasonIndex = season.coerceIn(0, (item.seasons.size - 1).coerceAtLeast(0))
-                val activeSeasonObj = item.seasons.getOrNull(selectedSeasonIndex)
+    Column(Modifier.fillMaxSize()) {
+        if (pinInlineSlot && headerItem != null) {
+            TopMediaSlot(
+                item = headerItem,
+                topInset = topSafeInset,
+                isInlinePlaying = true,
+                enableMutedPreview = false,
+                previewStopEpoch = previewStopEpoch,
+                gesturePrefs = gesturePrefs,
+                container = container,
+                onTapPlayInline = {},
+            )
+        }
 
-                item(key = "header", contentType = "header") {
-                    DetailsHeader(
-                        item = item,
-                        origin = origin,
-                        extraSources = resolvedExtraSources,
-                        enableInlinePreview = allowInlinePreview,
-                        previewStopEpoch = previewStopEpoch,
-                        container = container,
+        LazyColumn(
+            state = listState,
+            contentPadding = PaddingValues(bottom = contentPadding.calculateBottomPadding() + 16.dp),
+            modifier = Modifier.weight(1f).fillMaxWidth(),
+        ) {
+            when (val s = state) {
+                is DetailsUiState.Error -> item(key = "error") {
+                    Text(
+                        s.message,
+                        color = Cinetor.tokens.textSecondary,
+                        modifier = Modifier
+                            .padding(top = topSafeInset)
+                            .padding(24.dp),
                     )
                 }
-                item(key = "actions", contentType = "actions") {
-                    DetailsActions(
-                        item = item,
-                        readiness = readiness[item.id],
-                        inMyList = item.id in myList,
-                        resume = resumeEntries.firstOrNull { it.itemId == item.id },
-                        playFocusRequester = playFocusRequester,
-                        onPlay = {
-                            previewStopEpoch++
-                            container.playback.play(item)
-                        },
-                        downloadInfo = dlMap[downloadIdFor(item.id, null)],
-                        canDownload = isDownloadable(item),
-                        isSeriesBatch = isSeriesWithSeasons,
-                        onDownload = {
-                            val existingMovieDl = dlMap[downloadIdFor(item.id, null)]
-                            when {
-                                isSeriesWithSeasons -> {
-                                    batchPreselectedIds = null
-                                    batchSheetSeason = activeSeasonObj?.n ?: item.seasons.first().n
+                is DetailsUiState.Loading -> {
+                    val peek = s.peek
+                    if (peek == null) {
+                        item(key = "skeleton", contentType = "skeleton") {
+                            ShimmerHost {
+                                Column(
+                                    Modifier.padding(top = topSafeInset),
+                                    verticalArrangement = Arrangement.spacedBy(24.dp),
+                                ) {
+                                    SkeletonDetails()
+                                    SkeletonEpisodeList()
                                 }
-                                existingMovieDl != null -> dlDetailsId = existingMovieDl.record.id
-                                else -> optionsTarget = DownloadTarget(item)
                             }
-                        },
-                        onToggleMyList = { container.toggleMyList(item) },
-                        onShare = {
-                            val send = Intent(Intent.ACTION_SEND).apply {
-                                type = "text/plain"
-                                putExtra(Intent.EXTRA_TEXT, "Watch \"${item.title}\" on Cinetor")
-                            }
-                            context.startActivity(Intent.createChooser(send, "Share").addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
-                        },
-                    )
-                }
-                item(key = "synopsis", contentType = "synopsis") { Synopsis(item) }
-
-                val seasons = item.seasons
-                if (seasons.isNotEmpty()) {
-                    item(key = "seasons", contentType = "seasons") {
-                        Column(Modifier.padding(top = 20.dp, bottom = 8.dp)) {
-                            SeasonTabs(seasons, selectedSeasonIndex) { season = it }
                         }
+                    } else {
+                        if (!pinInlineSlot) {
+                            item(key = "top-media", contentType = "top-media") {
+                                TopMediaSlot(
+                                    item = peek,
+                                    topInset = topSafeInset,
+                                    isInlinePlaying = isInlineHere,
+                                    enableMutedPreview = false,
+                                    previewStopEpoch = previewStopEpoch,
+                                    gesturePrefs = gesturePrefs,
+                                    container = container,
+                                    onTapPlayInline = {
+                                        val resEp = resumeEntries.firstOrNull {
+                                            it.itemId == peek.id && !it.finished && it.positionMs >= 3_000
+                                        }?.episodeId
+                                        val (se, ep) = resolvePlayTarget(ensurePlayableItem(peek), resEp)
+                                        startInlinePlayback(peek, se, ep)
+                                    },
+                                )
+                            }
+                        }
+                        item(key = "summary-peek", contentType = "summary") {
+                            DetailsSummaryHeader(item = peek, origin = origin, extraSources = emptyList())
+                        }
+                        item(key = "skeleton", contentType = "skeleton") { BodySkeleton() }
                     }
-                    val seasonObj = seasons[selectedSeasonIndex]
-                    if (isDownloadable(item)) {
-                        item(key = "season-dl-$selectedSeasonIndex", contentType = "season-dl") {
-                            SeasonDownloadActions(
-                                seasonNumber = seasonObj.n,
-                                multiSeason = seasons.size > 1,
-                                onBatchDownload = {
-                                    batchPreselectedIds = null
-                                    batchSheetSeason = seasonObj.n
-                                },
-                                onNext3 = {
-                                    val done = dlMap.keys
-                                    val next = nextUnwatched(seasonObj.episodes, done, item.id)
-                                    if (next.isEmpty()) {
-                                        showQueuedSnackbar("All episodes in Season ${seasonObj.n} are already queued", withDownloadsAction = true)
-                                    } else {
-                                        batchPreselectedIds = next.map { it.id }.toSet()
-                                        batchSheetSeason = seasonObj.n
-                                    }
+                }
+                is DetailsUiState.Ready -> {
+                    val ui = s.ui
+                    val item = ui.item
+                    val isSeriesWithSeasons = item.type == ItemType.SERIES && item.seasons.isNotEmpty()
+                    val selectedSeasonIndex = season.coerceIn(0, (item.seasons.size - 1).coerceAtLeast(0))
+                    val activeSeasonObj = item.seasons.getOrNull(selectedSeasonIndex)
+                    val resumable = resumeEntries.firstOrNull {
+                        it.itemId == item.id && !it.finished && it.positionMs >= 3_000
+                    }
+
+                    if (!pinInlineSlot) {
+                        item(key = "top-media", contentType = "top-media") {
+                            TopMediaSlot(
+                                item = item,
+                                topInset = topSafeInset,
+                                isInlinePlaying = isInlineHere,
+                                enableMutedPreview = allowInlinePreview,
+                                previewStopEpoch = previewStopEpoch,
+                                gesturePrefs = gesturePrefs,
+                                container = container,
+                                onTapPlayInline = {
+                                    val (se, ep) = resolvePlayTarget(item, resumable?.episodeId)
+                                    startInlinePlayback(item, se, ep)
                                 },
                             )
                         }
                     }
-                    items(seasonObj.episodes, key = { "ep-${seasonObj.n}-${it.id}" }, contentType = { "episode" }) { ep ->
-                        val epEntry = resumeEntries.firstOrNull { it.itemId == item.id && it.episodeId == ep.id }
-                        val epProgress = epEntry?.takeIf { !it.finished }?.fraction
-                        val epWatched = epEntry?.finished == true
-                        val epInfo = dlMap[downloadIdFor(item.id, ep.id)]
-                        EpisodeRow(
-                            episode = ep,
-                            progress = epProgress,
-                            downloaded = epInfo?.record?.status == DownloadStatus.COMPLETED,
-                            watched = epWatched,
-                            trailing = if (isDownloadable(item)) {
-                                {
-                                    EpisodeDownloadButton(
-                                        info = epInfo,
-                                        onClick = {
-                                            if (epInfo != null) dlDetailsId = epInfo.record.id
-                                            else optionsTarget = DownloadTarget(item, listOf(ep), seasonObj.n)
-                                        },
+
+                    item(key = "summary", contentType = "summary") {
+                        DetailsSummaryHeader(item = item, origin = origin, extraSources = resolvedExtraSources)
+                    }
+
+                    // Determine next episode when already playing inline on a series
+                    val nextInlineEpisode: Pair<Int, Episode>? = if (isInlineHere && isSeriesWithSeasons) {
+                        val activeEpId = playerState.episodeId
+                        val currentSeason = item.seasons.firstOrNull { sn -> sn.episodes.any { it.id == activeEpId } }
+                        val currentEp = currentSeason?.episodes?.firstOrNull { it.id == activeEpId }
+                        if (currentSeason != null && currentEp != null) {
+                            val nextInSame = currentSeason.episodes.firstOrNull { it.n == currentEp.n + 1 }
+                            if (nextInSame != null) {
+                                currentSeason.n to nextInSame
+                            } else {
+                                val nextSeason = item.seasons.firstOrNull { it.n > currentSeason.n }
+                                nextSeason?.episodes?.firstOrNull()?.let { nextSeason.n to it }
+                            }
+                        } else {
+                            null
+                        }
+                    } else {
+                        null
+                    }
+
+                    item(key = "actions", contentType = "actions") {
+                        DetailsActions(
+                            item = item,
+                            readiness = if (isInlineHere) null else (readiness[item.id] ?: readiness[id]),
+                            inMyList = item.id in myList,
+                            resumable = resumable,
+                            isInlinePlaying = isInlineHere,
+                            nextInlineEpisode = nextInlineEpisode,
+                            playFocusRequester = playFocusRequester,
+                            onPlay = {
+                                if (isInlineHere && nextInlineEpisode != null) {
+                                    startInlinePlayback(item, nextInlineEpisode.first, nextInlineEpisode.second.n)
+                                } else if (isInlineHere) {
+                                    container.playback.player.value?.play()
+                                } else {
+                                    val (se, ep) = resolvePlayTarget(item, resumable?.episodeId)
+                                    startInlinePlayback(item, se, ep)
+                                }
+                            },
+                            downloadInfo = dlMap[downloadIdFor(item.id, null)],
+                            canDownload = isDownloadable(item),
+                            isSeriesBatch = isSeriesWithSeasons,
+                            onDownload = {
+                                val existingMovieDl = dlMap[downloadIdFor(item.id, null)]
+                                when {
+                                    isSeriesWithSeasons -> {
+                                        batchSheetSeason = activeSeasonObj?.n ?: item.seasons.first().n
+                                    }
+                                    existingMovieDl != null -> dlDetailsId = existingMovieDl.record.id
+                                    else -> optionsTarget = DownloadTarget(item)
+                                }
+                            },
+                            onToggleMyList = { container.toggleMyList(item) },
+                        )
+                    }
+
+                    item(key = "synopsis", contentType = "synopsis") { Synopsis(item) }
+
+                    // 1. Seasons & Episodes (Series)
+                    val seasons = item.seasons
+                    if (seasons.isNotEmpty()) {
+                        item(key = "seasons", contentType = "seasons") {
+                            Column(Modifier.padding(top = 18.dp, bottom = 6.dp)) {
+                                SeasonTabs(seasons, selectedSeasonIndex) { season = it }
+                            }
+                        }
+                        val seasonObj = seasons[selectedSeasonIndex]
+                        val activeEpPair = resolveActivePlayingEpisode(playerState.episodeId)
+                        val hasActiveBeyondLimit = seasonObj.episodes.indexOfFirst { ep ->
+                            playerState.item?.id == item.id &&
+                                (playerState.episodeId == ep.id || activeEpPair == (seasonObj.n to ep.n))
+                        } >= INITIAL_EPISODE_LIMIT
+                        val shownEpisodes = if (expandAllEpisodes || hasActiveBeyondLimit || seasonObj.episodes.size <= INITIAL_EPISODE_LIMIT) {
+                            seasonObj.episodes
+                        } else {
+                            seasonObj.episodes.take(INITIAL_EPISODE_LIMIT)
+                        }
+
+                        items(shownEpisodes, key = { "ep-${seasonObj.n}-${it.id}" }, contentType = { "episode" }) { ep ->
+                            val epEntry = resumeEntries.firstOrNull { it.itemId == item.id && it.episodeId == ep.id }
+                            val epProgress = epEntry?.takeIf { !it.finished }?.fraction
+                            val epWatched = epEntry?.finished == true
+                            val epInfo = dlMap[downloadIdFor(item.id, ep.id)]
+                            val isPlayingEp = playerState.active &&
+                                (playerState.item?.id == item.id || playerState.item?.id == id) &&
+                                (playerState.episodeId == ep.id || activeEpPair == (seasonObj.n to ep.n))
+
+                            EpisodeRow(
+                                episode = ep,
+                                progress = epProgress,
+                                downloaded = epInfo?.record?.status == DownloadStatus.COMPLETED,
+                                watched = epWatched,
+                                playing = isPlayingEp,
+                                trailing = if (isDownloadable(item)) {
+                                    {
+                                        EpisodeDownloadButton(
+                                            info = epInfo,
+                                            onClick = {
+                                                if (epInfo != null) dlDetailsId = epInfo.record.id
+                                                else optionsTarget = DownloadTarget(item, listOf(ep), seasonObj.n)
+                                            },
+                                        )
+                                    }
+                                } else {
+                                    null
+                                },
+                            ) {
+                                startInlinePlayback(item, seasonObj.n, ep.n)
+                            }
+                        }
+
+                        if (shownEpisodes.size < seasonObj.episodes.size) {
+                            item(key = "expand-episodes-${seasonObj.n}", contentType = "expand-episodes") {
+                                val expandShape = RoundedCornerShape(CinetorTokens.Shape.pill)
+                                Box(
+                                    Modifier
+                                        .fillMaxWidth()
+                                        .padding(horizontal = 16.dp, vertical = 6.dp),
+                                    contentAlignment = Alignment.Center,
+                                ) {
+                                    Text(
+                                        "Show all ${seasonObj.episodes.size} episodes",
+                                        style = MaterialTheme.typography.labelLarge,
+                                        fontWeight = FontWeight.SemiBold,
+                                        color = Cinetor.tokens.accent,
+                                        modifier = Modifier
+                                            .clip(expandShape)
+                                            .glass(expandShape, GlassLevel.SURFACE)
+                                            .clickable { expandAllEpisodes = true }
+                                            .padding(horizontal = 18.dp, vertical = 9.dp),
                                     )
                                 }
-                            } else {
-                                null
-                            },
-                        ) {
-                            previewStopEpoch++
-                            container.playback.play(item, ep.id)
+                            }
                         }
                     }
-                }
-                item(key = "more", contentType = "more") {
-                    MoreLikeThis(ui, onOpenItem)
+
+                    // 2. Clickable Cast Section
+                    if (item.cast.isNotEmpty()) {
+                        item(key = "cast", contentType = "cast") {
+                            CastSection(
+                                castNames = item.cast,
+                                onSelectActor = { name -> vm.openCast(Person(name = name)) },
+                            )
+                        }
+                    }
+
+                    // 3. For You (More Like This) Section
+                    item(key = "for-you", contentType = "for-you") {
+                        ForYouSection(ui, onOpenItem)
+                    }
                 }
             }
         }
+    }
+
+    // Cast Filmography ModalBottomSheet
+    val activePerson = castState.selectedCast
+    if (activePerson != null) {
+        CastWorksSheet(
+            person = activePerson,
+            loading = castState.castWorksLoading,
+            works = castState.castWorks,
+            onDismiss = vm::closeCast,
+            onOpenWork = { work ->
+                vm.closeCast()
+                onOpenItem(work, null)
+            },
+        )
     }
 
     // Multi-Season & Multi-Episode Batch Series Download Sheet
@@ -442,11 +661,8 @@ fun DetailsScreen(
             initialSeasonNumber = targetBatchSeason,
             module = container.downloads,
             downloadsById = dlMap,
-            preselectedEpisodeIds = batchPreselectedIds,
-            onDismiss = {
-                batchSheetSeason = null
-                batchPreselectedIds = null
-            },
+            preselectedEpisodeIds = null,
+            onDismiss = { batchSheetSeason = null },
             onQueued = { count ->
                 showQueuedSnackbar(batchQueuedSnackbarMessage(count), withDownloadsAction = true)
             },
@@ -510,31 +726,59 @@ fun DetailsScreen(
     }
 }
 
+private fun resolveActivePlayingEpisode(episodeId: String?): Pair<Int, Int>? {
+    if (episodeId.isNullOrBlank()) return null
+    val match = Regex("""^s0*(\d+)e0*(\d+)$""", RegexOption.IGNORE_CASE).find(episodeId) ?: return null
+    val s = match.groupValues[1].toIntOrNull() ?: return null
+    val e = match.groupValues[2].toIntOrNull() ?: return null
+    return s to e
+}
+
+/**
+ * Top 16:9 media slot: renders the artwork + optional muted backdrop preview while browsing,
+ * and transforms IN PLACE into [InlinePlayerSlot] when [isInlinePlaying] is true!
+ */
 @Composable
-private fun DetailsHeader(
+private fun TopMediaSlot(
     item: Item,
-    origin: String,
-    extraSources: List<Source>,
-    enableInlinePreview: Boolean,
+    topInset: Dp,
+    isInlinePlaying: Boolean,
+    enableMutedPreview: Boolean,
     previewStopEpoch: Int,
+    gesturePrefs: GesturePrefs,
     container: AppContainer,
+    onTapPlayInline: () -> Unit,
 ) {
     val tokens = Cinetor.tokens
-    val tier = Cinetor.tier
     val dominant = remember(item.dominantColor) { hexColor(item.dominantColor) }
     var previewShowingVideo by remember(item.id) { mutableStateOf(false) }
 
-    Box(Modifier.fillMaxWidth().height(HeaderHeight + PosterH / 2)) {
-        Box(Modifier.fillMaxWidth().height(HeaderHeight).background(dominant)) {
-            AsyncImage(
-                model = rememberSizedImage(item.backdrop, 400.dp, HeaderHeight, large = true),
-                contentDescription = null,
-                contentScale = ContentScale.Crop,
-                modifier = Modifier
-                    .fillMaxSize()
-                    .then(if (tier != PerformanceTier.LOW && !previewShowingVideo) Modifier.blur(4.dp) else Modifier),
+    Box(
+        Modifier
+            .fillMaxWidth()
+            .padding(top = topInset)
+            .aspectRatio(16f / 9f)
+            .background(if (isInlinePlaying) Color.Black else dominant),
+    ) {
+        if (isInlinePlaying) {
+            InlinePlayerSlot(
+                container.playback,
+                container.subtitles,
+                gesturePrefs,
+                Modifier.fillMaxSize(),
             )
-            if (enableInlinePreview) {
+        } else {
+            val artPath = item.backdrop.ifBlank { item.poster }
+            CinetorArtwork(
+                seedKey = item.id,
+                path = artPath,
+                width = 400.dp,
+                height = 225.dp,
+                fallbackTitle = item.title,
+                large = true,
+                modifier = Modifier.fillMaxSize(),
+            )
+            if (enableMutedPreview) {
                 DetailsInlinePreview(
                     item = item,
                     stopEpoch = previewStopEpoch,
@@ -542,65 +786,103 @@ private fun DetailsHeader(
                     onShowingChanged = { previewShowingVideo = it },
                 )
             }
-            Box(Modifier.fillMaxSize().background(dominant.copy(alpha = if (previewShowingVideo) 0.14f else 0.28f)))
             Box(
-                Modifier.fillMaxSize().background(
-                    Brush.verticalGradient(
-                        0f to tokens.bg.copy(alpha = 0.32f),
-                        0.48f to Color.Transparent,
-                        1f to tokens.bg,
+                Modifier
+                    .fillMaxSize()
+                    .background(
+                        Brush.verticalGradient(
+                            0f to tokens.bg.copy(alpha = 0.18f),
+                            0.6f to Color.Transparent,
+                            1f to tokens.bg,
+                        ),
+                    )
+                    .clickable(
+                        interactionSource = remember { MutableInteractionSource() },
+                        indication = null,
+                        onClickLabel = "Play inline",
+                        onClick = onTapPlayInline,
                     ),
-                ),
+            ) {
+                if (!previewShowingVideo) {
+                    Box(
+                        Modifier
+                            .align(Alignment.Center)
+                            .size(48.dp)
+                            .clip(CircleShape)
+                            .background(Color.Black.copy(alpha = 0.48f))
+                            .border(1.dp, Color.White.copy(alpha = 0.45f), CircleShape),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Icon(
+                            Icons.Rounded.PlayArrow,
+                            contentDescription = null,
+                            tint = Color.White,
+                            modifier = Modifier.size(26.dp),
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+/** Compact foreground poster + title + Shiopa metadata pills directly under the 16:9 media slot. */
+@Composable
+private fun DetailsSummaryHeader(
+    item: Item,
+    origin: String,
+    extraSources: List<Source>,
+) {
+    val tokens = Cinetor.tokens
+    val dominant = remember(item.dominantColor) { hexColor(item.dominantColor) }
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp)
+            .padding(top = 12.dp, bottom = 4.dp),
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Box(
+            Modifier
+                .sharedPoster(origin.ifEmpty { null })
+                .size(PosterThumbW, PosterThumbH)
+                .clip(RoundedCornerShape(CinetorTokens.Shape.sm))
+                .background(dominant)
+                .border(1.dp, tokens.glassStroke, RoundedCornerShape(CinetorTokens.Shape.sm)),
+        ) {
+            CinetorArtwork(
+                seedKey = item.id,
+                path = item.poster,
+                width = PosterThumbW,
+                height = PosterThumbH,
+                fallbackTitle = item.title,
+                modifier = Modifier.fillMaxSize(),
             )
         }
-        Row(
-            Modifier
-                .align(Alignment.BottomStart)
-                .padding(horizontal = 16.dp),
-            horizontalArrangement = Arrangement.spacedBy(14.dp),
-            verticalAlignment = Alignment.Bottom,
+        Column(
+            Modifier.weight(1f),
+            verticalArrangement = Arrangement.spacedBy(6.dp),
         ) {
-            Box(
-                Modifier
-                    .sharedPoster(origin.ifEmpty { null })
-                    .size(PosterW, PosterH)
-                    .clip(RoundedCornerShape(CinetorTokens.Shape.card))
-                    .background(dominant)
-                    .border(1.dp, tokens.glassStroke, RoundedCornerShape(CinetorTokens.Shape.card)),
-            ) {
+            if (item.logo != null) {
                 AsyncImage(
-                    model = rememberSizedImage(item.poster, PosterW, PosterH),
+                    model = rememberSizedImage(item.logo, 180.dp, 52.dp),
                     contentDescription = item.title,
-                    contentScale = ContentScale.Crop,
-                    modifier = Modifier.fillMaxSize(),
+                    contentScale = ContentScale.Fit,
+                    alignment = Alignment.CenterStart,
+                    modifier = Modifier.width(180.dp).heightIn(max = 52.dp),
+                )
+            } else {
+                Text(
+                    item.title,
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.Bold,
+                    color = tokens.textPrimary,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
                 )
             }
-            Column(
-                Modifier
-                    .weight(1f)
-                    .padding(bottom = 4.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp),
-            ) {
-                if (item.logo != null) {
-                    AsyncImage(
-                        model = rememberSizedImage(item.logo, 200.dp, 64.dp),
-                        contentDescription = item.title,
-                        contentScale = ContentScale.Fit,
-                        alignment = Alignment.CenterStart,
-                        modifier = Modifier.width(200.dp).heightIn(max = 64.dp),
-                    )
-                } else {
-                    Text(
-                        item.title,
-                        style = MaterialTheme.typography.headlineSmall,
-                        fontWeight = FontWeight.Bold,
-                        color = tokens.textPrimary,
-                        maxLines = 3,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-                }
-                MetaChips(item, extraSources)
-            }
+            MetaChips(item, extraSources)
         }
     }
 }
@@ -640,7 +922,7 @@ private fun DetailsInlinePreview(
         onShowingChanged(false)
     }
 
-    val currentStopEpoch by androidx.compose.runtime.rememberUpdatedState(stopEpoch)
+    val currentStopEpoch by rememberUpdatedState(stopEpoch)
 
     DisposableEffect(item.id, lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event ->
@@ -757,7 +1039,7 @@ private fun DetailsInlinePreview(
     val visible = !failed && (firstFrame || youtubeId != null)
     val alpha by animateFloatAsState(
         targetValue = if (visible) 1f else 0f,
-        animationSpec = tween(durationMillis = 360),
+        animationSpec = tween(durationMillis = 320),
         label = "inlinePreviewAlpha",
     )
 
@@ -799,7 +1081,7 @@ private fun DetailsInlinePreview(
                 Box(
                     Modifier
                         .align(Alignment.TopEnd)
-                        .padding(top = 64.dp, end = 16.dp)
+                        .padding(top = 12.dp, end = 12.dp)
                         .size(34.dp)
                         .clip(CircleShape)
                         .glass(CircleShape, GlassLevel.SURFACE)
@@ -874,20 +1156,16 @@ private fun runtimeLabel(item: Item): String? = when {
     else -> null
 }
 
-/**
- * Shiopa-style Metadata Pills: ★ Rating, 4K UHD badge, Dub language pills, Year, Maturity & Runtime,
- * followed by clean genre typography.
- */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun MetaChips(item: Item, extraSources: List<Source>) {
     val tokens = Cinetor.tokens
     val fourK = remember(item, extraSources) { hasUltraHdSource(item, extraSources) }
-    val dubs = remember(item.title, item.altTitle, item.genres) { extractDubBadges(item) }
+    val dubs = remember(item.title, item.altTitle, item.genres, item.dubs) { extractDubBadges(item) }
     val cleanGenres = remember(item.genres) { displayGenres(item) }
     val pillShape = RoundedCornerShape(6.dp)
 
-    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+    Column(verticalArrangement = Arrangement.spacedBy(5.dp)) {
         FlowRow(
             horizontalArrangement = Arrangement.spacedBy(6.dp),
             verticalArrangement = Arrangement.spacedBy(6.dp),
@@ -973,16 +1251,17 @@ private fun MetaChips(item: Item, extraSources: List<Source>) {
 }
 
 /**
- * Shiopa-style Liquid Glass Action Bar:
- * Primary Play/Resume capsule CTA (with preloader ReadyDot), Download button (Batch for series,
- * single options for movies), and Liquid Glass My List & Share pills.
+ * Strictly 3 action buttons (`Play`, `Download`, `My List`).
+ * Play displays ONLY a crisp `8.dp` green circle (`#22C55E`) when ready — zero "Ready" / "Warming" text.
  */
 @Composable
 private fun DetailsActions(
     item: Item,
     readiness: Readiness?,
     inMyList: Boolean,
-    resume: ResumeEntry?,
+    resumable: ResumeEntry?,
+    isInlinePlaying: Boolean,
+    nextInlineEpisode: Pair<Int, Episode>?,
     playFocusRequester: FocusRequester,
     onPlay: () -> Unit,
     downloadInfo: DownloadInfo?,
@@ -990,34 +1269,37 @@ private fun DetailsActions(
     isSeriesBatch: Boolean,
     onDownload: () -> Unit,
     onToggleMyList: () -> Unit,
-    onShare: () -> Unit,
 ) {
     val tokens = Cinetor.tokens
     val pillShape = RoundedCornerShape(CinetorTokens.Shape.pill)
-    val barShape = RoundedCornerShape(CinetorTokens.Shape.lg)
-    val firstEp = item.seasons.firstOrNull()?.episodes?.firstOrNull()
-    val resumable = resume?.takeIf { !it.finished && it.positionMs >= 3_000 }
+    val firstSeason = item.seasons.firstOrNull()
+    val firstEp = firstSeason?.episodes?.firstOrNull()
+
     val playLabel = when {
+        isInlinePlaying && nextInlineEpisode != null -> "Next S${nextInlineEpisode.first}:E${nextInlineEpisode.second.n}"
+        isInlinePlaying -> "Playing"
         resumable != null && resumable.episodeLabel != null -> "Resume ${resumable.episodeLabel}"
         resumable != null -> "Resume"
-        item.type == ItemType.SERIES && firstEp != null -> "Play S1:E${firstEp.n}"
+        item.type == ItemType.SERIES && firstSeason != null && firstEp != null -> "Play S${firstSeason.n}:E${firstEp.n}"
         else -> "Play"
     }
     val playInteraction = remember { MutableInteractionSource() }
     val playFocused by playInteraction.collectIsFocusedAsState()
+    val myListInteraction = remember { MutableInteractionSource() }
+    val myListFocused by myListInteraction.collectIsFocusedAsState()
 
     Column(
         Modifier
-            .padding(horizontal = 16.dp, vertical = 14.dp)
-            .clip(barShape)
-            .glass(barShape, GlassLevel.SURFACE)
-            .padding(14.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp),
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 10.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         Row(
-            horizontalArrangement = Arrangement.spacedBy(10.dp),
+            Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
+            // 1. Play (with 8.dp green dot ONLY when ready — zero text label)
             Row(
                 Modifier
                     .weight(1f)
@@ -1031,12 +1313,17 @@ private fun DetailsActions(
                     )
                     .clickable(interactionSource = playInteraction, indication = null, onClick = onPlay)
                     .semantics { contentDescription = "Play" }
-                    .padding(horizontal = 14.dp),
+                    .padding(horizontal = 12.dp),
                 horizontalArrangement = Arrangement.Center,
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                Icon(Icons.Rounded.PlayArrow, contentDescription = null, tint = tokens.onAccent)
-                Spacer(Modifier.width(6.dp))
+                Icon(
+                    if (isInlinePlaying && nextInlineEpisode != null) Icons.Rounded.SkipNext else Icons.Rounded.PlayArrow,
+                    contentDescription = null,
+                    tint = tokens.onAccent,
+                    modifier = Modifier.size(20.dp),
+                )
+                Spacer(Modifier.width(5.dp))
                 Text(
                     playLabel,
                     color = tokens.onAccent,
@@ -1045,20 +1332,60 @@ private fun DetailsActions(
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                 )
-                if (readiness != null) {
-                    Spacer(Modifier.width(8.dp))
-                    ReadyDot(readiness)
-                }
+                ReadyDot(readiness)
             }
+
+            // 2. Download (opens BatchSeriesDownloadSheet for SERIES, DownloadOptionsSheet for MOVIE)
             if (canDownload) {
                 DownloadButton(
                     info = if (isSeriesBatch) null else downloadInfo,
                     onClick = onDownload,
-                    overrideLabel = if (isSeriesBatch) "Episodes" else null,
+                    overrideLabel = if (isSeriesBatch) "Download" else null,
+                )
+            }
+
+            // 3. My List
+            Row(
+                Modifier
+                    .height(50.dp)
+                    .clip(pillShape)
+                    .then(
+                        if (inMyList) Modifier.background(tokens.accent.copy(alpha = 0.16f))
+                        else Modifier.glass(pillShape, GlassLevel.SURFACE),
+                    )
+                    .border(
+                        width = if (myListFocused) 2.dp else 1.dp,
+                        color = when {
+                            myListFocused -> tokens.focusRing
+                            inMyList -> tokens.accent.copy(alpha = 0.65f)
+                            else -> Color.Transparent
+                        },
+                        shape = pillShape,
+                    )
+                    .clickable(interactionSource = myListInteraction, indication = null, onClick = onToggleMyList)
+                    .semantics { contentDescription = "My List" }
+                    .padding(horizontal = 14.dp),
+                horizontalArrangement = Arrangement.Center,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Icon(
+                    if (inMyList) Icons.Rounded.Check else Icons.Rounded.Add,
+                    contentDescription = null,
+                    tint = if (inMyList) tokens.accent else tokens.textPrimary,
+                    modifier = Modifier.size(20.dp),
+                )
+                Spacer(Modifier.width(5.dp))
+                Text(
+                    "My List",
+                    style = MaterialTheme.typography.labelLarge,
+                    fontWeight = FontWeight.SemiBold,
+                    color = tokens.textPrimary,
+                    maxLines = 1,
                 )
             }
         }
-        if (resumable != null) {
+
+        if (resumable != null && !isInlinePlaying) {
             Row(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(10.dp),
@@ -1085,134 +1412,45 @@ private fun DetailsActions(
                 )
             }
         }
-        Row(
-            Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(10.dp),
-        ) {
-            SecondaryGlassPill(
-                icon = if (inMyList) Icons.Rounded.Check else Icons.Rounded.Add,
-                label = if (inMyList) "In My List" else "My List",
-                semanticDesc = "My List",
-                highlighted = inMyList,
-                onClick = onToggleMyList,
-                modifier = Modifier.weight(1f),
-            )
-            SecondaryGlassPill(
-                icon = Icons.Rounded.Share,
-                label = "Share",
-                semanticDesc = "Share",
-                highlighted = false,
-                onClick = onShare,
-                modifier = Modifier.weight(1f),
-            )
-        }
     }
 }
 
+/**
+ * Play button readiness indicator: ONLY an `8.dp` circle (`#22C55E` green when READY,
+ * subtle composite-alpha pulse while warming) — NEVER renders "Ready" or "Warming" text.
+ */
 @Composable
 private fun ReadyDot(readiness: Readiness?) {
-    val tokens = Cinetor.tokens
+    if (readiness == null || readiness == Readiness.ERROR) return
     val tier = Cinetor.tier
     val reduceMotion = Cinetor.prefs.reduceMotion
-    if (readiness == null) return
-    val color = when (readiness) {
-        Readiness.READY -> tokens.success
-        Readiness.ERROR -> tokens.error
-        else -> tokens.warning
-    }
-    val shouldAnimatePulse = readiness != Readiness.READY &&
-        readiness != Readiness.ERROR &&
-        tier != PerformanceTier.LOW &&
-        !reduceMotion
+    val isReady = readiness == Readiness.READY
+    val color = if (isReady) ReadyGreen else Cinetor.tokens.onAccent.copy(alpha = 0.85f)
+    val shouldAnimatePulse = !isReady && tier != PerformanceTier.LOW && !reduceMotion
     val pulse = if (!shouldAnimatePulse) {
         null
     } else {
-        rememberInfiniteTransition(label = "readyPulse").animateFloat(
+        rememberInfiniteTransition(label = "readyDotPulse").animateFloat(
             0.35f,
-            1f,
+            0.95f,
             infiniteRepeatable(tween(650), RepeatMode.Reverse),
-            label = "readyAlpha",
+            label = "readyDotAlpha",
         )
     }
-    Row(
-        verticalAlignment = Alignment.CenterVertically,
-        modifier = Modifier.semantics { contentDescription = if (readiness == Readiness.READY) "Ready" else "Preparing" },
-    ) {
-        Box(
-            Modifier
-                .size(8.dp)
-                .graphicsLayer { alpha = pulse?.value ?: 1f }
-                .clip(CircleShape)
-                .background(color),
-        )
-        if (readiness == Readiness.READY) {
-            Spacer(Modifier.width(4.dp))
-            Text(
-                "Ready",
-                style = MaterialTheme.typography.labelSmall,
-                color = tokens.onAccent.copy(alpha = 0.92f),
-            )
-        }
-    }
-}
-
-@Composable
-private fun SecondaryGlassPill(
-    icon: ImageVector,
-    label: String,
-    semanticDesc: String,
-    highlighted: Boolean,
-    onClick: () -> Unit,
-    modifier: Modifier = Modifier,
-) {
-    val tokens = Cinetor.tokens
-    val shape = RoundedCornerShape(CinetorTokens.Shape.pill)
-    val interaction = remember { MutableInteractionSource() }
-    val focused by interaction.collectIsFocusedAsState()
-
-    Row(
-        modifier
-            .height(40.dp)
-            .clip(shape)
-            .then(
-                if (highlighted) Modifier.background(tokens.accent.copy(alpha = 0.14f))
-                else Modifier.background(tokens.surfaceElevated.copy(alpha = 0.65f)),
-            )
-            .border(
-                width = if (focused) 2.dp else 1.dp,
-                color = when {
-                    focused -> tokens.focusRing
-                    highlighted -> tokens.accent.copy(alpha = 0.55f)
-                    else -> tokens.glassStroke
-                },
-                shape = shape,
-            )
-            .clickable(interactionSource = interaction, indication = null, onClick = onClick)
-            .semantics { contentDescription = semanticDesc }
-            .padding(horizontal = 12.dp),
-        horizontalArrangement = Arrangement.Center,
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Icon(
-            icon,
-            contentDescription = null,
-            tint = if (highlighted) tokens.accent else tokens.textPrimary,
-            modifier = Modifier.size(18.dp),
-        )
-        Spacer(Modifier.width(6.dp))
-        Text(
-            label,
-            style = MaterialTheme.typography.labelMedium,
-            fontWeight = FontWeight.Medium,
-            color = tokens.textPrimary,
-            maxLines = 1,
-        )
-    }
+    Spacer(Modifier.width(7.dp))
+    Box(
+        Modifier
+            .size(8.dp)
+            .graphicsLayer { alpha = pulse?.value ?: 1f }
+            .clip(CircleShape)
+            .background(color),
+    )
 }
 
 @Composable
 private fun Synopsis(item: Item) {
     val tokens = Cinetor.tokens
+    if (item.synopsis.isBlank()) return
     var expanded by rememberSaveable(item.id) { mutableStateOf(false) }
     val interaction = remember { MutableInteractionSource() }
     val focused by interaction.collectIsFocusedAsState()
@@ -1226,39 +1464,32 @@ private fun Synopsis(item: Item) {
             .animateContentSize()
             .clickable(interactionSource = interaction, indication = null) { expanded = !expanded }
             .padding(vertical = 4.dp),
-        verticalArrangement = Arrangement.spacedBy(6.dp),
+        verticalArrangement = Arrangement.spacedBy(4.dp),
     ) {
-        if (item.synopsis.isNotBlank()) {
-            Text(
-                item.synopsis,
-                style = MaterialTheme.typography.bodyMedium,
-                color = tokens.textPrimary,
-                maxLines = if (expanded) Int.MAX_VALUE else 3,
-                overflow = TextOverflow.Ellipsis,
-            )
-            Text(
-                if (expanded) "Show less" else "Show more",
-                style = MaterialTheme.typography.labelMedium,
-                color = tokens.accent,
-                fontWeight = FontWeight.SemiBold,
-            )
-        }
-        if ((expanded || item.synopsis.isBlank()) && item.cast.isNotEmpty()) {
-            Text(
-                "Cast: " + item.cast.joinToString(", "),
-                style = MaterialTheme.typography.bodySmall,
-                color = tokens.textSecondary,
-            )
-        }
+        Text(
+            item.synopsis,
+            style = MaterialTheme.typography.bodyMedium,
+            color = tokens.textPrimary,
+            maxLines = if (expanded) Int.MAX_VALUE else 3,
+            overflow = TextOverflow.Ellipsis,
+        )
+        Text(
+            if (expanded) "Show less" else "Show more",
+            style = MaterialTheme.typography.labelMedium,
+            color = tokens.accent,
+            fontWeight = FontWeight.SemiBold,
+        )
     }
 }
 
+/** Clickable Cast row: tapping any actor opens [CastWorksSheet] with their filmography. */
 @Composable
-private fun MoreLikeThis(ui: DetailsUi, onOpenItem: (Item, String?) -> Unit) {
+private fun CastSection(
+    castNames: List<String>,
+    onSelectActor: (String) -> Unit,
+) {
     val tokens = Cinetor.tokens
-    val tint = Cinetor.tint
-    if (!ui.moreLoading && ui.moreLikeThis.isEmpty()) return
-    Column(Modifier.padding(top = 24.dp)) {
+    Column(Modifier.padding(top = 20.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
         Row(
             Modifier.padding(horizontal = 16.dp),
             verticalAlignment = Alignment.CenterVertically,
@@ -1272,16 +1503,212 @@ private fun MoreLikeThis(ui: DetailsUi, onOpenItem: (Item, String?) -> Unit) {
                     .background(tokens.accent),
             )
             Text(
-                "More Like This",
+                "Cast",
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.Bold,
                 color = tokens.textPrimary,
             )
         }
-        Spacer(Modifier.height(6.dp))
+        LazyRow(
+            contentPadding = PaddingValues(horizontal = 16.dp),
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            items(castNames.distinct(), key = { "cast-$it" }) { actor ->
+                val interaction = remember { MutableInteractionSource() }
+                val focused by interaction.collectIsFocusedAsState()
+                val cardShape = RoundedCornerShape(CinetorTokens.Shape.pill)
+                val initials = remember(actor) {
+                    actor.trim().split(Regex("\\s+")).take(2).mapNotNull { it.firstOrNull()?.uppercaseChar() }.joinToString("")
+                        .ifEmpty { "?" }
+                }
+                Row(
+                    Modifier
+                        .clip(cardShape)
+                        .glass(cardShape, GlassLevel.SURFACE)
+                        .border(
+                            width = if (focused) 2.dp else 1.dp,
+                            color = if (focused) tokens.focusRing else tokens.glassStroke,
+                            shape = cardShape,
+                        )
+                        .clickable(interactionSource = interaction, indication = null) { onSelectActor(actor) }
+                        .semantics { contentDescription = "Cast $actor" }
+                        .padding(start = 6.dp, end = 14.dp, top = 6.dp, bottom = 6.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    Box(
+                        Modifier
+                            .size(32.dp)
+                            .clip(CircleShape)
+                            .background(tokens.accent.copy(alpha = 0.22f))
+                            .border(1.dp, tokens.accent.copy(alpha = 0.45f), CircleShape),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Text(
+                            initials,
+                            style = MaterialTheme.typography.labelSmall,
+                            fontWeight = FontWeight.Bold,
+                            color = tokens.textPrimary,
+                        )
+                    }
+                    Text(
+                        actor,
+                        style = MaterialTheme.typography.labelLarge,
+                        fontWeight = FontWeight.Medium,
+                        color = tokens.textPrimary,
+                        maxLines = 1,
+                    )
+                }
+            }
+        }
+    }
+}
+
+/** Liquid Glass ModalBottomSheet displaying all works of [person] as titled [PosterCard]s. */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun CastWorksSheet(
+    person: Person,
+    loading: Boolean,
+    works: List<Item>,
+    onDismiss: () -> Unit,
+    onOpenWork: (Item) -> Unit,
+) {
+    val tokens = Cinetor.tokens
+    val tint = Cinetor.tint
+
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
+        containerColor = tokens.surfaceElevated,
+    ) {
+        Column(
+            Modifier
+                .fillMaxWidth()
+                .navigationBarsPadding()
+                .heightIn(min = 240.dp, max = 560.dp)
+                .padding(horizontal = 16.dp, vertical = 4.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            Row(
+                Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween,
+            ) {
+                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                    Text(
+                        person.name,
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.Bold,
+                        color = tokens.textPrimary,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                    Text(
+                        if (loading) "Loading filmography…" else "${works.size} ${if (works.size == 1) "title" else "titles"}",
+                        style = MaterialTheme.typography.labelMedium,
+                        color = tokens.textSecondary,
+                    )
+                }
+                Box(
+                    Modifier
+                        .size(36.dp)
+                        .clip(CircleShape)
+                        .glass(CircleShape, GlassLevel.SURFACE)
+                        .clickable(onClick = onDismiss)
+                        .semantics { contentDescription = "Close cast works" },
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Icon(Icons.Rounded.Close, contentDescription = null, tint = tokens.textPrimary, modifier = Modifier.size(18.dp))
+                }
+            }
+
+            if (loading) {
+                ShimmerHost {
+                    Row(
+                        Modifier.fillMaxWidth().padding(vertical = 8.dp),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    ) {
+                        repeat(3) {
+                            SkeletonBox(
+                                Modifier.weight(1f).aspectRatio(2f / 3f),
+                                RoundedCornerShape(CinetorTokens.Shape.card),
+                            )
+                        }
+                    }
+                }
+            } else if (works.isEmpty()) {
+                Box(
+                    Modifier.fillMaxWidth().padding(vertical = 32.dp),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Text(
+                        "No titles available for ${person.name} right now.",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = tokens.textSecondary,
+                    )
+                }
+            } else {
+                LazyColumn(
+                    contentPadding = PaddingValues(bottom = 16.dp),
+                    verticalArrangement = Arrangement.spacedBy(14.dp),
+                ) {
+                    items(works.chunked(3), key = { row -> "cast-work-row-${row.first().id}" }) { rowItems ->
+                        Row(
+                            Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(10.dp),
+                        ) {
+                            rowItems.forEach { work ->
+                                Box(Modifier.weight(1f), contentAlignment = Alignment.TopCenter) {
+                                    PosterCard(
+                                        item = work,
+                                        onClick = { onOpenWork(work) },
+                                        onActive = { tint.setSource(it) },
+                                        width = 104.dp,
+                                    )
+                                }
+                            }
+                            repeat(3 - rowItems.size) {
+                                Spacer(Modifier.weight(1f))
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+/** Always-visible "For You" recommendations row (titled PosterCards). */
+@Composable
+private fun ForYouSection(ui: DetailsUi, onOpenItem: (Item, String?) -> Unit) {
+    val tokens = Cinetor.tokens
+    val tint = Cinetor.tint
+    if (!ui.moreLoading && ui.moreLikeThis.isEmpty()) return
+    Column(Modifier.padding(top = 22.dp)) {
+        Row(
+            Modifier.padding(horizontal = 16.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            Box(
+                Modifier
+                    .width(3.dp)
+                    .height(16.dp)
+                    .clip(RoundedCornerShape(2.dp))
+                    .background(tokens.accent),
+            )
+            Text(
+                "For You",
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold,
+                color = tokens.textPrimary,
+            )
+        }
+        Spacer(Modifier.height(8.dp))
         if (ui.moreLoading) {
             ShimmerHost {
-                Row(Modifier.padding(16.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                Row(Modifier.padding(horizontal = 16.dp, vertical = 6.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                     repeat(4) {
                         SkeletonBox(Modifier.size(104.dp, 156.dp), RoundedCornerShape(CinetorTokens.Shape.card))
                     }
@@ -1289,11 +1716,11 @@ private fun MoreLikeThis(ui: DetailsUi, onOpenItem: (Item, String?) -> Unit) {
             }
         } else {
             LazyRow(
-                contentPadding = PaddingValues(horizontal = 16.dp, vertical = 10.dp),
+                contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
                 horizontalArrangement = Arrangement.spacedBy(12.dp),
             ) {
                 items(ui.moreLikeThis, key = { it.id }, contentType = { "poster" }) { m ->
-                    val key = posterKey("mlt-${ui.item.id}", m.id)
+                    val key = posterKey("fy-${ui.item.id}", m.id)
                     PosterCard(
                         m,
                         onClick = { onOpenItem(m, key) },
@@ -1311,49 +1738,14 @@ private fun MoreLikeThis(ui: DetailsUi, onOpenItem: (Item, String?) -> Unit) {
 private fun BodySkeleton() {
     ShimmerHost {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
-            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 SkeletonBox(Modifier.weight(1f).height(50.dp), RoundedCornerShape(CinetorTokens.Shape.pill))
-                SkeletonBox(Modifier.width(120.dp).height(50.dp), RoundedCornerShape(CinetorTokens.Shape.pill))
+                SkeletonBox(Modifier.width(104.dp).height(50.dp), RoundedCornerShape(CinetorTokens.Shape.pill))
+                SkeletonBox(Modifier.width(96.dp).height(50.dp), RoundedCornerShape(CinetorTokens.Shape.pill))
             }
             SkeletonText(lines = 3)
             Spacer(Modifier.height(8.dp))
             SkeletonEpisodeList(Modifier.padding(horizontal = 0.dp), count = 4)
-        }
-    }
-}
-
-/** Multi-season batch & "Next 3 episodes" Liquid Glass shortcuts above the episode list. */
-@Composable
-private fun SeasonDownloadActions(
-    seasonNumber: Int,
-    multiSeason: Boolean,
-    onBatchDownload: () -> Unit,
-    onNext3: () -> Unit,
-) {
-    val tokens = Cinetor.tokens
-    val batchLabel = if (multiSeason) "Batch download (S$seasonNumber+)" else "Download season"
-    Row(
-        Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
-        horizontalArrangement = Arrangement.spacedBy(10.dp),
-    ) {
-        listOf(batchLabel to onBatchDownload, "Next 3 episodes" to onNext3).forEach { (label, action) ->
-            val shape = RoundedCornerShape(CinetorTokens.Shape.pill)
-            val interaction = remember { MutableInteractionSource() }
-            val focused by interaction.collectIsFocusedAsState()
-            Row(
-                Modifier
-                    .clip(shape)
-                    .glass(shape, GlassLevel.SURFACE)
-                    .then(if (focused) Modifier.border(2.dp, tokens.focusRing, shape) else Modifier)
-                    .clickable(interactionSource = interaction, indication = null, onClick = action)
-                    .semantics { contentDescription = label }
-                    .padding(horizontal = 12.dp, vertical = 8.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Icon(Icons.Rounded.Download, contentDescription = null, tint = tokens.accent, modifier = Modifier.size(16.dp))
-                Spacer(Modifier.width(6.dp))
-                Text(label, color = tokens.textPrimary, style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Medium)
-            }
         }
     }
 }
