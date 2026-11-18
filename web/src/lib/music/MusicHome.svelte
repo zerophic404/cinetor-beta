@@ -322,7 +322,7 @@
             {#each foundAlbums as al (al.id)}
               <a class="chart-card glass" href={albumHref(al.id)}>
                 {#if al.artwork}
-                  <img src={al.artwork} alt="" width="164" height="164" loading="lazy" decoding="async" />
+                  <img referrerpolicy="no-referrer" src={al.artwork} alt="" width="164" height="164" loading="lazy" decoding="async" />
                 {:else}
                   <div class="card-ph" aria-hidden="true">♪</div>
                 {/if}
@@ -340,7 +340,7 @@
             {#each foundPlaylists as pl (pl.id)}
               <a class="chart-card glass" href={chartHref(pl.id)}>
                 {#if pl.artwork}
-                  <img src={pl.artwork} alt="" width="164" height="164" loading="lazy" decoding="async" />
+                  <img referrerpolicy="no-referrer" src={pl.artwork} alt="" width="164" height="164" loading="lazy" decoding="async" />
                 {:else}
                   <div class="card-ph" aria-hidden="true">♪</div>
                 {/if}
@@ -378,7 +378,7 @@
             {#each chipCharts as pl (pl.id)}
               <a class="chart-card glass carousel-card" href={chartHref(pl.id)}>
                 {#if pl.artwork}
-                  <img src={pl.artwork} alt="" width="156" height="156" loading="lazy" decoding="async" />
+                  <img referrerpolicy="no-referrer" src={pl.artwork} alt="" width="156" height="156" loading="lazy" decoding="async" />
                 {:else}
                   <div class="card-ph" aria-hidden="true">♪</div>
                 {/if}
@@ -411,7 +411,7 @@
       <section class="hero glass" style:--c={trendingTracks[0]?.color ?? 'var(--accent)'}>
         {#if heroArt}
           <div class="hbg" style:background-image="url({heroArt})" aria-hidden="true"></div>
-          <img class="hart" src={heroArt} alt="" width="188" height="188" decoding="async" />
+          <img class="hart" referrerpolicy="no-referrer" src={heroArt} alt="" width="188" height="188" decoding="async" />
         {:else}
           <div class="hart card-ph" aria-hidden="true">♪</div>
         {/if}
@@ -451,7 +451,7 @@
             <a class="chart-card glass" href={chartHref(chart.id)}>
               <div class="art-box">
                 {#if chart.artwork}
-                  <img src={chart.artwork} alt="" width="164" height="164" loading="lazy" decoding="async" />
+                  <img referrerpolicy="no-referrer" src={chart.artwork} alt="" width="164" height="164" loading="lazy" decoding="async" />
                 {:else}
                   <div class="card-ph" aria-hidden="true">♪</div>
                 {/if}
@@ -468,7 +468,7 @@
             <a class="chart-card glass carousel-card" href={chartHref(chart.id)}>
               <div class="art-box">
                 {#if chart.artwork}
-                  <img src={chart.artwork} alt="" width="156" height="156" loading="lazy" decoding="async" />
+                  <img referrerpolicy="no-referrer" src={chart.artwork} alt="" width="156" height="156" loading="lazy" decoding="async" />
                 {:else}
                   <div class="card-ph" aria-hidden="true">♪</div>
                 {/if}

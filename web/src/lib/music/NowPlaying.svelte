@@ -234,7 +234,7 @@
           {:else}
             {#key cur.id}
               {#if cur.art}
-                <img class="art" src={cur.art} alt="{cur.title} artwork" width="340" height="340" />
+                <img class="art" referrerpolicy="no-referrer" src={cur.art} alt="{cur.title} artwork" width="340" height="340" />
               {:else}
                 <div class="art art-fallback" aria-hidden="true">♪</div>
               {/if}
@@ -371,7 +371,7 @@
                     aria-current={i === music.index ? 'true' : undefined}
                   >
                     {#if t.art}
-                      <img src={t.art} alt="" width="40" height="40" loading="lazy" decoding="async" />
+                      <img referrerpolicy="no-referrer" src={t.art} alt="" width="40" height="40" loading="lazy" decoding="async" />
                     {:else}
                       <span class="q-ph" aria-hidden="true">♪</span>
                     {/if}

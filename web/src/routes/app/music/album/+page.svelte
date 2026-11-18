@@ -232,7 +232,7 @@
     <section class="head glass" style:--c={tracks[0]?.color ?? 'var(--accent)'}>
       {#if collection.artwork}
         <div class="bg" style:background-image="url({collection.artwork})" aria-hidden="true"></div>
-        <img class="art" src={collection.artwork} alt="{collection.title} artwork" width="210" height="210" decoding="async" />
+        <img class="art" referrerpolicy="no-referrer" src={collection.artwork} alt="{collection.title} artwork" width="210" height="210" decoding="async" />
       {:else}
         <div class="art art-ph" aria-hidden="true">♪</div>
       {/if}

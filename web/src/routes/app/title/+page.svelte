@@ -217,17 +217,52 @@
     <div class="eps-sk"><SkeletonEpisodeList count={4} /></div>
   </div>
 {:else}
-  {@const back = imgFor(shown.backdrop, 'hero')}
-  {@const poster = imgFor(shown.poster, 'poster')}
+  {@const rawBack = shown.backdrop}
+  {@const rawPoster = shown.poster}
+  {@const back = imgFor(rawBack, 'hero')}
+  {@const poster = imgFor(rawPoster, 'poster')}
   <article class="details" style:--item={color}>
     <div class="backdrop" aria-hidden="true">
-      <img sizes={back.sizes} srcset={back.srcset} src={back.src} alt="" decoding="async" fetchpriority="high" />
+      <img
+        referrerpolicy="no-referrer"
+        sizes={back.sizes}
+        srcset={back.srcset}
+        src={back.src}
+        alt=""
+        decoding="async"
+        fetchpriority="high"
+        onerror={(e) => {
+          const el = e.currentTarget;
+          if (el.srcset && /^https?:\/\//i.test(rawBack)) {
+            el.removeAttribute('srcset');
+            el.removeAttribute('sizes');
+            el.src = rawBack;
+          }
+        }}
+      />
       <div class="wash"></div>
     </div>
 
     <header class="head">
       <div class="poster" style:view-transition-name={SHARED_NAME}>
-        <img sizes={poster.sizes} srcset={poster.srcset} src={poster.src} alt="{shown.title} poster" decoding="async" width="300" height="450" />
+        <img
+          referrerpolicy="no-referrer"
+          sizes={poster.sizes}
+          srcset={poster.srcset}
+          src={poster.src}
+          alt="{shown.title} poster"
+          decoding="async"
+          width="300"
+          height="450"
+          onerror={(e) => {
+            const el = e.currentTarget;
+            if (el.srcset && /^https?:\/\//i.test(rawPoster)) {
+              el.removeAttribute('srcset');
+              el.removeAttribute('sizes');
+              el.src = rawPoster;
+            }
+          }}
+        />
       </div>
       <div class="info">
         <h1>{shown.title}</h1>
@@ -362,7 +397,25 @@
               <li class="ep-card">
                 <a href={watchHref(shown.id, ep.id)} class="ep">
                   <div class="still">
-                    <img sizes={still.sizes} srcset={still.srcset} src={still.src} alt="" loading="lazy" decoding="async" width="320" height="180" />
+                    <img
+                      referrerpolicy="no-referrer"
+                      sizes={still.sizes}
+                      srcset={still.srcset}
+                      src={still.src}
+                      alt=""
+                      loading="lazy"
+                      decoding="async"
+                      width="320"
+                      height="180"
+                      onerror={(e) => {
+                        const el = e.currentTarget;
+                        if (el.srcset && /^https?:\/\//i.test(ep.still)) {
+                          el.removeAttribute('srcset');
+                          el.removeAttribute('sizes');
+                          el.src = ep.still;
+                        }
+                      }}
+                    />
                     <span class="still-play" aria-hidden="true">
                       <svg width="18" height="18" viewBox="0 0 24 24"><path fill="currentColor" d="M8 5.5v13l10.5-6.5z" /></svg>
                     </span>

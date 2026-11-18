@@ -32,17 +32,27 @@
 
   let loaded = $state(false);
   let failed = $state(false);
+  let tryRaw = $state(false);
   let imgEl = $state<HTMLImageElement>();
 
   const wide = $derived(variant === 'landscape');
   const rawImg = $derived(wide ? item.backdrop || item.poster : item.poster || item.backdrop);
+  const cleanRawImg = $derived(
+    /^https?:\/\//i.test(rawImg)
+      ? rawImg
+          .replace(/([?&])x-oss-process=[^&]*(&|$)/, (_, p1: string, p2: string) => (p2 ? p1 : ''))
+          .replace(/[?&]$/, '')
+      : ''
+  );
   const attrs = $derived(imgFor(rawImg, wide ? 'backdrop' : variant === 'circle' ? 'avatar' : 'poster'));
   const color = $derived(colorOf(item));
 
   $effect(() => {
+    void rawImg;
     void attrs.src;
     loaded = false;
     failed = false;
+    tryRaw = false;
   });
 
   const useGenerated = $derived(!attrs.src || failed);
@@ -126,22 +136,30 @@
       {/if}
     {:else}
       {#if !loaded}<div class="skeleton fill" aria-hidden="true"></div>{/if}
-      <img
-        bind:this={imgEl}
-        sizes={attrs.sizes}
-        srcset={attrs.srcset}
-        src={attrs.src}
-        alt=""
-        loading={eager ? 'eager' : 'lazy'}
-        decoding="async"
-        width={wide ? 480 : 300}
-        height={wide ? 270 : variant === 'poster' ? 450 : 300}
-        onload={() => (loaded = true)}
-        onerror={() => {
-          failed = true;
-          loaded = true;
-        }}
-      />
+      {#key tryRaw}
+        <img
+          bind:this={imgEl}
+          referrerpolicy="no-referrer"
+          sizes={tryRaw ? undefined : attrs.sizes}
+          srcset={tryRaw ? undefined : attrs.srcset}
+          src={tryRaw ? cleanRawImg || rawImg : attrs.src}
+          alt=""
+          loading={eager ? 'eager' : 'lazy'}
+          decoding="async"
+          width={wide ? 480 : 300}
+          height={wide ? 270 : variant === 'poster' ? 450 : 300}
+          onload={() => (loaded = true)}
+          onerror={() => {
+            if (!tryRaw && cleanRawImg && (attrs.srcset || attrs.src !== cleanRawImg)) {
+              tryRaw = true;
+              loaded = false;
+              return;
+            }
+            failed = true;
+            loaded = true;
+          }}
+        />
+      {/key}
     {/if}
 
     {#if isLive}
