@@ -11,13 +11,18 @@ import {
   extractDubLanguages,
   gatewayBase,
   gatewayPlan,
+  gatewaySecret,
   gwItemId,
   isGatewayAdultId,
   mapGwDetail,
   mapGwItem,
   normalizeBase,
+  resetGatewayClockOffset,
   safeName,
   sectionMore,
+  shouldSignGatewayUrl,
+  signGatewayHeaders,
+  signedGatewayFetch,
   subjectIdOf,
   type GwDetail,
   type GwFetcher,
@@ -42,6 +47,7 @@ import {
   pickVariant,
   proxyUrl,
   rankSources,
+  resolverToSources,
   streamToSources,
   streamTrailerSource,
   subtitleProxy,
@@ -718,5 +724,165 @@ describe('Me → Spaces', () => {
     expect(on.map((e) => e.space)).toEqual(['TV', 'MUSIC', 'COMICS', 'ADULT']);
     expect(on.map((e) => e.href)).toEqual(['/cinetor-app/app/tv', '/cinetor-app/app/music', '/cinetor-app/app/comics', '/cinetor-app/app/adult']);
     expect(on.find((e) => e.space === 'COMICS')?.blurb).toBe('Manga · Manhwa · Manhua');
+  });
+});
+
+describe('v2.0.1: gateway HMAC signing, 401 clock-skew retry, concurrency cap & browser H.264 selection', () => {
+  it('signs only same-origin /api/ URLs (excluding /health and third-party origins like MangaDex)', async () => {
+    expect(typeof gatewaySecret()).toBe('string');
+    expect(shouldSignGatewayUrl('https://gw.test/api/public/v1/home', BASE)).toBe(true);
+    expect(shouldSignGatewayUrl('https://gw.test/api/public/v1/manga?action=c2&id=1', BASE)).toBe(true);
+    expect(shouldSignGatewayUrl('https://gw.test/api/public/v1/health', BASE)).toBe(false);
+    expect(shouldSignGatewayUrl('https://gw.test/api/v1/health', BASE)).toBe(false);
+    expect(shouldSignGatewayUrl('https://api.mangadex.org/manga?limit=20', BASE)).toBe(false);
+    expect(shouldSignGatewayUrl('https://cdn.example/video.mp4', BASE)).toBe(false);
+
+    expect(await signGatewayHeaders('GET', 'https://gw.test/api/public/v1/home?page=1', '', 1795000000)).toEqual({});
+    const signed = await signGatewayHeaders('get', 'https://gw.test/api/public/v1/home?page=1', 'test-signing-secret-123', 1795000000);
+    expect(signed).toEqual({
+      'X-App-Timestamp': '1795000000',
+      'X-App-Signature': 'e210dd4e41aae187f9e88685bd32783134158240719619492050b539367744f8'
+    });
+  });
+
+  it('recovers automatically from HTTP 401 clock skew using serverTime and retries once', async () => {
+    resetGatewayClockOffset();
+    const seenTimestamps: string[] = [];
+    const serverTime = 1800000500;
+    const expectedRetryHeaders = await signGatewayHeaders('GET', `${BASE}/api/public/v1/home`, 'skew-secret', serverTime);
+
+    let attempts = 0;
+    const res = await signedGatewayFetch(
+      `${BASE}/api/public/v1/home`,
+      { headers: { accept: 'application/json' } },
+      BASE,
+      async (_url, init) => {
+        attempts++;
+        const hdrs = (init?.headers ?? {}) as Record<string, string>;
+        seenTimestamps.push(hdrs['X-App-Timestamp'] ?? '');
+        if (attempts === 1) {
+          return {
+            ok: false,
+            status: 401,
+            json: async () => ({ error: 'clock_skew', serverTime })
+          };
+        }
+        expect(Math.abs(Number(hdrs['X-App-Timestamp']) - serverTime)).toBeLessThanOrEqual(2);
+        expect(hdrs['X-App-Signature']).toHaveLength(64);
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({ ok: true })
+        };
+      },
+      'skew-secret'
+    );
+
+    expect(attempts).toBe(2);
+    expect(res.ok).toBe(true);
+    expect(seenTimestamps).toHaveLength(2);
+    expect(expectedRetryHeaders['X-App-Signature']).toHaveLength(64);
+    resetGatewayClockOffset();
+  });
+
+  it('caps concurrent shelf fetches in GatewayCatalogSource.build() at <= 5 in-flight requests', async () => {
+    let active = 0;
+    let maxActive = 0;
+    const client = new GatewayClient({
+      base: () => BASE,
+      persist: null,
+      fetcher: async (url) => {
+        active++;
+        if (active > maxActive) maxActive = active;
+        await new Promise((r) => setTimeout(r, 5));
+        active--;
+        const u = new URL(url);
+        const path = u.pathname.replace('/api/public/v1', '');
+        const hit = homeRoutes[path as keyof typeof homeRoutes];
+        const body = typeof hit === 'function' ? hit(u) : (hit ?? sample('tv-series_country_Korea.json'));
+        return { ok: true, status: 200, json: async () => body };
+      }
+    });
+    const src = new GatewayCatalogSource({ client, persist: null });
+    const f = await src.file('DRAMA');
+    expect(f.categories.length).toBeGreaterThan(0);
+    expect(maxActive).toBeLessThanOrEqual(5);
+  });
+
+  it('browserMode drops MKV, HEVC & cleartext HTTP BDIX and ranks gateway proxy H.264 MP4 first on Wi-Fi', () => {
+    const mixed: GwStream = {
+      sources: [
+        { source: 'BDIX', isBdix: true, format: 'MKV', resolution: '1080p', url: 'https://bdix.example/Movie.1080p.mkv' },
+        { source: 'BDIX', isBdix: true, format: 'MP4', resolution: '1080p', url: 'https://bdix.example/Movie.1080p.HEVC.x265.mp4' },
+        { source: 'BDIX', isBdix: true, format: 'MP4', resolution: '1080p', url: 'http://bdix.example/Movie.1080p.h264.mp4' },
+        { source: 'BDIX', isBdix: true, format: 'MP4', resolution: '1080p', url: 'https://bdix.example/Movie.1080p.h264.mp4' },
+        { source: 'YouTube', format: 'YOUTUBE', resolution: '720p', url: 'https://youtu.be/dQw4w9WgXcQ' },
+        { format: 'MP4', resolution: '720p', url: 'https://cdn.example/720.mp4' },
+        { format: 'MP4', resolution: '1080p', url: 'https://cdn.example/1080.mp4' }
+      ]
+    };
+
+    const browserWifi = streamToSources(BASE, '42', mixed, { network: 'wifi', browserMode: true });
+    // MKV, HEVC x265, and cleartext http:// BDIX are dropped; proxy MP4 ranks first (1080p then 720p), YouTube second, HTTPS H.264 BDIX last!
+    expect(browserWifi.map((s) => s.url)).toEqual([
+      proxyUrl(BASE, '42', 'https://cdn.example/1080.mp4', '1080p'),
+      proxyUrl(BASE, '42', 'https://cdn.example/720.mp4', '720p'),
+      'https://www.youtube-nocookie.com/embed/dQw4w9WgXcQ',
+      'https://bdix.example/Movie.1080p.h264.mp4'
+    ]);
+
+    // Desktop / non-browser mode keeps BDIX first on Wi-Fi:
+    const desktopWifi = streamToSources(BASE, '42', mixed, { network: 'wifi', browserMode: false });
+    expect(desktopWifi[0].url).toContain('bdix.example');
+
+    // Resolver sources also enforce browserMode filtering:
+    const resolvedBrowser = resolverToSources(
+      BASE,
+      {
+        ok: true,
+        sources: [
+          { provider: 'BDIX', isBdix: true, quality: '1080p', type: 'mkv', url: 'https://bdix.example/a.mkv' },
+          { provider: 'BDIX', isBdix: true, quality: '1080p', type: 'mp4', url: 'http://bdix.example/a.mp4' },
+          { provider: 'CDN', quality: '1080p', type: 'mp4', url: 'https://cdn.example/ok.mp4' }
+        ]
+      },
+      { network: 'wifi', browserMode: true }
+    );
+    expect(resolvedBrowser).toHaveLength(1);
+    expect(resolvedBrowser[0].url).toContain('/api/public/v1/play?');
+
+    const rankedDirect = rankSources(
+      [
+        { url: 'https://bdix.example/raw.mkv', kind: 'MKV', height: 1080, isBdix: true },
+        { url: 'http://bdix.example/plain.mp4', kind: 'MP4', height: 1080, isBdix: true },
+        { url: proxyUrl(BASE, '42', 'https://cdn.example/ok.mp4', '720p'), kind: 'MP4', height: 720 }
+      ],
+      { network: 'wifi', browserMode: true }
+    );
+    expect(rankedDirect).toHaveLength(1);
+    expect(rankedDirect[0].height).toBe(720);
+  });
+
+  it('StreamResolver.stream falls back to direct_play_url when has_resource is true on DASH-only streams', async () => {
+    const dead: string[] = [];
+    const r = new StreamResolver({
+      base: () => BASE,
+      getJson: async <T,>(url: string) => {
+        if (url.includes('/captions')) return { captions: [] } as T;
+        return sample('stream_6391474290696802080.json') as T;
+      },
+      search: async () => [],
+      onDead: (id) => dead.push(id)
+    });
+    const res = await r.resolve({ url: 'gw-stream:6391474290696802080?detail_path=inception-e1BOR6f19C7&se=0&ep=0' });
+    expect(dead).toEqual([]);
+    expect(res.sources).toEqual([
+      {
+        url: `${BASE}/api/public/v1/stream/6391474290696802080/play?detail_path=inception-e1BOR6f19C7&se=0&ep=0`,
+        kind: 'MP4',
+        label: '1080p FHD',
+        height: 1080
+      }
+    ]);
   });
 });

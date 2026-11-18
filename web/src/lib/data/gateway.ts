@@ -50,6 +50,166 @@ export function setGatewayBase(v: string | null, store: StorageLike | null = ls(
   else store.setItem(GATEWAY_KEY, normalizeBase(v) ?? GATEWAY_DEFAULT);
 }
 
+// ------------------------------------------------------------------------------------ request signing
+
+let clockOffsetSec = 0;
+let cachedHmacKey: { secret: string; keyPromise: Promise<CryptoKey> } | null = null;
+
+export function resetGatewayClockOffset(): void {
+  clockOffsetSec = 0;
+}
+
+export function getGatewayClockOffset(): number {
+  return clockOffsetSec;
+}
+
+function cleanSecret(raw: string | undefined | null): string {
+  return (raw ?? '').trim().replace(/^["']|["']$/g, '');
+}
+
+/** Build-injected HMAC signing secret (`PUBLIC_GATEWAY_SECRET` → `__GATEWAY_SECRET__`). */
+export function gatewaySecret(): string {
+  try {
+    return typeof __GATEWAY_SECRET__ !== 'undefined' ? cleanSecret(__GATEWAY_SECRET__) : '';
+  } catch {
+    return '';
+  }
+}
+
+/** True ONLY when `url` shares `base`'s exact origin, starts with `/api/`, and is not a `/health` probe. */
+export function shouldSignGatewayUrl(url: string, base: string): boolean {
+  const normBase = normalizeBase(base);
+  if (!normBase) return false;
+  try {
+    const u = new URL(url);
+    const b = new URL(normBase);
+    if (u.origin !== b.origin) return false;
+    if (!u.pathname.startsWith('/api/')) return false;
+    if (u.pathname === '/api/public/v1/health' || u.pathname === '/api/v1/health' || u.pathname.endsWith('/health')) {
+      return false;
+    }
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function getHmacKey(secret: string): Promise<CryptoKey> {
+  if (cachedHmacKey && cachedHmacKey.secret === secret) return cachedHmacKey.keyPromise;
+  const keyPromise = crypto.subtle.importKey(
+    'raw',
+    new TextEncoder().encode(secret),
+    { name: 'HMAC', hash: 'SHA-256' },
+    false,
+    ['sign']
+  );
+  cachedHmacKey = { secret, keyPromise };
+  return keyPromise;
+}
+
+/** Compute `{ 'X-App-Timestamp', 'X-App-Signature' }` via Web Crypto HMAC-SHA256 over `"METHOD:pathname:ts"`. */
+export async function signGatewayHeaders(
+  method: string,
+  url: string,
+  secret = gatewaySecret(),
+  nowSec?: number
+): Promise<Record<string, string>> {
+  const s = cleanSecret(secret);
+  if (!s || typeof crypto === 'undefined' || !crypto.subtle) return {};
+  let pathname: string;
+  try {
+    pathname = new URL(url).pathname;
+  } catch {
+    return {};
+  }
+  const tsNum = nowSec !== undefined ? Math.trunc(nowSec) : Math.floor(Date.now() / 1000) + clockOffsetSec;
+  const ts = String(tsNum);
+  const payload = `${method.toUpperCase()}:${pathname}:${ts}`;
+  const key = await getHmacKey(s);
+  const sigBuf = await crypto.subtle.sign('HMAC', key, new TextEncoder().encode(payload));
+  const hex = Array.from(new Uint8Array(sigBuf), (b) => b.toString(16).padStart(2, '0')).join('');
+  return {
+    'X-App-Timestamp': ts,
+    'X-App-Signature': hex
+  };
+}
+
+export interface SignedResponseLike {
+  ok: boolean;
+  status: number;
+  headers?: { get?(name: string): string | null } | null;
+  json(): Promise<unknown>;
+}
+
+function mergeInitHeaders(existing: HeadersInit | undefined, extra: Record<string, string>): Record<string, string> {
+  const out: Record<string, string> = {};
+  if (existing) {
+    if (typeof Headers !== 'undefined' && existing instanceof Headers) {
+      existing.forEach((v, k) => {
+        out[k] = v;
+      });
+    } else if (Array.isArray(existing)) {
+      for (const [k, v] of existing) out[k] = v;
+    } else {
+      Object.assign(out, existing as Record<string, string>);
+    }
+  }
+  Object.assign(out, extra);
+  return out;
+}
+
+async function extractServerEpochSec(res: SignedResponseLike): Promise<number | null> {
+  try {
+    const reader =
+      typeof (res as { clone?: () => SignedResponseLike }).clone === 'function'
+        ? (res as unknown as Response).clone()
+        : res;
+    const body = (await reader.json()) as { serverTime?: unknown } | null;
+    const raw = body?.serverTime;
+    const numVal = typeof raw === 'number' ? raw : typeof raw === 'string' && raw.trim() ? Number(raw.trim()) : NaN;
+    if (Number.isFinite(numVal) && numVal > 1_000_000_000) {
+      return numVal > 1_000_000_000_000 ? Math.floor(numVal / 1000) : Math.trunc(numVal);
+    }
+  } catch {
+    /* fall through to Date header */
+  }
+  const dateHdr = res.headers?.get?.('date') ?? res.headers?.get?.('Date') ?? null;
+  if (dateHdr) {
+    const parsedMs = Date.parse(dateHdr);
+    if (Number.isFinite(parsedMs) && parsedMs > 0) return Math.floor(parsedMs / 1000);
+  }
+  return null;
+}
+
+/**
+ * Shared gateway fetch wrapper: signs same-origin `/api/*` requests with HMAC-SHA256 and, on HTTP 401,
+ * calibrates `clockOffsetSec` from `serverTime` (or `Date` header) and retries once with a fresh signature.
+ */
+export async function signedGatewayFetch<R extends SignedResponseLike = Response>(
+  url: string,
+  init: RequestInit | undefined,
+  base: string,
+  fetchFn: (u: string, i?: RequestInit) => Promise<R> = fetch as unknown as (u: string, i?: RequestInit) => Promise<R>,
+  secretOverride?: string
+): Promise<R> {
+  const secret = secretOverride !== undefined ? cleanSecret(secretOverride) : gatewaySecret();
+  if (!secret || !shouldSignGatewayUrl(url, base)) {
+    return fetchFn(url, init);
+  }
+  const method = (init?.method ?? 'GET').toUpperCase();
+  const sig = await signGatewayHeaders(method, url, secret);
+  const first = await fetchFn(url, { ...init, headers: mergeInitHeaders(init?.headers, sig) });
+  if (first.status !== 401) return first;
+
+  const serverSec = await extractServerEpochSec(first);
+  if (serverSec === null) return first;
+
+  const localNowSec = Math.floor(Date.now() / 1000);
+  clockOffsetSec = serverSec - localNowSec;
+  const retrySig = await signGatewayHeaders(method, url, secret, localNowSec + clockOffsetSec);
+  return fetchFn(url, { ...init, headers: mergeInitHeaders(init?.headers, retrySig) });
+}
+
 // ------------------------------------------------------------------------------------ ids
 
 export const GW_PREFIX = 'gw:';
@@ -839,11 +999,12 @@ function specialChipMore(space: GwSpace, categoryId: string, chip: string): { pa
 export type GwFetcher = (
   url: string,
   init?: { signal?: AbortSignal; headers?: Record<string, string> }
-) => Promise<{ ok: boolean; status: number; json(): Promise<unknown> }>;
+) => Promise<SignedResponseLike>;
 
 export interface GatewayClientOptions {
   base: () => string;
   fetcher?: GwFetcher;
+  secret?: () => string;
   persist?: PersistentCache | null;
   /** Catalog cache (memory + persistent). */
   ttlMs?: number;
@@ -869,6 +1030,7 @@ export class GatewayClient {
     this.o = {
       base: opts.base,
       fetcher: opts.fetcher ?? ((u, init) => fetch(u, init)),
+      secret: opts.secret ?? (() => gatewaySecret()),
       ttlMs: opts.ttlMs ?? 10 * 60_000,
       timeoutMs: opts.timeoutMs ?? 10_000,
       now: opts.now ?? (() => Date.now()),
@@ -898,7 +1060,13 @@ export class GatewayClient {
     signal?.addEventListener('abort', onAbort);
     try {
       this.calls++;
-      const res = await this.o.fetcher(url, { signal: ctl.signal, headers: { accept: 'application/json' } });
+      const res = await signedGatewayFetch(
+        url,
+        { signal: ctl.signal, headers: { accept: 'application/json' } },
+        this.base,
+        (u, init) => this.o.fetcher(u, init as { signal?: AbortSignal; headers?: Record<string, string> }),
+        this.o.secret()
+      );
       if (!res.ok) throw new Error(`Gateway HTTP ${res.status}`);
       return (await res.json()) as T;
     } finally {
@@ -988,6 +1156,21 @@ export interface PageResult {
 }
 
 const ROW_STYLE_LIMIT = 36;
+const MAX_SHELF_CONCURRENCY = 5;
+
+async function mapWithConcurrency<T, R>(items: readonly T[], limit: number, worker: (item: T) => Promise<R>): Promise<R[]> {
+  if (!items.length) return [];
+  const results = new Array<R>(items.length);
+  let cursor = 0;
+  const runners = Array.from({ length: Math.min(Math.max(1, limit), items.length) }, async () => {
+    while (cursor < items.length) {
+      const idx = cursor++;
+      results[idx] = await worker(items[idx]);
+    }
+  });
+  await Promise.all(runners);
+  return results;
+}
 
 function listSpecKey(path: string, params: Record<string, string>): string {
   const entries = Object.entries(params)
@@ -1093,7 +1276,6 @@ export class GatewayCatalogSource {
     if (!this.enabled) throw new Error('Gateway off');
     const plan = gatewayPlan(space);
     const needsHome = space !== 'ADULT' && plan.some((c) => c.hero.startsWith('banner') || c.rows.some((r) => r.kind === 'sections'));
-    const homeP = needsHome ? this.o.client.get<GwHome>('/home').catch(() => null) : Promise.resolve(null);
 
     const uniqueLists = new Map<string, GwListSpec>();
     for (const c of plan) {
@@ -1105,17 +1287,26 @@ export class GatewayCatalogSource {
       }
     }
     const entries = [...uniqueLists.entries()];
-    const fetched = await Promise.all(
-      entries.map(([key, spec]) =>
-        this.o.client
-          .get<GwPage>(spec.path, { ...spec.params, page: 1 })
-          .then((pg) => [key, pg] as const)
-          .catch(() => [key, null] as const)
-      )
-    );
-    const pageByKey = new Map<string, GwPage | null>(fetched);
+    type ShelfTask = { kind: 'home' } | { kind: 'list'; key: string; spec: GwListSpec };
+    const tasks: ShelfTask[] = [
+      ...(needsHome ? ([{ kind: 'home' }] as const) : []),
+      ...entries.map(([key, spec]): ShelfTask => ({ kind: 'list', key, spec }))
+    ];
+    const results = await mapWithConcurrency(tasks, MAX_SHELF_CONCURRENCY, async (task) => {
+      if (task.kind === 'home') {
+        const h = await this.o.client.get<GwHome>('/home').catch(() => null);
+        return { kind: 'home' as const, home: h };
+      }
+      const pg = await this.o.client.get<GwPage>(task.spec.path, { ...task.spec.params, page: 1 }).catch(() => null);
+      return { kind: 'list' as const, key: task.key, pg };
+    });
+    let home: GwHome | null = null;
+    const pageByKey = new Map<string, GwPage | null>();
+    for (const r of results) {
+      if (r.kind === 'home') home = r.home;
+      else pageByKey.set(r.key, r.pg);
+    }
 
-    const home = await homeP;
     const sections = (home?.sections ?? []).filter((s) => Array.isArray(s.items) && s.items.length);
 
     const items = new Map<string, Item>();

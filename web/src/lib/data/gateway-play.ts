@@ -7,6 +7,7 @@ import { normalize } from './search';
 import { GW_API, type GwListItem } from './gateway';
 import type { Source, SourceKind, Sub } from './types';
 import type { Media } from '../player/sources';
+import { isTauriEnv } from '../desktop/env';
 
 export const STREAM_SCHEME = 'gw-stream:';
 export const FIND_SCHEME = 'gw-find:';
@@ -295,6 +296,7 @@ export const linkHealth = new LinkHealth();
 export type RankableSource = Source & {
   isBdix?: boolean;
   sizeBytes?: number;
+  codec?: string;
 };
 
 export interface RankOptions {
@@ -302,24 +304,46 @@ export interface RankOptions {
   connection?: NetworkInfoLike | null;
   health?: LinkHealth;
   allowAdult?: boolean;
+  /** True in standard web browsers (`typeof window !== 'undefined' && !isTauriEnv()`). */
+  browserMode?: boolean;
+}
+
+function defaultBrowserMode(): boolean {
+  return typeof window !== 'undefined' && !isTauriEnv();
 }
 
 function isProxyStreamUrl(url: string): boolean {
   return url.includes(`${GW_API}/stream/`) || url.includes(`${GW_API}/play?`);
 }
 
-function sourceTier(s: RankableSource, network: NetworkKind): number {
+const CLEARTEXT_HTTP_RE = /^http:\/\/(?!127\.0\.0\.1(?::|\/|$)|localhost(?::|\/|$)|asset\.localhost(?::|\/|$))/i;
+const MKV_PATH_RE = /\.mkv(?:\?|#|$)/i;
+
+function isCleartextRemoteHttp(url: string): boolean {
+  return CLEARTEXT_HTTP_RE.test(url.trim());
+}
+
+function isMkvUrl(url: string): boolean {
+  return MKV_PATH_RE.test(unwrapProxiedUrl(url));
+}
+
+function isHevcTagged(parts: readonly (string | null | undefined)[]): boolean {
+  return HEVC_RE.test(parts.filter(Boolean).join(' '));
+}
+
+function sourceTier(s: RankableSource, network: NetworkKind, browserMode: boolean): number {
   const yt = isYouTubeUrl(s.url);
   const proxy = !yt && isProxyStreamUrl(s.url);
   const bdix = s.isBdix === true || (!yt && !proxy);
-  if (network === 'wifi') {
-    if (bdix) return 0;
-    if (proxy) return 1;
+  if (browserMode || network === 'mobile') {
+    // Web browsers (§20) and mobile/metered connections always prefer gateway proxy H.264 MP4 first,
+    // chromeless YouTube second, and direct HTTPS BDIX last.
+    if (proxy) return 0;
+    if (yt) return 1;
     return 2;
   }
-  // Mobile/metered: gateway proxy MP4 first, YouTube second, unreachable LAN BDIX last.
-  if (proxy) return 0;
-  if (yt) return 1;
+  if (bdix) return 0;
+  if (proxy) return 1;
   return 2;
 }
 
@@ -337,6 +361,7 @@ function mobileFit(height = 0): number {
 export function rankSources(options: readonly RankableSource[], opts: RankOptions = {}): Source[] {
   const health = opts.health ?? linkHealth;
   const network = opts.network ?? detectNetworkKind(opts.connection);
+  const browserMode = opts.browserMode ?? defaultBrowserMode();
 
   const seenUrls = new Set<string>();
   const unique: RankableSource[] = [];
@@ -344,6 +369,15 @@ export function rankSources(options: readonly RankableSource[], opts: RankOption
     if (!s.url || seenUrls.has(s.url)) continue;
     if (isImageLink(s.url) || (s.direct?.url && isImageLink(s.direct.url))) continue;
     if (!opts.allowAdult && (isAdultStreamLink(s.url) || (s.direct?.url && isAdultStreamLink(s.direct.url)))) continue;
+    if (browserMode) {
+      if (s.kind === 'MKV' || isMkvUrl(s.url) || (s.direct?.url && isMkvUrl(s.direct.url))) continue;
+      if (isCleartextRemoteHttp(s.url)) continue;
+      const yt = isYouTubeUrl(s.url);
+      const bdix = s.isBdix === true || (!yt && !isProxyStreamUrl(s.url));
+      if (bdix && isHevcTagged([s.label, s.codec, safeDecodePath(s.url), s.direct?.url ? safeDecodePath(s.direct.url) : ''])) {
+        continue;
+      }
+    }
     seenUrls.add(s.url);
     unique.push(s);
   }
@@ -361,7 +395,7 @@ export function rankSources(options: readonly RankableSource[], opts: RankOption
       if (aDual !== bDual) return aDual ? -1 : 1;
     }
 
-    const tierDiff = sourceTier(a, network) - sourceTier(b, network);
+    const tierDiff = sourceTier(a, network, browserMode) - sourceTier(b, network, browserMode);
     if (tierDiff !== 0) return tierDiff;
 
     const ah = a.height ?? 0;
@@ -383,6 +417,7 @@ export interface GwStreamSource {
   isBdix?: boolean;
   resolution?: string | number;
   format?: string;
+  codec?: string;
   url?: string;
   size?: number | string;
   language?: string | null;
@@ -438,6 +473,7 @@ export function streamTrailerSource(st: GwStream | null | undefined): Source | n
  * Upstream DASH/HLS are dropped on web/desktop because the proxy cannot rewrite relative manifests.
  */
 export function streamToSources(base: string, subjectId: string, st: GwStream, opts: RankOptions = {}): Source[] {
+  const browserMode = opts.browserMode ?? defaultBrowserMode();
   const candidates: RankableSource[] = [];
   const seenBuckets = new Set<string>();
 
@@ -467,6 +503,14 @@ export function streamToSources(base: string, subjectId: string, st: GwStream, o
     const isDirectFile = bdix && (isMp4 || fmt === 'MKV' || fmt === 'WEBM' || fmt === '' || /\.(?:mp4|mkv|webm)(\?|$)/i.test(s.url));
     if (!isMp4 && !isDirectFile) continue;
 
+    if (browserMode) {
+      if (fmt === 'MKV' || isMkvUrl(s.url)) continue;
+      if (bdix) {
+        if (isCleartextRemoteHttp(s.url)) continue;
+        if (isHevcTagged([s.codec, s.language, safeDecodePath(s.url)])) continue;
+      }
+    }
+
     const dual = isDualAudio({ label: s.language ?? '', url: s.url, language: s.language });
     const lang = (s.language ?? '').trim();
     const sizeNum = typeof s.size === 'number' ? s.size : parseInt(String(s.size ?? ''), 10) || 0;
@@ -485,23 +529,28 @@ export function streamToSources(base: string, subjectId: string, st: GwStream, o
         headers: s.headers ? { ...s.headers } : undefined,
         direct: { url: s.url, headers: { ...(s.headers ?? {}) } },
         isBdix: true,
-        sizeBytes: sizeNum
+        sizeBytes: sizeNum,
+        codec: s.codec
       });
       continue;
     }
 
+    const resolvedProxy = s.proxy_url ? absGateway(base, s.proxy_url) : proxyUrl(base, subjectId, s.url, res);
+    if (browserMode && isCleartextRemoteHttp(resolvedProxy)) continue;
+
     candidates.push({
-      url: s.proxy_url ? absGateway(base, s.proxy_url) : proxyUrl(base, subjectId, s.url, res),
+      url: resolvedProxy,
       kind: 'MP4',
       label: cleanStreamLabel({ height: h, dual, language: lang, size: sizeNum }),
       height: h || undefined,
       direct: { url: s.url, headers: { ...(s.headers ?? {}) } },
       isBdix: false,
-      sizeBytes: sizeNum
+      sizeBytes: sizeNum,
+      codec: s.codec
     });
   }
 
-  return rankSources(candidates, opts);
+  return rankSources(candidates, { ...opts, browserMode });
 }
 
 export function captionsToSubs(base: string, c: GwCaptions | null | undefined): Sub[] {
@@ -517,6 +566,7 @@ export function captionsToSubs(base: string, c: GwCaptions | null | undefined): 
 
 /** `/api/v1/resolve` (TMDB resolver): BDIX, progressive MP4, and YouTube links ranked by network. */
 export function resolverToSources(base: string, r: ResolveApi | null | undefined, opts: RankOptions = {}): Source[] {
+  const browserMode = opts.browserMode ?? defaultBrowserMode();
   const candidates: RankableSource[] = [];
   const seenBuckets = new Set<string>();
 
@@ -542,6 +592,14 @@ export function resolverToSources(base: string, r: ResolveApi | null | undefined
     const isMp4 = t === 'mp4' || t === 'file' || /\.mp4(\?|$)/i.test(s.url);
     if (!isMp4 && !bdix) continue;
 
+    if (browserMode) {
+      if (t === 'mkv' || isMkvUrl(s.url)) continue;
+      if (bdix) {
+        if (isCleartextRemoteHttp(s.url)) continue;
+        if (isHevcTagged([s.language, safeDecodePath(s.url)])) continue;
+      }
+    }
+
     const dual = isDualAudio({ url: s.url, language: s.language });
     const lang = (s.language ?? '').trim();
     const bucketKey = `${bdix ? 'bdix' : 'proxy'}|${h}|${dual ? '1' : '0'}|${lang.toLowerCase()}`;
@@ -560,8 +618,11 @@ export function resolverToSources(base: string, r: ResolveApi | null | undefined
       continue;
     }
 
+    const proxied = proxyUrl(base, null, s.url, h ? `${h}p` : 'auto');
+    if (browserMode && isCleartextRemoteHttp(proxied)) continue;
+
     candidates.push({
-      url: proxyUrl(base, null, s.url, h ? `${h}p` : 'auto'),
+      url: proxied,
       kind: 'MP4',
       label: cleanStreamLabel({ height: h, dual, language: lang }),
       height: h || undefined,
@@ -570,7 +631,7 @@ export function resolverToSources(base: string, r: ResolveApi | null | undefined
     });
   }
 
-  return rankSources(candidates, opts);
+  return rankSources(candidates, { ...opts, browserMode });
 }
 
 /** Best gateway hit for a TMDB title: same normalized title, then year (±1), then type. */
@@ -639,6 +700,8 @@ export interface ResolverDeps {
   health?: LinkHealth;
   /** Optional network connection reader (defaults to `navigator.connection`). */
   connection?: () => NetworkInfoLike | null;
+  /** Optional browser-mode override (defaults to `typeof window !== 'undefined' && !isTauriEnv()`). */
+  browserMode?: () => boolean;
 }
 
 export class StreamResolver {
@@ -656,7 +719,8 @@ export class StreamResolver {
   private rankOpts(): RankOptions {
     return {
       health: this.health,
-      connection: this.d.connection ? this.d.connection() : undefined
+      connection: this.d.connection ? this.d.connection() : undefined,
+      browserMode: this.d.browserMode ? this.d.browserMode() : undefined
     };
   }
 
@@ -702,12 +766,29 @@ export class StreamResolver {
 
     let sources = streamToSources(base, r.subjectId, st, this.rankOpts());
     // Cinetor Beta fallback: some titles index movies under (1,1) or single-ep specials under (0,0).
+    let altSt: GwStream | null = null;
     if (!sources.length && ((r.se === 0 && r.ep === 0) || (r.se === 1 && r.ep === 1))) {
       const altSe = r.se === 0 ? 1 : 0;
       const altEp = r.ep === 0 ? 1 : 0;
       const altQ = queryFor(altSe, altEp);
-      const altSt = await this.d.getJson<GwStream>(`${base}${GW_API}/stream/${id}?${altQ}&full=1`, signal, 15_000).catch(() => null);
+      altSt = await this.d.getJson<GwStream>(`${base}${GW_API}/stream/${id}?${altQ}&full=1`, signal, 15_000).catch(() => null);
       if (altSt) sources = streamToSources(base, r.subjectId, altSt, this.rankOpts());
+    }
+
+    if (!sources.length) {
+      const trailer = streamTrailerSource(st) ?? streamTrailerSource(altSt);
+      if (trailer) {
+        sources = [trailer];
+      } else if (st?.has_resource === true && (st?.direct_play_url || r.slug)) {
+        sources = [
+          {
+            url: st.direct_play_url ? absGateway(base, st.direct_play_url) : directPlayUrl(base, r, '1080p'),
+            kind: 'MP4',
+            label: '1080p FHD',
+            height: 1080
+          }
+        ];
+      }
     }
 
     if (!sources.length && r.se <= 1 && r.ep <= 1) this.d.onDead?.(r.subjectId);
