@@ -74,6 +74,7 @@ fun iconFor(key: TabKey, space: Space?): ImageVector = when (key) {
     TabKey.HOME -> Icons.Rounded.Home
     TabKey.ANIME -> Icons.Rounded.AutoAwesome
     TabKey.DRAMA -> Icons.Rounded.TheaterComedy
+    TabKey.TV -> Icons.Rounded.LiveTv
     TabKey.SEARCH, TabKey.SPACE_SEARCH -> Icons.Rounded.Search
     TabKey.ME -> Icons.Rounded.Person
     TabKey.SPACES -> Icons.Rounded.Apps
