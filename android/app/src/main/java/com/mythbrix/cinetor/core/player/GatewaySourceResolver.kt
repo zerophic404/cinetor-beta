@@ -127,7 +127,11 @@ class GatewaySourceResolver(
     /** True when the active connection is metered mobile data; defaults to [NetworkState.mobile]. */
     private val isMobile: () -> Boolean = { NetworkState.mobile },
 ) {
-    private class Entry(val at: Long, val stream: ResolvedStream)
+    private class Entry(
+        val at: Long,
+        val stream: ResolvedStream,
+        val checkedDubIds: Set<String> = emptySet(),
+    )
 
     private val cache = ConcurrentHashMap<String, Entry>()
 
@@ -345,7 +349,17 @@ class GatewaySourceResolver(
     ): ResolvedStream? {
         val mobileNow = isMobile()
         val key = "$sid|$se|$ep|${if (mobileNow) "m" else "w"}"
-        if (!fresh) cache[key]?.takeIf { clock() - it.at < GatewayConfig.STREAM_TTL_MS && (itemDubs.isEmpty() || it.stream.sources.any { s -> s.audioLang != null && s.audioLang != "Original" }) }?.let { return it.stream }
+        val neededDubIds = if (adultAllowed) {
+            emptySet()
+        } else {
+            itemDubs.asSequence().filter { it.subjectId != sid }.map { it.subjectId }.distinct().take(MAX_DUBS).toSet()
+        }
+        if (!fresh) {
+            cache[key]?.takeIf {
+                clock() - it.at < GatewayConfig.STREAM_TTL_MS && it.checkedDubIds.containsAll(neededDubIds)
+            }?.let { return it.stream }
+        }
+        var checkedDubIds: Set<String> = neededDubIds
         val result = coroutineScope {
             val subs = async {
                 try {
@@ -372,6 +386,7 @@ class GatewaySourceResolver(
             val mainStreamDeferred = async { fetchStreamWithRescue(sid, slug, se, ep, full = true) }
 
             val candidateDubs = candidateDubsDeferred.await()
+            checkedDubIds = neededDubIds + candidateDubs.map { it.subjectId }
             val dubStreams = if (candidateDubs.isEmpty()) {
                 emptyList()
             } else {
@@ -423,8 +438,8 @@ class GatewaySourceResolver(
         }
         if (result != null) {
             val now = clock()
-            cache[key] = Entry(now, result)
-            cache["$sid|$se|$ep"] = Entry(now, result)
+            cache[key] = Entry(now, result, checkedDubIds)
+            cache["$sid|$se|$ep"] = Entry(now, result, checkedDubIds)
             log("gateway stream $key: ${result.sources.size} sources")
         }
         return result
