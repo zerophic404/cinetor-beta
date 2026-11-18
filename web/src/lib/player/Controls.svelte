@@ -1,27 +1,32 @@
 <script lang="ts">
-  // Glass controls overlay (auto-hide 3 s): top bar, center transport, seek bar, bottom actions.
+  // Glass controls overlay (auto-hide 3 s): top bar, center transport, seek bar, dedicated Audio + Subtitles + Quality + PiP + Fullscreen.
   import { clock, pipSupported } from './controller';
   import { engine } from './engine';
   import { fmtTime } from './gesture-math';
+  import type { Media } from './sources';
   import { ASPECT_LABEL, type PlayerUI } from './ui.svelte';
   import SettingsSheet from './SettingsSheet.svelte';
   import type { Sub } from '$lib/data/types';
 
   let {
     ui,
+    media,
     title,
     subtitle,
     subs,
     intro,
     next,
+    inline = false,
     onBack
   }: {
     ui: PlayerUI;
+    media?: Media;
     title: string;
     subtitle?: string;
     subs: Sub[];
     intro?: [number, number] | null;
     next?: { title: string; go: () => void } | null;
+    inline?: boolean;
     onBack: () => void;
   } = $props();
 
@@ -77,13 +82,17 @@
     </button>
   {/if}
 {:else}
-  <div class="ctl" class:show={ui.visible || ui.settings}>
+  <div class="ctl" class:show={ui.visible || ui.settings} class:inline>
     <div class="scrim-top"></div>
     <div class="scrim-bot"></div>
 
     <header class="top">
-      <button class="ib" onclick={onBack} aria-label="Minimize player">
-        <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M6 9l6 6 6-6" /></svg>
+      <button class="ib" onclick={onBack} aria-label={inline ? 'Close inline player' : 'Minimize player'}>
+        {#if inline}
+          <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" /></svg>
+        {:else}
+          <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M6 9l6 6 6-6" /></svg>
+        {/if}
       </button>
       <div class="ttl">
         <strong>{title}</strong>
@@ -94,7 +103,12 @@
           <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2" /><rect x="12" y="12" width="7" height="5" rx="1" fill="currentColor" /></svg>
         </button>
       {/if}
-      <button class="ib" onclick={() => (ui.settings = !ui.settings)} aria-label="Settings" aria-expanded={ui.settings}>
+      <button
+        class="ib"
+        onclick={() => (ui.settings && ui.settingsPane === 'main' ? (ui.settings = false) : ui.openSettings('main'))}
+        aria-label="Settings"
+        aria-expanded={ui.settings}
+      >
         <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="3" /><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z" /></svg>
       </button>
     </header>
@@ -155,13 +169,30 @@
             <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path fill="currentColor" d="M6 5.5v13l9-6.5zM16 5h2.5v14H16z" /></svg>
           </button>
         {/if}
-        <button class="ib" onclick={() => ui.toggleCaptions(subs)} aria-label="Subtitles (C)" aria-pressed={ui.subId !== 'off'}>
-          <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2" /><path d="M10 10.5a2 2 0 1 0 0 3M17 10.5a2 2 0 1 0 0 3" /></svg>
+        <button
+          class="ib pill-ctl"
+          onclick={() => (ui.settings && ui.settingsPane === 'audio' ? (ui.settings = false) : ui.openSettings('audio'))}
+          aria-label="Audio"
+          aria-expanded={ui.settings && ui.settingsPane === 'audio'}
+        >
+          <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M4 13v-1a8 8 0 0 1 16 0v1" /><rect x="3" y="13" width="4" height="6" rx="1.5" /><rect x="17" y="13" width="4" height="6" rx="1.5" /></svg>
+          <span class="ctl-lbl">Audio</span>
         </button>
-        <button class="ib" onclick={() => ui.lock()} aria-label="Lock controls">
-          <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="5" y="11" width="14" height="9" rx="2" /><path d="M8 11V8a4 4 0 0 1 8 0v3" /></svg>
+        <button
+          class="ib pill-ctl"
+          onclick={() => (ui.settings && ui.settingsPane === 'subs' ? (ui.settings = false) : ui.openSettings('subs'))}
+          aria-label="Subtitles"
+          aria-pressed={ui.subId !== 'off'}
+        >
+          <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2" /><path d="M10 10.5a2 2 0 1 0 0 3M17 10.5a2 2 0 1 0 0 3" /></svg>
+          <span class="ctl-lbl">Subtitles</span>
         </button>
-        <button class="ib txt" onclick={() => ui.cycleAspect()} aria-label="Aspect: {ASPECT_LABEL[ui.aspect]}">{ASPECT_LABEL[ui.aspect]}</button>
+        {#if !inline || ui.fullscreen}
+          <button class="ib" onclick={() => ui.lock()} aria-label="Lock controls">
+            <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="5" y="11" width="14" height="9" rx="2" /><path d="M8 11V8a4 4 0 0 1 8 0v3" /></svg>
+          </button>
+          <button class="ib txt" onclick={() => ui.cycleAspect()} aria-label="Aspect: {ASPECT_LABEL[ui.aspect]}">{ASPECT_LABEL[ui.aspect]}</button>
+        {/if}
         <button class="ib" onclick={() => ui.toggleFullscreen()} aria-label={ui.fullscreen ? 'Exit fullscreen' : 'Fullscreen'}>
           {#if ui.fullscreen}
             <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M9 4v5H4M15 4v5h5M9 20v-5H4M15 20v-5h5" /></svg>
@@ -177,7 +208,7 @@
     <button class="skip glass" onclick={() => ui.seekTo(intro?.[1] ?? 0)}>Skip Intro ›</button>
   {/if}
 
-  {#if ui.settings}<SettingsSheet {ui} {subs} />{/if}
+  {#if ui.settings}<SettingsSheet {ui} {subs} {media} />{/if}
 {/if}
 
 <style>
@@ -226,6 +257,9 @@
     gap: 6px;
     padding: calc(6px + var(--safe-t)) calc(8px + var(--safe-r)) 0 calc(8px + var(--safe-l));
   }
+  .ctl.inline .top {
+    padding: 6px 8px 0 8px;
+  }
   .ttl {
     flex: 1;
     min-width: 0;
@@ -248,10 +282,12 @@
     gap: clamp(20px, 9cqw, 72px);
   }
   .ib {
-    display: inline-grid;
-    place-items: center;
-    min-width: 44px;
-    height: 44px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 5px;
+    min-width: 40px;
+    height: 40px;
     padding: 0 6px;
     border: 0;
     border-radius: 50%;
@@ -260,9 +296,27 @@
     cursor: pointer;
     filter: drop-shadow(0 1px 3px rgb(0 0 0 / 0.6));
   }
+  .ib.pill-ctl {
+    border-radius: 99px;
+    padding: 0 10px;
+    background: rgb(0 0 0 / 0.28);
+    border: 1px solid rgb(255 255 255 / 0.14);
+  }
+  .ctl-lbl {
+    font-size: 0.76rem;
+    font-weight: 650;
+  }
+  @container (max-width: 520px) {
+    .ctl-lbl {
+      display: none;
+    }
+    .ib.pill-ctl {
+      padding: 0 8px;
+    }
+  }
   .ib:hover,
   .ib:focus-visible {
-    background: rgb(255 255 255 / 0.12);
+    background: rgb(255 255 255 / 0.14);
   }
   .ib[aria-pressed='true'] {
     color: var(--accent);
@@ -278,8 +332,8 @@
     height: 54px;
   }
   .play {
-    width: 72px;
-    height: 72px;
+    width: 68px;
+    height: 68px;
     background: rgb(0 0 0 / 0.35);
     backdrop-filter: blur(10px);
     -webkit-backdrop-filter: blur(10px);
@@ -300,6 +354,9 @@
   }
   .bottom {
     padding: 0 calc(12px + var(--safe-r)) calc(4px + var(--safe-b)) calc(12px + var(--safe-l));
+  }
+  .ctl.inline .bottom {
+    padding: 0 10px 6px 10px;
   }
   .bar {
     position: relative;
@@ -349,16 +406,17 @@
     box-shadow: 0 0 0 3px rgb(229 9 20 / 0.25);
     transition: transform 120ms ease;
   }
+  .bar:hover .thumb,
   .thumb.active {
-    transform: scale(1.35);
+    transform: scale(1.3);
   }
   .bubble {
     position: absolute;
-    bottom: 26px;
+    bottom: 100%;
     transform: translateX(-50%);
     padding: 3px 8px;
-    border-radius: 8px;
-    background: rgb(0 0 0 / 0.8);
+    border-radius: 6px;
+    background: rgb(0 0 0 / 0.85);
     font-size: 0.78rem;
     font-variant-numeric: tabular-nums;
     pointer-events: none;
@@ -367,7 +425,7 @@
   .row {
     display: flex;
     align-items: center;
-    gap: 2px;
+    gap: 4px;
   }
   .time {
     font-size: 0.8rem;
@@ -381,8 +439,8 @@
     position: absolute;
     z-index: 6;
     right: calc(16px + var(--safe-r));
-    bottom: calc(86px + var(--safe-b));
-    padding: 10px 18px;
+    bottom: calc(68px + var(--safe-b));
+    padding: 9px 18px;
     border: 0;
     border-radius: 99px;
     font-weight: 800;
@@ -391,21 +449,16 @@
   .unlock {
     position: absolute;
     z-index: 6;
-    top: 50%;
+    top: calc(14px + var(--safe-t));
     left: 50%;
-    transform: translate(-50%, -50%);
-    display: flex;
-    gap: 8px;
+    transform: translateX(-50%);
+    display: inline-flex;
     align-items: center;
-    padding: 12px 18px;
+    gap: 8px;
+    padding: 10px 18px;
     border: 0;
     border-radius: 99px;
     font-weight: 700;
     cursor: pointer;
-  }
-  @media (max-width: 480px) {
-    .ib.txt {
-      display: none;
-    }
   }
 </style>

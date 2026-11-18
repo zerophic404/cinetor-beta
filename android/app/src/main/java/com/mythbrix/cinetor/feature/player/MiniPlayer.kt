@@ -30,7 +30,6 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -49,26 +48,34 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.mythbrix.cinetor.core.player.PlayerUiState
 import com.mythbrix.cinetor.design.Cinetor
 import kotlinx.coroutines.launch
-import kotlin.math.abs
 import kotlin.math.roundToInt
 
 enum class Corner { TOP_START, TOP_END, BOTTOM_START, BOTTOM_END }
 
-/** Remembers the mini-player width fraction per profile (docs/requirements-hardening.md §3). */
+/** Remembers the mini-player width fraction and free-drag position per profile. */
 interface MiniSizeStore {
     fun get(profileId: String): Float
     fun set(profileId: String, fraction: Float)
+    fun getPosition(profileId: String): Pair<Float, Float>? = null
+    fun setPosition(profileId: String, xFrac: Float, yFrac: Float) {}
 }
 
 class InMemoryMiniSizeStore : MiniSizeStore {
     private val map = java.util.concurrent.ConcurrentHashMap<String, Float>()
+    private val positions = java.util.concurrent.ConcurrentHashMap<String, Pair<Float, Float>>()
+
     override fun get(profileId: String): Float = map[profileId] ?: MiniPlayerMath.DEFAULT_FRACTION
     override fun set(profileId: String, fraction: Float) {
         map[profileId] = fraction
     }
+
+    override fun getPosition(profileId: String): Pair<Float, Float>? = positions[profileId]
+    override fun setPosition(profileId: String, xFrac: Float, yFrac: Float) {
+        positions[profileId] = xFrac.coerceIn(0f, 1f) to yFrac.coerceIn(0f, 1f)
+    }
 }
 
-/** App-private SharedPreferences (`mini_size.<profileId>` + dub/quality prefs per profile). */
+/** App-private SharedPreferences (`mini_size.<profileId>`, `mini_pos_x/y.<profileId>` + dub/quality prefs). */
 class PrefsMiniSizeStore(context: android.content.Context) : MiniSizeStore, PlaybackPreferenceStore {
     private val prefs = context.applicationContext
         .getSharedPreferences("cinetor_mini_player", android.content.Context.MODE_PRIVATE)
@@ -77,6 +84,21 @@ class PrefsMiniSizeStore(context: android.content.Context) : MiniSizeStore, Play
 
     override fun set(profileId: String, fraction: Float) {
         prefs.edit().putFloat(key(profileId), fraction).apply()
+    }
+
+    override fun getPosition(profileId: String): Pair<Float, Float>? {
+        if (!prefs.contains(posXKey(profileId)) || !prefs.contains(posYKey(profileId))) return null
+        val xf = prefs.getFloat(posXKey(profileId), Float.NaN)
+        val yf = prefs.getFloat(posYKey(profileId), Float.NaN)
+        if (xf.isNaN() || yf.isNaN()) return null
+        return xf.coerceIn(0f, 1f) to yf.coerceIn(0f, 1f)
+    }
+
+    override fun setPosition(profileId: String, xFrac: Float, yFrac: Float) {
+        prefs.edit()
+            .putFloat(posXKey(profileId), xFrac.coerceIn(0f, 1f))
+            .putFloat(posYKey(profileId), yFrac.coerceIn(0f, 1f))
+            .apply()
     }
 
     override fun getTitlePref(profileId: String, seriesOrTitleId: String): PlaybackPref? {
@@ -108,6 +130,8 @@ class PrefsMiniSizeStore(context: android.content.Context) : MiniSizeStore, Play
     }
 
     private fun key(profileId: String) = "mini_size.$profileId"
+    private fun posXKey(profileId: String) = "mini_pos_x.$profileId"
+    private fun posYKey(profileId: String) = "mini_pos_y.$profileId"
 }
 
 /** Pure mini-window maths (px). */
@@ -146,11 +170,76 @@ object MiniPlayerMath {
         }
     }
 
-    /** Top-left offset for [corner] inside the area (margins: [m] sides/top, [bottom] above the nav bar). */
+    /** Top-left offset for [corner] inside the area (margins: [m] sides, [top], [bottom] above the nav bar). */
     fun offsetFor(corner: Corner, boxW: Float, boxH: Float, areaW: Float, areaH: Float, m: Float, top: Float, bottom: Float): Offset {
         val x = if (corner == Corner.TOP_START || corner == Corner.BOTTOM_START) m else areaW - boxW - m
         val y = if (corner == Corner.TOP_START || corner == Corner.TOP_END) top else areaH - boxH - bottom
         return Offset(x, y)
+    }
+
+    /** Free-drag clamp: keeps exact dropped `(x, y)` inside safe viewport margins without corner-snapping. */
+    fun clampOffset(
+        x: Float,
+        y: Float,
+        boxW: Float,
+        boxH: Float,
+        areaW: Float,
+        areaH: Float,
+        m: Float,
+        top: Float,
+        bottom: Float,
+    ): Offset {
+        val minX = m
+        val maxX = maxOf(minX, areaW - boxW - m)
+        val minY = top
+        val maxY = maxOf(minY, areaH - boxH - bottom)
+        return Offset(
+            x = if (x.isNaN()) maxX else x.coerceIn(minX, maxX),
+            y = if (y.isNaN()) maxY else y.coerceIn(minY, maxY),
+        )
+    }
+
+    /** Normalizes a clamped `(x, y)` offset into `[0f..1f]` travel fractions so rotation/resize keeps the chosen spot. */
+    fun toPositionFraction(
+        offset: Offset,
+        boxW: Float,
+        boxH: Float,
+        areaW: Float,
+        areaH: Float,
+        m: Float,
+        top: Float,
+        bottom: Float,
+    ): Pair<Float, Float> {
+        val minX = m
+        val maxX = maxOf(minX, areaW - boxW - m)
+        val minY = top
+        val maxY = maxOf(minY, areaH - boxH - bottom)
+        val spanX = maxX - minX
+        val spanY = maxY - minY
+        val xf = if (spanX <= 0.5f) 1f else ((offset.x - minX) / spanX).coerceIn(0f, 1f)
+        val yf = if (spanY <= 0.5f) 1f else ((offset.y - minY) / spanY).coerceIn(0f, 1f)
+        return xf to yf
+    }
+
+    /** Reconstructs the clamped pixel offset from normalized `(xFrac, yFrac)`. */
+    fun fromPositionFraction(
+        xFrac: Float,
+        yFrac: Float,
+        boxW: Float,
+        boxH: Float,
+        areaW: Float,
+        areaH: Float,
+        m: Float,
+        top: Float,
+        bottom: Float,
+    ): Offset {
+        val minX = m
+        val maxX = maxOf(minX, areaW - boxW - m)
+        val minY = top
+        val maxY = maxOf(minY, areaH - boxH - bottom)
+        val x = minX + (maxX - minX) * xFrac.coerceIn(0f, 1f)
+        val y = minY + (maxY - minY) * yFrac.coerceIn(0f, 1f)
+        return clampOffset(x, y, boxW, boxH, areaW, areaH, m, top, bottom)
     }
 
     /** Swipe off: more than half of the window pushed past the left/right edge. */
@@ -158,9 +247,9 @@ object MiniPlayerMath {
 }
 
 /**
- * In-app floating player: draggable 16:9 window, snaps to the nearest corner, tap = expand,
- * swipe off a side = stop. Drag the bottom-end handle (or pinch) to resize between 25 % and 80 %
- * of screen width; the size is remembered per profile. Rest of the screen stays interactive.
+ * In-app free-position floating PiP player: draggable 16:9 window that stays at the exact `(x, y)`
+ * spot where the user drops it (clamped only to safe viewport margins, persisted per profile),
+ * tap = expand, swipe past halfway off an edge or `×` = stop, pinch/corner drag = resize 25–80 %.
  */
 @Composable
 fun MiniPlayer(
@@ -171,8 +260,8 @@ fun MiniPlayer(
 ) {
     val density = LocalDensity.current
     val insets = WindowInsets.safeDrawing.asPaddingValues()
-    var corner by rememberSaveable { mutableStateOf(Corner.BOTTOM_END) }
     val savedFraction by holder.miniFraction.collectAsStateWithLifecycle()
+    val savedPosition by holder.miniPosition.collectAsStateWithLifecycle()
     BoxWithConstraints(Modifier.fillMaxSize()) {
         val areaW = constraints.maxWidth.toFloat()
         val areaH = constraints.maxHeight.toFloat()
@@ -186,14 +275,33 @@ fun MiniPlayer(
         val top = with(density) { (insets.calculateTopPadding() + 64.dp).toPx() }
         val bottom = with(density) { (insets.calculateBottomPadding() + 96.dp).toPx() }
         val scope = rememberCoroutineScope()
-        val target = MiniPlayerMath.offsetFor(corner, boxW, boxH, areaW, areaH, m, top, bottom)
-        val pos = remember { Animatable(target, Offset.VectorConverter) }
+        val restOffset = remember(savedPosition, boxW, boxH, areaW, areaH, m, top, bottom) {
+            val sp = savedPosition
+            if (sp != null) {
+                MiniPlayerMath.fromPositionFraction(sp.first, sp.second, boxW, boxH, areaW, areaH, m, top, bottom)
+            } else {
+                MiniPlayerMath.clampOffset(areaW - boxW - m, areaH - boxH - bottom, boxW, boxH, areaW, areaH, m, top, bottom)
+            }
+        }
+        val pos = remember { Animatable(restOffset, Offset.VectorConverter) }
         var dragging by remember { mutableStateOf(false) }
         var resizing by remember { mutableStateOf(false) }
-        LaunchedEffect(target, dragging, resizing) {
-            if (!dragging && !resizing) pos.animateTo(target, spring(dampingRatio = 0.8f, stiffness = 500f))
+        LaunchedEffect(restOffset, dragging, resizing) {
+            if (!dragging && !resizing) {
+                pos.animateTo(restOffset, spring(dampingRatio = 0.85f, stiffness = 600f))
+            } else if (resizing) {
+                val clamped = MiniPlayerMath.clampOffset(pos.value.x, pos.value.y, boxW, boxH, areaW, areaH, m, top, bottom)
+                pos.snapTo(clamped)
+            }
         }
-        val fade = if (dragging) (1f - abs(pos.value.x - target.x) / (areaW / 2)).coerceIn(0.35f, 1f) else 1f
+        val edgeOverflow = when {
+            pos.value.x < 0f -> -pos.value.x
+            pos.value.x + boxW > areaW -> (pos.value.x + boxW) - areaW
+            else -> 0f
+        }
+        val fade = if (dragging && edgeOverflow > 0f && boxW > 0f) {
+            (1f - edgeOverflow / boxW).coerceIn(0.35f, 1f)
+        } else 1f
         Box(
             Modifier
                 .offset { IntOffset(pos.value.x.roundToInt(), pos.value.y.roundToInt()) }
@@ -205,7 +313,7 @@ fun MiniPlayer(
                 .border(1.dp, Color.White.copy(alpha = 0.18f), RoundedCornerShape(12.dp))
                 .semantics { contentDescription = "Mini player" }
                 // Pinch to resize (keeps 16:9, clamped 25–80 % of width).
-                .pointerInput(areaW) {
+                .pointerInput(areaW, areaH) {
                     detectTransformGestures { _, _, zoom, _ ->
                         if (zoom != 1f) {
                             fraction = MiniPlayerMath.pinch(fraction, zoom)
@@ -216,7 +324,7 @@ fun MiniPlayer(
                 .pointerInput(Unit) {
                     detectTapGestures(onTap = { holder.expand() })
                 }
-                .pointerInput(boxW, areaW, areaH) {
+                .pointerInput(boxW, boxH, areaW, areaH, m, top, bottom) {
                     detectDragGestures(
                         onDragStart = { dragging = true },
                         onDragEnd = {
@@ -225,14 +333,22 @@ fun MiniPlayer(
                                 dragging = false
                                 holder.close()
                             } else {
-                                corner = MiniPlayerMath.nearestCorner(p.x, p.y, boxW, boxH, areaW, areaH)
+                                val clamped = MiniPlayerMath.clampOffset(p.x, p.y, boxW, boxH, areaW, areaH, m, top, bottom)
+                                val (xf, yf) = MiniPlayerMath.toPositionFraction(clamped, boxW, boxH, areaW, areaH, m, top, bottom)
+                                holder.setMiniPosition(xf, yf)
                                 dragging = false
+                                scope.launch { pos.animateTo(clamped, spring(dampingRatio = 0.85f, stiffness = 600f)) }
                             }
                         },
-                        onDragCancel = { dragging = false },
+                        onDragCancel = {
+                            val clamped = MiniPlayerMath.clampOffset(pos.value.x, pos.value.y, boxW, boxH, areaW, areaH, m, top, bottom)
+                            dragging = false
+                            scope.launch { pos.animateTo(clamped, spring(dampingRatio = 0.85f, stiffness = 600f)) }
+                        },
                         onDrag = { change, amount ->
                             change.consume()
-                            scope.launch { pos.snapTo(pos.value + amount) }
+                            val nextY = (pos.value.y + amount.y).coerceIn(0f, maxOf(0f, areaH - boxH))
+                            scope.launch { pos.snapTo(Offset(pos.value.x + amount.x, nextY)) }
                         },
                     )
                 },
@@ -262,10 +378,18 @@ fun MiniPlayer(
                     .align(Alignment.BottomEnd)
                     .size(28.dp)
                     .semantics { contentDescription = "Resize mini player" }
-                    .pointerInput(areaW) {
+                    .pointerInput(areaW, areaH, m, top, bottom) {
                         detectDragGestures(
                             onDragStart = { resizing = true },
-                            onDragEnd = { resizing = false; holder.setMiniFraction(fraction) },
+                            onDragEnd = {
+                                holder.setMiniFraction(fraction)
+                                val newW = areaW * MiniPlayerMath.clampFraction(fraction)
+                                val newH = MiniPlayerMath.heightFor(newW)
+                                val clamped = MiniPlayerMath.clampOffset(pos.value.x, pos.value.y, newW, newH, areaW, areaH, m, top, bottom)
+                                val (xf, yf) = MiniPlayerMath.toPositionFraction(clamped, newW, newH, areaW, areaH, m, top, bottom)
+                                holder.setMiniPosition(xf, yf)
+                                resizing = false
+                            },
                             onDragCancel = { resizing = false },
                             onDrag = { change, amount ->
                                 change.consume()

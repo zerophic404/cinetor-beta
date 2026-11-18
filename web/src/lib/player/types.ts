@@ -17,3 +17,12 @@ export interface EngineLike {
 }
 
 export type Readiness = 'resolving' | 'buffering' | 'ready' | 'resolved' | 'error';
+
+export type SettingsPane = 'main' | 'quality' | 'speed' | 'audio' | 'subs' | 'style' | 'sleep';
+
+export interface SiblingDubRef {
+  subjectId: string;
+  slug: string;
+  languageName: string;
+  languageCode?: string;
+}

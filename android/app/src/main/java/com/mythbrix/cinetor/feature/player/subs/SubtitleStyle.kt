@@ -11,6 +11,7 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import java.util.Locale
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.builtins.MapSerializer
 import kotlinx.serialization.builtins.serializer
@@ -19,16 +20,237 @@ import kotlinx.serialization.json.Json
 enum class SubEdge(val label: String) { NONE("None"), OUTLINE("Outline"), SHADOW("Shadow") }
 enum class SubFont(val label: String) { DEFAULT("Default"), SERIF("Serif"), MONO("Mono"), BOLD("Bold") }
 
-/** Subtitle look (per profile). Colors are ARGB. */
+data class SubtitleLanguageChip(val code: String, val name: String)
+
+val POPULAR_SUBTITLE_LANGUAGES: List<SubtitleLanguageChip> = listOf(
+    SubtitleLanguageChip("bn", "Bangla"),
+    SubtitleLanguageChip("en", "English"),
+    SubtitleLanguageChip("hi", "Hindi"),
+    SubtitleLanguageChip("ur", "Urdu"),
+    SubtitleLanguageChip("zh", "Chinese"),
+    SubtitleLanguageChip("ar", "Arabic"),
+    SubtitleLanguageChip("ko", "Korean"),
+    SubtitleLanguageChip("ja", "Japanese"),
+    SubtitleLanguageChip("es", "Spanish"),
+    SubtitleLanguageChip("fr", "French"),
+    SubtitleLanguageChip("id", "Indonesian"),
+)
+
+private val LANGUAGE_NAMES: Map<String, String> = mapOf(
+    "bn" to "Bangla",
+    "ben" to "Bangla",
+    "bengali" to "Bangla",
+    "bangla" to "Bangla",
+    "en" to "English",
+    "eng" to "English",
+    "english" to "English",
+    "hi" to "Hindi",
+    "hin" to "Hindi",
+    "hindi" to "Hindi",
+    "ur" to "Urdu",
+    "urd" to "Urdu",
+    "urdu" to "Urdu",
+    "zh" to "Chinese",
+    "chi" to "Chinese",
+    "zho" to "Chinese",
+    "cmn" to "Chinese",
+    "yue" to "Cantonese",
+    "chinese" to "Chinese",
+    "mandarin" to "Chinese",
+    "ar" to "Arabic",
+    "ara" to "Arabic",
+    "arabic" to "Arabic",
+    "ko" to "Korean",
+    "kor" to "Korean",
+    "korean" to "Korean",
+    "ja" to "Japanese",
+    "jpn" to "Japanese",
+    "japanese" to "Japanese",
+    "es" to "Spanish",
+    "spa" to "Spanish",
+    "spanish" to "Spanish",
+    "fr" to "French",
+    "fre" to "French",
+    "fra" to "French",
+    "french" to "French",
+    "id" to "Indonesian",
+    "ind" to "Indonesian",
+    "in" to "Indonesian",
+    "indonesian" to "Indonesian",
+    "tr" to "Turkish",
+    "tur" to "Turkish",
+    "turkish" to "Turkish",
+    "ta" to "Tamil",
+    "tam" to "Tamil",
+    "tamil" to "Tamil",
+    "te" to "Telugu",
+    "tel" to "Telugu",
+    "telugu" to "Telugu",
+    "ml" to "Malayalam",
+    "mal" to "Malayalam",
+    "malayalam" to "Malayalam",
+    "pa" to "Punjabi",
+    "pan" to "Punjabi",
+    "punjabi" to "Punjabi",
+    "ru" to "Russian",
+    "rus" to "Russian",
+    "russian" to "Russian",
+    "pt" to "Portuguese",
+    "por" to "Portuguese",
+    "portuguese" to "Portuguese",
+    "ms" to "Malay",
+    "may" to "Malay",
+    "msa" to "Malay",
+    "malay" to "Malay",
+    "th" to "Thai",
+    "tha" to "Thai",
+    "thai" to "Thai",
+    "vi" to "Vietnamese",
+    "vie" to "Vietnamese",
+    "vietnamese" to "Vietnamese",
+    "tl" to "Filipino",
+    "fil" to "Filipino",
+    "tgl" to "Filipino",
+    "tagalog" to "Filipino",
+    "filipino" to "Filipino",
+    "de" to "German",
+    "ger" to "German",
+    "deu" to "German",
+    "german" to "German",
+    "it" to "Italian",
+    "ita" to "Italian",
+    "italian" to "Italian",
+    "fa" to "Persian",
+    "per" to "Persian",
+    "fas" to "Persian",
+    "persian" to "Persian",
+    "nl" to "Dutch",
+    "dut" to "Dutch",
+    "nld" to "Dutch",
+    "dutch" to "Dutch",
+    "pl" to "Polish",
+    "pol" to "Polish",
+    "polish" to "Polish",
+    "uk" to "Ukrainian",
+    "ukr" to "Ukrainian",
+    "ukrainian" to "Ukrainian",
+    "el" to "Greek",
+    "gre" to "Greek",
+    "ell" to "Greek",
+    "greek" to "Greek",
+    "he" to "Hebrew",
+    "heb" to "Hebrew",
+    "iw" to "Hebrew",
+    "hebrew" to "Hebrew",
+    "sv" to "Swedish",
+    "swe" to "Swedish",
+    "swedish" to "Swedish",
+    "no" to "Norwegian",
+    "nor" to "Norwegian",
+    "nb" to "Norwegian",
+    "nn" to "Norwegian",
+    "norwegian" to "Norwegian",
+    "da" to "Danish",
+    "dan" to "Danish",
+    "danish" to "Danish",
+    "fi" to "Finnish",
+    "fin" to "Finnish",
+    "finnish" to "Finnish",
+    "ro" to "Romanian",
+    "rum" to "Romanian",
+    "ron" to "Romanian",
+    "romanian" to "Romanian",
+    "hu" to "Hungarian",
+    "hun" to "Hungarian",
+    "hungarian" to "Hungarian",
+    "cs" to "Czech",
+    "cze" to "Czech",
+    "ces" to "Czech",
+    "czech" to "Czech",
+    "my" to "Burmese",
+    "bur" to "Burmese",
+    "mya" to "Burmese",
+    "burmese" to "Burmese",
+    "ne" to "Nepali",
+    "nep" to "Nepali",
+    "nepali" to "Nepali",
+    "si" to "Sinhala",
+    "sin" to "Sinhala",
+    "sinhala" to "Sinhala",
+    "mr" to "Marathi",
+    "mar" to "Marathi",
+    "marathi" to "Marathi",
+    "gu" to "Gujarati",
+    "guj" to "Gujarati",
+    "gujarati" to "Gujarati",
+    "kn" to "Kannada",
+    "kan" to "Kannada",
+    "kannada" to "Kannada",
+    "or" to "Odia",
+    "ori" to "Odia",
+    "odia" to "Odia",
+    "as" to "Assamese",
+    "asm" to "Assamese",
+    "assamese" to "Assamese",
+    "original" to "Original",
+)
+
+private val GENERIC_TRACK_RE = Regex("""^(?i)(subtitle|audio|track)\s*\d+$""")
+private val PAREN_SHORT_CODE_RE = Regex("""\(([A-Za-z]{2,3}(?:-[A-Za-z0-9]{2,4})?)\)$""")
+
+/** Pure mapper converting any ISO language code or alias into a full human language name (never 2/3-letter codes). */
+fun fullSubtitleLanguageName(raw: String?): String {
+    val cleaned = raw?.trim().orEmpty()
+    if (cleaned.isEmpty()) return "Original"
+    val lower = cleaned.lowercase(Locale.US)
+    if (lower == "und" || lower == "unknown" || lower == "mul" || lower == "zxx" || lower == "default") return "Original"
+    LANGUAGE_NAMES[lower]?.let { return it }
+    val primary = lower.substringBefore('-').substringBefore('_').substringBefore(' ').trim()
+    LANGUAGE_NAMES[primary]?.let { return it }
+    if (primary.length in 2..3 && primary.all { it.isLetter() }) {
+        val locName = runCatching {
+            Locale.forLanguageTag(primary).getDisplayLanguage(Locale.ENGLISH)
+        }.getOrNull()?.trim().orEmpty()
+        if (locName.length > 3 && !locName.equals(primary, ignoreCase = true)) {
+            return if (locName.equals("Bengali", ignoreCase = true)) "Bangla"
+            else locName.replaceFirstChar { if (it.isLowerCase()) it.titlecase(Locale.US) else it.toString() }
+        }
+        return "Original"
+    }
+    return cleaned.replaceFirstChar { if (it.isLowerCase()) it.titlecase(Locale.US) else it.toString() }
+}
+
+/** Formats an audio/subtitle track's display label so short codes (`bn`, `en`, `Subtitle 1`) become full words. */
+fun formatTrackLanguageLabel(label: String?, language: String?, fallback: String = "Original"): String {
+    val rawLabel = label?.trim().orEmpty()
+    val rawLang = language?.trim().orEmpty()
+    if (rawLabel.isEmpty() || GENERIC_TRACK_RE.matches(rawLabel) || rawLabel.equals("und", ignoreCase = true)) {
+        return if (rawLang.isNotEmpty()) fullSubtitleLanguageName(rawLang) else fallback
+    }
+    if (rawLabel.length <= 3 && rawLabel.all { it.isLetter() }) {
+        return fullSubtitleLanguageName(rawLang.ifEmpty { rawLabel })
+    }
+    val parenMatch = PAREN_SHORT_CODE_RE.find(rawLabel)
+    if (parenMatch != null) {
+        val code = parenMatch.groupValues[1]
+        val full = fullSubtitleLanguageName(code)
+        val prefix = rawLabel.substring(0, parenMatch.range.first).trim()
+        return if (prefix.equals(full, ignoreCase = true)) full else "$prefix ($full)"
+    }
+    val mapped = LANGUAGE_NAMES[rawLabel.lowercase(Locale.US)]
+    return mapped ?: rawLabel
+}
+
+/** Subtitle look (per profile). Colors are ARGB; default background is 0 % transparent with crisp drop shadow. */
 @Serializable
 data class SubtitleStyle(
     /** 50–200 %. */
     val sizePercent: Int = 100,
     val textColor: Long = 0xFFFFFFFF,
     val bgColor: Long = 0xFF000000,
-    /** 0..1 background opacity. */
-    val bgOpacity: Float = 0.35f,
-    val edge: SubEdge = SubEdge.OUTLINE,
+    /** 0..1 background opacity (default 0f = completely transparent box). */
+    val bgOpacity: Float = 0f,
+    val edge: SubEdge = SubEdge.SHADOW,
     val font: SubFont = SubFont.DEFAULT,
     /** Distance from the bottom, % of the video height (0–40). */
     val bottomPercent: Int = 8,

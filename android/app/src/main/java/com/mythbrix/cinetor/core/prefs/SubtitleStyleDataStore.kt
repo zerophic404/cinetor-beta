@@ -22,6 +22,6 @@ class SubtitleStyleDataStore(context: Context) : HistoryStorage {
     }
 
     private companion object {
-        val KEY = stringPreferencesKey("subtitle_style_v1")
+        val KEY = stringPreferencesKey("subtitle_style_v2")
     }
 }

@@ -1,25 +1,44 @@
-// Reactive UI state of the full player (controls, gestures feedback, subtitles, aspect, lock).
+// Reactive UI state of the player (controls, inline mount sync, gestures feedback, subtitles, aspect, lock).
 import { get } from 'svelte/store';
 import { activeProfileId } from '$lib/data/library.svelte';
+import { gatewayBase, shouldSignGatewayUrl, signedGatewayFetch } from '$lib/data/gateway';
 import { clock, togglePiP } from './controller';
 import { engine } from './engine';
 import { BRIGHTNESS_MAX, BRIGHTNESS_MIN, HoldSpeed, clamp, fmtTime, seekBy } from './gesture-math';
 import { settings } from '$lib/settings/store.svelte';
 import { stepSpeed } from './keys';
-import { DEFAULT_SUB_STYLE, clampOffset, parseSubtitles, type Cue, type SubStyle } from './subs';
+import {
+  DEFAULT_SUB_STYLE,
+  clampOffset,
+  formatTrackLanguage,
+  fullLanguageName,
+  parseSubtitles,
+  type Cue,
+  type SubStyle
+} from './subs';
+import type { SettingsPane } from './types';
 import type { Sub } from '$lib/data/types';
 
 export type Aspect = 'fit' | 'fill' | 'zoom';
 export const ASPECTS: Aspect[] = ['fit', 'zoom', 'fill'];
 export const ASPECT_LABEL: Record<Aspect, string> = { fit: 'Fit', fill: 'Stretch', zoom: 'Zoom' };
 
-const styleKey = () => `cinetor.substyle.${activeProfileId()}`;
+const sharedPlayerUi = $state({ inlineMounted: false });
+
+const styleKey = () => `cinetor.substyle.v2.${activeProfileId()}`;
 function loadStyle(): SubStyle {
   try {
     return { ...DEFAULT_SUB_STYLE, ...JSON.parse(localStorage.getItem(styleKey()) ?? '{}') };
   } catch {
     return { ...DEFAULT_SUB_STYLE };
   }
+}
+
+async function fetchSubtitleText(url: string): Promise<string> {
+  const base = gatewayBase();
+  const res = shouldSignGatewayUrl(url, base) ? await signedGatewayFetch(url, undefined, base) : await fetch(url);
+  if (!res.ok) throw new Error('subtitle_fetch_failed');
+  return res.text();
 }
 
 export interface SubChoice {
@@ -35,6 +54,7 @@ export class PlayerUI {
   aspect = $state<Aspect>('fit');
   brightness = $state(1);
   settings = $state(false);
+  settingsPane = $state<SettingsPane>('main');
   fullscreen = $state(false);
   ripple = $state<{ side: 'left' | 'right'; text: string; n: number } | null>(null);
   holding = $state(false);
@@ -43,7 +63,7 @@ export class PlayerUI {
   hint = $state<string | null>(null);
   scrubbing = $state(false);
 
-  // Subtitles: own rendering for side-loaded (catalog + external file) cues, native for embedded tracks.
+  // Subtitles: own rendering for side-loaded (catalog + online + external file) cues, native for embedded tracks.
   subId = $state('off');
   cues = $state.raw<Cue[]>([]);
   subStyle = $state<SubStyle>(loadStyle());
@@ -60,8 +80,22 @@ export class PlayerUI {
   private rippleTimer: ReturnType<typeof setTimeout> | undefined;
   private lockTimer: ReturnType<typeof setTimeout> | undefined;
 
+  /** Shared reactive flag across `/app/title` `<Player inline={true}>` and layout `<MiniPlayer>`. */
+  get inlineMounted(): boolean {
+    return sharedPlayerUi.inlineMounted;
+  }
+  set inlineMounted(value: boolean) {
+    sharedPlayerUi.inlineMounted = value;
+  }
+
   get video(): HTMLVideoElement | null {
     return engine.video;
+  }
+
+  openSettings(pane: SettingsPane = 'main'): void {
+    this.settingsPane = pane;
+    this.settings = true;
+    this.show();
   }
 
   // ---- controls visibility (auto-hide 3 s while playing) ----
@@ -119,8 +153,9 @@ export class PlayerUI {
 
   // ---- gesture feedback ----
   holdStart(): void {
-    if (engine.isPaused) return;
-    engine.setPlaybackRate(this.hold.start(engine.playbackRate, settings.s.holdSpeed));
+    const s = settings.s as typeof settings.s & { holdForSpeed?: boolean };
+    if (engine.isPaused || s.holdForSpeed === false || s.holdSpeed <= 1) return;
+    engine.setPlaybackRate(this.hold.start(engine.playbackRate, s.holdSpeed));
     this.holding = true;
   }
   holdEnd(): void {
@@ -201,9 +236,21 @@ export class PlayerUI {
   choices(sides: Sub[]): SubChoice[] {
     const t = get(engine.tracks);
     return [
-      ...sides.map((s, i) => ({ id: `side:${i}`, label: s.label || s.lang, kind: 'side' as const })),
-      ...this.extSubs.map((e) => ({ id: e.id, label: e.label, kind: 'ext' as const })),
-      ...t.texts.map((x) => ({ id: `emb:${x.id}`, label: `${x.label} (stream)`, kind: 'emb' as const }))
+      ...sides.map((s, i) => ({
+        id: `side:${i}`,
+        label: formatTrackLanguage(s.label, s.lang, 'Original'),
+        kind: 'side' as const
+      })),
+      ...this.extSubs.map((e) => ({
+        id: e.id,
+        label: fullLanguageName(e.label),
+        kind: 'ext' as const
+      })),
+      ...t.texts.map((x) => ({
+        id: `emb:${x.id}`,
+        label: `${formatTrackLanguage(x.label, x.language, 'Original')} (stream)`,
+        kind: 'emb' as const
+      }))
     ];
   }
 
@@ -228,15 +275,31 @@ export class PlayerUI {
     const s = sides[Number(id.slice(5))];
     if (!s) return;
     try {
-      const res = await fetch(s.url);
-      if (!res.ok) throw new Error(String(res.status));
-      const text = await res.text();
+      const text = await fetchSubtitleText(s.url);
       if (this.subId === id) this.cues = parseSubtitles(text, s.format);
     } catch {
       if (this.subId === id) {
-        this.subError = `Couldn't load ${s.label}`;
+        this.subError = `Couldn't load ${formatTrackLanguage(s.label, s.lang, 'subtitles')}`;
         this.cues = [];
       }
+    }
+  }
+
+  /** Loads and activates an online WebVTT/SRT subtitle returned by in-app online search. */
+  async loadRemoteSub(sub: Sub, sides: Sub[]): Promise<void> {
+    this.subError = null;
+    const cleanLabel = formatTrackLanguage(sub.label, sub.lang, 'Original');
+    try {
+      const text = await fetchSubtitleText(sub.url);
+      const cues = parseSubtitles(text, sub.format);
+      if (!cues.length) throw new Error('empty');
+      const id = `ext:${sub.url}`;
+      const filtered = this.extSubs.filter((e) => e.id !== id);
+      this.extSubs = [...filtered, { id, label: cleanLabel, cues }];
+      await this.selectSub(id, sides);
+      this.flash(`${cleanLabel} subtitles on`);
+    } catch {
+      this.subError = `Couldn't load ${cleanLabel} subtitles`;
     }
   }
 
@@ -255,7 +318,9 @@ export class PlayerUI {
       const cues = parseSubtitles(text, /\.srt$/i.test(file.name) ? 'SRT' : /\.vtt$/i.test(file.name) ? 'VTT' : undefined);
       if (!cues.length) throw new Error('empty');
       const id = `ext:${Date.now()}`;
-      this.extSubs = [...this.extSubs, { id, label: file.name.replace(/\.(srt|vtt)$/i, ''), cues }];
+      const rawName = file.name.replace(/\.(srt|vtt)$/i, '');
+      const label = formatTrackLanguage(rawName, rawName, rawName);
+      this.extSubs = [...this.extSubs, { id, label, cues }];
       await this.selectSub(id, sides);
       this.flash(`${cues.length} cues loaded`);
     } catch {
@@ -282,6 +347,7 @@ export class PlayerUI {
     this.extSubs = [];
     this.locked = false;
     this.settings = false;
+    this.settingsPane = 'main';
     this.drag = null;
     if (this.holding) this.holdEnd();
   }
@@ -295,3 +361,5 @@ export class PlayerUI {
     return get(clock);
   }
 }
+
+export const ui = new PlayerUI();

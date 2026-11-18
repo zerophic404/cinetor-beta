@@ -1,17 +1,24 @@
-// Browser wiring of the player singletons: engine + preloader + session + resume + Media Session + sleep timer.
+// This app is the complete property of Mythbrix. Do not touch, retrieve, reverse-engineer,
+// scrape or hack anything without Mythbrix's explicit permission.
+// Browser wiring of the player singletons: engine + preloader + session + resume + Media Session + dubs & online subtitles.
 import { get, writable } from 'svelte/store';
 import { activeProfileId } from '$lib/data/library.svelte';
 import { repo } from '$lib/data/repo';
-import type { Episode, Item } from '$lib/data/types';
+import type { Episode, Item, Source, Sub } from '$lib/data/types';
 import { engine } from './engine';
 import { arbiter } from '$lib/media/arbiter';
 import { Preloader } from './Preloader';
 import { ResumeStore, idbKV, memoryKV, shouldSave, type ResumeEntry } from './resume';
 import { Session } from './session';
 import { buildMedia, type Media } from './sources';
+import { audioDubOfSource, fullLanguageName } from './subs';
+import type { SiblingDubRef } from './types';
 import { pickPreferredSource, seriesBaseId, type PlaybackPref } from './youtube';
-import { streams } from '$lib/data/app-catalog';
-import { applyResolved, isLazySource } from '$lib/data/gateway-play';
+import * as appCatalog from '$lib/data/app-catalog';
+import { gatewayClient, streams } from '$lib/data/app-catalog';
+import { GW_API, gatewayBase } from '$lib/data/gateway';
+import * as gatewayPlay from '$lib/data/gateway-play';
+import { STREAM_SCHEME, applyResolved, isLazySource, subtitleProxy } from '$lib/data/gateway-play';
 import { downloads } from '$lib/download/manager.svelte';
 
 export interface Clock {
@@ -79,7 +86,7 @@ function readTitlePref(itemId?: string): PlaybackPref | null {
   }
 }
 
-function writeTitlePref(itemId: string | undefined, patch: PlaybackPref): void {
+export function writeTitlePref(itemId: string | undefined, patch: PlaybackPref): void {
   if (!itemId) return;
   try {
     const cur = readTitlePref(itemId) ?? {};
@@ -130,15 +137,40 @@ export const mediaFor = (item: Item, ep?: Episode): Media =>
     readGlobalPref()
   );
 
-/** Gateway placeholder → proxy MP4 / YouTube variants + captions (noSource when nothing playable). */
+function pickVariantForDub(variants: Source[], targetDub: string, prefH: number): Source | undefined {
+  const norm = fullLanguageName(targetDub).toLowerCase();
+  const matches = variants.filter((v) => {
+    const d = audioDubOfSource(v);
+    return d && (d.toLowerCase() === norm || d.toLowerCase() === targetDub.toLowerCase());
+  });
+  if (!matches.length) return pickPreferredSource(variants, { dub: targetDub, height: prefH });
+  const exact = matches.find((v) => v.height === prefH);
+  if (exact) return exact;
+  const withH = matches.filter((v) => (v.height ?? 0) > 0);
+  if (withH.length) {
+    return [...withH].sort((a, b) => Math.abs((a.height ?? 0) - prefH) - Math.abs((b.height ?? 0) - prefH))[0];
+  }
+  return matches[0];
+}
+
+/** Gateway placeholder → proxy MP4 / YouTube variants + sibling dubs + captions (noSource when nothing playable). */
 export async function resolveMedia(m: Media, signal?: AbortSignal): Promise<Media> {
   if (!isLazySource(m.source)) return m;
   const prefH = preferredHeight(m.item.id);
-  const r = await streams.resolve(m.source!, signal).catch(() => ({ sources: [], subtitles: [] }));
-  const resolved = applyResolved(m, r, prefH);
+  const r = (await streams.resolve(m.source!, signal).catch(() => ({ sources: [], subtitles: [] }))) as {
+    sources: Source[];
+    subtitles: Sub[];
+    dubs?: SiblingDubRef[];
+  };
+  const baseResolved = applyResolved(m, r, prefH);
+  const itemWithDubs =
+    r.dubs && r.dubs.length > 0
+      ? ({ ...baseResolved.item, dubs: r.dubs } as Item)
+      : baseResolved.item;
+  const resolved: Media = itemWithDubs === baseResolved.item ? baseResolved : { ...baseResolved, item: itemWithDubs };
   const prefDub = preferredDub(m.item.id);
   if (prefDub && resolved.variants && resolved.variants.length > 1) {
-    const chosen = pickPreferredSource(resolved.variants, { dub: prefDub, height: prefH });
+    const chosen = pickVariantForDub(resolved.variants, prefDub, prefH);
     if (chosen) return { ...resolved, source: chosen };
   }
   return resolved;
@@ -159,6 +191,167 @@ export async function reResolve(m: Media): Promise<Media | null> {
   return fresh.noSource ? null : fresh;
 }
 
+function seasonEpNumbers(media?: Media | null): { se: number; ep: number } {
+  if (!media) return { se: 0, ep: 0 };
+  if (media.episode) {
+    const season = media.item.seasons?.find((s) => s.episodes.some((e) => e.id === media.episode?.id));
+    if (season) return { se: season.n, ep: media.episode.n };
+    const m = /(?:^|[:_-])s0*(\d+)[:_-]?e0*(\d+)$/i.exec(media.episode.id);
+    if (m) return { se: Number(m[1]) || 1, ep: Number(m[2]) || media.episode.n };
+    return { se: 1, ep: media.episode.n };
+  }
+  return media.item.type === 'SERIES' ? { se: 1, ep: 1 } : { se: 0, ep: 0 };
+}
+
+/** Switches active dub stream (from `media.variants` or sibling `Item.dubs`), keeping current playback position. */
+export async function switchMediaDub(
+  media: Media,
+  language: string,
+  sibling?: SiblingDubRef
+): Promise<void> {
+  const cleanLang = fullLanguageName(language);
+  const resumeAt = engine.currentTime;
+  const prefH = preferredHeight(media.item.id);
+  writeTitlePref(media.item.id, { dub: cleanLang });
+  try {
+    localStorage.setItem(DUB_KEY, cleanLang);
+  } catch {
+    /* ignore */
+  }
+  const variants = media.variants ?? (media.source ? [media.source] : []);
+  const inVariants = variants.find((v) => audioDubOfSource(v)?.toLowerCase() === cleanLang.toLowerCase());
+  if (inVariants) {
+    const chosen = pickVariantForDub(variants, cleanLang, prefH) ?? inVariants;
+    await session.play({ ...media, source: chosen, variants, playable: true }, { start: resumeAt });
+    return;
+  }
+  if (!sibling?.subjectId) return;
+  const { se, ep } = seasonEpNumbers(media);
+  const cleanSid = sibling.subjectId.replace(/^gw:/, '');
+  const q = new URLSearchParams({
+    detail_path: sibling.slug || media.item.slug || '',
+    se: String(se),
+    ep: String(ep)
+  });
+  const refSource: Source = { url: `${STREAM_SCHEME}${cleanSid}?${q}`, kind: 'MP4', label: cleanLang };
+  const resolved = await streams.resolve(refSource).catch(() => ({ sources: [], subtitles: [] }));
+  if (!resolved.sources.length) return;
+  const tagged: Source[] = resolved.sources.map((s) =>
+    audioDubOfSource(s) ? s : { ...s, label: [s.label, cleanLang].filter(Boolean).join(' · ') }
+  );
+  const merged = [...variants, ...tagged.filter((t) => !variants.some((v) => v.url === t.url))];
+  const chosen = pickVariantForDub(merged, cleanLang, prefH) ?? tagged[0];
+  await session.play({ ...media, source: chosen, variants: merged, playable: true }, { start: resumeAt });
+}
+
+interface RawCaptionHit {
+  url?: string;
+  src?: string;
+  vttUrl?: string;
+  lang?: string;
+  language?: string;
+  lan?: string;
+  lanName?: string;
+  label?: string;
+  format?: string;
+}
+
+function normalizeOnlineSubHit(raw: RawCaptionHit, base: string): Sub | null {
+  const rawUrl = (raw.url ?? raw.vttUrl ?? raw.src ?? '').trim();
+  if (!rawUrl) return null;
+  const finalUrl = /^https?:\/\//i.test(rawUrl)
+    ? rawUrl.includes('/api/public/v1/subtitle') || rawUrl.includes('/api/v1/subtitle')
+      ? rawUrl
+      : subtitleProxy(base, rawUrl)
+    : `${base}${rawUrl.startsWith('/') ? '' : '/'}${rawUrl}`;
+  const code = (raw.lang ?? raw.language ?? raw.lan ?? 'und').trim() || 'und';
+  const name = fullLanguageName(raw.label || raw.lanName || code);
+  const fmtRaw = (raw.format ?? 'VTT').toUpperCase();
+  const format: Sub['format'] = fmtRaw === 'SRT' ? 'SRT' : fmtRaw === 'ASS' ? 'ASS' : 'VTT';
+  return { lang: code, label: name, url: finalUrl, format };
+}
+
+type OnlineSubSearchFn = (opts: {
+  query: string;
+  itemId?: string;
+  slug?: string;
+  season?: number;
+  episode?: number;
+  lang?: string;
+}) => Promise<Sub[]>;
+
+/** Searches online subtitles via `$lib/data/app-catalog` (`searchOnlineSubtitles`) with signed gateway fallback. */
+export async function searchOnlineSubtitlesForMedia(opts: {
+  query: string;
+  media?: Media | null;
+  lang?: string | null;
+}): Promise<Sub[]> {
+  const q = opts.query.trim() || opts.media?.title?.trim() || '';
+  if (!q) return [];
+  const { se, ep } = seasonEpNumbers(opts.media);
+  const itemId = opts.media?.item.id;
+  const slug = opts.media?.item.slug;
+  const lang = opts.lang?.trim() || undefined;
+
+  const catalogMod = appCatalog as Record<string, unknown>;
+  const playMod = gatewayPlay as Record<string, unknown>;
+  const fn =
+    typeof catalogMod.searchOnlineSubtitles === 'function'
+      ? (catalogMod.searchOnlineSubtitles as OnlineSubSearchFn)
+      : typeof playMod.searchOnlineSubtitles === 'function'
+        ? (playMod.searchOnlineSubtitles as OnlineSubSearchFn)
+        : null;
+  if (fn) {
+    try {
+      const hits = await fn({
+        query: q,
+        itemId,
+        slug,
+        season: se,
+        episode: ep,
+        lang
+      });
+      if (Array.isArray(hits) && hits.length > 0) {
+        return hits.map((h) => ({ ...h, label: fullLanguageName(h.label || h.lang) }));
+      }
+    } catch {
+      /* fall through to direct signed search */
+    }
+  }
+
+  const base = gatewayBase();
+  const subjectId = itemId?.startsWith('gw:') && !itemId.startsWith('gw:tmdb-') ? itemId.slice(3) : '';
+  const params = new URLSearchParams({ q });
+  if (subjectId) params.set('subject_id', subjectId);
+  if (slug) params.set('detail_path', slug);
+  if (se > 0) params.set('se', String(se));
+  if (ep > 0) params.set('ep', String(ep));
+  if (lang) params.set('lang', lang);
+
+  try {
+    const res = (await gatewayClient.fetchJson(`${base}${GW_API}/subtitles/search?${params}`)) as {
+      subtitles?: RawCaptionHit[];
+      captions?: RawCaptionHit[];
+      items?: RawCaptionHit[];
+    } | null;
+    const list = res?.subtitles ?? res?.captions ?? res?.items ?? [];
+    const mapped = list.map((item) => normalizeOnlineSubHit(item, base)).filter((x): x is Sub => x !== null);
+    if (mapped.length > 0) {
+      return lang
+        ? mapped.filter(
+            (s) =>
+              s.lang.toLowerCase().startsWith(lang.toLowerCase()) ||
+              s.label.toLowerCase() === fullLanguageName(lang).toLowerCase()
+          )
+        : mapped;
+    }
+  } catch {
+    /* fallback to top search subjects -> captions */
+  }
+
+  return [];
+}
+
 engine.recover = reResolve;
 engine.onQualityPick = (h, itemId) => {
   writeTitlePref(itemId, { height: h });
@@ -170,15 +363,16 @@ engine.onQualityPick = (h, itemId) => {
   }
 };
 engine.onDubPick = (dub, itemId) => {
-  writeTitlePref(itemId, { dub });
+  const clean = fullLanguageName(dub);
+  writeTitlePref(itemId, { dub: clean });
   try {
-    if (dub) localStorage.setItem(DUB_KEY, dub);
+    if (clean) localStorage.setItem(DUB_KEY, clean);
   } catch {
     /* ignore */
   }
 };
 
-/** Next-episode action for the current media (set by the watch page; used by N key, Media Session, autoplay). */
+/** Next-episode action for the current media (set by the watch/title page; used by N key, Media Session, autoplay). */
 export const nextUp = writable<{ title: string; go: () => void } | null>(null);
 
 // Sleep timer: minutes or end of episode.

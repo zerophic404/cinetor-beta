@@ -26,9 +26,12 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Shadow
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -58,13 +61,18 @@ fun SubtitleStyleSheet(style: SubtitleStyle, onChange: (SubtitleStyle) -> Unit, 
                 Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp)).background(Color(0xFF2A2A2A)).padding(vertical = 18.dp),
                 contentAlignment = Alignment.Center,
             ) {
+                val previewBg = if (style.bgOpacity <= 0.01f) Color.Transparent else Color(style.bgArgb.toInt())
+                val previewShadow = if (style.edge == SubEdge.SHADOW || style.bgOpacity <= 0.01f) {
+                    Shadow(Color(0xF0000000), Offset(0f, 2f), 6f)
+                } else null
                 Text(
                     "The quick brown fox",
                     color = Color(style.textColor.toInt()),
                     fontFamily = style.fontFamily(),
-                    fontWeight = if (style.font == SubFont.BOLD) FontWeight.Bold else FontWeight.Medium,
+                    fontWeight = if (style.font == SubFont.BOLD) FontWeight.Bold else FontWeight.SemiBold,
                     fontSize = (16 * style.sizePercent / 100f).sp,
-                    modifier = Modifier.background(Color(style.bgArgb.toInt())).padding(horizontal = 6.dp),
+                    style = TextStyle(shadow = previewShadow),
+                    modifier = Modifier.background(previewBg, RoundedCornerShape(4.dp)).padding(horizontal = 6.dp, vertical = 2.dp),
                 )
             }
             Label("Size ${style.sizePercent}%")
