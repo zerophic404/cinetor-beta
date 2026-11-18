@@ -26,13 +26,10 @@ import androidx.compose.material.icons.rounded.Info
 import androidx.compose.material.icons.rounded.MusicNote
 import androidx.compose.material.icons.rounded.Settings
 import androidx.compose.material.icons.rounded.VideoLibrary
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -88,7 +85,6 @@ fun MeScreen(
     val adultEnabled by container.adult.enabled.collectAsStateWithLifecycle()
 
     var editingName by remember { mutableStateOf(false) }
-    var draftName by remember(active.name) { mutableStateOf(active.name) }
 
     val visibleSpaces = remember(spaces, adultEnabled, active.kids) {
         spaces.filter { sp ->
@@ -142,7 +138,6 @@ fun MeScreen(
                     .background(tokens.glassFill)
                     .border(1.dp, tokens.glassStroke, CircleShape)
                     .clickable {
-                        draftName = active.name
                         editingName = true
                     }
                     .semantics { contentDescription = "Edit display name" }
@@ -213,40 +208,17 @@ fun MeScreen(
     }
 
     if (editingName) {
-        AlertDialog(
-            onDismissRequest = { editingName = false },
-            title = { Text("Display name") },
-            text = {
-                OutlinedTextField(
-                    value = draftName,
-                    onValueChange = { if (it.length <= 24) draftName = it },
-                    label = { Text("Name on this device") },
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth(),
-                )
-            },
-            confirmButton = {
-                TextButton(
-                    enabled = draftName.trim().isNotEmpty(),
-                    onClick = {
-                        val trimmed = draftName.trim()
-                        editingName = false
-                        if (trimmed.isNotEmpty()) {
-                            scope.launch {
-                                runCatching { container.profiles.update(active.copy(name = trimmed)) }
-                            }
-                        }
-                    },
-                ) {
-                    Text("Save", color = tokens.accent, fontWeight = FontWeight.SemiBold)
+        ProfileEditSheet(
+            profile = active,
+            gallery = container.characterGallery,
+            onSave = { newName, newAvatar, photo ->
+                editingName = false
+                ProfilePhotos.set(active.id, photo)
+                scope.launch {
+                    runCatching { container.profiles.update(active.copy(name = newName, avatar = newAvatar)) }
                 }
             },
-            dismissButton = {
-                TextButton(onClick = { editingName = false }) {
-                    Text("Cancel", color = tokens.textSecondary)
-                }
-            },
-            containerColor = tokens.surfaceElevated,
+            onDismiss = { editingName = false },
         )
     }
 }
