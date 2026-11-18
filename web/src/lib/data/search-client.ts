@@ -58,20 +58,36 @@ function backend(): LocalBackend {
 
 const engines = new Map<string, { engine: SearchEngine; ready: Promise<void> }>();
 
-/** Global engine (no space) or in-space engine. Isolated spaces (incl. 18+) never get remote search. */
+/** Global engine (no space) or in-space engine. Global search never queries isolated or 18+ spaces. */
 export function engineFor(space?: Space | null): { engine: SearchEngine; ready: Promise<void> } {
   const key = space ?? 'global';
   let e = engines.get(key);
   if (!e) {
     const scope: readonly Space[] = space ? [space] : VIDEO_SPACES;
-    const remoteOk = !space || isVideoSpace(space);
+    const remoteVideoOk = !space || isVideoSpace(space);
+    const remoteAdultOk = space === 'ADULT';
     const engine = new SearchEngine({
       scope,
       local: backend(),
-      remote: remoteOk && catalog.remoteEnabled ? (q, signal) => catalog.remoteSearch(q, signal) : null
+      remote:
+        remoteVideoOk || remoteAdultOk
+          ? async (q, signal) => {
+              if (remoteAdultOk) {
+                if (!catalog.usesGateway('ADULT') || !catalog.gateway) return [];
+                const hits = await catalog.gateway.adultSearch(q, signal);
+                catalog.rememberItems(hits);
+                return hits;
+              }
+              if (!catalog.remoteEnabled) return [];
+              const hits = await catalog.remoteSearch(q, signal);
+              catalog.rememberItems(hits);
+              return hits;
+            }
+          : null
     });
     const ready = catalog.pool(scope).then(
       (items) => {
+        catalog.rememberItems(items);
         engine.index(items);
         // Nothing loaded (offline / gateway hiccup / 18+ still locked): rebuild on next open.
         if (!items.length) engines.delete(key);

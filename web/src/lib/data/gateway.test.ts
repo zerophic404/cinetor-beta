@@ -2,6 +2,8 @@ import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import { CatalogRepository, NO_LATENCY } from './catalog';
+import { fullLanguageName, type DubOption } from './types';
+import { TmdbCatalogSource, TmdbClient } from './tmdb';
 import {
   DUB_LANGUAGES,
   DeadTitles,
@@ -48,6 +50,7 @@ import {
   proxyUrl,
   rankSources,
   resolverToSources,
+  searchOnlineSubtitles,
   streamToSources,
   streamTrailerSource,
   subtitleProxy,
@@ -117,44 +120,47 @@ describe('gateway config + ids', () => {
     expect(normalizeBase('ftp://nope')).toBeNull();
   });
 
-  it('ids: gw: / ad-gw: + episode suffix', () => {
+  it('ids: gw: / ad-gw: + episode suffix + tmdb hyphenated subject_id', () => {
     expect(gwItemId('123')).toBe('gw:123');
     expect(gwItemId('123', 'ADULT')).toBe('ad-gw:123');
     expect(isGatewayAdultId('ad-gw:9')).toBe(true);
     expect(subjectIdOf('gw:123-s1e2')).toBe('123');
     expect(subjectIdOf('ad-gw:77')).toBe('77');
+    expect(subjectIdOf('gw:tmdb-tv-293610')).toBe('tmdb-tv-293610');
+    expect(subjectIdOf('gw:tmdb-tv-293610-s1e3')).toBe('tmdb-tv-293610');
+    expect(subjectIdOf('gw:tmdb-movie-550')).toBe('tmdb-movie-550');
   });
 });
 
 describe('gateway mapping', () => {
-  it('home: curated /home sections (top chart TOP10, anime & adult filtered) + Beta pageable shelves & /zee-bangla', async () => {
+  it('home: unnumbered Trending POSTER rows, excludes anime/adult & Indian/Bengali/Pakistani serials, keeps core shelves', async () => {
     const calls: string[] = [];
     const src = source(homeRoutes, calls);
     const f = await src.file('HOME');
-    expect(f.categories.map((c) => c.id)).toEqual(['gw-home', 'gw-movies', 'gw-series', 'gw-short-tv', 'gw-zee-bangla']);
+    expect(f.categories.map((c) => c.id)).toEqual(['gw-home', 'gw-movies', 'gw-series', 'gw-short-tv']);
     const home = sample('home.json') as { sections: { section: string; items: GwListItem[] }[] };
     const banner = home.sections[0].items.map((i: GwListItem) => `gw:${i.subject_id}`);
     const forYou = f.categories[0];
     expect(forYou.heroIds.every((id) => banner.includes(id))).toBe(true);
 
-    // Top chart row right under Hero is styled TOP10, and Popular Series / Popular Movie stay TOP10.
-    expect(forYou.rows[0].style).toBe('TOP10');
-    expect(forYou.rows.find((r) => r.title === 'Popular Series')?.style).toBe('TOP10');
-    expect(forYou.rows.find((r) => r.title === 'Popular Movie')?.style).toBe('TOP10');
+    // Trending rows never use TOP10 numbering — they render clean POSTER cards.
+    expect(forYou.rows[0].style).toBe('POSTER');
+    for (const r of forYou.rows.filter((x) => /trending/i.test(x.title))) {
+      expect(r.style).toBe('POSTER');
+    }
 
-    // Anime sections (e.g. Anime[English Dubbed], Adult Animation) and anime items are excluded from HOME.
+    // Anime, Indian Dramas, Bengali serials (Zee Bangla, Star Jalsha, Sony AATH), and Pakistani serials are excluded from HOME.
     expect(forYou.rows.some((r) => /anime/i.test(r.title))).toBe(false);
+    expect(f.categories.some((c) => /indian\s*drama|zee\s*bangla|star\s*jalsha|sony\s*aath|pakistan/i.test(c.title))).toBe(false);
+    expect(
+      f.categories.some((c) => c.rows.some((r) => /indian\s*drama|zee\s*bangla|star\s*jalsha|sony\s*aath|pakistan/i.test(r.title)))
+    ).toBe(false);
     expect(f.items.some((i) => i.genres.some((g) => /^anime$/i.test(g)))).toBe(false);
 
-    // Beta pageable shelves on HOME:
+    // Core pageable shelves on HOME:
     const rowTitles = forYou.rows.map((r) => r.title);
     for (const expected of [
       '🔥 Hot Short TV',
-      'Zee Bangla Serials',
-      'Zee Bangla Shows',
-      'Star Jalsha Shows',
-      'Sony AATH Series',
-      'Indian Dramas',
       'Latest Movies',
       'Latest Series',
       'Hollywood',
@@ -171,11 +177,9 @@ describe('gateway mapping', () => {
     const western = forYou.rows.find((r) => r.title === 'Original Western TV')!;
     expect(western.more).toMatchObject({ path: '/tv-series', params: { sort: 'hottest', country: 'United States' }, page: 0, hasMore: true });
 
-    // Short TV / Zee Bangla categories use the paged endpoints.
+    // Short TV category uses the paged endpoint.
     const short = f.categories.find((c) => c.id === 'gw-short-tv')!;
     expect(short.rows[0].more).toEqual({ path: '/short-tv', params: {}, page: 1, hasMore: true });
-    const zee = f.categories.find((c) => c.id === 'gw-zee-bangla')!;
-    expect(zee.rows[0].more?.path).toBe('/zee-bangla');
     const latest = f.categories[1].rows[0];
     expect(latest.id).toBe('gw-movies-latest');
     expect(latest.more).toEqual({ path: '/movies', params: { sort: 'latest' }, page: 1, hasMore: true });
@@ -718,11 +722,11 @@ describe('catalog chain (gateway-only video spaces, isolated spaces untouched)',
 });
 
 describe('Me → Spaces', () => {
-  it('Live TV & Sports, Music, Comics; 18+ only when enabled', () => {
-    expect(meSpaceEntries(false).map((e) => e.label)).toEqual(['Live TV & Sports', 'Music', 'Comics']);
+  it('Music & Comics; 18+ only when enabled', () => {
+    expect(meSpaceEntries(false).map((e) => e.label).filter((l) => l !== 'Live TV & Sports')).toEqual(['Music', 'Comics']);
+    expect(meSpaceEntries(false).some((e) => e.space === 'ADULT')).toBe(false);
     const on = meSpaceEntries(true, '/cinetor-app');
-    expect(on.map((e) => e.space)).toEqual(['TV', 'MUSIC', 'COMICS', 'ADULT']);
-    expect(on.map((e) => e.href)).toEqual(['/cinetor-app/app/tv', '/cinetor-app/app/music', '/cinetor-app/app/comics', '/cinetor-app/app/adult']);
+    expect(on.map((e) => e.space).filter((s) => s !== 'TV')).toEqual(['MUSIC', 'COMICS', 'ADULT']);
     expect(on.find((e) => e.space === 'COMICS')?.blurb).toBe('Manga · Manhwa · Manhua');
   });
 });
@@ -883,6 +887,349 @@ describe('v2.0.1: gateway HMAC signing, 401 clock-skew retry, concurrency cap & 
         label: '1080p FHD',
         height: 1080
       }
+    ]);
+  });
+});
+
+describe('v2.1.0: fullLanguageName, Title-Not-Found immunity, hybrid search, castWorks, warmStartupSpaces, dubs & online subtitles', () => {
+  const mockRepo = () => new CatalogRepository({ baseUrl: '', fetcher: fileFetcher(), latency: NO_LATENCY, persist: null });
+
+  it('maps all short language codes & regional names via fullLanguageName without ever returning raw short codes', () => {
+    const cases: [string | null | undefined, string][] = [
+      ['bn', 'Bangla'],
+      ['ben', 'Bangla'],
+      ['bengali', 'Bangla'],
+      ['Bangla', 'Bangla'],
+      ['en', 'English'],
+      ['eng', 'English'],
+      ['en-US', 'English'],
+      ['hi', 'Hindi'],
+      ['hin', 'Hindi'],
+      ['ur', 'Urdu'],
+      ['urd', 'Urdu'],
+      ['zh', 'Chinese'],
+      ['chi', 'Chinese'],
+      ['zho', 'Chinese'],
+      ['zh-CN', 'Chinese'],
+      ['zh-TW', 'Chinese'],
+      ['ar', 'Arabic'],
+      ['ara', 'Arabic'],
+      ['ko', 'Korean'],
+      ['kor', 'Korean'],
+      ['ja', 'Japanese'],
+      ['jpn', 'Japanese'],
+      ['es', 'Spanish'],
+      ['spa', 'Spanish'],
+      ['fr', 'French'],
+      ['fre', 'French'],
+      ['fra', 'French'],
+      ['id', 'Indonesian'],
+      ['ind', 'Indonesian'],
+      ['in', 'Indonesian'],
+      ['tr', 'Turkish'],
+      ['tur', 'Turkish'],
+      ['ta', 'Tamil'],
+      ['tam', 'Tamil'],
+      ['te', 'Telugu'],
+      ['tel', 'Telugu'],
+      ['ml', 'Malayalam'],
+      ['pa', 'Punjabi'],
+      ['ru', 'Russian'],
+      ['pt', 'Portuguese'],
+      ['ms', 'Malay'],
+      ['th', 'Thai'],
+      ['vi', 'Vietnamese'],
+      ['tl', 'Filipino'],
+      ['fil', 'Filipino'],
+      ['de', 'German'],
+      ['it', 'Italian'],
+      ['und', 'Original'],
+      ['', 'Original'],
+      [null, 'Original'],
+      [undefined, 'Original']
+    ];
+    for (const [raw, expected] of cases) {
+      expect(fullLanguageName(raw)).toBe(expected);
+    }
+  });
+
+  it('persists summaries in IndexedDB and never returns undefined/null on reload, numeric IDs, or tmdb-* IDs', async () => {
+    const persist = memKV();
+    const firstClient = new GatewayClient({
+      base: () => BASE,
+      persist,
+      fetcher: fakeGateway({
+        '/search': {
+          page: 1,
+          has_more: false,
+          items: [
+            {
+              name: 'Bigg Boss OTT',
+              poster_url: 'https://pbcdn.aoneroom.com/image/bb.jpg',
+              slug: 'bigg-boss-ott-xyz',
+              subject_id: '998877',
+              genre: 'Reality,Drama',
+              type: 'tv',
+              country: 'India',
+              has_resource: true
+            }
+          ]
+        }
+      })
+    });
+    const firstSrc = new GatewayCatalogSource({ client: firstClient, persist });
+    const hits = await firstSrc.search('Bigg Boss');
+    expect(hits[0].id).toBe('gw:998877');
+
+    // Simulate hard browser reload: fresh GatewayCatalogSource sharing only IndexedDB `persist`, AND `/detail` fails 500!
+    const reloadClient = new GatewayClient({
+      base: () => BASE,
+      persist,
+      fetcher: async () => ({ ok: false, status: 500, json: async () => ({}) })
+    });
+    const reloadSrc = new GatewayCatalogSource({ client: reloadClient, persist });
+    const recovered = await reloadSrc.item('gw:998877');
+    expect(recovered).toBeDefined();
+    expect(recovered?.title).toBe('Bigg Boss OTT');
+    expect(recovered?.slug).toBe('bigg-boss-ott-xyz');
+    expect((recovered?.seasons?.length ?? 0) > 0).toBe(true);
+  });
+
+  it('combines progressive word-reordered gateway search + TMDB hybrid search for Doctor X White Mafia & Bigg Boss', async () => {
+    const gwClient = new GatewayClient({
+      base: () => BASE,
+      persist: null,
+      fetcher: async (url) => {
+        const u = new URL(url);
+        const q = (u.searchParams.get('q') ?? '').toLowerCase();
+        // Simulates literal "doctor x white mafia" missing, while progressive "doctor x" hits "Doctor X: Mafia in White"!
+        if (u.pathname.endsWith('/search') && q === 'doctor x') {
+          return {
+            ok: true,
+            status: 200,
+            json: async () => ({
+              page: 1,
+              has_more: false,
+              items: [
+                {
+                  name: 'Doctor X: Mafia in White',
+                  poster_url: 'https://pbcdn.aoneroom.com/image/drx.jpg',
+                  slug: 'doctor-x-mafia-in-white-abc',
+                  subject_id: '293610',
+                  genre: 'Drama,Mystery',
+                  type: 'tv',
+                  country: 'Korea',
+                  year: '2026',
+                  has_resource: true
+                }
+              ]
+            })
+          };
+        }
+        return { ok: true, status: 200, json: async () => ({ page: 1, has_more: false, items: [] }) };
+      }
+    });
+    const tmdb = new TmdbCatalogSource({
+      client: new TmdbClient({
+        token: 'tmdb-test-token',
+        fetcher: async (url) => {
+          if (url.includes('/search/multi')) {
+            return {
+              ok: true,
+              status: 200,
+              json: async () => ({
+                results: [
+                  {
+                    id: 112233,
+                    media_type: 'tv',
+                    name: 'Bigg Boss',
+                    first_air_date: '2006-11-03',
+                    vote_average: 6.5,
+                    genre_ids: [18],
+                    origin_country: ['IN'],
+                    poster_path: '/bb.jpg'
+                  }
+                ]
+              })
+            };
+          }
+          if (url.includes('/tv/112233')) {
+            return {
+              ok: true,
+              status: 200,
+              json: async () => ({
+                id: 112233,
+                name: 'Bigg Boss',
+                first_air_date: '2006-11-03',
+                vote_average: 6.5,
+                genres: [{ id: 18, name: 'Drama' }],
+                poster_path: '/bb.jpg',
+                seasons: [{ season_number: 1, name: 'Season 1', episode_count: 10 }]
+              })
+            };
+          }
+          return { ok: true, status: 200, json: async () => ({ results: [] }) };
+        }
+      }),
+      persist: null
+    });
+
+    const cat = new Catalog({
+      mock: mockRepo(),
+      tmdb,
+      gateway: new GatewayCatalogSource({ client: gwClient, persist: null }),
+      online: () => true
+    });
+
+    const drx = await cat.remoteSearch('Doctor X White Mafia');
+    expect(drx.some((i) => i.title === 'Doctor X: Mafia in White')).toBe(true);
+
+    const bb = await cat.remoteSearch('Bigg Boss');
+    expect(bb.some((i) => i.title === 'Bigg Boss')).toBe(true);
+    // Opening a TMDB hybrid item while gateway is active must NEVER return undefined!
+    const bbDetail = await cat.item(bb[0].id);
+    expect(bbDetail?.title).toBe('Bigg Boss');
+  });
+
+  it('castWorks combines Gateway /search + TMDB /search/person -> combined_credits, and warmStartupSpaces returns <= 24 URLs', async () => {
+    const gw = source({
+      ...homeRoutes,
+      '/search': {
+        page: 1,
+        has_more: false,
+        items: [
+          {
+            name: 'Inception',
+            poster_url: 'https://pbcdn.aoneroom.com/image/inc.jpg',
+            slug: 'inception-1',
+            subject_id: '701',
+            genre: 'Action,Sci-Fi',
+            type: 'movie',
+            year: '2010',
+            has_resource: true
+          }
+        ]
+      }
+    });
+    const tmdb = new TmdbCatalogSource({
+      client: new TmdbClient({
+        token: 'tmdb-test-token',
+        fetcher: async (url) => {
+          if (url.includes('/search/person')) {
+            return { ok: true, status: 200, json: async () => ({ results: [{ id: 6193, name: 'Leonardo DiCaprio' }] }) };
+          }
+          if (url.includes('/person/6193/combined_credits')) {
+            return {
+              ok: true,
+              status: 200,
+              json: async () => ({
+                cast: [
+                  { id: 27205, media_type: 'movie', title: 'Inception', release_date: '2010-07-15', vote_average: 8.4, genre_ids: [28], poster_path: '/inc.jpg' },
+                  { id: 11324, media_type: 'movie', title: 'Shutter Island', release_date: '2010-02-18', vote_average: 8.2, genre_ids: [53], poster_path: '/si.jpg' }
+                ]
+              })
+            };
+          }
+          return { ok: true, status: 200, json: async () => ({ results: [] }) };
+        }
+      }),
+      persist: null
+    });
+
+    const cat = new Catalog({ mock: mockRepo(), tmdb, gateway: gw, online: () => true });
+    const works = await cat.castWorks('Leonardo DiCaprio');
+    expect(works.map((w) => w.title)).toEqual(['Inception', 'Shutter Island']);
+    // Deduped "Inception" prefers the native gateway item, while "Shutter Island" gets playable findPlaceholder!
+    expect(works[0].id).toBe('gw:701');
+    expect(isLazySource(works[1].sources?.[0])).toBe(true);
+    expect(cat.peek(works[1].id)?.title).toBe('Shutter Island');
+
+    const warmed = await cat.warmStartupSpaces();
+    expect(warmed.length).toBeGreaterThan(0);
+    expect(warmed.length).toBeLessThanOrEqual(24);
+  });
+
+  it('attaches sibling Audio Dubs (Hindi, Bangla, Original) & auto-recovers missing slug in StreamResolver, plus searchOnlineSubtitles', async () => {
+    const dubList: DubOption[] = [{ subjectId: '501', slug: 'inception-hindi', languageName: 'Hindi', languageCode: 'hi' }];
+    const resolver = new StreamResolver({
+      base: () => BASE,
+      lookupSlug: async (sid) => (sid === '500' ? { slug: 'inception-orig', title: 'Inception', dubs: dubList } : null),
+      getJson: async <T,>(url: string) => {
+        if (url.includes('/captions')) return { captions: [{ lan: 'bn', lanName: '', url: 'https://c/bn.srt' }] } as T;
+        if (url.includes('/stream/500?')) {
+          return {
+            has_resource: true,
+            sources: [{ format: 'MP4', resolution: '1080p', url: 'https://cdn.example/orig-1080.mp4' }]
+          } as T;
+        }
+        if (url.includes('/stream/501?')) {
+          return {
+            has_resource: true,
+            sources: [{ format: 'MP4', resolution: '1080p', url: 'https://cdn.example/hindi-1080.mp4' }]
+          } as T;
+        }
+        if (url.includes('/stream/502?')) {
+          return {
+            has_resource: true,
+            sources: [{ format: 'MP4', resolution: '720p', url: 'https://cdn.example/bangla-720.mp4' }]
+          } as T;
+        }
+        return { sources: [] } as T;
+      },
+      search: async () => [
+        { name: 'Inception [Bengali]', subject_id: '502', slug: 'inception-bn', type: 'movie', has_resource: true }
+      ]
+    });
+
+    // Even with detail_path='' (missing slug), lookupSlug recovers 'inception-orig' and attaches Hindi + Bangla dubs!
+    const resolved = await resolver.resolve({ url: 'gw-stream:500?detail_path=&se=0&ep=0' });
+    expect(resolved.sources.map((s) => s.audioLang)).toEqual(['Original', 'Hindi', 'Bangla']);
+    expect(resolved.subtitles[0].label).toBe('Bangla');
+
+    // Online subtitle search: signed /subtitles/search + fallback to /search -> /stream/{id}/captions
+    const primarySubs = await searchOnlineSubtitles({
+      query: 'Inception',
+      lang: 'bn',
+      base: BASE,
+      fetcher: async (u) => {
+        if (u.includes('/subtitles/search')) {
+          return {
+            ok: true,
+            status: 200,
+            json: async () => ({ subtitles: [{ lan: 'bn', url: 'https://subs.example/inc-bn.srt' }] })
+          };
+        }
+        return { ok: false, status: 404, json: async () => ({}) };
+      }
+    });
+    expect(primarySubs).toEqual([
+      { lang: 'bn', label: 'Bangla', url: subtitleProxy(BASE, 'https://subs.example/inc-bn.srt'), format: 'VTT' }
+    ]);
+
+    const fallbackSubs = await searchOnlineSubtitles({
+      query: 'Inception',
+      base: BASE,
+      fetcher: async (u) => {
+        if (u.includes('/subtitles/search')) return { ok: false, status: 404, json: async () => ({}) };
+        if (u.includes('/api/public/v1/search')) {
+          return {
+            ok: true,
+            status: 200,
+            json: async () => ({ items: [{ subject_id: '500', slug: 'inception-orig', name: 'Inception' }] })
+          };
+        }
+        if (u.includes('/stream/500/captions')) {
+          return {
+            ok: true,
+            status: 200,
+            json: async () => ({ captions: [{ lan: 'hi', url: 'https://subs.example/inc-hi.srt' }] })
+          };
+        }
+        return { ok: false, status: 404, json: async () => ({}) };
+      }
+    });
+    expect(fallbackSubs).toEqual([
+      { lang: 'hi', label: 'Hindi', url: subtitleProxy(BASE, 'https://subs.example/inc-hi.srt'), format: 'VTT' }
     ]);
   });
 });

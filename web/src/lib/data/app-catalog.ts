@@ -1,7 +1,7 @@
 // This app is the complete property of Mythbrix. Do not touch, retrieve, reverse-engineer,
 // scrape or hack anything without Mythbrix's explicit permission.
-// App-wide catalog. Home/Anime/Drama (+ 18+ while unlocked) come ONLY from the antiblock gateway
-// (offline → cached gateway data or error + retry). Live TV & Sports and Music stay mock; Comics
+// App-wide catalog. Home/Anime/Drama (+ 18+ while unlocked) come from the antiblock gateway
+// with hybrid TMDB search & cast enrichment. Live TV & Sports and Music stay mock; Comics
 // come from MangaDex (mock library = offline fallback).
 import { Catalog } from './source';
 import { ColorCache } from './color';
@@ -17,10 +17,14 @@ import {
   shouldSignGatewayUrl,
   signedGatewayFetch
 } from './gateway';
-import { StreamResolver } from './gateway-play';
+import { StreamResolver, searchOnlineSubtitles, type SubtitleSearchOptions } from './gateway-play';
 import { idbCache } from './idb';
 import { colorSampleUrl } from './images';
 import { repo } from './repo';
+import { TmdbCatalogSource, TmdbClient } from './tmdb';
+import { fullLanguageName, type DubOption, type Item, type SubTrack } from './types';
+
+export { fullLanguageName, searchOnlineSubtitles, type DubOption, type SubTrack, type SubtitleSearchOptions };
 
 export const persist = idbCache();
 
@@ -31,16 +35,27 @@ const colorOf = (poster: string) => colors.peek(colorSampleUrl(poster, repo.asse
 /** Titles that failed to resolve a playable stream (hidden everywhere). */
 export const deadTitles = new DeadTitles();
 
-/** Gateway base is read on every request (Settings → Developer override applies without reload). */
-export const gatewayClient = new GatewayClient({ base: () => gatewayBase(), secret: () => gatewaySecret(), persist });
-export const gatewaySource = new GatewayCatalogSource({ client: gatewayClient, colorOf, persist, isDead: (id) => deadTitles.has(id) });
-
 let adultGate: () => boolean = () => false;
 
 /** Wired by the /app layout to the 18+ store (enabled + PIN-unlocked this session). */
 export function setAdultGate(fn: () => boolean): void {
   adultGate = fn;
 }
+
+/** Gateway base is read on every request (Settings → Developer override applies without reload). */
+export const gatewayClient = new GatewayClient({ base: () => gatewayBase(), secret: () => gatewaySecret(), persist });
+export const gatewaySource = new GatewayCatalogSource({
+  client: gatewayClient,
+  colorOf,
+  persist,
+  isDead: (id) => deadTitles.has(id),
+  adultUnlocked: () => adultGate()
+});
+
+/** Optional TMDB hybrid search & cast filmography source (enabled when `PUBLIC_TMDB_TOKEN` is baked in). */
+const tmdbToken = typeof __TMDB_TOKEN__ === 'string' ? __TMDB_TOKEN__.trim() : '';
+export const tmdbClient = new TmdbClient({ token: tmdbToken });
+export const tmdbSource = tmdbClient.enabled ? new TmdbCatalogSource({ client: tmdbClient, colorOf, persist }) : null;
 
 /**
  * COMICS: MangaDex metadata/chapters + gateway chapter-page proxy.
@@ -63,12 +78,30 @@ const nativeJson: JsonFetch | null = isTauriEnv()
 
 export const comicsSource = new ComicsSource({ web: webJson, native: nativeJson, gatewayBase: () => gatewayBase() });
 
-export const catalog = new Catalog({ mock: repo, gateway: gatewaySource, comics: comicsSource, adultUnlocked: () => adultGate() });
+export const catalog = new Catalog({
+  mock: repo,
+  tmdb: tmdbSource,
+  tmdbClient,
+  gateway: gatewaySource,
+  comics: comicsSource,
+  persist,
+  asset: (p) => repo.asset(p),
+  adultUnlocked: () => adultGate()
+});
 
-/** Lazy stream resolution (gateway proxy MP4 variants + captions), ≤20 min per signed link. */
+repo.bindCatalog({
+  castWorks: (personName, signal) => catalog.castWorks(personName, signal),
+  warmStartupSpaces: () => catalog.warmStartupSpaces()
+});
+
+export const castWorks = (personName: string, signal?: AbortSignal): Promise<Item[]> => catalog.castWorks(personName, signal);
+export const warmStartupSpaces = (): Promise<string[]> => catalog.warmStartupSpaces();
+
+/** Lazy stream resolution (gateway proxy MP4 + BDIX + YouTube + sibling audio dubs + captions), ≤20 min per signed link. */
 export const streams = new StreamResolver({
   base: () => gatewayBase(),
   getJson: (url, signal, timeoutMs) => gatewayClient.fetchJson(url, signal, timeoutMs),
   search: (q, signal) => gatewaySource.searchRaw(q, signal),
+  lookupSlug: (subjectId, signal) => gatewaySource.resolveSubjectMeta(subjectId, signal),
   onDead: (id) => deadTitles.add(id)
 });
