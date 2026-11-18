@@ -34,6 +34,15 @@ import com.mythbrix.cinetor.core.perf.PerformanceTier
 import com.mythbrix.cinetor.design.Cinetor
 import com.mythbrix.cinetor.design.CinetorTokens
 
+private val HOME_EXCLUDED_DRAMA_REGEX = Regex(
+    """(?:indian\s*drama|bengali|bangla|zee\s*bangla|star\s*jalsha|sony\s*aath|pakistani|k-drama|c-drama|j-drama)""",
+    RegexOption.IGNORE_CASE,
+)
+
+/** True for regional drama / serial categories that belong exclusively in `Space.DRAMA`, never `Space.HOME`. */
+fun isExcludedFromHomeSpace(labelOrId: String): Boolean =
+    HOME_EXCLUDED_DRAMA_REGEX.containsMatchIn(labelOrId)
+
 /**
  * Movira / Liquid Glass pill category tabs (`Movies` | `Series`, `K-Drama` | `C-Drama` | `J-Drama`, etc.):
  * translucent glass outline when idle, solid Cinema Red accent when selected.
@@ -46,6 +55,7 @@ fun CategoryTabs(
     onSelect: (Int) -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    if (tabs.isEmpty()) return
     val tokens = Cinetor.tokens
     val lowTier = Cinetor.tier == PerformanceTier.LOW
     val shape = RoundedCornerShape(CinetorTokens.Shape.pill)
