@@ -78,6 +78,7 @@ import com.mythbrix.cinetor.design.ShimmerHost
 import com.mythbrix.cinetor.design.SkeletonHero
 import com.mythbrix.cinetor.design.SkeletonPosterRow
 import com.mythbrix.cinetor.design.glass
+import com.mythbrix.cinetor.feature.details.sourceReady
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.filter
 
@@ -272,7 +273,7 @@ private fun SpaceContent(
                         onPlay = onPlay,
                         onToggleMyList = onToggleMyList,
                         onColor = feeder::immediate,
-                        isReady = { item -> readinessMap[item.id] == Readiness.READY || item.sources.isNotEmpty() },
+                        isReady = { item -> readinessMap[item.id].sourceReady() || item.sources.isNotEmpty() },
                     )
                 }
             }

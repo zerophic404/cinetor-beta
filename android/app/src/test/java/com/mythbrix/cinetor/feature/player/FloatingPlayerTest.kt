@@ -77,10 +77,11 @@ class FloatingPlayerTest {
         details.leave()
         assertEquals(1, e.fake.loads.size)
         assertEquals(0, e.fake.stops)
-        // Expand → same player, no reload.
+        // Expand → docks inline on the title's Details page: same player, no reload.
         e.holder.expand()
-        assertEquals(HostMode.FULL, e.holder.state.value.mode)
+        assertEquals(HostMode.INLINE, e.holder.state.value.mode)
         assertEquals(1, e.holder.opens)
+        assertEquals(1, e.fake.loads.size)
     }
 
     @Test

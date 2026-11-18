@@ -252,8 +252,8 @@ data class SubtitleStyle(
     val bgOpacity: Float = 0f,
     val edge: SubEdge = SubEdge.SHADOW,
     val font: SubFont = SubFont.DEFAULT,
-    /** Distance from the bottom, % of the video height (0–40). */
-    val bottomPercent: Int = 8,
+    /** Distance from the bottom, % of the video height (0–40); default sits just above the edge. */
+    val bottomPercent: Int = 3,
 ) {
     fun normalized(): SubtitleStyle = copy(
         sizePercent = sizePercent.coerceIn(50, 200),

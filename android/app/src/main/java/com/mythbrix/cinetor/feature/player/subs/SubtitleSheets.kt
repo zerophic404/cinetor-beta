@@ -88,7 +88,7 @@ fun SubtitleStyleSheet(style: SubtitleStyle, onChange: (SubtitleStyle) -> Unit, 
             Label("Font")
             Chips(SubFont.entries.map { it.label }, style.font.ordinal) { onChange(style.copy(font = SubFont.entries[it])) }
             Label("Position ${style.bottomPercent}% from bottom")
-            CinetorSlider(style.bottomPercent.toFloat(), 0f..40f, steps = 7) { onChange(style.copy(bottomPercent = (it / 5).roundToInt() * 5)) }
+            CinetorSlider(style.bottomPercent.toFloat(), 0f..40f, steps = 39) { onChange(style.copy(bottomPercent = (it / 5).roundToInt() * 5)) }
             Text(
                 "Reset",
                 color = Cinetor.tokens.accent,

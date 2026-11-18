@@ -96,23 +96,25 @@ private fun isPreferredCodec(src: Source): Boolean {
 }
 
 /**
- * Quality menu entries for the language currently playing: exactly one entry per resolution
- * (`2160p`, `1080p`, `720p`, `480p`, `360p`), highest first, never repeated per language, codec
- * or container. The active source wins its rung; otherwise H.264 beats HEVC/DASH variants.
+ * Quality menu entries: exactly one per resolution (`2160p`, `1080p`, `720p`, `480p`, `360p`),
+ * highest first, never repeated per language, codec or container. Each rung is served by the
+ * language currently playing when it has that rung; a rung only another language offers (often a
+ * 4K Original) still appears once, so a title advertised as 4K always lists 2160p. Within a rung
+ * the active source wins, then H.264 over HEVC/DASH.
  */
 fun qualityOptions(sources: List<Source>, activeIndex: Int): List<QualityOption> {
     if (sources.isEmpty()) return emptyList()
     val activeLang = sources.getOrNull(activeIndex)?.let(::audioDubOf)
-    val sameLang = sources.indices.filter { i ->
+    fun sameLang(i: Int): Boolean =
         activeLang == null || audioDubOf(sources[i])?.equals(activeLang, ignoreCase = true) != false
-    }
-    return sameLang
+    return sources.indices
         .mapNotNull { i -> standardHeight(sources[i].height)?.let { it to i } }
         .groupBy({ it.first }, { it.second })
         .map { (height, indices) ->
-            val pick = indices.firstOrNull { it == activeIndex }
-                ?: indices.firstOrNull { isPreferredCodec(sources[it]) }
-                ?: indices.first()
+            val pool = indices.filter(::sameLang).ifEmpty { indices }
+            val pick = pool.firstOrNull { it == activeIndex }
+                ?: pool.firstOrNull { isPreferredCodec(sources[it]) }
+                ?: pool.first()
             QualityOption(height, pick)
         }
         .sortedByDescending { it.height }

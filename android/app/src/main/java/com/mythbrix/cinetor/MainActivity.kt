@@ -4,21 +4,22 @@ import android.content.ComponentName
 import android.content.res.Configuration
 import android.graphics.Color
 import android.os.Bundle
+import android.view.KeyEvent
 import androidx.activity.ComponentActivity
 import androidx.activity.SystemBarStyle
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
+import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
 import androidx.media3.session.MediaController
 import androidx.media3.session.SessionToken
 import com.google.common.util.concurrent.ListenableFuture
 import com.mythbrix.cinetor.core.player.PlaybackService
 import com.mythbrix.cinetor.core.player.PlayerUiState
-import com.mythbrix.cinetor.feature.player.PipController
-import com.mythbrix.cinetor.feature.player.HostMode
 import com.mythbrix.cinetor.feature.music.shouldPauseOnBackground
-import android.view.KeyEvent
+import com.mythbrix.cinetor.feature.player.HostMode
+import com.mythbrix.cinetor.feature.player.PipController
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
@@ -77,13 +78,38 @@ class MainActivity : ComponentActivity() {
         pip.onUserLeaveHint()
     }
 
+    /** PiP was showing since the app last left the foreground (cleared when the user expands back in). */
+    private var pipShown = false
+
     override fun onPictureInPictureModeChanged(isInPictureInPictureMode: Boolean, newConfig: Configuration) {
         super.onPictureInPictureModeChanged(isInPictureInPictureMode, newConfig)
         (application as CinetorApplication).container.playback.setPip(isInPictureInPictureMode)
+        if (isInPictureInPictureMode) {
+            pipShown = true
+            return
+        }
+        // Left PiP: expanded back into the app (started) keeps playing; closed (✕ / swiped away) stops.
+        if (lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED)) {
+            pipShown = false
+        } else if (pipShown) {
+            stopAfterPipClosed()
+        }
+    }
+
+    /** The PiP window was closed: nothing keeps playing in the background, whatever Background play says. */
+    private fun stopAfterPipClosed() {
+        pipShown = false
+        val playback = (application as CinetorApplication).container.playback
+        playback.setPip(false)
+        playback.pause()
     }
 
     override fun onStop() {
         super.onStop()
+        if (pipShown && !isInPictureInPictureMode) {
+            stopAfterPipClosed()
+            return
+        }
         val playback = (application as CinetorApplication).container.playback
         playback.onBackground()
         // PiP window closed / app backgrounded: video audio continues only with Background play on; music always.

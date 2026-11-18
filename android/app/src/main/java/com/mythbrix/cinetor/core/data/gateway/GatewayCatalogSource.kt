@@ -192,6 +192,10 @@ object GatewayMapper {
         return t == "tv" || t == "7" || t == "2" || g.subjectType == 2 || g.subjectType == 7
     }
 
+    /** Which space a raw title belongs to by its own genres/type/country (ignores the shelf it came from). */
+    fun contentSpaceOf(g: GwItem): Space =
+        inferSpace(genresOf(g.genre), if (isSeriesItem(g)) "tv" else "movie", g.country, g.badge)
+
     fun toItem(g: GwItem, space: Space?, categoryId: String, colors: DominantColors = NoDominantColors): Item? {
         // Every visible title must be playable: the gateway says up front which ones have no stream.
         if (!g.hasResource) return null
@@ -881,9 +885,22 @@ class GatewayCatalogSource(
         }
     }
 
-    private fun map(list: List<GwItem>, space: Space?, cat: String, fromHomeCurated: Boolean = false): List<Item> =
+    /**
+     * [ownSpaceOnly]: keep only titles that themselves belong to [space] (no anime or Asian/regional
+     * dramas in Home). Used for "For You" / related candidates, never for the shelves themselves.
+     */
+    private fun map(
+        list: List<GwItem>,
+        space: Space?,
+        cat: String,
+        fromHomeCurated: Boolean = false,
+        ownSpaceOnly: Boolean = false,
+    ): List<Item> =
         remember(
             list.mapNotNull { raw ->
+                if (ownSpaceOnly && space != null && space != Space.ADULT && GatewayMapper.contentSpaceOf(raw) != space) {
+                    return@mapNotNull null
+                }
                 val item = GatewayMapper.toItem(raw, space, cat, colors) ?: return@mapNotNull null
                 item.takeIf { keepForSpace(raw, it, space, fromHomeCurated) }
             }
@@ -1074,9 +1091,9 @@ class GatewayCatalogSource(
         check(space)
         return when (space) {
             Space.HOME -> when {
-                genre.equals("Movies", ignoreCase = true) -> map(api.list("movies", emptyMap()).items, space, "gw:genre")
-                genre.equals("Series", ignoreCase = true) -> map(api.list("tv-series", emptyMap()).items, space, "gw:genre")
-                else -> map(api.list("movies", mapOf("genre" to genre)).items, space, "gw:genre")
+                genre.equals("Movies", ignoreCase = true) -> map(api.list("movies", emptyMap()).items, space, "gw:genre", ownSpaceOnly = true)
+                genre.equals("Series", ignoreCase = true) -> map(api.list("tv-series", emptyMap()).items, space, "gw:genre", ownSpaceOnly = true)
+                else -> map(api.list("movies", mapOf("genre" to genre)).items, space, "gw:genre", ownSpaceOnly = true)
             }
             Space.ANIME -> map(api.list("animation", mapOf("genre" to genre)).items, space, "gw:genre")
             Space.DRAMA -> when {

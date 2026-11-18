@@ -11,6 +11,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -18,7 +19,6 @@ import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.displayCutout
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -163,7 +163,6 @@ private fun BoxScope.TopBar(
     onOpenPage: (SettingsPage) -> Unit,
     extraTopActions: @Composable () -> Unit,
 ) {
-    val expanded = fullscreen && !inline
     val btnSize = if (inline) 36.dp else 40.dp
     val icSize = if (inline) 18.dp else 20.dp
     Row(
@@ -183,11 +182,11 @@ private fun BoxScope.TopBar(
         }
         extraTopActions()
         if (!screen.live) {
-            PlayerPillButton(Icons.Rounded.Speed, "Playback speed", if (expanded) speedLabel(ui.speed) else null) {
+            PlayerControlIcon(Icons.Rounded.Speed, "Playback speed ${speedLabel(ui.speed)}") {
                 onOpenPage(SettingsPage.SPEED); onInteract()
             }
             if (!inline) {
-                PlayerPillButton(Icons.Rounded.Bedtime, "Sleep timer", if (expanded) screen.sleep.label else null) {
+                PlayerControlIcon(Icons.Rounded.Bedtime, "Sleep timer ${screen.sleep.label}") {
                     onOpenPage(SettingsPage.SLEEP); onInteract()
                 }
             }
@@ -253,7 +252,6 @@ private fun BoxScope.BottomBar(
     onEpisodes: () -> Unit,
     onOpenPage: (SettingsPage) -> Unit,
 ) {
-    val expanded = fullscreen && !inline
     Column(Modifier.align(Alignment.BottomCenter).fillMaxWidth()) {
         val marks = buildList {
             val s = screen.introStartMs
@@ -270,79 +268,71 @@ private fun BoxScope.BottomBar(
                 onScrubbing = { onInteract() },
             )
         }
-        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+        val timeLabel: @Composable () -> Unit = {
             if (screen.live) {
-                LiveEdgeBadge(ui) { holder.goLive(); onInteract() }
-                if (!atLiveEdge(ui)) {
-                    Text("−${formatTime(ui.durationMs - ui.positionMs)}", color = Color.White.copy(alpha = 0.8f), style = MaterialTheme.typography.labelMedium)
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    LiveEdgeBadge(ui) { holder.goLive(); onInteract() }
+                    if (!atLiveEdge(ui)) {
+                        Text("−${formatTime(ui.durationMs - ui.positionMs)}", color = Color.White.copy(alpha = 0.8f), style = MaterialTheme.typography.labelMedium)
+                    }
                 }
             } else {
                 Text(
                     "${formatTime(ui.positionMs)} / ${formatTime(ui.durationMs)}",
-                    color = Color.White, style = MaterialTheme.typography.labelMedium,
+                    color = Color.White, style = MaterialTheme.typography.labelMedium, maxLines = 1,
                 )
             }
-            Spacer(Modifier.weight(1f))
+        }
+        val controls: @Composable () -> Unit = {
             if (!screen.live) {
-                PlayerPillButton(Icons.Rounded.Audiotrack, "Audio", if (expanded) "Audio" else null) {
-                    onOpenPage(SettingsPage.AUDIO); onInteract()
-                }
-                PlayerPillButton(Icons.Rounded.ClosedCaption, "Subtitles", if (expanded) "Subtitles" else null) {
-                    onOpenPage(SettingsPage.SUBTITLES); onInteract()
-                }
-                PlayerPillButton(Icons.Rounded.HighQuality, "Quality", if (expanded) qualityLabel(ui, screen) else null) {
-                    onOpenPage(SettingsPage.QUALITY); onInteract()
-                }
+                PlayerControlIcon(Icons.Rounded.Audiotrack, "Audio") { onOpenPage(SettingsPage.AUDIO); onInteract() }
+                PlayerControlIcon(Icons.Rounded.ClosedCaption, "Subtitles") { onOpenPage(SettingsPage.SUBTITLES); onInteract() }
+                PlayerControlIcon(Icons.Rounded.HighQuality, "Quality ${qualityLabel(ui, screen)}") { onOpenPage(SettingsPage.QUALITY); onInteract() }
             }
             if (!inline && screen.episodes.isNotEmpty()) {
-                PlayerIconButton(Icons.Rounded.VideoLibrary, "Episodes", { onEpisodes(); onInteract() }, size = 36.dp, iconSize = 18.dp)
+                PlayerControlIcon(Icons.Rounded.VideoLibrary, "Episodes") { onEpisodes(); onInteract() }
             }
             if (screen.nextEpisode != null) {
-                PlayerIconButton(Icons.Rounded.SkipNext, "Next episode", { holder.next(); onInteract() }, size = 36.dp, iconSize = 18.dp)
+                PlayerControlIcon(Icons.Rounded.SkipNext, "Next episode") { holder.next(); onInteract() }
             }
             if (!inline) {
-                PlayerPillButton(Icons.Rounded.AspectRatio, "Aspect ratio", screen.aspect.label) {
-                    holder.cycleAspect(); onInteract()
-                }
+                PlayerControlIcon(Icons.Rounded.AspectRatio, "Aspect ratio ${screen.aspect.label}") { holder.cycleAspect(); onInteract() }
             }
             val fsExpanded = fullscreen && !inline
-            PlayerIconButton(
+            PlayerControlIcon(
                 if (fsExpanded) Icons.Rounded.FullscreenExit else Icons.Rounded.Fullscreen,
                 if (fsExpanded) "Exit fullscreen" else "Fullscreen",
-                { onRotate(); onInteract() },
-                size = 36.dp,
-                iconSize = 20.dp,
-            )
+            ) { onRotate(); onInteract() }
+        }
+        // Narrow (portrait fullscreen, vertical videos): time on its own line, controls spread evenly
+        // beneath it, so nothing overlaps or gets clipped. Wide: one row, controls on the right.
+        BoxWithConstraints(Modifier.fillMaxWidth()) {
+            if (maxWidth < NARROW_CONTROLS_WIDTH && !inline) {
+                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    timeLabel()
+                    Row(
+                        Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                    ) { controls() }
+                }
+            } else {
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    timeLabel()
+                    Spacer(Modifier.weight(1f))
+                    controls()
+                }
+            }
         }
     }
 }
 
+/** Below this width the bottom controls wrap under the time label (portrait fullscreen). */
+private val NARROW_CONTROLS_WIDTH = 520.dp
+
 @Composable
-private fun PlayerPillButton(
-    icon: ImageVector,
-    description: String,
-    text: String?,
-    onClick: () -> Unit,
-) {
-    if (text == null) {
-        PlayerIconButton(icon, description, onClick, size = 36.dp, iconSize = 18.dp)
-        return
-    }
-    Row(
-        Modifier
-            .height(36.dp)
-            .clip(RoundedCornerShape(18.dp))
-            .background(Color.Black.copy(alpha = 0.38f))
-            .border(1.dp, Color.White.copy(alpha = 0.16f), RoundedCornerShape(18.dp))
-            .clickable(onClick = onClick)
-            .semantics { contentDescription = description }
-            .padding(horizontal = 10.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Icon(icon, contentDescription = null, tint = Color.White, modifier = Modifier.size(17.dp))
-        Spacer(Modifier.width(4.dp))
-        Text(text, color = Color.White, style = MaterialTheme.typography.labelMedium)
-    }
+private fun PlayerControlIcon(icon: ImageVector, description: String, onClick: () -> Unit) {
+    PlayerIconButton(icon, description, onClick, size = 36.dp, iconSize = 18.dp)
 }
 
 /** Skip Intro pill + autoplay-next countdown card (shown even when controls are hidden). */

@@ -79,6 +79,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.focusRequester
@@ -341,9 +342,12 @@ fun DetailsScreen(
     }
 
     val itemReadiness = readyItem?.let { readiness[it.id] } ?: readiness[id]
+    LaunchedEffect(readyItem?.id, itemReadiness == null, isInlineHere) {
+        if (readyItem != null && itemReadiness == null && !isInlineHere) vm.holder.ensureWarm()
+    }
     LaunchedEffect(readyItem?.id, itemReadiness) {
         val targetItem = readyItem ?: return@LaunchedEffect
-        if (itemReadiness == Readiness.READY && container.streams.handles(targetItem)) {
+        if (itemReadiness.sourceReady() && container.streams.handles(targetItem)) {
             val firstEpId = targetItem.seasons.firstOrNull()?.episodes?.firstOrNull()?.id
             val attached = withContext(Dispatchers.IO) {
                 runCatching { container.streams.attach(targetItem, firstEpId) }.getOrNull()
@@ -435,6 +439,7 @@ fun DetailsScreen(
                 gesturePrefs = gesturePrefs,
                 container = container,
                 onTapPlayInline = {},
+                glow = artColor,
             )
         }
 
@@ -485,6 +490,7 @@ fun DetailsScreen(
                                         val (se, ep) = resolvePlayTarget(ensurePlayableItem(peek), resEp)
                                         startInlinePlayback(peek, se, ep)
                                     },
+                                    glow = artColor,
                                 )
                             }
                         }
@@ -518,6 +524,7 @@ fun DetailsScreen(
                                     val (se, ep) = resolvePlayTarget(item, resumable?.episodeId)
                                     startInlinePlayback(item, se, ep)
                                 },
+                                glow = artColor,
                             )
                         }
                     }
@@ -782,6 +789,9 @@ private fun resolveActivePlayingEpisode(episodeId: String?): Pair<Int, Int>? {
  * Top 16:9 media slot: renders the artwork + optional muted backdrop preview while browsing,
  * and transforms IN PLACE into [InlinePlayerSlot] when [isInlinePlaying] is true!
  */
+private val MEDIA_FRAME_INSET = 12.dp
+private val MediaFrameShape = RoundedCornerShape(18.dp)
+
 @Composable
 private fun TopMediaSlot(
     item: Item,
@@ -792,17 +802,30 @@ private fun TopMediaSlot(
     gesturePrefs: GesturePrefs,
     container: AppContainer,
     onTapPlayInline: () -> Unit,
+    /** The title's colour (sampled artwork); tints the frame's soft glow. */
+    glow: Color? = null,
 ) {
     val tokens = Cinetor.tokens
     val dominant = remember(item.dominantColor) { hexColor(item.dominantColor) }
     var previewShowingVideo by remember(item.id) { mutableStateOf(false) }
+    val glowColor = glow ?: dominant
+    val lowTier = Cinetor.tier == PerformanceTier.LOW
 
+    // Banner and inline player share one frame (inset, rounded, glowing), so pressing Play swaps
+    // the artwork for video in exactly the same shape instead of jumping to a black full-bleed box.
     Box(
         Modifier
             .fillMaxWidth()
             .padding(top = topInset)
+            .padding(horizontal = MEDIA_FRAME_INSET, vertical = 8.dp)
             .aspectRatio(16f / 9f)
-            .background(if (isInlinePlaying) Color.Black else dominant),
+            .then(
+                if (lowTier) Modifier
+                else Modifier.shadow(20.dp, MediaFrameShape, ambientColor = glowColor, spotColor = glowColor.copy(alpha = 0.6f)),
+            )
+            .clip(MediaFrameShape)
+            .background(if (isInlinePlaying) Color.Black else dominant)
+            .border(1.dp, Color.White.copy(alpha = 0.10f), MediaFrameShape),
     ) {
         if (isInlinePlaying) {
             InlinePlayerSlot(
@@ -835,9 +858,9 @@ private fun TopMediaSlot(
                     .fillMaxSize()
                     .background(
                         Brush.verticalGradient(
-                            0f to tokens.bg.copy(alpha = 0.18f),
-                            0.6f to Color.Transparent,
-                            1f to tokens.bg,
+                            0f to Color.Transparent,
+                            0.62f to Color.Transparent,
+                            1f to Color.Black.copy(alpha = 0.42f),
                         ),
                     )
                     .clickable(
@@ -1446,7 +1469,7 @@ private fun ReadyDot(readiness: Readiness?) {
     if (readiness == null || readiness == Readiness.ERROR) return
     val tier = Cinetor.tier
     val reduceMotion = Cinetor.prefs.reduceMotion
-    val isReady = readiness == Readiness.READY
+    val isReady = readiness.sourceReady()
     val color = if (isReady) ReadyGreen else Cinetor.tokens.onAccent.copy(alpha = 0.85f)
     val shouldAnimatePulse = !isReady && tier != PerformanceTier.LOW && !reduceMotion
     val pulse = if (!shouldAnimatePulse) {

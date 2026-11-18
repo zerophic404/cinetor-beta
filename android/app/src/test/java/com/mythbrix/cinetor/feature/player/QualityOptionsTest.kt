@@ -21,7 +21,7 @@ class QualityOptionsTest {
     }
 
     @Test
-    fun qualityOptions_listEachResolutionOnce_forTheActiveLanguageOnly() {
+    fun qualityOptions_listEachResolutionOnce_preferringTheActiveLanguage() {
         val sources = listOf(
             src("hi-1080", 1080, "Hindi"),
             src("hi-1080-dash", 1080, "Hindi", codec = "hevc"),
@@ -32,7 +32,23 @@ class QualityOptionsTest {
             src("hi-360", 360, "Hindi"),
         )
         val options = qualityOptions(sources, activeIndex = 0)
-        assertEquals(listOf("2160p", "1080p", "480p", "360p"), options.map { it.label })
+        assertEquals(listOf("2160p", "1080p", "720p", "480p", "360p"), options.map { it.label })
+        // Hindi serves every rung it has; 720p exists only in English, so it is listed once from there.
+        assertEquals(0, options.first { it.height == 1080 }.sourceIndex)
+        assertEquals(5, options.first { it.height == 2160 }.sourceIndex)
+        assertEquals(4, options.first { it.height == 720 }.sourceIndex)
+    }
+
+    @Test
+    fun qualityOptions_keep4K_whenOnlyAnotherLanguageHasIt() {
+        val sources = listOf(
+            src("hi-1080", 1080, "Hindi"),
+            src("orig-2160", 2160, "Original", codec = "hevc"),
+            src("orig-1080", 1080, "Original"),
+        )
+        val options = qualityOptions(sources, activeIndex = 0)
+        assertEquals(listOf("2160p", "1080p"), options.map { it.label })
+        assertEquals(1, options.first { it.height == 2160 }.sourceIndex)
         assertEquals(0, options.first { it.height == 1080 }.sourceIndex)
     }
 

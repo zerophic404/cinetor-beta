@@ -211,11 +211,14 @@ fun moreLikeThis(item: Item, candidates: List<Item>, limit: Int = 12): List<Item
         .toList()
 
 /**
- * How long Details keeps its shimmer skeleton up after a tap while the stream resolves and buffers,
- * so the page lands with Play already green and instant. After this cap the page shows anyway and
- * the dot turns green on its own when the source arrives.
+ * How long Details keeps its shimmer skeleton up after a tap while the stream source resolves,
+ * so the page lands with Play already green. After this cap the page shows anyway and the dot
+ * turns green on its own when the source arrives; buffering continues behind the page.
  */
-const val STREAM_GATE_MS = 3_500L
+const val STREAM_GATE_MS = 1_200L
+
+/** A source is in hand (buffering may still be running): Play can show its green dot. */
+fun Readiness?.sourceReady(): Boolean = this == Readiness.READY || this == Readiness.BUFFERING
 
 private suspend fun <T> orNull(block: suspend () -> T): T? = try {
     block()
@@ -368,8 +371,22 @@ class DetailsStateHolder(
     private suspend fun awaitStream(id: String) {
         if (streamGateMs <= 0L) return
         withTimeoutOrNull(streamGateMs) {
-            readiness.first { it[id] == Readiness.READY || it[id] == Readiness.ERROR }
+            readiness.first { it[id].sourceReady() || it[id] == Readiness.ERROR }
         }
+    }
+
+    /**
+     * Details is showing but the preloader holds no state for its title (e.g. a search result whose
+     * first warm was replaced): warm again so Play gets its green dot.
+     */
+    fun ensureWarm() {
+        val item = (state.value as? DetailsUiState.Ready)?.ui?.item ?: return
+        if (item.id != currentId && warmedId == null) return
+        if (readiness.value[item.id] != null) return
+        stopWarm()
+        val targetEpId = resumeEpisodeOf(item.id)
+            ?: if (item.type == ItemType.SERIES) item.seasons.firstOrNull()?.episodes?.firstOrNull()?.id else null
+        warm(item, targetEpId)
     }
 
     private fun warm(item: Item, episodeId: String? = null) {

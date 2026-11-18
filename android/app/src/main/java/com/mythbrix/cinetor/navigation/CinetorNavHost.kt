@@ -195,6 +195,17 @@ fun CinetorNavHost(container: AppContainer, modifier: Modifier = Modifier) {
     }
     val activeSpace = placement.first
     val selectedTab = placement.second
+
+    // Mini player / PiP → expand: return to (or open) the playing title's Details page, where the
+    // player docks inline in the top slot with the same episode list.
+    LaunchedEffect(nav, container.playback) {
+        container.playback.openDetails.collect { id ->
+            val current = nav.currentBackStackEntry
+            val onIt = current?.destination?.hasRoute<DetailsRoute>() == true &&
+                runCatching { current.toRoute<DetailsRoute>().id }.getOrNull() == id
+            if (!onIt) nav.navigate(DetailsRoute(id)) { launchSingleTop = true }
+        }
+    }
     val onSearchRoute = entry?.destination?.let {
         it.hasRoute<SearchRoute>() || it.hasRoute<SpaceSearchRoute>()
     } == true

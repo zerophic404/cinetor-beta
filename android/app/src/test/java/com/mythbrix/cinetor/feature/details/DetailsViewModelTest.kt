@@ -99,7 +99,7 @@ class DetailsViewModelTest {
         h.open("a")
         advanceTimeBy(1_500)
         runCurrent()
-        // Metadata is back, but the stream is still resolving: the skeleton stays.
+        // Metadata is back, but the stream is still resolving: the skeleton stays (BUFFERING would release it).
         assertTrue(h.state.value is DetailsUiState.Loading)
         flow.value = flow.value + ("a" to Readiness.READY)
         runCurrent()

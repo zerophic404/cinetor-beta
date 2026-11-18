@@ -21,8 +21,11 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.isActive
@@ -234,6 +237,11 @@ class PlayerStateHolder(
 
     private val _state = MutableStateFlow(PlayerScreenState())
     val state: StateFlow<PlayerScreenState> = _state.asStateFlow()
+
+    private val _openDetails = MutableSharedFlow<String>(extraBufferCapacity = 1)
+
+    /** Title ids whose Details page should open to host the docked inline player (mini → expand). */
+    val openDetails: SharedFlow<String> = _openDetails.asSharedFlow()
 
     private val _player = MutableStateFlow<CinetorPlayer?>(null)
 
@@ -899,9 +907,19 @@ class PlayerStateHolder(
         _state.update { it.copy(mode = HostMode.MINI, openedInline = false, locked = false) }
     }
 
+    /**
+     * Mini / PiP → back into the app: VOD returns to its own Details page with the player docked in
+     * the top slot (same page, same episode list) instead of a separate full-screen layout.
+     * Live channels have no Details page and expand to fullscreen as before.
+     */
     fun expand() {
-        if (_state.value.item == null) return
-        _state.update { it.copy(mode = HostMode.FULL) }
+        val item = _state.value.item ?: return
+        if (isLiveItem(item)) {
+            _state.update { it.copy(mode = HostMode.FULL) }
+            return
+        }
+        _state.update { it.copy(mode = HostMode.INLINE, openedInline = true, locked = false) }
+        _openDetails.tryEmit(item.id)
     }
 
     fun setPip(inPip: Boolean) = _state.update { it.copy(inPip = inPip) }

@@ -21,6 +21,7 @@ import com.mythbrix.cinetor.core.player.TrackRef
 import com.mythbrix.cinetor.core.player.VideoQuality
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.runCurrent
@@ -221,10 +222,17 @@ class PlayerStateHolderTest {
         e.holder.minimize()
         assertEquals(HostMode.MINI, e.holder.state.value.mode)
 
-        // Tapping MiniPlayer on Home -> FULL; Back now returns to MINI (Details is gone).
+        // Tapping MiniPlayer on Home -> back to the title's Details page, docked INLINE (never the
+        // separate full-mode layout with its own season list); the nav host is asked to open Details.
+        val opened = mutableListOf<String>()
+        val collector = backgroundScope.launch { e.holder.openDetails.collect { opened += it } }
+        runCurrent()
         e.holder.expand()
-        assertEquals(HostMode.FULL, e.holder.state.value.mode)
-        e.holder.collapseFullscreen()
+        runCurrent()
+        assertEquals(HostMode.INLINE, e.holder.state.value.mode)
+        assertEquals(listOf("s"), opened)
+        collector.cancel()
+        e.holder.minimize()
         assertEquals(HostMode.MINI, e.holder.state.value.mode)
 
         // Re-entering Details of same title -> enterInline() docks without reloading!

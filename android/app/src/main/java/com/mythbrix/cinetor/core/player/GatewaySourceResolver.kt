@@ -20,13 +20,16 @@ import com.mythbrix.cinetor.core.data.gateway.GwSource
 import com.mythbrix.cinetor.core.data.gateway.GwStream
 import com.mythbrix.cinetor.core.data.gateway.dubOptionList
 import com.mythbrix.cinetor.core.data.tmdb.TmdbMapper
-import kotlinx.coroutines.CancellationException
-import kotlinx.coroutines.async
-import kotlinx.coroutines.awaitAll
-import kotlinx.coroutines.coroutineScope
 import java.net.URLDecoder
 import java.util.Locale
 import java.util.concurrent.ConcurrentHashMap
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Deferred
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.withTimeoutOrNull
 
 /** What play / download needs for one title or episode. [fallback] = gateway proxy (`direct_play_url`). */
 data class ResolvedStream(val sources: List<Source>, val subtitles: List<Sub>, val fallback: Source?)
@@ -384,22 +387,32 @@ class GatewaySourceResolver(
                 }
             }
             val mainStreamDeferred = async { fetchStreamWithRescue(sid, slug, se, ep, full = true) }
-
-            val candidateDubs = candidateDubsDeferred.await()
-            checkedDubIds = neededDubIds + candidateDubs.map { it.subjectId }
-            val dubStreams = if (candidateDubs.isEmpty()) {
-                emptyList()
-            } else {
-                candidateDubs.map { dub ->
-                    async {
-                        val langName = fullLanguageName(dub.languageName)
-                        val ds = runCatching { fetchStreamWithRescue(dub.subjectId, dub.slug, se, ep, full = false) }.getOrNull()
-                        langName to ds
+            // Dub streams start in parallel (in this scope, so they never hold each other up).
+            val outer = this
+            val dubJobsDeferred = async {
+                candidateDubsDeferred.await().map { dub ->
+                    dub to outer.async {
+                        runCatching { fetchStreamWithRescue(dub.subjectId, dub.slug, se, ep, full = false) }.getOrNull()
                     }
-                }.awaitAll()
+                }
             }
 
+            // The main stream alone decides readiness: dubs and captions get a short grace window
+            // after it instead of the slowest dub gating Play. Late dubs are cancelled here and
+            // fetched on demand by the Audio menu's sibling-dub path.
             val s = mainStreamDeferred.await()
+            val dubJobs = withTimeoutOrNull(DUB_GRACE_MS) { dubJobsDeferred.await() }
+            if (dubJobs == null) dubJobsDeferred.cancel()
+            val jobs = dubJobs.orEmpty()
+            if (jobs.isNotEmpty()) withTimeoutOrNull(DUB_GRACE_MS) { jobs.map { it.second }.awaitAll() }
+            val (finished, late) = jobs.partition { (_, d) -> d.isCompleted && !d.isCancelled }
+            late.forEach { (_, d) -> d.cancel() }
+            checkedDubIds = if (dubJobs != null && late.isEmpty()) {
+                neededDubIds + jobs.map { it.first.subjectId }
+            } else {
+                finished.map { it.first.subjectId }.toSet()
+            }
+            val dubStreams = finished.map { (dub, d) -> fullLanguageName(dub.languageName) to completedOrNull(d) }
             val unlockedRaw = unlockStreamSources(s)
             val fallback = s.directPlayUrl?.takeIf { it.isNotBlank() && extractYouTubeVideoId(it) == null }
                 ?.let { Source(api.absolute(it), SourceKind.MP4, "Gateway proxy", audioLang = primaryAudioLang) }
@@ -434,7 +447,8 @@ class GatewaySourceResolver(
                 forceAudioLabel = dubRanked.isNotEmpty(),
             )
             val mergedSources = (mainSources + dubRanked).distinctBy { it.url }
-            if (mergedSources.isEmpty() && fallback == null) null else ResolvedStream(mergedSources, subs.await(), fallback)
+            val captions = withTimeoutOrNull(CAPTION_GRACE_MS) { subs.await() } ?: emptyList<Sub>().also { subs.cancel() }
+            if (mergedSources.isEmpty() && fallback == null) null else ResolvedStream(mergedSources, captions, fallback)
         }
         if (result != null) {
             val now = clock()
@@ -540,6 +554,16 @@ class GatewaySourceResolver(
 
     companion object {
         private const val MAX_DUBS = 4
+        private val NAMED_4K = Regex("""(?i)\b(4k|uhd|ultra\s*hd)\b""")
+        private val NAMED_2K = Regex("""(?i)\b(2k|qhd)\b""")
+        private val NAMED_FHD = Regex("""(?i)\b(fhd|full\s*hd)\b""")
+        private val NAMED_HD = Regex("""(?i)\bhd\b""")
+
+        /** Extra wait for dub streams once the main stream is in (keeps the green dot near 1 s). */
+        internal const val DUB_GRACE_MS = 400L
+
+        /** Extra wait for embedded captions once the main stream is in. */
+        internal const val CAPTION_GRACE_MS = 1_000L
 
         private val PLAY_HEADERS = mapOf("Referer" to "https://movieboxhd.net/")
 
@@ -612,8 +636,22 @@ class GatewaySourceResolver(
         fun isDualAudio(label: String?, url: String): Boolean =
             DUAL_AUDIO.containsMatchIn((label.orEmpty()) + " " + safeDecodeUrl(url.substringBefore('?')))
 
-        fun heightOf(resolution: String?): Int? =
-            resolution?.let { Regex("(\\d{3,4})").find(it)?.groupValues?.get(1)?.toIntOrNull() }
+        /**
+         * Vertical resolution from a provider label: `1080p` / `2160` digits first, then named tiers
+         * (`4K`, `UHD` → 2160, `2K`, `QHD` → 1440, `FHD` → 1080, `HD` → 720). Without the named tiers
+         * a `4K` source had no height and vanished from the player's Quality menu.
+         */
+        fun heightOf(resolution: String?): Int? {
+            val r = resolution?.trim()?.takeIf { it.isNotEmpty() } ?: return null
+            Regex("(\\d{3,4})").find(r)?.groupValues?.get(1)?.toIntOrNull()?.takeIf { it >= 144 }?.let { return it }
+            return when {
+                NAMED_4K.containsMatchIn(r) -> 2160
+                NAMED_2K.containsMatchIn(r) -> 1440
+                NAMED_FHD.containsMatchIn(r) -> 1080
+                NAMED_HD.containsMatchIn(r) -> 720
+                else -> null
+            }
+        }
 
         fun kindOf(format: String?, url: String): SourceKind = when (format?.uppercase(Locale.US)) {
             "DASH", "MPD" -> SourceKind.DASH
@@ -1032,3 +1070,6 @@ class GatewaySourceResolver(
         private fun normalize(s: String): String = s.lowercase(Locale.US).replace(Regex("[^\\p{L}\\p{N}]+"), " ").trim()
     }
 }
+
+@OptIn(ExperimentalCoroutinesApi::class)
+private fun <T> completedOrNull(d: Deferred<T>): T? = runCatching { d.getCompleted() }.getOrNull()
