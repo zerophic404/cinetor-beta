@@ -27,8 +27,11 @@ internal fun rgbToHsv(c: Color): FloatArray {
     return floatArrayOf(h, s, mx)
 }
 
-/** Target relative luminance: white text on it and it on near-black both land near 4.5:1. */
-private const val ACCENT_LUMINANCE = 0.19f
+/**
+ * Target relative luminance. White text on the accent needs L <= ~0.194 for 4.3:1 and the accent on a
+ * near-black page needs L >= ~0.172, so the sweet spot is 0.183 (both land just above 4.3:1).
+ */
+private const val ACCENT_LUMINANCE = 0.183f
 
 /**
  * A title's own accent: its sampled artwork hue, saturation lifted so greys still read as a colour,
@@ -39,6 +42,17 @@ fun artworkAccent(art: Color, fallback: Color): Color {
     val (h, s0, _) = rgbToHsv(art).let { Triple(it[0], it[1], it[2]) }
     if (s0 < 0.08f) return fallback
     val s = s0.coerceIn(0.55f, 0.90f)
+    // Normal case: solve brightness. Dark hues (pure blue, purple) peak below the target even at full
+    // brightness, so there it is saturation that is lowered until the target luminance is reached.
+    if (Color.hsv(h, s, 1f).luminance() < ACCENT_LUMINANCE) {
+        var lo = 0f
+        var hi = s
+        repeat(20) {
+            val mid = (lo + hi) / 2f
+            if (Color.hsv(h, mid, 1f).luminance() > ACCENT_LUMINANCE) lo = mid else hi = mid
+        }
+        return Color.hsv(h, (lo + hi) / 2f, 1f)
+    }
     var lo = 0f
     var hi = 1f
     repeat(20) {

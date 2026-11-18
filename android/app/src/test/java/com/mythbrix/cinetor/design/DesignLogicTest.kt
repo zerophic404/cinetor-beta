@@ -25,12 +25,15 @@ class DesignLogicTest {
     }
 
     @Test
-    fun tint_themeStrengthKeepsRedIdentity() {
-        val blue = Color(0xFF1030E0)
+    fun tint_themeStrengthKeepsTheThemeIdentity() {
+        val source = Color(0xFF1030E0)
+        fun dist(a: Color, b: Color) =
+            kotlin.math.abs(a.red - b.red) + kotlin.math.abs(a.green - b.green) + kotlin.math.abs(a.blue - b.blue)
         for (theme in AppTheme.entries) {
             val t = CinetorTokens.of(theme)
-            val c = blendTint(blue, t.accent, t.tintStrength)
-            assertTrue("$theme stays red-dominant", c.red > c.blue)
+            assertTrue("$theme tint strength <= 0.5", t.tintStrength <= 0.5f)
+            val c = blendTint(source, t.accent, t.tintStrength)
+            assertTrue("$theme stays closer to its accent than to the poster colour", dist(c, t.accent) <= dist(c, source))
         }
     }
 
