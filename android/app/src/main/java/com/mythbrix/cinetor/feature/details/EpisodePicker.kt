@@ -10,7 +10,6 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -52,8 +51,7 @@ import com.mythbrix.cinetor.design.glass
 import com.mythbrix.cinetor.feature.downloads.DownloadedBadge
 
 /**
- * Shiopa-style Season header + Liquid Glass season selector pills ("Season 1", "Season 2", …).
- * Single-season titles render the red accent bar + "Episodes" header with count.
+ * Seasons & Episodes header + Liquid Glass season selector pills ("Season 1", "Season 2", …).
  */
 @Composable
 fun SeasonTabs(seasons: List<Season>, selected: Int, onSelect: (Int) -> Unit) {
@@ -77,7 +75,7 @@ fun SeasonTabs(seasons: List<Season>, selected: Int, onSelect: (Int) -> Unit) {
                     .background(tokens.accent),
             )
             Text(
-                "Episodes",
+                if (seasons.size > 1) "Seasons & Episodes" else "Episodes",
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.Bold,
                 color = tokens.textPrimary,
@@ -148,8 +146,9 @@ fun SeasonTabs(seasons: List<Season>, selected: Int, onSelect: (Int) -> Unit) {
 }
 
 /**
- * Shiopa-style Episode card: 16:9 still with play emblem & red watch-progress line,
- * episode number/title, runtime + watched indicator, 2-line synopsis, and trailing download action.
+ * Shiopa-style Episode card: 16:9 still with play emblem (or active Playing indicator),
+ * red watch-progress line, episode number/title, runtime + watched/playing status,
+ * 2-line synopsis, and per-episode download action.
  */
 @Composable
 fun EpisodeRow(
@@ -157,6 +156,7 @@ fun EpisodeRow(
     progress: Float?,
     downloaded: Boolean = false,
     watched: Boolean = false,
+    playing: Boolean = false,
     trailing: (@Composable () -> Unit)? = null,
     onClick: () -> Unit,
 ) {
@@ -176,10 +176,20 @@ fun EpisodeRow(
             .fillMaxWidth()
             .padding(horizontal = 16.dp, vertical = 5.dp)
             .clip(cardShape)
-            .glass(cardShape, GlassLevel.SURFACE)
             .then(
-                if (focused) Modifier.border(2.dp, tokens.focusRing, cardShape)
-                else Modifier,
+                if (playing) {
+                    Modifier
+                        .background(tokens.accent.copy(alpha = 0.12f))
+                        .border(
+                            width = if (focused) 2.dp else 1.5.dp,
+                            color = if (focused) tokens.focusRing else tokens.accent,
+                            shape = cardShape,
+                        )
+                } else {
+                    Modifier
+                        .glass(cardShape, GlassLevel.SURFACE)
+                        .then(if (focused) Modifier.border(2.dp, tokens.focusRing, cardShape) else Modifier)
+                },
             )
             .clickable(
                 interactionSource = interaction,
@@ -193,31 +203,51 @@ fun EpisodeRow(
     ) {
         Box(
             Modifier
-                .size(140.dp, 79.dp)
+                .size(136.dp, 77.dp)
                 .clip(thumbShape)
                 .background(tokens.surfaceElevated),
         ) {
             AsyncImage(
-                model = rememberSizedImage(episode.still, 140.dp, 79.dp),
+                model = rememberSizedImage(episode.still, 136.dp, 77.dp),
                 contentDescription = null,
                 contentScale = ContentScale.Crop,
                 modifier = Modifier.fillMaxSize(),
             )
-            Box(
-                Modifier
-                    .align(Alignment.Center)
-                    .size(30.dp)
-                    .clip(CircleShape)
-                    .background(Color.Black.copy(alpha = 0.52f))
-                    .border(1.dp, Color.White.copy(alpha = 0.35f), CircleShape),
-                contentAlignment = Alignment.Center,
-            ) {
-                Icon(
-                    Icons.Rounded.PlayArrow,
-                    contentDescription = null,
-                    tint = Color.White,
-                    modifier = Modifier.size(18.dp),
-                )
+            if (playing) {
+                Row(
+                    Modifier
+                        .align(Alignment.Center)
+                        .clip(RoundedCornerShape(CinetorTokens.Shape.pill))
+                        .background(tokens.accent.copy(alpha = 0.92f))
+                        .padding(horizontal = 8.dp, vertical = 4.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(4.dp),
+                ) {
+                    Box(Modifier.size(6.dp).clip(CircleShape).background(tokens.onAccent))
+                    Text(
+                        "Playing",
+                        style = MaterialTheme.typography.labelSmall,
+                        fontWeight = FontWeight.Bold,
+                        color = tokens.onAccent,
+                    )
+                }
+            } else {
+                Box(
+                    Modifier
+                        .align(Alignment.Center)
+                        .size(30.dp)
+                        .clip(CircleShape)
+                        .background(Color.Black.copy(alpha = 0.52f))
+                        .border(1.dp, Color.White.copy(alpha = 0.35f), CircleShape),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Icon(
+                        Icons.Rounded.PlayArrow,
+                        contentDescription = null,
+                        tint = Color.White,
+                        modifier = Modifier.size(18.dp),
+                    )
+                }
             }
             if (downloaded) {
                 DownloadedBadge(Modifier.align(Alignment.TopStart).padding(4.dp))
@@ -243,8 +273,8 @@ fun EpisodeRow(
             Text(
                 "${episode.n}. ${episode.title}",
                 style = MaterialTheme.typography.titleSmall,
-                fontWeight = FontWeight.SemiBold,
-                color = tokens.textPrimary,
+                fontWeight = if (playing) FontWeight.Bold else FontWeight.SemiBold,
+                color = if (playing) tokens.accent else tokens.textPrimary,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )
@@ -252,6 +282,14 @@ fun EpisodeRow(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(6.dp),
             ) {
+                if (playing) {
+                    Text(
+                        "Now playing",
+                        style = MaterialTheme.typography.labelSmall,
+                        fontWeight = FontWeight.SemiBold,
+                        color = tokens.accent,
+                    )
+                }
                 if (episode.durationSec > 0) {
                     Text(
                         "${(episode.durationSec / 60).coerceAtLeast(1)}m",
@@ -259,7 +297,7 @@ fun EpisodeRow(
                         color = tokens.textSecondary,
                     )
                 }
-                if (watched) {
+                if (watched && !playing) {
                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(2.dp)) {
                         Icon(Icons.Rounded.Check, contentDescription = null, tint = tokens.success, modifier = Modifier.size(12.dp))
                         Text("Watched", style = MaterialTheme.typography.labelSmall, color = tokens.success)
