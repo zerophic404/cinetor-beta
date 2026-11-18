@@ -144,8 +144,13 @@ class DownloadsModule(
     private suspend fun exportIfNeeded(record: DownloadRecord) {
         val loc = location.value
         if (!DownloadLocations.needsExport(record, loc)) return
-        val uri = exporter.export(loc.treeUri, java.io.File(record.filePath), DownloadLocations.fileName(record), record.mimeType)
-            ?: return
+        val uri = exporter.export(
+            loc.treeUri,
+            java.io.File(record.filePath),
+            DownloadLocations.fileName(record),
+            record.mimeType,
+            subfolders = ExportPaths.foldersFor(record.mimeType, record.container),
+        ) ?: return
         engine.setExportUri(record.id, uri)
     }
 

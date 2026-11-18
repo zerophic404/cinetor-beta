@@ -89,7 +89,7 @@ fun ReaderSettingsPanel(
                     fontWeight = FontWeight.SemiBold,
                     color = tokens.textPrimary,
                 )
-                ReaderMode.entries.forEach { m ->
+                ReaderMode.entries.filterNot { it.paged }.forEach { m ->
                     val selected = m == state.mode
                     Row(
                         Modifier

@@ -41,21 +41,24 @@ class ComicsReaderTest {
         ComicsStore(storage, backgroundScope, clock = { testScheduler.currentTime })
 
     @Test
-    fun manga_defaultsRtl() = runTest {
-        assertEquals(ReaderMode.RTL_PAGED, defaultReaderMode(comic()))
-        // Real catalog: every Manga title opens right-to-left paged.
+    fun manga_readsVertically() = runTest {
+        assertEquals(ReaderMode.VERTICAL, defaultReaderMode(comic()))
+        // Real catalog: even Manga titles open as a vertical scroll.
         val manga = TestFiles.catalog().allItems(Space.COMICS).filter { it.categoryId == "co-manga" }
         assertEquals(10, manga.size)
-        manga.forEach { assertEquals(it.id, ReaderMode.RTL_PAGED, defaultReaderMode(it)) }
+        manga.forEach { assertEquals(it.id, ReaderMode.VERTICAL, defaultReaderMode(it)) }
         val s = store()
         s.ensureLoaded()
+        // A paged mode saved by an older version falls back to vertical.
+        s.setMode(manga.first().id, ReaderMode.RTL_PAGED)
         val holder = ReaderStateHolder(manga.first(), null, s)
-        assertEquals(ReaderMode.RTL_PAGED, holder.current.mode)
-        assertTrue(holder.current.mode.paged)
-        // RTL tap zones: left third = next page.
+        assertEquals(ReaderMode.VERTICAL, holder.current.mode)
+        assertFalse(holder.current.mode.paged)
+        // Vertical: every tap only toggles the controls; paged zones still mirror for RTL.
+        assertEquals(TapZone.TOGGLE, tapZone(10f, 300f, ReaderMode.VERTICAL))
+        assertEquals(TapZone.TOGGLE, tapZone(290f, 300f, ReaderMode.VERTICAL))
         assertEquals(TapZone.NEXT, tapZone(10f, 300f, ReaderMode.RTL_PAGED))
         assertEquals(TapZone.PREV, tapZone(10f, 300f, ReaderMode.LTR_PAGED))
-        assertEquals(TapZone.TOGGLE, tapZone(150f, 300f, ReaderMode.RTL_PAGED))
     }
 
     @Test
@@ -64,14 +67,10 @@ class ComicsReaderTest {
         val strips = TestFiles.catalog().allItems(Space.COMICS).filter { it.categoryId == "co-manhwa" || it.categoryId == "co-manhua" }
         assertEquals(20, strips.size)
         strips.forEach { assertEquals(it.id, ReaderMode.VERTICAL, defaultReaderMode(it)) }
-        // User override is remembered per title, default stays vertical for others.
         val s = store()
         s.ensureLoaded()
         val holder = ReaderStateHolder(strips[0], null, s)
         assertEquals(ReaderMode.VERTICAL, holder.current.mode)
-        holder.setMode(ReaderMode.LTR_PAGED)
-        assertEquals(ReaderMode.LTR_PAGED, ReaderStateHolder(strips[0], null, s).current.mode)
-        assertEquals(ReaderMode.VERTICAL, ReaderStateHolder(strips[1], null, s).current.mode)
         holder.setMode(ReaderMode.VERTICAL)
         assertNull(s.modeOverride(strips[0].id))
     }

@@ -80,17 +80,43 @@ class DownloadExporter(context: Context) {
     }.isSuccess
 
     /** Copies [file] into the chosen tree; returns the new document URI or null. */
-    suspend fun export(treeUri: String, file: File, displayName: String, mime: String?): String? =
+    suspend fun export(
+        treeUri: String,
+        file: File,
+        displayName: String,
+        mime: String?,
+        /** Folders created (or reused) under the chosen tree, e.g. `Comics/<Title>` or `Music`. */
+        subfolders: List<String> = emptyList(),
+    ): String? =
         withContext(Dispatchers.IO) {
             runCatching {
                 val tree = Uri.parse(treeUri)
-                val parent = DocumentsContract.buildDocumentUriUsingTree(tree, DocumentsContract.getTreeDocumentId(tree))
+                var parent = DocumentsContract.buildDocumentUriUsingTree(tree, DocumentsContract.getTreeDocumentId(tree))
+                for (name in subfolders) parent = childFolder(tree, parent, name) ?: return@runCatching null
                 val doc = DocumentsContract.createDocument(app.contentResolver, parent, mime ?: "video/mp4", displayName)
                     ?: return@runCatching null
                 app.contentResolver.openOutputStream(doc)?.use { out -> file.inputStream().use { it.copyTo(out) } }
                 doc.toString()
             }.getOrNull()
         }
+
+    /** Finds the child folder [name] of [parent] in the tree, creating it when missing. */
+    private fun childFolder(tree: Uri, parent: Uri, name: String): Uri? {
+        val parentId = DocumentsContract.getDocumentId(parent)
+        val children = DocumentsContract.buildChildDocumentsUriUsingTree(tree, parentId)
+        app.contentResolver.query(
+            children,
+            arrayOf(DocumentsContract.Document.COLUMN_DOCUMENT_ID, DocumentsContract.Document.COLUMN_DISPLAY_NAME, DocumentsContract.Document.COLUMN_MIME_TYPE),
+            null, null, null,
+        )?.use { c ->
+            while (c.moveToNext()) {
+                if (c.getString(1) == name && c.getString(2) == DocumentsContract.Document.MIME_TYPE_DIR) {
+                    return DocumentsContract.buildDocumentUriUsingTree(tree, c.getString(0))
+                }
+            }
+        }
+        return DocumentsContract.createDocument(app.contentResolver, parent, DocumentsContract.Document.MIME_TYPE_DIR, name)
+    }
 
     /** Deletes the exported document (if any) and the app-private file. Returns true when something went. */
     suspend fun deleteFiles(record: DownloadRecord): Boolean = withContext(Dispatchers.IO) {

@@ -63,14 +63,9 @@ object ComicIds {
     fun isComic(id: String): Boolean = id.startsWith("co-") || id.startsWith("cm:")
 }
 
-/** Default mode from the catalog: RTL direction / manga category → RTL paged; long strip / TTB → vertical. */
-fun defaultReaderMode(item: Item): ReaderMode = when {
-    item.readingDirection == ReadingDirection.RTL -> ReaderMode.RTL_PAGED
-    item.format == ComicFormat.LONGSTRIP || item.readingDirection == ReadingDirection.TTB -> ReaderMode.VERTICAL
-    item.readingDirection == ReadingDirection.LTR -> ReaderMode.LTR_PAGED
-    item.categoryId.endsWith("manga") -> ReaderMode.RTL_PAGED
-    else -> ReaderMode.VERTICAL
-}
+/** Every comic (manga, manhwa, manhua, western) reads as one continuous vertical scroll, native-reader style. */
+@Suppress("UNUSED_PARAMETER")
+fun defaultReaderMode(item: Item): ReaderMode = ReaderMode.VERTICAL
 
 /** Summary of read / in-progress chapters for a title. */
 fun comicReadSummary(chapters: List<Chapter>, data: ComicsData, comicId: String): ComicReadSummary {
@@ -327,7 +322,8 @@ class ReaderStateHolder(
         val page = if (saved == null || saved.read) 0 else saved.page
         val def = defaultReaderMode(comic)
         _state = MutableStateFlow(
-            ReaderState(comic, idx, page, store.modeOverride(comic.id) ?: def, def),
+            // Paged modes saved by older versions fall back to the vertical scroll.
+            ReaderState(comic, idx, page, store.modeOverride(comic.id)?.takeUnless { it.paged } ?: def, def),
         )
         state = _state.asStateFlow()
         if (comic.pages[idx].pages.isEmpty()) ensurePages(idx) else save()
@@ -508,11 +504,11 @@ class ReaderStateHolder(
     }
 }
 
-/** Tap zones: left/right thirds turn pages (mirrored for RTL), middle toggles the UI. */
+/** Tap zones: paged modes turn pages with the side thirds; the vertical scroll only toggles the UI. */
 enum class TapZone { PREV, NEXT, TOGGLE }
 
 fun tapZone(x: Float, width: Float, mode: ReaderMode): TapZone {
-    if (width <= 0f) return TapZone.TOGGLE
+    if (width <= 0f || !mode.paged) return TapZone.TOGGLE
     val f = x / width
     val left = f < 1f / 3f
     val right = f > 2f / 3f

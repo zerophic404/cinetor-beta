@@ -13,13 +13,15 @@ import com.mythbrix.cinetor.core.data.RowStyle
 import com.mythbrix.cinetor.core.data.Space
 import com.mythbrix.cinetor.core.ui.sizedImageRequest
 import com.mythbrix.cinetor.feature.home.heroDeckCardWidthDp
+import com.mythbrix.cinetor.feature.music.QuickPickArt
+import java.util.concurrent.ConcurrentHashMap
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withPermit
-import java.util.concurrent.ConcurrentHashMap
 
 /** How much of a space the startup pre-warm loads, per pass. */
 data class PrewarmPlan(
@@ -137,6 +139,37 @@ class StartupPrewarmer(
         }.awaitAll().filterNotNull().forEach { hero ->
             container.peek.put(hero)
             heroImage(hero)
+        }
+    }
+
+    /**
+     * Comics, Music, Live TV and Sports: loads their data and decodes the first thumbnails at the sizes
+     * their screens use, so those sections open without a loading shimmer too.
+     */
+    suspend fun warmExtras() = coroutineScope {
+        launch {
+            runCatching {
+                val d = container.musicLibrary.load()
+                (d.charts.ifEmpty { d.albums }).take(12).forEachIndexed { i, a ->
+                    image(a.poster, if (i < 6) QuickPickArt else 156.dp, if (i < 6) QuickPickArt else 156.dp, large = false)
+                }
+                d.tracks.take(12).forEach { image(it.poster, 148.dp, 148.dp, large = false) }
+            }
+        }
+        launch {
+            runCatching {
+                val tv = container.tv.load()
+                tv.channels.take(12).forEach { image(it.logo ?: it.poster, 180.dp, 101.dp, large = false) }
+                tv.liveEvents.take(8).forEach { image(it.backdrop.ifBlank { it.poster }, 160.dp, 90.dp, large = false) }
+            }
+        }
+        launch {
+            runCatching {
+                val cats = container.comicsCatalog.categories(Space.COMICS)
+                prewarmRows(cats, PrewarmPlan.Splash).take(4).forEach { row ->
+                    container.comicsCatalog.row(row.id).take(PrewarmPlan.Splash.cardsPerRow).forEach { image(it.poster, 106.dp, 159.dp, large = false) }
+                }
+            }
         }
     }
 

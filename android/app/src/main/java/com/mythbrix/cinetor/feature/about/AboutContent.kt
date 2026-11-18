@@ -13,6 +13,17 @@ object AboutCopy {
     const val TMDB_ATTRIBUTION = "This product uses the TMDB API but is not endorsed or certified by TMDB."
     const val TELEGRAM_CHANNEL = "Telegram Channel"
     const val TELEGRAM_GROUP = "Telegram Group"
+    const val CHECK_UPDATES = "Check for updates"
+    const val TAGLINE = "Movies, series, anime, drama, music and comics in one place"
+
+    /** Highlights shown on the About card. */
+    val HIGHLIGHTS = listOf(
+        "Instant play with a ready-to-play dot",
+        "Six themes: Cinema, Midnight, Emerald, Sunset, Royal, Daylight",
+        "Native comics reader with PDF downloads",
+        "Music with lossless streaming and downloads",
+        "Live TV and sports",
+    )
 
     fun versionLine(versionName: String, versionCode: Int, build: String): String =
         "Version $versionName ($versionCode) · Build $build"
@@ -22,6 +33,7 @@ object AboutCopy {
 enum class AboutLink(val label: String, val url: String) {
     TELEGRAM_CHANNEL(AboutCopy.TELEGRAM_CHANNEL, AppLinks.TELEGRAM_CHANNEL_URL),
     TELEGRAM_GROUP(AboutCopy.TELEGRAM_GROUP, AppLinks.TELEGRAM_GROUP_URL),
+    UPDATES(AboutCopy.CHECK_UPDATES, AppLinks.RELEASES_URL),
     ZARIR(AboutCopy.THANKS_NAME, AppLinks.ZARIR_URL),
 }
 

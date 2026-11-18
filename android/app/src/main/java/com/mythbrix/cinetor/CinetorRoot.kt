@@ -70,6 +70,7 @@ fun CinetorRoot(container: AppContainer) {
                     withTimeoutOrNull(SPLASH_PREWARM_CAP_MS) {
                         supervisorScope {
                             spaces.forEach { sp -> launch { runCatching { prewarmer.warm(sp, PrewarmPlan.Splash) } } }
+                            launch { runCatching { prewarmer.warmExtras() } }
                         }
                     }
                 }

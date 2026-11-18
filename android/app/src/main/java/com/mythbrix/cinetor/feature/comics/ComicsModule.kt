@@ -58,6 +58,8 @@ class ComicDownloads(
     private val openPath: (String) -> InputStream,
     private val resolvePages: (suspend (Chapter) -> List<String>)? = null,
     private val fallbackUrl: ((String) -> String?)? = null,
+    /** Called once a chapter's pages are all on disk (in reading order): exports the PDF copy. */
+    private val onChapterDone: (suspend (Item, Chapter, List<File>) -> Unit)? = null,
 ) {
     private val _states = MutableStateFlow<Map<String, ChapterDownload>>(emptyMap())
     val states: StateFlow<Map<String, ChapterDownload>> = _states.asStateFlow()
@@ -129,6 +131,11 @@ class ComicDownloads(
                     _states.update { it + (chapter.id to ChapterDownload.Running(i + 1, pages.size)) }
                 }
                 File(d, DONE).writeText(pages.size.toString())
+                val files = d.listFiles().orEmpty()
+                    .filter { it.isFile && it.name[0].isDigit() && !it.name.endsWith(".part") }
+                    .sortedBy { it.name }
+                // The PDF copy is a bonus: a failed export never fails the offline download itself.
+                runCatching { onChapterDone?.invoke(comic, chapter, files) }
             }
             if (result.exceptionOrNull() is CancellationException) return@launch
             _states.update {
@@ -182,6 +189,12 @@ class ComicsModule(
 
     val store: ComicsStore = ComicsStore(ComicsDataStore(appContext), scope)
 
+    /** Chosen download folder (SAF tree URI, blank = none). Set by the app container. */
+    @Volatile
+    var exportTree: () -> String = { "" }
+    private val exporter = com.mythbrix.cinetor.core.download.DownloadExporter(appContext)
+    private val cacheDir = File(appContext.cacheDir, "comic-pdf")
+
     /** Attaches [MangaDexCatalogSource] for data-saver page mirrors, Referer headers, and alternate chapter fallback. */
     fun attachCatalog(catalog: MangaDexCatalogSource, dataSaver: () -> Boolean = { false }) {
         catalogRef = catalog
@@ -231,6 +244,24 @@ class ComicsModule(
             }
         },
         fallbackUrl = { url -> fallbackUrlFor(url) },
+        onChapterDone = { comic, chapter, files ->
+            val tree = exportTree()
+            if (tree.isNotBlank() && files.isNotEmpty()) {
+                val tmp = File(cacheDir, "${System.nanoTime()}.pdf")
+                try {
+                    if (ComicPdf.write(files, tmp)) {
+                        exporter.export(
+                            tree, tmp,
+                            com.mythbrix.cinetor.core.download.ExportPaths.comicPdfName(chapter.n, chapter.title),
+                            "application/pdf",
+                            subfolders = com.mythbrix.cinetor.core.download.ExportPaths.comicFolders(comic.title),
+                        )
+                    }
+                } finally {
+                    tmp.delete()
+                }
+            }
+        },
     )
 
     private val _reader = MutableStateFlow<ReaderRequest?>(null)

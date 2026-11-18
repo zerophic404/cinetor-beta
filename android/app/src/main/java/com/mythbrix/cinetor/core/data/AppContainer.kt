@@ -423,7 +423,7 @@ class AppContainer(context: Context) {
             pageResolver = { chapter ->
                 if (comicsCatalog.isComicChapter(chapter.id)) comicsCatalog.pages(chapter.id) else chapter.pages
             },
-        )
+        ).also { it.exportTree = { downloads.location.value.treeUri } }
     }
 
     /** Adult gate (Task 4.4): PIN session mirrored to the download engine; FLAG_SECURE + lifecycle wiring. */

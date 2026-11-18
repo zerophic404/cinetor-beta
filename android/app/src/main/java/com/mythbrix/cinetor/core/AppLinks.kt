@@ -5,4 +5,5 @@ object AppLinks {
     const val TELEGRAM_CHANNEL_URL = "https://t.me/mythbrix_vault"
     const val TELEGRAM_GROUP_URL = "https://t.me/cinetor"
     const val ZARIR_URL = "https://ahmedishtiaquezarir.pro.bd/"
+    const val RELEASES_URL = "https://github.com/Ashrix404/cinetor-app/releases/latest"
 }

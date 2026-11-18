@@ -23,12 +23,14 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.OpenInNew
 import androidx.compose.material.icons.automirrored.rounded.Send
 import androidx.compose.material.icons.rounded.Groups
+import androidx.compose.material.icons.rounded.SystemUpdate
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -96,9 +98,15 @@ fun AboutScreen(contentPadding: PaddingValues) {
                 color = tokens.textPrimary,
             )
             Text(
+                AboutCopy.TAGLINE,
+                style = MaterialTheme.typography.bodyMedium,
+                color = tokens.textSecondary,
+                textAlign = TextAlign.Center,
+            )
+            Text(
                 AboutCopy.versionLine(BuildConfig.VERSION_NAME, BuildConfig.VERSION_CODE, BuildConfig.BUILD_NUMBER),
                 style = MaterialTheme.typography.bodySmall,
-                color = tokens.textSecondary,
+                color = tokens.textTertiary,
             )
 
             Spacer(Modifier.height(4.dp))
@@ -130,8 +138,26 @@ fun AboutScreen(contentPadding: PaddingValues) {
         Column(
             Modifier
                 .fillMaxWidth()
+                .glass(RoundedCornerShape(22.dp), GlassLevel.SURFACE)
+                .padding(horizontal = 18.dp, vertical = 16.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            Text("Highlights", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold, color = tokens.textPrimary)
+            AboutCopy.HIGHLIGHTS.forEach { line ->
+                Row(verticalAlignment = Alignment.Top, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Box(Modifier.padding(top = 7.dp).size(6.dp).clip(CircleShape).background(tokens.accent))
+                    Text(line, style = MaterialTheme.typography.bodyMedium, color = tokens.textSecondary)
+                }
+            }
+        }
+
+        Column(
+            Modifier
+                .fillMaxWidth()
                 .glass(RoundedCornerShape(22.dp), GlassLevel.SURFACE),
         ) {
+            LinkRow(Icons.Rounded.SystemUpdate, AboutLink.UPDATES) { actions.open(it) }
+            HorizontalDivider(color = tokens.divider, modifier = Modifier.padding(horizontal = 16.dp))
             LinkRow(Icons.AutoMirrored.Rounded.Send, AboutLink.TELEGRAM_CHANNEL) { actions.open(it) }
             HorizontalDivider(color = tokens.divider, modifier = Modifier.padding(horizontal = 16.dp))
             LinkRow(Icons.Rounded.Groups, AboutLink.TELEGRAM_GROUP) { actions.open(it) }
