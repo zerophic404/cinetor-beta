@@ -3,17 +3,15 @@
   // scrape or hack anything without Mythbrix's explicit permission.
   import { onDestroy } from 'svelte';
   import { page } from '$app/state';
+  import { base } from '$app/paths';
   import { goto } from '$app/navigation';
   import { catalog } from '$lib/data/app-catalog';
-  import type { Episode, Item, Season } from '$lib/data/types';
-  import { SkeletonBox, SkeletonEpisodeList } from '$lib/design/skeleton';
-  import { detailsHref, watchHref } from '$lib/ui/handoff';
-  import { imgFor } from '$lib/ui/img';
+  import type { Item } from '$lib/data/types';
+  import { SkeletonBox } from '$lib/design/skeleton';
+  import { detailsHref, handedOff, resolveHandoffSlug, titleHref, watchHref } from '$lib/ui/handoff';
   import { nextUp, prepareMedia, session } from '$lib/player/controller';
-  import { nextEpisode, type Media } from '$lib/player/sources';
-  import { dubOfSource } from '$lib/player/youtube';
+  import type { Media } from '$lib/player/sources';
   import Player from '$lib/player/Player.svelte';
-  import { downloads } from '$lib/download/manager.svelte';
   import { repo, img } from '$lib/data/repo';
   import { channelsOf, currentProgram, zapChannel } from '$lib/tv/epg';
   import { live } from '$lib/tv/live.svelte';
@@ -21,78 +19,71 @@
   import { adult } from '$lib/adult/store.svelte';
   import AdultLock from '$lib/adult/AdultLock.svelte';
 
-  const id = $derived(page.url.searchParams.get('id') ?? '');
+  const id = $derived(page.url.searchParams.get('channel') ?? page.url.searchParams.get('id') ?? '');
   const epId = $derived(page.url.searchParams.get('ep'));
+  const sParam = $derived(Number(page.url.searchParams.get('s')) || undefined);
+  const eParam = $derived(Number(page.url.searchParams.get('e')) || undefined);
+  const explicitLive = $derived(page.url.searchParams.get('live') === '1' || page.url.searchParams.has('channel'));
   const adultLocked = $derived(spaceForId(id) === 'ADULT' && !adult.unlocked);
 
   let item = $state.raw<Item | undefined>(undefined);
   let media = $state.raw<Media | undefined>(undefined);
-  let seasons = $state.raw<Season[]>([]);
-  let seasonN = $state<number | null>(null);
   let status = $state<'loading' | 'ready' | 'missing' | 'error'>('loading');
-
-  async function episodesOf(it: Item, n: number): Promise<Episode[]> {
-    const s = it.seasons?.find((x) => x.n === n);
-    if (!s) return [];
-    return s.episodes.length ? s.episodes : catalog.season(it, n).catch(() => []);
-  }
 
   $effect(() => {
     const want = id;
     const ep = epId;
     let alive = true;
     status = 'loading';
+    if (!want) {
+      status = 'missing';
+      return;
+    }
     if (adultLocked) return;
-    catalog.hintSlug(want, page.url.searchParams.get('slug'));
-    catalog
-      .item(want)
-      .catch(() => undefined)
-      .then(async (found) => {
+
+    const slug = resolveHandoffSlug(want, page.url.searchParams.get('slug'));
+    catalog.hintSlug(want, slug);
+
+    const seed = handedOff(want) ?? catalog.peek(want);
+    const isTvSpace = explicitLive || spaceForId(want) === 'TV' || seed?.type === 'CHANNEL' || seed?.live === true;
+
+    // Non-live VOD links redirect cleanly to `/app/title?...&play=1` (preserving slug + episode)
+    // so VOD always plays inline on the Title Details page and never hits "Title not found".
+    if (!isTvSpace) {
+      void goto(titleHref(seed ?? want, { slug, ep, s: sParam, e: eParam, play: true }), { replaceState: true });
+      return () => {
+        alive = false;
+      };
+    }
+
+    (async () => {
+      let found =
+        (await repo.item(want, 'TV').catch(() => undefined)) ??
+        (await catalog.item(want, 'TV').catch(() => undefined)) ??
+        seed;
+      if (!alive) return;
+      if (!found) {
+        const tvItems = await repo.items('TV').catch(() => [] as Item[]);
         if (!alive) return;
-        let it = found;
-        let stubEp: Episode | undefined;
-        if (!it) {
-          // Offline / metadata unavailable: play a completed download from its stored record.
-          const stub = await downloads.offlineStub(want, ep ?? undefined);
-          if (!alive) return;
-          if (stub) {
-            it = stub.item;
-            stubEp = stub.episode;
-          }
-        }
-        if (!it) {
-          status = navigator.onLine === false ? 'error' : 'missing';
-          return;
-        }
-        const itm: Item = it;
-        let episode: Episode | undefined = stubEp;
-        let loaded: Season[] = [];
-        if (!stubEp && it.seasons?.length) {
-          const s = (ep && (it.seasons.find((x) => x.episodes.some((e) => e.id === ep)) ?? it.seasons.find((x) => ep.includes(`-s${x.n}e`)))) || it.seasons[0];
-          const eps = await episodesOf(it, s.n);
-          if (!alive) return;
-          loaded = [{ ...s, episodes: eps }];
-          episode = (ep ? eps.find((e) => e.id === ep) : undefined) ?? eps[0];
-          seasonN = s.n;
-          // Next season preloaded when this is the last episode (cross-season "next").
-          const nextS = it.seasons.find((x) => x.n > s.n);
-          if (nextS && episode && eps[eps.length - 1]?.id === episode.id) {
-            const nEps = await episodesOf(it, nextS.n);
-            if (!alive) return;
-            loaded.push({ ...nextS, episodes: nEps });
-          }
-        }
-        item = it;
-        seasons = loaded;
-        // Downloaded → play the offline copy (shaka offline URI / OPFS blob URL).
-        const m = await prepareMedia(it, episode);
-        if (!alive) return;
-        media = m;
-        status = 'ready';
-        const nx = nextEpisode(loaded, episode?.id);
-        nextUp.set(nx ? { title: `E${nx.n} · ${nx.title}`, go: () => goto(watchHref(itm.id, nx.id), { replaceState: true }) } : null);
-        void session.play(m);
-      });
+        found = tvItems.find((x) => x.id === want);
+      }
+      if (!found) {
+        status = navigator.onLine === false ? 'error' : 'missing';
+        return;
+      }
+      if (!found.live && found.type !== 'CHANNEL' && found.space !== 'TV') {
+        void goto(titleHref(found, { slug: slug ?? found.slug, ep, s: sParam, e: eParam, play: true }), { replaceState: true });
+        return;
+      }
+      item = found;
+      const m = await prepareMedia(found, undefined);
+      if (!alive) return;
+      media = m;
+      status = 'ready';
+      nextUp.set(null);
+      void session.play(m);
+    })();
+
     return () => {
       alive = false;
     };
@@ -103,15 +94,26 @@
   const isChannel = $derived(!!item?.live && item.type === 'CHANNEL');
   $effect(() => {
     if (!isChannel || channels.length) return;
-    repo.items('TV').then((l) => (channels = channelsOf(l)), () => {});
+    repo.items('TV').then(
+      (l) => (channels = channelsOf(l)),
+      () => {}
+    );
   });
   $effect(() => (isChannel ? live.tick() : undefined));
+
   function zap(dir: 1 | -1) {
     const next = zapChannel(channels, item?.id, dir);
-    if (next && next.id !== item?.id) goto(watchHref(next.id), { replaceState: true });
+    if (next && next.id !== item?.id) goto(watchHref(next, { live: true }), { replaceState: true });
   }
+
   const onAir = $derived(item && isChannel ? currentProgram(item.programs, live.base, live.now) : undefined);
-  const liveInfo = $derived(item && isChannel ? `${item.channelNumber ?? ''} · ${item.title}${onAir ? ` · ${onAir.program.title}` : ''}` : (item?.live ? (item.league ?? '') : ''));
+  const liveInfo = $derived(
+    item && isChannel
+      ? `${item.channelNumber ?? ''} · ${item.title}${onAir ? ` · ${onAir.program.title}` : ''}`
+      : item?.live
+        ? (item.league ?? '')
+        : ''
+  );
 
   onDestroy(() => {
     nextUp.set(null);
@@ -120,26 +122,13 @@
 
   function back() {
     if (history.length > 1) history.back();
+    else if (item && item.space === 'TV') goto(`${base}/app/tv`);
     else if (item) goto(detailsHref(item));
-    else goto(detailsHref({ id }));
-  }
-
-  const current = $derived(seasons.find((s) => s.n === seasonN));
-  const activeDub = $derived(dubOfSource(media?.source));
-  const fmt = (sec?: number) => (sec ? `${Math.round(sec / 60)}m` : '');
-
-  async function pickSeason(n: number) {
-    if (!item || seasonN === n) return;
-    seasonN = n;
-    if (!seasons.some((s) => s.n === n)) {
-      const eps = await episodesOf(item, n);
-      const meta = item.seasons?.find((s) => s.n === n);
-      if (meta) seasons = [...seasons, { ...meta, episodes: eps }].sort((a, b) => a.n - b.n);
-    }
+    else goto(`${base}/app`);
   }
 </script>
 
-<svelte:head><title>{media?.title ?? item?.title ?? 'Play'} · Cinetor</title></svelte:head>
+<svelte:head><title>{media?.title ?? item?.title ?? 'Live TV'} · Cinetor</title></svelte:head>
 
 <section class="watch">
   <div class="pwrap">
@@ -151,7 +140,7 @@
       <SkeletonBox aspect="16 / 9" radius="0" />
     {:else}
       <div class="state">
-        <p>{status === 'missing' ? 'Title not found.' : "Couldn't load this title."}</p>
+        <p>{status === 'missing' ? 'Channel unavailable right now.' : "Couldn't load this stream."}</p>
         <button class="btn btn-ghost" onclick={back}>Back</button>
       </div>
     {/if}
@@ -160,13 +149,8 @@
   <div class="below">
     {#if item && media}
       <h1>{item.title}</h1>
-      {#if media.subtitle || activeDub}
-        <p class="sub">{[media.subtitle, activeDub].filter(Boolean).join(' · ')}</p>
-      {/if}
-      {#if !item.live}
-        <div class="links">
-          <a class="btn btn-ghost" href={detailsHref(item)}>Details</a>
-        </div>
+      {#if media.subtitle}
+        <p class="sub">{media.subtitle}</p>
       {/if}
       {#if isChannel}
         {#if onAir}<p class="sub">Now: <b>{onAir.program.title}</b></p>{/if}
@@ -175,7 +159,7 @@
           {#each channels as ch (ch.id)}
             {@const cur = currentProgram(ch.programs, live.base, live.now)}
             <li>
-              <a href={watchHref(ch.id)} data-sveltekit-replacestate aria-current={ch.id === item.id ? 'true' : undefined}>
+              <a href={watchHref(ch, { live: true })} data-sveltekit-replacestate aria-current={ch.id === item.id ? 'true' : undefined}>
                 {#if ch.logo}<img src={img(ch.logo)} alt="" width="40" height="40" loading="lazy" />{/if}
                 <span><b>{ch.channelNumber} {ch.title}</b><small>{cur?.program.title ?? ''}</small></span>
                 {#if live.isFav(ch.id)}<i aria-label="Favorite">★</i>{/if}
@@ -184,45 +168,8 @@
           {/each}
         </ul>
       {/if}
-      {#if item.seasons && item.seasons.length > 1}
-        <div class="season-tabs" role="tablist" aria-label="Seasons">
-          {#each item.seasons as s (s.n)}
-            <button
-              type="button"
-              role="tab"
-              class="season-pill glass-pill"
-              aria-selected={seasonN === s.n}
-              class:active={seasonN === s.n}
-              onclick={() => pickSeason(s.n)}
-            >
-              Season {s.n}
-            </button>
-          {/each}
-        </div>
-      {/if}
-      {#if current?.episodes.length}
-        <h2 class="section-title">Season {current.n}</h2>
-        <ol class="eps">
-          {#each current.episodes as ep (ep.id)}
-            {@const still = imgFor(ep.still, 'still')}
-            <li>
-              <a href={watchHref(item.id, ep.id)} class="ep" aria-current={ep.id === media.episode?.id ? 'true' : undefined} data-sveltekit-replacestate>
-                <div class="still">
-                  <img sizes={still.sizes} srcset={still.srcset} src={still.src} alt="" loading="lazy" decoding="async" width="320" height="180" />
-                  <span class="dur">{fmt(ep.durationSec)}</span>
-                  {#if ep.id === media.episode?.id}<span class="now">Playing</span>{/if}
-                </div>
-                <div class="txt">
-                  <h3>{ep.n}. {ep.title}</h3>
-                  {#if ep.synopsis}<p>{ep.synopsis}</p>{/if}
-                </div>
-              </a>
-            </li>
-          {/each}
-        </ol>
-      {/if}
     {:else if status === 'loading'}
-      <div class="sk"><SkeletonBox width="60%" height="22px" /><SkeletonEpisodeList count={3} /></div>
+      <div class="sk"><SkeletonBox width="60%" height="22px" /></div>
     {/if}
   </div>
 </section>
@@ -246,7 +193,6 @@
       overflow: hidden;
     }
   }
-  /* Phone rotated to landscape → immersive fullscreen layout. */
   @media (orientation: landscape) and (max-height: 520px) {
     .pwrap {
       position: fixed;
@@ -273,93 +219,6 @@
   .sub {
     margin: 4px 0 0;
     color: var(--text-secondary);
-  }
-  .links {
-    margin: 12px 0 4px;
-  }
-  .season-tabs {
-    display: flex;
-    gap: 8px;
-    overflow-x: auto;
-    padding: 8px 0 4px;
-    scrollbar-width: none;
-  }
-  .season-pill {
-    flex: none;
-    padding: 6px 14px;
-    border-radius: 99px;
-    border: 1px solid rgb(255 255 255 / 0.14);
-    background: var(--glass-fill, rgb(255 255 255 / 0.06));
-    color: var(--text-primary);
-    font-size: 0.82rem;
-    font-weight: 700;
-    cursor: pointer;
-  }
-  .season-pill.active {
-    background: var(--accent);
-    border-color: var(--accent);
-    color: var(--on-accent, #fff);
-  }
-  .eps {
-    list-style: none;
-    margin: 0;
-    padding: 0;
-    display: grid;
-    gap: 10px;
-  }
-  .ep {
-    display: grid;
-    grid-template-columns: clamp(120px, 34vw, 190px) 1fr;
-    gap: 12px;
-    align-items: center;
-    text-decoration: none;
-    border-radius: var(--radius-md);
-  }
-  .ep[aria-current='true'] .still {
-    box-shadow: 0 0 0 2px var(--accent);
-  }
-  .still {
-    position: relative;
-    aspect-ratio: 16 / 9;
-    border-radius: var(--radius-md);
-    overflow: hidden;
-    background: var(--surface);
-  }
-  .still img {
-    width: 100%;
-    height: 100%;
-    object-fit: cover;
-  }
-  .dur,
-  .now {
-    position: absolute;
-    bottom: 6px;
-    padding: 1px 6px;
-    border-radius: 6px;
-    font-size: 0.7rem;
-  }
-  .dur {
-    right: 6px;
-    background: rgb(0 0 0 / 0.7);
-  }
-  .now {
-    left: 6px;
-    background: var(--accent);
-    font-weight: 700;
-  }
-  .txt h3 {
-    margin: 0 0 4px;
-    font-size: 0.9rem;
-  }
-  .txt p {
-    margin: 0;
-    font-size: 0.8rem;
-    color: var(--text-secondary);
-    display: -webkit-box;
-    -webkit-line-clamp: 2;
-    line-clamp: 2;
-    -webkit-box-orient: vertical;
-    overflow: hidden;
   }
   .state {
     aspect-ratio: 16 / 9;
@@ -428,7 +287,7 @@
     font-size: 0.75rem;
   }
   .quick i {
-    color: #ffc93c;
+    color: var(--warning);
     font-style: normal;
   }
 </style>
