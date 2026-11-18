@@ -75,16 +75,9 @@
   }
 
   /* Matte: crisp solid chrome with zero specular glare or blur. */
-  :global([data-theme='matte']) .titlebar {
-    -webkit-backdrop-filter: none;
-    backdrop-filter: none;
-    background: var(--surface);
-    box-shadow: none;
-    border-bottom: 1px solid var(--divider);
-  }
 
   /* Pearl: warm daylight frosted chrome with crisp dark controls (≥ 14:1 contrast). */
-  :global([data-theme='pearl']) .titlebar {
+  :global([data-theme='daylight']) .titlebar {
     background:
       linear-gradient(180deg, rgb(255 255 255 / 0.86), rgb(255 255 255 / 0.42)),
       linear-gradient(90deg, color-mix(in srgb, var(--tint, var(--accent)) 7%, transparent), transparent 46%),
@@ -104,8 +97,8 @@
       linear-gradient(90deg, color-mix(in srgb, var(--tint, var(--accent)) 10%, transparent), transparent 46%),
       color-mix(in srgb, var(--surface) 95%, var(--bg));
   }
-  :global(html.tauri-linux[data-theme='pearl']) .titlebar,
-  :global([data-blur='none'][data-theme='pearl']) .titlebar {
+  :global(html.tauri-linux[data-theme='daylight']) .titlebar,
+  :global([data-blur='none'][data-theme='daylight']) .titlebar {
     background: color-mix(in srgb, var(--surface) 96%, var(--bg));
   }
 

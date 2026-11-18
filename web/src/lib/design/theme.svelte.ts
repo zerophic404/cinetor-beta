@@ -2,15 +2,7 @@ import { defaultTheme, themes, type ThemeName, type ThemeTokens } from './tokens
 
 export const THEME_KEY = 'cinetor.theme';
 
-export type KnownThemeKey =
-  | 'glass'
-  | 'matte'
-  | 'material'
-  | 'aura'
-  | 'pearl'
-  | 'noir'
-  | 'obsidian'
-  | 'ember';
+export type KnownThemeKey = 'cinema' | 'midnight' | 'emerald' | 'sunset' | 'royal' | 'daylight';
 
 export interface ThemeDescriptor {
   key: KnownThemeKey;
@@ -20,57 +12,28 @@ export interface ThemeDescriptor {
 }
 
 export const THEME_CATALOG: readonly ThemeDescriptor[] = [
-  {
-    key: 'glass',
-    label: 'Glass',
-    note: 'Clear dark cinema glass with a soft specular glow',
-    badge: 'Default'
-  },
-  {
-    key: 'matte',
-    label: 'Matte',
-    note: 'Flat solid charcoal surfaces with zero glare'
-  },
-  {
-    key: 'material',
-    label: 'Material',
-    note: 'Soft tonal layers, rounder corners and pill actions'
-  },
-  {
-    key: 'aura',
-    label: 'Aura',
-    note: 'Adaptive canvas washed in artwork color with capsule nav',
-    badge: 'Capsule'
-  },
-  {
-    key: 'pearl',
-    label: 'Pearl',
-    note: 'Warm frosted daylight surfaces with crisp dark type',
-    badge: 'Daylight'
-  },
-  {
-    key: 'noir',
-    label: 'Noir',
-    note: 'Pure OLED black paired with classic cinema red'
-  },
-  {
-    key: 'obsidian',
-    label: 'Obsidian',
-    note: 'Deep slate glass with rich crimson accents'
-  },
-  {
-    key: 'ember',
-    label: 'Ember',
-    note: 'Warm curtain dark with glowing ember highlights'
-  }
+  { key: 'cinema', label: 'Cinema', note: 'Pure black, white and Cinema Red: the signature look', badge: 'Default' },
+  { key: 'midnight', label: 'Midnight', note: 'Deep navy glass with electric blue light' },
+  { key: 'emerald', label: 'Emerald', note: 'Dark forest canvas with fresh mint highlights' },
+  { key: 'sunset', label: 'Sunset', note: 'Warm plum dusk with coral and rose light' },
+  { key: 'royal', label: 'Royal', note: 'Deep violet velvet with gold trim' },
+  { key: 'daylight', label: 'Daylight', note: 'Bright warm paper, ink text and red accents', badge: 'Light' }
 ];
 
+/** Saved names from earlier versions map onto the closest of the six current themes. */
 const LEGACY_KEYS: Readonly<Record<string, KnownThemeKey>> = {
-  night: 'glass',
-  crimson: 'glass',
-  midnight: 'matte',
-  graphite: 'material',
-  day: 'pearl'
+  night: 'cinema',
+  crimson: 'cinema',
+  graphite: 'cinema',
+  day: 'daylight',
+  glass: 'cinema',
+  matte: 'cinema',
+  material: 'cinema',
+  noir: 'cinema',
+  obsidian: 'midnight',
+  aura: 'sunset',
+  ember: 'sunset',
+  pearl: 'daylight'
 };
 
 export function isThemeName(value: string | null | undefined): value is ThemeName {
@@ -88,7 +51,7 @@ export function themeDescriptor(name: ThemeName): ThemeDescriptor {
   const found = THEME_CATALOG.find((item) => item.key === (name as string));
   if (found) return found;
   return {
-    key: 'glass',
+    key: 'cinema',
     label: themes[name]?.name ?? String(name),
     note: 'Cinema theme'
   };
@@ -97,11 +60,11 @@ export function themeDescriptor(name: ThemeName): ThemeDescriptor {
 export function isLightTheme(name: ThemeName): boolean {
   const tok = themes[name] as (ThemeTokens & { isLight?: boolean }) | undefined;
   if (tok && typeof tok.isLight === 'boolean') return tok.isLight;
-  return (name as string) === 'pearl';
+  return (name as string) === 'daylight';
 }
 
 function fallbackTheme(): ThemeName {
-  if (isThemeName('glass')) return 'glass';
+  if (isThemeName('cinema')) return 'cinema';
   return defaultTheme;
 }
 

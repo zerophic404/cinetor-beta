@@ -30,10 +30,7 @@
     display: block;
     filter: drop-shadow(0 3px 10px rgb(229 9 20 / 0.28));
   }
-  :global([data-theme='matte']) svg {
-    filter: none;
-  }
-  :global([data-theme='pearl']) svg {
+  :global([data-theme='daylight']) svg {
     filter: drop-shadow(0 2px 6px rgb(225 29 46 / 0.18));
   }
   .word {

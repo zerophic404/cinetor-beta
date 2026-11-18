@@ -35,7 +35,7 @@
   --bg: #050505;
   --surface: #101010;
   --surface-elevated: #181818;
-  --glass-fill: #FFFFFF14;
+  --glass-fill: #FFFFFF12;
   --glass-stroke: #FFFFFF29;
   --accent: #E50914;
   --accent-end: #B20710;
@@ -54,96 +54,15 @@
   --skeleton-base: #151515;
   --skeleton-highlight: #252525;
   --blur: 20px;
-  --tint-strength: 0.0;
-}
-
-[data-theme="noir"] {
-  color-scheme: dark;
-  --bg: #000000;
-  --surface: #0B0B0B;
-  --surface-elevated: #141414;
-  --glass-fill: #FFFFFF0F;
-  --glass-stroke: #FFFFFF1A;
-  --accent: #E50914;
-  --accent-end: #B00610;
-  --accent-glow: #FF2D3B73;
-  --on-accent: #FFFFFF;
-  --text-primary: #FFFFFF;
-  --text-secondary: #A3A3A3;
-  --text-tertiary: #6B6B6B;
-  --divider: #FFFFFF14;
-  --focus-ring: #FFFFFF;
-  --success: #22C55E;
-  --warning: #F5A524;
-  --error: #FF3B30;
-  --live-badge: #E50914;
-  --scrim: #000000B3;
-  --skeleton-base: #161616;
-  --skeleton-highlight: #262626;
-  --blur: 14px;
-  --tint-strength: 0.0;
-}
-
-[data-theme="obsidian"] {
-  color-scheme: dark;
-  --bg: #0E0E10;
-  --surface: #17171A;
-  --surface-elevated: #1F1F23;
-  --glass-fill: #FFFFFF14;
-  --glass-stroke: #FFFFFF24;
-  --accent: #C8102E;
-  --accent-end: #8E0B20;
-  --accent-glow: #C8102E59;
-  --on-accent: #FFFFFF;
-  --text-primary: #F2F2F5;
-  --text-secondary: #9A9AA3;
-  --text-tertiary: #6A6A72;
-  --divider: #FFFFFF1A;
-  --focus-ring: #F2F2F5;
-  --success: #2FBF71;
-  --warning: #E8A33D;
-  --error: #E5484D;
-  --live-badge: #FF3347;
-  --scrim: #0E0E10B8;
-  --skeleton-base: #1C1C20;
-  --skeleton-highlight: #2A2A30;
-  --blur: 24px;
   --tint-strength: 0.3;
 }
 
-[data-theme="ember"] {
-  color-scheme: dark;
-  --bg: #0A0505;
-  --surface: #160A0A;
-  --surface-elevated: #201010;
-  --glass-fill: #FF2D3B12;
-  --glass-stroke: #FF6A4D38;
-  --accent: #FF2D3B;
-  --accent-end: #FF7A1A;
-  --accent-glow: #FF5A1F80;
-  --on-accent: #FFFFFF;
-  --text-primary: #FFF4F0;
-  --text-secondary: #D9B8AE;
-  --text-tertiary: #9C7E76;
-  --divider: #FF6A4D1F;
-  --focus-ring: #FFB199;
-  --success: #3DD68C;
-  --warning: #FFB020;
-  --error: #FF4D4F;
-  --live-badge: #FF2D3B;
-  --scrim: #0A0505B8;
-  --skeleton-base: #1E0F0E;
-  --skeleton-highlight: #2E1816;
-  --blur: 22px;
-  --tint-strength: 0.26;
-}
-
-[data-theme="glass"] {
+[data-theme="cinema"] {
   color-scheme: dark;
   --bg: #050505;
   --surface: #101010;
   --surface-elevated: #181818;
-  --glass-fill: #FFFFFF14;
+  --glass-fill: #FFFFFF12;
   --glass-stroke: #FFFFFF29;
   --accent: #E50914;
   --accent-end: #B20710;
@@ -162,116 +81,143 @@
   --skeleton-base: #151515;
   --skeleton-highlight: #252525;
   --blur: 20px;
-  --tint-strength: 0.0;
+  --tint-strength: 0.3;
 }
 
-[data-theme="matte"] {
+[data-theme="midnight"] {
   color-scheme: dark;
-  --bg: #0C0C0E;
-  --surface: #151518;
-  --surface-elevated: #1E1E22;
-  --glass-fill: #1B1B1F;
-  --glass-stroke: #FFFFFF12;
-  --accent: #E11D2E;
-  --accent-end: #C8102E;
-  --accent-glow: #E11D2E33;
-  --on-accent: #FFFFFF;
-  --text-primary: #EDEAE8;
-  --text-secondary: #B8B5B2;
-  --text-tertiary: #8A8785;
-  --divider: #FFFFFF0D;
-  --focus-ring: #EDEAE8;
-  --success: #22C55E;
-  --warning: #E8A33D;
-  --error: #FF4757;
-  --live-badge: #E11D2E;
-  --scrim: #0C0C0ED9;
-  --skeleton-base: #18181C;
-  --skeleton-highlight: #242429;
-  --blur: 0px;
-  --tint-strength: 0.2;
-}
-
-[data-theme="material"] {
-  color-scheme: dark;
-  --bg: #111315;
-  --surface: #1B1E22;
-  --surface-elevated: #252930;
+  --bg: #060B18;
+  --surface: #0E1628;
+  --surface-elevated: #16213A;
   --glass-fill: #FFFFFF12;
-  --glass-stroke: #FFFFFF1F;
-  --accent: #E11D2E;
-  --accent-end: #C8102E;
-  --accent-glow: #E11D2E4D;
+  --glass-stroke: #8FB4FF33;
+  --accent: #2A62F2;
+  --accent-end: #1B45C9;
+  --accent-glow: #2A62F266;
   --on-accent: #FFFFFF;
-  --text-primary: #F1F3F5;
-  --text-secondary: #B4BAC2;
-  --text-tertiary: #868E96;
+  --text-primary: #F3F6FF;
+  --text-secondary: #C3CCE3;
+  --text-tertiary: #8D99B8;
   --divider: #FFFFFF14;
-  --focus-ring: #F1F3F5;
-  --success: #2FBF71;
-  --warning: #E8A33D;
-  --error: #FF5252;
-  --live-badge: #E11D2E;
-  --scrim: #111315CC;
-  --skeleton-base: #1F2328;
-  --skeleton-highlight: #2C3138;
-  --blur: 16px;
-  --tint-strength: 0.0;
-}
-
-[data-theme="aura"] {
-  color-scheme: dark;
-  --bg: #08090C;
-  --surface: #13151B;
-  --surface-elevated: #1C1F28;
-  --glass-fill: #FFFFFF1A;
-  --glass-stroke: #FFFFFF33;
-  --accent: #E11D2E;
-  --accent-end: #B80F24;
-  --accent-glow: #E11D2E73;
-  --on-accent: #FFFFFF;
-  --text-primary: #F8FAFC;
-  --text-secondary: #C6CBD6;
-  --text-tertiary: #8E96A6;
-  --divider: #FFFFFF17;
   --focus-ring: #FFFFFF;
-  --success: #22C55E;
-  --warning: #F5A524;
-  --error: #FF4757;
-  --live-badge: #E11D2E;
-  --scrim: #08090CBF;
-  --skeleton-base: #151821;
-  --skeleton-highlight: #232836;
-  --blur: 24px;
-  --tint-strength: 0.42;
+  --success: #34D399;
+  --warning: #FBBF24;
+  --error: #FF5A6E;
+  --live-badge: #FF3B5C;
+  --scrim: #060B18BF;
+  --skeleton-base: #111A2E;
+  --skeleton-highlight: #1D2945;
+  --blur: 22px;
+  --tint-strength: 0.3;
 }
 
-[data-theme="pearl"] {
+[data-theme="emerald"] {
+  color-scheme: dark;
+  --bg: #04100C;
+  --surface: #0A1C16;
+  --surface-elevated: #112821;
+  --glass-fill: #FFFFFF12;
+  --glass-stroke: #7FFFD42E;
+  --accent: #10B981;
+  --accent-end: #0B8A60;
+  --accent-glow: #10B98166;
+  --on-accent: #03120D;
+  --text-primary: #F1FFF9;
+  --text-secondary: #BFDCCF;
+  --text-tertiary: #86A898;
+  --divider: #FFFFFF14;
+  --focus-ring: #FFFFFF;
+  --success: #4ADE80;
+  --warning: #FACC15;
+  --error: #FF5D5D;
+  --live-badge: #FF4D4D;
+  --scrim: #04100CBF;
+  --skeleton-base: #0F221B;
+  --skeleton-highlight: #1A3329;
+  --blur: 20px;
+  --tint-strength: 0.28;
+}
+
+[data-theme="sunset"] {
+  color-scheme: dark;
+  --bg: #140A12;
+  --surface: #20111D;
+  --surface-elevated: #2B1727;
+  --glass-fill: #FFFFFF12;
+  --glass-stroke: #FF9A7A33;
+  --accent: #FF6B4A;
+  --accent-end: #E0436B;
+  --accent-glow: #FF6B4A66;
+  --on-accent: #1A0A08;
+  --text-primary: #FFF5F2;
+  --text-secondary: #E8CBC4;
+  --text-tertiary: #AE8F96;
+  --divider: #FFFFFF14;
+  --focus-ring: #FFFFFF;
+  --success: #4ADE80;
+  --warning: #FFC44D;
+  --error: #FF4F6D;
+  --live-badge: #FF3D5A;
+  --scrim: #140A12BF;
+  --skeleton-base: #24131F;
+  --skeleton-highlight: #341C2D;
+  --blur: 22px;
+  --tint-strength: 0.35;
+}
+
+[data-theme="royal"] {
+  color-scheme: dark;
+  --bg: #0C0716;
+  --surface: #160E26;
+  --surface-elevated: #1F1535;
+  --glass-fill: #FFFFFF12;
+  --glass-stroke: #D4AF3733;
+  --accent: #D4AF37;
+  --accent-end: #A88420;
+  --accent-glow: #D4AF3766;
+  --on-accent: #1A1206;
+  --text-primary: #FBF7FF;
+  --text-secondary: #D5C9E8;
+  --text-tertiary: #9C90B5;
+  --divider: #FFFFFF14;
+  --focus-ring: #FFFFFF;
+  --success: #4ADE80;
+  --warning: #FBBF24;
+  --error: #FF5A6E;
+  --live-badge: #FF3B5C;
+  --scrim: #0C0716BF;
+  --skeleton-base: #1A1129;
+  --skeleton-highlight: #281C3D;
+  --blur: 22px;
+  --tint-strength: 0.3;
+}
+
+[data-theme="daylight"] {
   color-scheme: light;
   --bg: #FAF8F6;
   --surface: #FFFFFF;
   --surface-elevated: #F1EEEA;
   --glass-fill: #FFFFFFCC;
   --glass-stroke: #1414161F;
-  --accent: #E11D2E;
-  --accent-end: #B80F24;
-  --accent-glow: #E11D2E40;
+  --accent: #D10A16;
+  --accent-end: #A3070F;
+  --accent-glow: #D10A1640;
   --on-accent: #FFFFFF;
   --text-primary: #141416;
-  --text-secondary: #52525B;
-  --text-tertiary: #71717A;
+  --text-secondary: #4A4A52;
+  --text-tertiary: #6B6B73;
   --divider: #14141614;
   --focus-ring: #141416;
-  --success: #16A34A;
-  --warning: #D97706;
-  --error: #DC2626;
-  --live-badge: #E11D2E;
+  --success: #15803D;
+  --warning: #B45309;
+  --error: #C81E1E;
+  --live-badge: #D10A16;
   --scrim: #14141666;
   --skeleton-base: #EAE6E1;
   --skeleton-highlight: #F7F5F2;
-  --blur: 20px;
-  --tint-strength: 0.16;
+  --blur: 18px;
+  --tint-strength: 0.14;
 }
 
-:root[data-theme="pearl"] { color-scheme: light; }
+:root[data-theme="daylight"] { color-scheme: light; }
 :root, [data-theme] { --accent-gradient: linear-gradient(90deg, var(--accent), var(--accent-end)); }

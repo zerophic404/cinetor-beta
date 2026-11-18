@@ -32,37 +32,37 @@ class SettingsTest {
         val holder = SettingsStateHolder(source, backgroundScope, profiles.active.map { it.theme }) { profiles.setTheme(it) }
         runCurrent()
         val themeFlow = holder.theme
-        assertEquals(AppTheme.NOIR, themeFlow.value)
+        assertEquals(AppTheme.CINEMA, themeFlow.value)
 
-        holder.setTheme(AppTheme.EMBER)
+        holder.setTheme(AppTheme.SUNSET)
         runCurrent()
         // Same holder + same StateFlow instance emits the new theme: the root recomposes in place, no restart.
         assertSame(themeFlow, holder.theme)
-        assertEquals(AppTheme.EMBER, themeFlow.value)
-        assertEquals(AppTheme.EMBER, holder.state.value.theme)
-        assertEquals(AppTheme.EMBER.name, profiles.active.value.theme)
+        assertEquals(AppTheme.SUNSET, themeFlow.value)
+        assertEquals(AppTheme.SUNSET, holder.state.value.theme)
+        assertEquals(AppTheme.SUNSET.name, profiles.active.value.theme)
 
         // Other profile without an override follows the app default; its own pick wins once set.
         val kid = (profiles.create("Kid") as com.mythbrix.cinetor.feature.profile.CreateResult.Ok).profile
         profiles.select(kid.id)
         runCurrent()
-        assertEquals(AppTheme.EMBER, themeFlow.value)
-        holder.setTheme(AppTheme.OBSIDIAN)
+        assertEquals(AppTheme.SUNSET, themeFlow.value)
+        holder.setTheme(AppTheme.MIDNIGHT)
         runCurrent()
-        assertEquals(AppTheme.OBSIDIAN, themeFlow.value)
+        assertEquals(AppTheme.MIDNIGHT, themeFlow.value)
         profiles.select(ProfileManager.MAIN_ID)
         runCurrent()
-        assertEquals(AppTheme.EMBER, themeFlow.value)
+        assertEquals(AppTheme.SUNSET, themeFlow.value)
 
-        holder.setTheme(AppTheme.NOIR)
+        holder.setTheme(AppTheme.CINEMA)
         runCurrent()
-        assertEquals(AppTheme.NOIR, themeFlow.value)
+        assertEquals(AppTheme.CINEMA, themeFlow.value)
     }
 
     @Test
     fun settings_persistAcrossProcessDeath() {
         val changed = AppSettings(
-            theme = AppTheme.EMBER, effects = EffectsQuality.LOW, reduceMotion = true, dynamicColor = false,
+            theme = AppTheme.SUNSET, effects = EffectsQuality.LOW, reduceMotion = true, dynamicColor = false,
             qualityWifi = VideoQuality.P1080, qualityMobile = VideoQuality.P360, autoplayNext = false, skipIntroAuto = true,
             doubleTapSec = 30, holdSpeed = 3f, gestures = false, autoPip = false, backgroundPlay = true,
             subtitleLang = "bn", audioLang = "ja", subtitlesOn = false, dataSaver = true, imageQuality = ImageQuality.LOW,
@@ -79,7 +79,7 @@ class SettingsTest {
         assertEquals(AppSettings(), SettingsCodec.decode("{not json"))
         val odd = SettingsCodec.decode("""{"doubleTapSec":12,"future":"x","theme":"NOPE"}""")
         assertEquals(10, odd.doubleTapSec)
-        assertEquals(AppTheme.NOIR, odd.theme)
+        assertEquals(AppTheme.CINEMA, odd.theme)
     }
 
     @Test

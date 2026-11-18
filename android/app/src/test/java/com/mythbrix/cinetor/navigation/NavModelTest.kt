@@ -94,9 +94,9 @@ class NavModelTest {
                 }
             }
         }
-        assertTrue(glassAllowsLiveBlur(insideHazeSource = false, tier = PerformanceTier.HIGH, level = GlassLevel.BAR, theme = AppTheme.GLASS))
-        assertFalse(glassAllowsLiveBlur(insideHazeSource = false, tier = PerformanceTier.HIGH, level = GlassLevel.BAR, theme = AppTheme.MATTE))
-        assertFalse(glassAllowsLiveBlur(insideHazeSource = false, tier = PerformanceTier.LOW, level = GlassLevel.BAR, theme = AppTheme.GLASS))
+        assertTrue(glassAllowsLiveBlur(insideHazeSource = false, tier = PerformanceTier.HIGH, level = GlassLevel.BAR, theme = AppTheme.CINEMA))
+        assertFalse(glassAllowsLiveBlur(insideHazeSource = true, tier = PerformanceTier.HIGH, level = GlassLevel.BAR, theme = AppTheme.CINEMA))
+        assertFalse(glassAllowsLiveBlur(insideHazeSource = false, tier = PerformanceTier.LOW, level = GlassLevel.BAR, theme = AppTheme.CINEMA))
     }
 
     @Test

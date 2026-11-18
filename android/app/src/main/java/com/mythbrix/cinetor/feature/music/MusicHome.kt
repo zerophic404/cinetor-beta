@@ -52,7 +52,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
@@ -81,9 +80,7 @@ import com.mythbrix.cinetor.design.SkeletonHero
 import com.mythbrix.cinetor.design.SkeletonPosterRow
 import com.mythbrix.cinetor.design.glass
 import com.mythbrix.cinetor.feature.home.CategoryTabs
-import com.mythbrix.cinetor.feature.home.HeroCarousel
 import com.mythbrix.cinetor.feature.home.TabSpec
-import com.mythbrix.cinetor.feature.home.rememberTintFeeder
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
@@ -105,12 +102,10 @@ fun MusicHome(container: AppContainer, contentPadding: PaddingValues, onOpenAlbu
     val repoError by repo.error.collectAsStateWithLifecycle()
     val music = container.music
     val ms by music.state.collectAsStateWithLifecycle()
-    val myList by container.myList.collectAsStateWithLifecycle()
     val downloads = rememberMusicDownloads(container)
     val scope = rememberCoroutineScope()
     val focusManager = LocalFocusManager.current
     val tokens = Cinetor.tokens
-    val feeder = rememberTintFeeder()
 
     var tab by rememberSaveable { mutableIntStateOf(0) }
     var selectedCategory by rememberSaveable { mutableStateOf("Trending") }
@@ -368,19 +363,33 @@ fun MusicHome(container: AppContainer, contentPadding: PaddingValues, onOpenAlbu
                     CategoryTabs(MusicBrowseTabs, tab, { tab = it })
                 }
 
-                if (tab == 0 && d.heroes.isNotEmpty()) {
-                    item(key = "hero", contentType = "hero") {
-                        HeroCarousel(
-                            heroes = d.heroes,
-                            myList = myList,
-                            visible = true,
-                            onOpen = { item ->
-                                if (item.type == ItemType.ALBUM) onOpenAlbum(item.id) else music.playItem(item, expand = true)
-                            },
-                            onPlay = { music.playItem(it) },
-                            onToggleMyList = { container.toggleMyList(it) },
-                            onColor = feeder::immediate,
-                        )
+                // Spotify-style opening: a greeting and a 2-column grid of compact quick picks.
+                if (tab == 0 && artistFilter == null) {
+                    val quick = (allCollections.ifEmpty { d.heroes }).take(QUICK_PICKS)
+                    if (quick.isNotEmpty()) {
+                        item(key = "greeting", contentType = "greeting") {
+                            Text(
+                                musicGreeting(),
+                                color = tokens.textPrimary,
+                                style = MaterialTheme.typography.headlineSmall,
+                                fontWeight = FontWeight.Bold,
+                                modifier = Modifier.padding(horizontal = 16.dp),
+                            )
+                        }
+                        items(quick.chunked(2), key = { row -> "qp-grid-" + row.first().id }, contentType = { "quick_grid" }) { row ->
+                            Row(Modifier.padding(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                row.forEach { q ->
+                                    QuickPickTile(
+                                        item = q,
+                                        playing = q.id == ms.current?.albumId || q.id == currentId,
+                                        modifier = Modifier.weight(1f),
+                                    ) {
+                                        if (q.type == ItemType.ALBUM || q.trackIds.isNotEmpty()) onOpenAlbum(q.id) else music.playItem(q, expand = true)
+                                    }
+                                }
+                                if (row.size == 1) Spacer(Modifier.weight(1f))
+                            }
+                        }
                     }
                 }
 
@@ -835,5 +844,48 @@ private fun ArtistTile(artist: Artist, modifier: Modifier, onClick: () -> Unit) 
             textAlign = TextAlign.Center,
         )
         Text("${artist.tracks.size} tracks", color = tokens.textSecondary, style = MaterialTheme.typography.labelSmall)
+    }
+}
+
+/** Quick picks shown in the opening grid (three rows of two). */
+private const val QUICK_PICKS = 6
+
+/** Square art size of a quick-pick tile; the startup pre-warm decodes at the same size. */
+val QuickPickArt = 56.dp
+
+/** "Good morning" / "Good afternoon" / "Good evening" for the device's local time. */
+internal fun musicGreeting(hour: Int = java.time.LocalTime.now().hour): String = when (hour) {
+    in 5..11 -> "Good morning"
+    in 12..16 -> "Good afternoon"
+    else -> "Good evening"
+}
+
+/** Spotify-style quick pick: square art flush left, two-line title, playing bar on the right edge. */
+@Composable
+private fun QuickPickTile(item: Item, playing: Boolean, modifier: Modifier, onClick: () -> Unit) {
+    val tokens = Cinetor.tokens
+    val shape = RoundedCornerShape(6.dp)
+    Row(
+        modifier
+            .height(QuickPickArt)
+            .clip(shape)
+            .background(tokens.surfaceElevated)
+            .clickable(onClick = onClick)
+            .semantics { contentDescription = "Quick pick ${item.title}" },
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Artwork(item.poster, QuickPickArt, corner = 0.dp)
+        Text(
+            item.title,
+            color = if (playing) tokens.accent else tokens.textPrimary,
+            style = MaterialTheme.typography.labelMedium,
+            fontWeight = FontWeight.Bold,
+            maxLines = 2,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.weight(1f).padding(horizontal = 10.dp),
+        )
+        if (playing) {
+            Box(Modifier.padding(end = 8.dp).size(width = 3.dp, height = 22.dp).clip(RoundedCornerShape(2.dp)).background(tokens.accent))
+        }
     }
 }

@@ -20,7 +20,7 @@ enum class MaturityLimit(val label: String) { ALL("All ages"), TEEN_13("13+"), M
 @Serializable
 data class AppSettings(
     // Appearance
-    val theme: AppTheme = AppTheme.NOIR,
+    val theme: AppTheme = AppTheme.CINEMA,
     val effects: EffectsQuality = EffectsQuality.AUTO,
     val reduceMotion: Boolean = false,
     val dynamicColor: Boolean = true,

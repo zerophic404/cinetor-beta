@@ -138,6 +138,7 @@ import com.mythbrix.cinetor.core.ui.posterKey
 import com.mythbrix.cinetor.core.ui.rememberArtworkColor
 import com.mythbrix.cinetor.core.ui.rememberSizedImage
 import com.mythbrix.cinetor.core.ui.sharedPoster
+import com.mythbrix.cinetor.design.ArtworkTheme
 import com.mythbrix.cinetor.design.Cinetor
 import com.mythbrix.cinetor.design.CinetorTokens
 import com.mythbrix.cinetor.design.GlassLevel
@@ -197,6 +198,29 @@ fun DetailsScreen(
     onOpenDownloads: () -> Unit = {},
     /** True when opened from Hero Play -> starts inline playback in top 16:9 slot immediately. */
     autoPlay: Boolean = false,
+) {
+    // The whole page takes the title's colour: the tapped card's poster gives it at once (memory
+    // hit), the loaded item confirms it. Every accent-driven element follows via ArtworkTheme.
+    val peekArt = remember(id) { container.peek.get(id)?.let { it.poster.ifBlank { it.backdrop } } }
+    val peekColor = rememberArtworkColor(peekArt)
+    var pageColor by remember(id) { mutableStateOf<Color?>(null) }
+    ArtworkTheme(pageColor ?: peekColor) {
+        DetailsScreenBody(id, origin, container, contentPadding, onOpenItem, onOpenDownloads, autoPlay) {
+            pageColor = it
+        }
+    }
+}
+
+@Composable
+private fun DetailsScreenBody(
+    id: String,
+    origin: String,
+    container: AppContainer,
+    contentPadding: PaddingValues,
+    onOpenItem: (Item, String?) -> Unit,
+    onOpenDownloads: () -> Unit,
+    autoPlay: Boolean,
+    onArtColor: (Color) -> Unit,
 ) {
     val resumeEntries = LocalResumeEntries.current
     val latestResumes by rememberUpdatedState(resumeEntries)
@@ -269,6 +293,7 @@ fun DetailsScreen(
     LaunchedEffect(headerItem?.dominantColor, artColor) {
         val source = artColor ?: headerItem?.let { hexColor(it.dominantColor) }
         source?.let(tint::setSource)
+        artColor?.let(onArtColor)
     }
     val washTarget = if (tint.enabled && artColor != null) artColor else Color.Transparent
     val wash by animateColorAsState(

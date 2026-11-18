@@ -22,8 +22,8 @@
   transition: --tint calc(var(--tint-anim) * var(--dur-scale)) var(--ease-emphasized);
 }
 
-:root[data-theme='pearl'],
-[data-theme='pearl'] {
+:root[data-theme='daylight'],
+[data-theme='daylight'] {
   color-scheme: light;
 }
 
@@ -37,7 +37,7 @@
   background: color-mix(in srgb, var(--accent) 32%, transparent);
   color: var(--text-primary);
 }
-[data-theme='pearl'] ::selection {
+[data-theme='daylight'] ::selection {
   background: color-mix(in srgb, var(--accent) 18%, transparent);
   color: var(--text-primary);
 }
@@ -107,27 +107,7 @@ button {
     radial-gradient(70% 45% at 96% -4%, color-mix(in srgb, var(--accent) 14%, transparent), transparent 68%),
     var(--bg);
 }
-[data-theme='aura'] .ambient {
-  background:
-    radial-gradient(95% 60% at 50% -8%, color-mix(in srgb, var(--tint) 36%, transparent), transparent 72%),
-    linear-gradient(
-      180deg,
-      color-mix(in srgb, var(--tint) 24%, var(--bg)) 0%,
-      color-mix(in srgb, var(--tint) 12%, var(--bg)) 55%,
-      color-mix(in srgb, var(--tint) 4%, var(--bg)) 100%
-    );
-}
-[data-theme='matte'] .ambient {
-  background:
-    radial-gradient(85% 42% at 50% -12%, color-mix(in srgb, var(--tint) 12%, transparent), transparent 65%),
-    var(--bg);
-}
-[data-theme='material'] .ambient {
-  background:
-    radial-gradient(80% 48% at 50% -10%, color-mix(in srgb, var(--accent) 10%, transparent), transparent 68%),
-    var(--bg);
-}
-[data-theme='pearl'] .ambient {
+[data-theme='daylight'] .ambient {
   background:
     radial-gradient(90% 50% at 22% -12%, color-mix(in srgb, var(--tint) 11%, transparent), transparent 68%),
     radial-gradient(65% 40% at 96% -6%, color-mix(in srgb, var(--accent) 6%, transparent), transparent 64%),
@@ -136,11 +116,8 @@ button {
 [data-tier='low'] .ambient {
   background: radial-gradient(90% 55% at 20% -10%, color-mix(in srgb, var(--tint) 22%, transparent), transparent 70%), var(--bg);
 }
-[data-tier='low'][data-theme='pearl'] .ambient {
+[data-tier='low'][data-theme='daylight'] .ambient {
   background: radial-gradient(90% 50% at 22% -12%, color-mix(in srgb, var(--tint) 9%, transparent), transparent 68%), var(--bg);
-}
-[data-tier='low'][data-theme='matte'] .ambient {
-  background: var(--bg);
 }
 
 .btn {
@@ -192,25 +169,14 @@ button {
   background: color-mix(in srgb, var(--text-primary) 12%, var(--glass-fill));
 }
 
-[data-theme='matte'] .btn-primary {
-  background: var(--accent);
-  box-shadow: none;
-}
-[data-theme='matte'] .btn-primary:hover:not(:disabled) {
-  box-shadow: 0 4px 12px -4px rgb(0 0 0 / 0.45);
-}
-[data-theme='matte'] .btn-ghost {
-  background: var(--surface-elevated);
-  box-shadow: inset 0 0 0 1px var(--divider);
-}
-[data-theme='pearl'] .btn-ghost {
+[data-theme='daylight'] .btn-ghost {
   background: color-mix(in srgb, var(--surface-elevated) 88%, transparent);
   box-shadow:
     inset 0 1px 0 rgb(255 255 255 / 0.82),
     inset 0 0 0 1px rgb(20 20 22 / 0.14),
     0 1px 3px rgb(28 22 18 / 0.06);
 }
-[data-theme='pearl'] .btn-ghost:hover:not(:disabled) {
+[data-theme='daylight'] .btn-ghost:hover:not(:disabled) {
   background: color-mix(in srgb, var(--text-primary) 7%, var(--surface-elevated));
 }
 
@@ -241,11 +207,7 @@ button {
   color: var(--text-primary);
   background: color-mix(in srgb, var(--text-primary) 10%, var(--glass-fill));
 }
-[data-theme='matte'] .chip {
-  background: var(--surface-elevated);
-  box-shadow: inset 0 0 0 1px var(--divider);
-}
-[data-theme='pearl'] .chip {
+[data-theme='daylight'] .chip {
   background: color-mix(in srgb, var(--surface) 84%, var(--surface-elevated));
   box-shadow:
     inset 0 1px 0 rgb(255 255 255 / 0.8),
@@ -261,20 +223,8 @@ button {
     inset 0 1px 0 rgb(255 255 255 / 0.24),
     0 6px 18px -8px var(--accent-glow);
 }
-[data-theme='matte'] .chip[aria-pressed='true'],
-[data-theme='matte'] .chip[aria-current='page'],
-[data-theme='matte'] .chip.active {
-  background: var(--accent);
-  box-shadow: none;
-}
 
 /* Material theme rounder shapes (24–28px cards & full pill buttons). */
-[data-theme='material'] :is(.btn, .chip) {
-  border-radius: var(--radius-pill);
-}
-[data-theme='material'] .card {
-  border-radius: 26px;
-}
 
 .h-scroll {
   display: flex;
@@ -320,7 +270,7 @@ button {
 [data-tv] {
   --tv-ring: 0 0 0 3px color-mix(in srgb, var(--accent) 80%, white), 0 0 0 7px color-mix(in srgb, var(--accent) 28%, transparent), 0 12px 36px -6px var(--accent-glow);
 }
-[data-tv][data-theme='pearl'] {
+[data-tv][data-theme='daylight'] {
   --tv-ring: 0 0 0 3px var(--accent), 0 0 0 7px color-mix(in srgb, var(--accent) 24%, transparent), 0 12px 30px -6px rgb(28 22 18 / 0.22);
 }
 [data-tv] :focus-visible,

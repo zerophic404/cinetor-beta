@@ -21,7 +21,7 @@ class SettingsStore(context: Context) : SettingsSource {
     private val store = context.applicationContext.settingsDataStore
 
     val theme: Flow<AppTheme> = store.data
-        .map { p -> enumOrDefault(p[THEME], AppTheme.NOIR) }
+        .map { p -> enumOrDefault(p[THEME], AppTheme.CINEMA) }
         .distinctUntilChanged()
 
     val effects: Flow<EffectsQuality> = store.data
@@ -60,7 +60,7 @@ class SettingsStore(context: Context) : SettingsSource {
     }
 
     private fun current(p: Preferences): AppSettings = SettingsCodec.decode(p[BLOB]).copy(
-        theme = enumOrDefault(p[THEME], AppTheme.NOIR),
+        theme = enumOrDefault(p[THEME], AppTheme.CINEMA),
         effects = enumOrDefault(p[EFFECTS], EffectsQuality.AUTO),
         backgroundPlay = p[BACKGROUND_PLAY] ?: false,
         autoPip = p[AUTO_PIP] ?: true,

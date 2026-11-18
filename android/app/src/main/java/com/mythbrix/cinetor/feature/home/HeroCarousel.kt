@@ -58,7 +58,6 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
-import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.blur
@@ -71,6 +70,7 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
@@ -93,9 +93,11 @@ import com.mythbrix.cinetor.core.data.Item
 import com.mythbrix.cinetor.core.perf.PerformanceTier
 import com.mythbrix.cinetor.core.ui.CinetorArtwork
 import com.mythbrix.cinetor.core.ui.artTint
+import com.mythbrix.cinetor.core.ui.rememberArtworkColor
 import com.mythbrix.cinetor.core.ui.rememberSizedImage
 import com.mythbrix.cinetor.design.Cinetor
 import com.mythbrix.cinetor.design.CinetorTokens
+import com.mythbrix.cinetor.design.artworkAccent
 import com.mythbrix.cinetor.design.hexColor
 import com.mythbrix.cinetor.design.liquidGlassButton
 import kotlin.math.abs
@@ -214,19 +216,17 @@ fun HeroCarousel(
     }
 
     val settledHero = heroes[pager.settledPage % count]
-    val targetSpill = remember(settledHero.id, settledHero.dominantColor) { resolveHeroArtTint(settledHero) }
+    // A lively colour sampled from the current card's poster drives the glow and the page tint.
+    val sampledSpill = rememberArtworkColor(settledHero.poster.ifBlank { settledHero.backdrop })
+    val targetSpill = sampledSpill ?: remember(settledHero.id, settledHero.dominantColor) { resolveHeroArtTint(settledHero) }
     val animatedSpill by animateColorAsState(
         targetValue = targetSpill,
         animationSpec = tween(if (tier == PerformanceTier.LOW || uiPrefs.reduceMotion) 0 else 450),
         label = "heroSpill",
     )
     val colorCallback by rememberUpdatedState(onColor)
-    LaunchedEffect(pager, heroes, visible) {
-        if (visible) {
-            snapshotFlow { pager.settledPage }.collect { page ->
-                colorCallback(resolveHeroArtTint(heroes[page % count]))
-            }
-        }
+    LaunchedEffect(settledHero.id, targetSpill, visible) {
+        if (visible) colorCallback(targetSpill)
     }
 
     Column(
@@ -234,7 +234,7 @@ fun HeroCarousel(
             .fillMaxWidth()
             .drawBehind {
                 val c = animatedSpill
-                val alphaTop = if (tier == PerformanceTier.LOW) 0.24f else 0.42f
+                val alphaTop = if (tier == PerformanceTier.LOW) 0.30f else 0.55f
                 drawRect(
                     brush = Brush.radialGradient(
                         0f to c.copy(alpha = alphaTop),
@@ -361,6 +361,7 @@ fun HeroCarousel(
             PageIndicator(
                 count = count,
                 current = { pager.settledPage % count },
+                activeColor = artworkAccent(animatedSpill, Cinetor.tokens.accent),
                 modifier = Modifier.align(Alignment.CenterHorizontally),
             )
         }
@@ -385,6 +386,9 @@ private fun HeroCardSurface(
     val tokens = Cinetor.tokens
     val tier = Cinetor.tier
     val dominant = remember(item.dominantColor) { hexColor(item.dominantColor) }
+    val sampled = rememberArtworkColor(item.poster.ifBlank { item.backdrop })
+    // Scrims carry the card's own colour (deep, not flat black) so the banner reads warm and alive.
+    val scrim = remember(sampled, dominant) { lerp(Color(0xFF08080A), sampled ?: dominant, 0.28f) }
     val isCurrent = pager.settledPage == page
     val kenBurns = if (tier.kenBurns && isCurrent && !Cinetor.prefs.reduceMotion) {
         val t = rememberInfiniteTransition(label = "kenBurns")
@@ -460,9 +464,9 @@ private fun HeroCardSurface(
                     .fillMaxSize()
                     .background(
                         Brush.horizontalGradient(
-                            0f to Color(0xF008080A),
-                            0.55f to Color(0xAD08080A),
-                            1f to Color(0x2408080A),
+                            0f to scrim.copy(alpha = 0.90f),
+                            0.55f to scrim.copy(alpha = 0.58f),
+                            1f to scrim.copy(alpha = 0.10f),
                         ),
                     ),
             )
@@ -474,7 +478,7 @@ private fun HeroCardSurface(
                             0f to Color.White.copy(alpha = 0.06f),
                             0.12f to Color.Transparent,
                             0.55f to Color.Transparent,
-                            1f to Color(0xE008080A),
+                            1f to scrim.copy(alpha = 0.78f),
                         ),
                     ),
             )
@@ -486,9 +490,9 @@ private fun HeroCardSurface(
                         Brush.verticalGradient(
                             0f to Color.White.copy(alpha = 0.07f),
                             0.10f to Color.Transparent,
-                            0.38f to Color.Transparent,
-                            0.72f to Color(0xBA08080A),
-                            1f to Color(0xF508080A),
+                            0.42f to Color.Transparent,
+                            0.74f to scrim.copy(alpha = 0.55f),
+                            1f to scrim.copy(alpha = 0.90f),
                         ),
                     ),
             )
@@ -750,7 +754,7 @@ private fun HeroMyListCta(inMyList: Boolean, onClick: () -> Unit, modifier: Modi
 }
 
 @Composable
-private fun PageIndicator(count: Int, current: () -> Int, modifier: Modifier = Modifier) {
+private fun PageIndicator(count: Int, current: () -> Int, activeColor: Color, modifier: Modifier = Modifier) {
     val tokens = Cinetor.tokens
     val lowTier = Cinetor.tier == PerformanceTier.LOW
     val active = current()
@@ -771,7 +775,7 @@ private fun PageIndicator(count: Int, current: () -> Int, modifier: Modifier = M
                     .height(6.dp)
                     .width(dotWidth)
                     .clip(RoundedCornerShape(3.dp))
-                    .background(if (selected) tokens.accent else tokens.textPrimary.copy(alpha = 0.28f)),
+                    .background(if (selected) activeColor else tokens.textPrimary.copy(alpha = 0.28f)),
             )
         }
     }

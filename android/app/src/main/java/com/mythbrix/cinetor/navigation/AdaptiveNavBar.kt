@@ -57,18 +57,16 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.mythbrix.cinetor.core.data.Space
 import com.mythbrix.cinetor.core.perf.PerformanceTier
-import com.mythbrix.cinetor.design.AppTheme
 import com.mythbrix.cinetor.design.Cinetor
 import com.mythbrix.cinetor.design.CinetorTokens
 import com.mythbrix.cinetor.design.GlassLevel
 import com.mythbrix.cinetor.design.glass
+import com.mythbrix.cinetor.design.liquidGlassDock
 
 val BottomBarHeight = 64.dp
 private val CapsuleHeight = 60.dp
 private val CapsuleVerticalGap = 10.dp
-private val StandardDockShape = RoundedCornerShape(24.dp)
-private val MaterialDockShape = RoundedCornerShape(28.dp)
-private val AuraCapsuleShape = RoundedCornerShape(percent = 50)
+private val DockShape = RoundedCornerShape(percent = 50)
 
 fun iconFor(key: TabKey, space: Space?): ImageVector = when (key) {
     TabKey.HOME -> Icons.Rounded.Home
@@ -92,7 +90,7 @@ fun spaceIcon(space: Space?): ImageVector = when (space) {
     else -> Icons.Rounded.Home
 }
 
-/** Picks floating Liquid Glass dock / Aura capsule (phone) or Liquid Glass rail (tablet / TV). */
+/** Picks the floating Liquid Glass capsule dock (phone) or the Liquid Glass rail (tablet / TV). */
 @Composable
 fun AdaptiveNavBar(
     layout: NavLayout,
@@ -110,9 +108,9 @@ fun AdaptiveNavBar(
 }
 
 /**
- * Floating Liquid Glass phone dock, morphing into Cinetor Beta's sleek floating pill capsule
- * when `Cinetor.theme == AppTheme.AURA`. Keeps vertical center aligned with `y ≈ 89% H` and full
- * 5-slot width coverage so CI `emulator-smoke.sh` coordinate and semantic taps hit dead-center.
+ * Floating Liquid Glass capsule dock (every theme): see-through glass with a lens highlight and rim
+ * ([liquidGlassDock]), the selected tab in an accent pill. Its vertical centre stays near `89% H`
+ * with full 5-slot width so CI `emulator-smoke.sh` coordinate and semantic taps hit dead-centre.
  */
 @Composable
 private fun GlassBottomBar(
@@ -122,29 +120,18 @@ private fun GlassBottomBar(
     onSelect: (TabKey) -> Unit,
     modifier: Modifier,
 ) {
-    val theme = Cinetor.theme
-    val isAura = theme == AppTheme.AURA
-    val dockShape = when (theme) {
-        AppTheme.AURA -> AuraCapsuleShape
-        AppTheme.MATERIAL -> MaterialDockShape
-        else -> StandardDockShape
-    }
-    val horizontalInset = if (isAura) 18.dp else 12.dp
-    val verticalInset = if (isAura) CapsuleVerticalGap else 8.dp
-    val barHeight = if (isAura) CapsuleHeight else BottomBarHeight
-
     Box(
         modifier
             .fillMaxWidth()
             .navigationBarsPadding()
-            .padding(horizontal = horizontalInset, vertical = verticalInset)
-            .glass(dockShape, GlassLevel.BAR),
+            .padding(horizontal = 16.dp, vertical = CapsuleVerticalGap)
+            .liquidGlassDock(DockShape),
     ) {
         Row(
             Modifier
                 .fillMaxWidth()
-                .height(barHeight)
-                .padding(horizontal = if (isAura) 6.dp else 2.dp)
+                .height(CapsuleHeight)
+                .padding(horizontal = 6.dp)
                 .selectableGroup(),
             horizontalArrangement = Arrangement.SpaceEvenly,
             verticalAlignment = Alignment.CenterVertically,
@@ -154,7 +141,6 @@ private fun GlassBottomBar(
                     tab = tab,
                     icon = iconFor(tab.key, activeSpace),
                     selected = tab.key == selected,
-                    capsuleMode = isAura,
                     onClick = { onSelect(tab.key) },
                     modifier = Modifier.weight(1f).fillMaxHeight(),
                 )
@@ -172,7 +158,6 @@ private fun GlassRail(
     width: Int,
     modifier: Modifier,
 ) {
-    val isAura = Cinetor.theme == AppTheme.AURA
     Column(
         modifier
             .fillMaxHeight()
@@ -190,7 +175,6 @@ private fun GlassRail(
                 tab = tab,
                 icon = iconFor(tab.key, activeSpace),
                 selected = tab.key == selected,
-                capsuleMode = isAura,
                 onClick = { onSelect(tab.key) },
                 modifier = Modifier.fillMaxWidth().height(60.dp),
             )
@@ -204,7 +188,6 @@ private fun NavItem(
     tab: TabSpec,
     icon: ImageVector,
     selected: Boolean,
-    capsuleMode: Boolean,
     onClick: () -> Unit,
     modifier: Modifier,
 ) {
@@ -213,11 +196,7 @@ private fun NavItem(
     val specular = Cinetor.specularShine
     val reduceMotion = Cinetor.prefs.reduceMotion
 
-    val targetIconColor = when {
-        !selected -> tokens.textSecondary
-        capsuleMode -> tokens.textPrimary
-        else -> tokens.accent
-    }
+    val targetIconColor = if (selected) tokens.accent else tokens.textSecondary
     val targetLabelColor = if (selected) tokens.textPrimary else tokens.textSecondary
     val animSpec = if (reduceMotion || tier == PerformanceTier.LOW) {
         snap<Color>()
@@ -227,23 +206,14 @@ private fun NavItem(
     val iconColor by animateColorAsState(targetIconColor, animationSpec = animSpec, label = "navIcon")
     val labelColor by animateColorAsState(targetLabelColor, animationSpec = animSpec, label = "navLabel")
 
-    val spotlightColor = if (capsuleMode || !tokens.isLight) tokens.focusRing else tokens.accent
+    val spotlightColor = tokens.accent
     val pillShape = RoundedCornerShape(percent = 50)
-    val pillFill = when {
-        !selected -> Color.Transparent
-        capsuleMode -> tokens.textPrimary.copy(alpha = 0.14f)
-        tokens.isLight -> tokens.accent.copy(alpha = 0.14f)
-        else -> tokens.accent.copy(alpha = 0.18f)
-    }
-    val pillStroke = when {
-        !selected || !specular -> Color.Transparent
-        capsuleMode -> tokens.glassStroke
-        else -> tokens.accent.copy(alpha = 0.28f)
-    }
+    val pillFill = if (selected) tokens.accent.copy(alpha = if (tokens.isLight) 0.14f else 0.20f) else Color.Transparent
+    val pillStroke = if (selected && specular) tokens.accent.copy(alpha = 0.34f) else Color.Transparent
 
     Column(
         modifier
-            .clip(if (capsuleMode) pillShape else RoundedCornerShape(16.dp))
+            .clip(pillShape)
             .navSpotlight(
                 active = selected,
                 color = spotlightColor,
@@ -266,14 +236,14 @@ private fun NavItem(
                         Modifier
                     },
                 )
-                .padding(horizontal = if (capsuleMode) 12.dp else 14.dp, vertical = 3.dp),
+                .padding(horizontal = 13.dp, vertical = 3.dp),
             contentAlignment = Alignment.Center,
         ) {
             Icon(
                 imageVector = icon,
                 contentDescription = null,
                 tint = iconColor,
-                modifier = Modifier.size(if (capsuleMode) 22.dp else 23.dp),
+                modifier = Modifier.size(22.dp),
             )
         }
         Spacer(Modifier.height(2.dp))

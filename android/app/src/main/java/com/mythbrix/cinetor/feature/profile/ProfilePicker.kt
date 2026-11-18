@@ -29,6 +29,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -41,6 +42,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shape
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextOverflow
@@ -50,16 +52,18 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import coil3.compose.AsyncImage
+import com.mythbrix.cinetor.core.ui.rememberSizedImage
 import com.mythbrix.cinetor.design.Cinetor
 import com.mythbrix.cinetor.design.GlassLevel
 import com.mythbrix.cinetor.design.glass
 import com.mythbrix.cinetor.feature.adult.PinHasher
 import com.mythbrix.cinetor.feature.adult.PinPanel
-import kotlinx.coroutines.flow.first
-import kotlinx.coroutines.launch
 import kotlin.math.PI
 import kotlin.math.cos
 import kotlin.math.sin
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.launch
 
 /** Shape for a generated avatar. */
 fun avatarShape(shape: AvatarShape): Shape = when (shape) {
@@ -114,9 +118,37 @@ fun ProfileAvatar(name: String, avatar: Int, color: Long, size: Dp, modifier: Mo
     }
 }
 
+/** Profile avatar: the chosen character picture when one is set, else the generated shape. */
 @Composable
-fun ProfileAvatar(profile: Profile, size: Dp, modifier: Modifier = Modifier, selected: Boolean = false) =
-    ProfileAvatar(profile.name, profile.avatar, profile.color, size, modifier, selected)
+fun ProfileAvatar(profile: Profile, size: Dp, modifier: Modifier = Modifier, selected: Boolean = false) {
+    val photos by ProfilePhotos.photos.collectAsState()
+    val photo = photos[profile.id]
+    if (photo == null) {
+        ProfileAvatar(profile.name, profile.avatar, profile.color, size, modifier, selected)
+    } else {
+        PhotoAvatar(photo, size, modifier, selected)
+    }
+}
+
+/** Round character picture avatar. */
+@Composable
+fun PhotoAvatar(url: String, size: Dp, modifier: Modifier = Modifier, selected: Boolean = false) {
+    val tokens = Cinetor.tokens
+    Box(
+        modifier
+            .size(size)
+            .clip(CircleShape)
+            .background(tokens.surfaceElevated)
+            .then(if (selected) Modifier.border(3.dp, tokens.accent, CircleShape) else Modifier),
+    ) {
+        AsyncImage(
+            model = rememberSizedImage(url, size, size),
+            contentDescription = null,
+            contentScale = ContentScale.Crop,
+            modifier = Modifier.fillMaxSize(),
+        )
+    }
+}
 
 /**
  * "Who's watching?" — profile grid (Task 5.1). Tap = switch (PIN if set), pencil = edit, + = add (max 5).

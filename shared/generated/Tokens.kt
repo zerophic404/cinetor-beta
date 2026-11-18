@@ -8,7 +8,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 
-enum class AppTheme { NOIR, OBSIDIAN, EMBER, GLASS, MATTE, MATERIAL, AURA, PEARL }
+enum class AppTheme { CINEMA, MIDNIGHT, EMERALD, SUNSET, ROYAL, DAYLIGHT }
 
 interface CinetorThemeTokens {
     val name: String
@@ -39,99 +39,15 @@ interface CinetorThemeTokens {
 }
 
 object CinetorTokens {
-    val Default: AppTheme = AppTheme.GLASS
+    val Default: AppTheme = AppTheme.CINEMA
 
-    object Noir : CinetorThemeTokens {
-        override val name: String = "Noir"
-        override val isLight: Boolean = false
-        override val bg: Color = Color(0xFF000000L)
-        override val surface: Color = Color(0xFF0B0B0BL)
-        override val surfaceElevated: Color = Color(0xFF141414L)
-        override val glassFill: Color = Color(0x0FFFFFFFL)
-        override val glassStroke: Color = Color(0x1AFFFFFFL)
-        override val accent: Color = Color(0xFFE50914L)
-        override val accentEnd: Color = Color(0xFFB00610L)
-        override val accentGlow: Color = Color(0x73FF2D3BL)
-        override val onAccent: Color = Color(0xFFFFFFFFL)
-        override val textPrimary: Color = Color(0xFFFFFFFFL)
-        override val textSecondary: Color = Color(0xFFA3A3A3L)
-        override val textTertiary: Color = Color(0xFF6B6B6BL)
-        override val divider: Color = Color(0x14FFFFFFL)
-        override val focusRing: Color = Color(0xFFFFFFFFL)
-        override val success: Color = Color(0xFF22C55EL)
-        override val warning: Color = Color(0xFFF5A524L)
-        override val error: Color = Color(0xFFFF3B30L)
-        override val liveBadge: Color = Color(0xFFE50914L)
-        override val scrim: Color = Color(0xB3000000L)
-        override val skeletonBase: Color = Color(0xFF161616L)
-        override val skeletonHighlight: Color = Color(0xFF262626L)
-        override val blur: Dp = 14.dp
-        override val tintStrength: Float = 0.0f
-    }
-
-    object Obsidian : CinetorThemeTokens {
-        override val name: String = "Obsidian"
-        override val isLight: Boolean = false
-        override val bg: Color = Color(0xFF0E0E10L)
-        override val surface: Color = Color(0xFF17171AL)
-        override val surfaceElevated: Color = Color(0xFF1F1F23L)
-        override val glassFill: Color = Color(0x14FFFFFFL)
-        override val glassStroke: Color = Color(0x24FFFFFFL)
-        override val accent: Color = Color(0xFFC8102EL)
-        override val accentEnd: Color = Color(0xFF8E0B20L)
-        override val accentGlow: Color = Color(0x59C8102EL)
-        override val onAccent: Color = Color(0xFFFFFFFFL)
-        override val textPrimary: Color = Color(0xFFF2F2F5L)
-        override val textSecondary: Color = Color(0xFF9A9AA3L)
-        override val textTertiary: Color = Color(0xFF6A6A72L)
-        override val divider: Color = Color(0x1AFFFFFFL)
-        override val focusRing: Color = Color(0xFFF2F2F5L)
-        override val success: Color = Color(0xFF2FBF71L)
-        override val warning: Color = Color(0xFFE8A33DL)
-        override val error: Color = Color(0xFFE5484DL)
-        override val liveBadge: Color = Color(0xFFFF3347L)
-        override val scrim: Color = Color(0xB80E0E10L)
-        override val skeletonBase: Color = Color(0xFF1C1C20L)
-        override val skeletonHighlight: Color = Color(0xFF2A2A30L)
-        override val blur: Dp = 24.dp
-        override val tintStrength: Float = 0.3f
-    }
-
-    object Ember : CinetorThemeTokens {
-        override val name: String = "Ember"
-        override val isLight: Boolean = false
-        override val bg: Color = Color(0xFF0A0505L)
-        override val surface: Color = Color(0xFF160A0AL)
-        override val surfaceElevated: Color = Color(0xFF201010L)
-        override val glassFill: Color = Color(0x12FF2D3BL)
-        override val glassStroke: Color = Color(0x38FF6A4DL)
-        override val accent: Color = Color(0xFFFF2D3BL)
-        override val accentEnd: Color = Color(0xFFFF7A1AL)
-        override val accentGlow: Color = Color(0x80FF5A1FL)
-        override val onAccent: Color = Color(0xFFFFFFFFL)
-        override val textPrimary: Color = Color(0xFFFFF4F0L)
-        override val textSecondary: Color = Color(0xFFD9B8AEL)
-        override val textTertiary: Color = Color(0xFF9C7E76L)
-        override val divider: Color = Color(0x1FFF6A4DL)
-        override val focusRing: Color = Color(0xFFFFB199L)
-        override val success: Color = Color(0xFF3DD68CL)
-        override val warning: Color = Color(0xFFFFB020L)
-        override val error: Color = Color(0xFFFF4D4FL)
-        override val liveBadge: Color = Color(0xFFFF2D3BL)
-        override val scrim: Color = Color(0xB80A0505L)
-        override val skeletonBase: Color = Color(0xFF1E0F0EL)
-        override val skeletonHighlight: Color = Color(0xFF2E1816L)
-        override val blur: Dp = 22.dp
-        override val tintStrength: Float = 0.26f
-    }
-
-    object Glass : CinetorThemeTokens {
-        override val name: String = "Glass"
+    object Cinema : CinetorThemeTokens {
+        override val name: String = "Cinema"
         override val isLight: Boolean = false
         override val bg: Color = Color(0xFF050505L)
         override val surface: Color = Color(0xFF101010L)
         override val surfaceElevated: Color = Color(0xFF181818L)
-        override val glassFill: Color = Color(0x14FFFFFFL)
+        override val glassFill: Color = Color(0x12FFFFFFL)
         override val glassStroke: Color = Color(0x29FFFFFFL)
         override val accent: Color = Color(0xFFE50914L)
         override val accentEnd: Color = Color(0xFFB20710L)
@@ -150,130 +66,156 @@ object CinetorTokens {
         override val skeletonBase: Color = Color(0xFF151515L)
         override val skeletonHighlight: Color = Color(0xFF252525L)
         override val blur: Dp = 20.dp
-        override val tintStrength: Float = 0.0f
+        override val tintStrength: Float = 0.3f
     }
 
-    object Matte : CinetorThemeTokens {
-        override val name: String = "Matte"
+    object Midnight : CinetorThemeTokens {
+        override val name: String = "Midnight"
         override val isLight: Boolean = false
-        override val bg: Color = Color(0xFF0C0C0EL)
-        override val surface: Color = Color(0xFF151518L)
-        override val surfaceElevated: Color = Color(0xFF1E1E22L)
-        override val glassFill: Color = Color(0xFF1B1B1FL)
-        override val glassStroke: Color = Color(0x12FFFFFFL)
-        override val accent: Color = Color(0xFFE11D2EL)
-        override val accentEnd: Color = Color(0xFFC8102EL)
-        override val accentGlow: Color = Color(0x33E11D2EL)
-        override val onAccent: Color = Color(0xFFFFFFFFL)
-        override val textPrimary: Color = Color(0xFFEDEAE8L)
-        override val textSecondary: Color = Color(0xFFB8B5B2L)
-        override val textTertiary: Color = Color(0xFF8A8785L)
-        override val divider: Color = Color(0x0DFFFFFFL)
-        override val focusRing: Color = Color(0xFFEDEAE8L)
-        override val success: Color = Color(0xFF22C55EL)
-        override val warning: Color = Color(0xFFE8A33DL)
-        override val error: Color = Color(0xFFFF4757L)
-        override val liveBadge: Color = Color(0xFFE11D2EL)
-        override val scrim: Color = Color(0xD90C0C0EL)
-        override val skeletonBase: Color = Color(0xFF18181CL)
-        override val skeletonHighlight: Color = Color(0xFF242429L)
-        override val blur: Dp = 0.dp
-        override val tintStrength: Float = 0.2f
-    }
-
-    object Material : CinetorThemeTokens {
-        override val name: String = "Material"
-        override val isLight: Boolean = false
-        override val bg: Color = Color(0xFF111315L)
-        override val surface: Color = Color(0xFF1B1E22L)
-        override val surfaceElevated: Color = Color(0xFF252930L)
+        override val bg: Color = Color(0xFF060B18L)
+        override val surface: Color = Color(0xFF0E1628L)
+        override val surfaceElevated: Color = Color(0xFF16213AL)
         override val glassFill: Color = Color(0x12FFFFFFL)
-        override val glassStroke: Color = Color(0x1FFFFFFFL)
-        override val accent: Color = Color(0xFFE11D2EL)
-        override val accentEnd: Color = Color(0xFFC8102EL)
-        override val accentGlow: Color = Color(0x4DE11D2EL)
+        override val glassStroke: Color = Color(0x338FB4FFL)
+        override val accent: Color = Color(0xFF2A62F2L)
+        override val accentEnd: Color = Color(0xFF1B45C9L)
+        override val accentGlow: Color = Color(0x662A62F2L)
         override val onAccent: Color = Color(0xFFFFFFFFL)
-        override val textPrimary: Color = Color(0xFFF1F3F5L)
-        override val textSecondary: Color = Color(0xFFB4BAC2L)
-        override val textTertiary: Color = Color(0xFF868E96L)
+        override val textPrimary: Color = Color(0xFFF3F6FFL)
+        override val textSecondary: Color = Color(0xFFC3CCE3L)
+        override val textTertiary: Color = Color(0xFF8D99B8L)
         override val divider: Color = Color(0x14FFFFFFL)
-        override val focusRing: Color = Color(0xFFF1F3F5L)
-        override val success: Color = Color(0xFF2FBF71L)
-        override val warning: Color = Color(0xFFE8A33DL)
-        override val error: Color = Color(0xFFFF5252L)
-        override val liveBadge: Color = Color(0xFFE11D2EL)
-        override val scrim: Color = Color(0xCC111315L)
-        override val skeletonBase: Color = Color(0xFF1F2328L)
-        override val skeletonHighlight: Color = Color(0xFF2C3138L)
-        override val blur: Dp = 16.dp
-        override val tintStrength: Float = 0.0f
-    }
-
-    object Aura : CinetorThemeTokens {
-        override val name: String = "Aura"
-        override val isLight: Boolean = false
-        override val bg: Color = Color(0xFF08090CL)
-        override val surface: Color = Color(0xFF13151BL)
-        override val surfaceElevated: Color = Color(0xFF1C1F28L)
-        override val glassFill: Color = Color(0x1AFFFFFFL)
-        override val glassStroke: Color = Color(0x33FFFFFFL)
-        override val accent: Color = Color(0xFFE11D2EL)
-        override val accentEnd: Color = Color(0xFFB80F24L)
-        override val accentGlow: Color = Color(0x73E11D2EL)
-        override val onAccent: Color = Color(0xFFFFFFFFL)
-        override val textPrimary: Color = Color(0xFFF8FAFCL)
-        override val textSecondary: Color = Color(0xFFC6CBD6L)
-        override val textTertiary: Color = Color(0xFF8E96A6L)
-        override val divider: Color = Color(0x17FFFFFFL)
         override val focusRing: Color = Color(0xFFFFFFFFL)
-        override val success: Color = Color(0xFF22C55EL)
-        override val warning: Color = Color(0xFFF5A524L)
-        override val error: Color = Color(0xFFFF4757L)
-        override val liveBadge: Color = Color(0xFFE11D2EL)
-        override val scrim: Color = Color(0xBF08090CL)
-        override val skeletonBase: Color = Color(0xFF151821L)
-        override val skeletonHighlight: Color = Color(0xFF232836L)
-        override val blur: Dp = 24.dp
-        override val tintStrength: Float = 0.42f
+        override val success: Color = Color(0xFF34D399L)
+        override val warning: Color = Color(0xFFFBBF24L)
+        override val error: Color = Color(0xFFFF5A6EL)
+        override val liveBadge: Color = Color(0xFFFF3B5CL)
+        override val scrim: Color = Color(0xBF060B18L)
+        override val skeletonBase: Color = Color(0xFF111A2EL)
+        override val skeletonHighlight: Color = Color(0xFF1D2945L)
+        override val blur: Dp = 22.dp
+        override val tintStrength: Float = 0.3f
     }
 
-    object Pearl : CinetorThemeTokens {
-        override val name: String = "Pearl"
+    object Emerald : CinetorThemeTokens {
+        override val name: String = "Emerald"
+        override val isLight: Boolean = false
+        override val bg: Color = Color(0xFF04100CL)
+        override val surface: Color = Color(0xFF0A1C16L)
+        override val surfaceElevated: Color = Color(0xFF112821L)
+        override val glassFill: Color = Color(0x12FFFFFFL)
+        override val glassStroke: Color = Color(0x2E7FFFD4L)
+        override val accent: Color = Color(0xFF10B981L)
+        override val accentEnd: Color = Color(0xFF0B8A60L)
+        override val accentGlow: Color = Color(0x6610B981L)
+        override val onAccent: Color = Color(0xFF03120DL)
+        override val textPrimary: Color = Color(0xFFF1FFF9L)
+        override val textSecondary: Color = Color(0xFFBFDCCFL)
+        override val textTertiary: Color = Color(0xFF86A898L)
+        override val divider: Color = Color(0x14FFFFFFL)
+        override val focusRing: Color = Color(0xFFFFFFFFL)
+        override val success: Color = Color(0xFF4ADE80L)
+        override val warning: Color = Color(0xFFFACC15L)
+        override val error: Color = Color(0xFFFF5D5DL)
+        override val liveBadge: Color = Color(0xFFFF4D4DL)
+        override val scrim: Color = Color(0xBF04100CL)
+        override val skeletonBase: Color = Color(0xFF0F221BL)
+        override val skeletonHighlight: Color = Color(0xFF1A3329L)
+        override val blur: Dp = 20.dp
+        override val tintStrength: Float = 0.28f
+    }
+
+    object Sunset : CinetorThemeTokens {
+        override val name: String = "Sunset"
+        override val isLight: Boolean = false
+        override val bg: Color = Color(0xFF140A12L)
+        override val surface: Color = Color(0xFF20111DL)
+        override val surfaceElevated: Color = Color(0xFF2B1727L)
+        override val glassFill: Color = Color(0x12FFFFFFL)
+        override val glassStroke: Color = Color(0x33FF9A7AL)
+        override val accent: Color = Color(0xFFFF6B4AL)
+        override val accentEnd: Color = Color(0xFFE0436BL)
+        override val accentGlow: Color = Color(0x66FF6B4AL)
+        override val onAccent: Color = Color(0xFF1A0A08L)
+        override val textPrimary: Color = Color(0xFFFFF5F2L)
+        override val textSecondary: Color = Color(0xFFE8CBC4L)
+        override val textTertiary: Color = Color(0xFFAE8F96L)
+        override val divider: Color = Color(0x14FFFFFFL)
+        override val focusRing: Color = Color(0xFFFFFFFFL)
+        override val success: Color = Color(0xFF4ADE80L)
+        override val warning: Color = Color(0xFFFFC44DL)
+        override val error: Color = Color(0xFFFF4F6DL)
+        override val liveBadge: Color = Color(0xFFFF3D5AL)
+        override val scrim: Color = Color(0xBF140A12L)
+        override val skeletonBase: Color = Color(0xFF24131FL)
+        override val skeletonHighlight: Color = Color(0xFF341C2DL)
+        override val blur: Dp = 22.dp
+        override val tintStrength: Float = 0.35f
+    }
+
+    object Royal : CinetorThemeTokens {
+        override val name: String = "Royal"
+        override val isLight: Boolean = false
+        override val bg: Color = Color(0xFF0C0716L)
+        override val surface: Color = Color(0xFF160E26L)
+        override val surfaceElevated: Color = Color(0xFF1F1535L)
+        override val glassFill: Color = Color(0x12FFFFFFL)
+        override val glassStroke: Color = Color(0x33D4AF37L)
+        override val accent: Color = Color(0xFFD4AF37L)
+        override val accentEnd: Color = Color(0xFFA88420L)
+        override val accentGlow: Color = Color(0x66D4AF37L)
+        override val onAccent: Color = Color(0xFF1A1206L)
+        override val textPrimary: Color = Color(0xFFFBF7FFL)
+        override val textSecondary: Color = Color(0xFFD5C9E8L)
+        override val textTertiary: Color = Color(0xFF9C90B5L)
+        override val divider: Color = Color(0x14FFFFFFL)
+        override val focusRing: Color = Color(0xFFFFFFFFL)
+        override val success: Color = Color(0xFF4ADE80L)
+        override val warning: Color = Color(0xFFFBBF24L)
+        override val error: Color = Color(0xFFFF5A6EL)
+        override val liveBadge: Color = Color(0xFFFF3B5CL)
+        override val scrim: Color = Color(0xBF0C0716L)
+        override val skeletonBase: Color = Color(0xFF1A1129L)
+        override val skeletonHighlight: Color = Color(0xFF281C3DL)
+        override val blur: Dp = 22.dp
+        override val tintStrength: Float = 0.3f
+    }
+
+    object Daylight : CinetorThemeTokens {
+        override val name: String = "Daylight"
         override val isLight: Boolean = true
         override val bg: Color = Color(0xFFFAF8F6L)
         override val surface: Color = Color(0xFFFFFFFFL)
         override val surfaceElevated: Color = Color(0xFFF1EEEAL)
         override val glassFill: Color = Color(0xCCFFFFFFL)
         override val glassStroke: Color = Color(0x1F141416L)
-        override val accent: Color = Color(0xFFE11D2EL)
-        override val accentEnd: Color = Color(0xFFB80F24L)
-        override val accentGlow: Color = Color(0x40E11D2EL)
+        override val accent: Color = Color(0xFFD10A16L)
+        override val accentEnd: Color = Color(0xFFA3070FL)
+        override val accentGlow: Color = Color(0x40D10A16L)
         override val onAccent: Color = Color(0xFFFFFFFFL)
         override val textPrimary: Color = Color(0xFF141416L)
-        override val textSecondary: Color = Color(0xFF52525BL)
-        override val textTertiary: Color = Color(0xFF71717AL)
+        override val textSecondary: Color = Color(0xFF4A4A52L)
+        override val textTertiary: Color = Color(0xFF6B6B73L)
         override val divider: Color = Color(0x14141416L)
         override val focusRing: Color = Color(0xFF141416L)
-        override val success: Color = Color(0xFF16A34AL)
-        override val warning: Color = Color(0xFFD97706L)
-        override val error: Color = Color(0xFFDC2626L)
-        override val liveBadge: Color = Color(0xFFE11D2EL)
+        override val success: Color = Color(0xFF15803DL)
+        override val warning: Color = Color(0xFFB45309L)
+        override val error: Color = Color(0xFFC81E1EL)
+        override val liveBadge: Color = Color(0xFFD10A16L)
         override val scrim: Color = Color(0x66141416L)
         override val skeletonBase: Color = Color(0xFFEAE6E1L)
         override val skeletonHighlight: Color = Color(0xFFF7F5F2L)
-        override val blur: Dp = 20.dp
-        override val tintStrength: Float = 0.16f
+        override val blur: Dp = 18.dp
+        override val tintStrength: Float = 0.14f
     }
 
     fun of(theme: AppTheme): CinetorThemeTokens = when (theme) {
-        AppTheme.NOIR -> Noir
-        AppTheme.OBSIDIAN -> Obsidian
-        AppTheme.EMBER -> Ember
-        AppTheme.GLASS -> Glass
-        AppTheme.MATTE -> Matte
-        AppTheme.MATERIAL -> Material
-        AppTheme.AURA -> Aura
-        AppTheme.PEARL -> Pearl
+        AppTheme.CINEMA -> Cinema
+        AppTheme.MIDNIGHT -> Midnight
+        AppTheme.EMERALD -> Emerald
+        AppTheme.SUNSET -> Sunset
+        AppTheme.ROYAL -> Royal
+        AppTheme.DAYLIGHT -> Daylight
     }
 
     object Motion {

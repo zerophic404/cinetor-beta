@@ -72,6 +72,11 @@ class AppContainer(context: Context) {
     /** Bundled mock data for the isolated spaces only (Live TV & Sports, Music, Comics). */
     val catalogSource: MockCatalogSource = MockCatalogSource(assetReader, latency, spaces = listOf(Space.TV, Space.MUSIC, Space.COMICS))
 
+    /** Popular character pictures for the profile picture picker (loaded on demand). */
+    val characterGallery: com.mythbrix.cinetor.feature.profile.CharacterGallery by lazy {
+        com.mythbrix.cinetor.feature.profile.CharacterGallery(httpClient)
+    }
+
     val httpClient: OkHttpClient by lazy {
         OkHttpClient.Builder()
             .connectTimeout(8, TimeUnit.SECONDS)
@@ -163,6 +168,7 @@ class AppContainer(context: Context) {
     }
 
     init {
+        com.mythbrix.cinetor.feature.profile.ProfilePhotos.install(appContext)
         SourceResolver.onlineSubtitleDelegate = { query, itemId, season, episode, lang ->
             streams.searchOnlineSubtitles(query, itemId, season, episode, lang)
         }

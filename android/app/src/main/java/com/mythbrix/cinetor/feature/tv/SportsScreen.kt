@@ -14,13 +14,11 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
@@ -28,11 +26,9 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.LiveTv
 import androidx.compose.material.icons.rounded.NotificationsActive
 import androidx.compose.material.icons.rounded.NotificationsNone
 import androidx.compose.material.icons.rounded.PlayArrow
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -48,7 +44,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
@@ -61,12 +57,10 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import coil3.compose.AsyncImage
 import com.mythbrix.cinetor.core.data.AppContainer
 import com.mythbrix.cinetor.core.data.EventStatus
 import com.mythbrix.cinetor.core.data.Item
 import com.mythbrix.cinetor.core.data.Team
-import com.mythbrix.cinetor.core.ui.rememberSizedImage
 import com.mythbrix.cinetor.design.Cinetor
 import com.mythbrix.cinetor.design.CinetorTokens
 import com.mythbrix.cinetor.design.hexColor
@@ -263,6 +257,10 @@ private fun SportsStatusTabsRow(
     }
 }
 
+/**
+ * Minimal match card (~110 dp, three or more per phone screen): league + status chip + one action
+ * icon on top, then crest · name · score/VS · name · crest on a single line. Live cards play on tap.
+ */
 @Composable
 private fun PlayzMatchCard(
     event: Item,
@@ -277,240 +275,114 @@ private fun PlayzMatchCard(
     val shape = RoundedCornerShape(16.dp)
     val live = event.status == EventStatus.LIVE
     val matchup = remember(event.id, event.title, event.homeTeam, event.awayTeam) { parseMatchup(event) }
-    val borderBrush = if (live) {
-        Brush.horizontalGradient(
-            listOf(
-                tokens.liveBadge.copy(alpha = 0.85f),
-                tokens.accentGlow.copy(alpha = 0.35f),
-                tokens.liveBadge.copy(alpha = 0.55f),
-            ),
-        )
-    } else {
-        Brush.linearGradient(listOf(Color.White.copy(alpha = 0.14f), Color.White.copy(alpha = 0.06f)))
-    }
+    val tz = remember { localOffsetSec() }
+    val clockText = formatClock(anchorSec + (event.startOffsetSec ?: 0), tz)
 
     Column(
         modifier
             .fillMaxWidth()
             .clip(shape)
             .background(Brush.verticalGradient(listOf(CarbonCardTop, CarbonCardBottom)))
-            .border(1.dp, borderBrush, shape)
+            .border(1.dp, if (live) tokens.liveBadge.copy(alpha = 0.55f) else Color.White.copy(alpha = 0.08f), shape)
             .then(if (live) Modifier.clickable(onClick = onWatch) else Modifier)
             .semantics { contentDescription = "Event ${event.title}" }
-            .padding(14.dp),
-        verticalArrangement = Arrangement.spacedBy(14.dp),
+            .padding(horizontal = 12.dp, vertical = 10.dp),
+        verticalArrangement = Arrangement.spacedBy(10.dp),
     ) {
-        // Top Header: League Pill on Left + Pulsing Red LIVE / Kickoff Countdown Pill on Right
-        Row(
-            Modifier.fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.SpaceBetween,
-        ) {
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
             Text(
                 (event.league ?: event.genres.firstOrNull() ?: "Live Sports").ifBlank { "Live Sports" },
-                color = Color.White.copy(alpha = 0.9f),
-                style = MaterialTheme.typography.labelMedium,
+                color = Color.White.copy(alpha = 0.66f),
+                style = MaterialTheme.typography.labelSmall,
                 fontWeight = FontWeight.SemiBold,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
-                modifier = Modifier
-                    .weight(1f, fill = false)
-                    .clip(CircleShape)
-                    .background(Color.White.copy(alpha = 0.08f))
-                    .border(0.5.dp, Color.White.copy(alpha = 0.14f), CircleShape)
-                    .padding(horizontal = 10.dp, vertical = 4.dp),
+                modifier = Modifier.weight(1f),
             )
-            Spacer(Modifier.width(8.dp))
             when (event.status) {
-                EventStatus.LIVE -> LiveBadgePill(text = "LIVE · ${elapsedMinutes(event, nowSec, anchorSec)}'", pulse = true)
-                EventStatus.UPCOMING -> StatusPill("Starts in ${formatCountdown(secondsUntil(event, nowSec, anchorSec))}")
-                else -> StatusPill("Full Time")
-            }
-        }
-
-        // Center Faceoff: Team A Circular Crest/Name vs Bold VS/Score vs Team B Circular Crest/Name
-        if (matchup != null) {
-            PlayzFaceoffRow(matchup = matchup, status = event.status)
-        } else {
-            TournamentBannerFallback(event = event)
-        }
-
-        HorizontalDivider(color = Color.White.copy(alpha = 0.08f), thickness = 1.dp)
-
-        // Bottom Bar: Channel Broadcaster Badge + Kickoff Time on Left, Watch Live / Remind CTA on Right
-        Row(
-            Modifier.fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.SpaceBetween,
-        ) {
-            val tz = remember { localOffsetSec() }
-            val clockText = formatClock(anchorSec + (event.startOffsetSec ?: 0), tz)
-            val broadcaster = event.studio?.takeIf { it.isNotBlank() } ?: "Sports HD"
-            Row(
-                Modifier.weight(1f),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(6.dp),
-            ) {
-                Icon(
-                    Icons.Rounded.LiveTv,
-                    contentDescription = null,
-                    tint = Color.White.copy(alpha = 0.65f),
-                    modifier = Modifier.size(15.dp),
+                EventStatus.LIVE -> LiveBadgePill(text = "LIVE ${elapsedMinutes(event, nowSec, anchorSec)}'", pulse = true)
+                EventStatus.UPCOMING -> StatusPill(
+                    secondsUntil(event, nowSec, anchorSec).let { if (it in 1..3_600) "in ${formatCountdown(it)}" else clockText },
                 )
-                Text(
-                    when (event.status) {
-                        EventStatus.LIVE -> "$broadcaster · Started $clockText"
-                        EventStatus.UPCOMING -> "$broadcaster · Kick-off $clockText"
-                        else -> "$broadcaster · Final ($clockText)"
-                    },
-                    color = Color.White.copy(alpha = 0.72f),
-                    style = MaterialTheme.typography.labelSmall,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
+                else -> StatusPill("FT")
             }
-            Spacer(Modifier.width(8.dp))
             when (event.status) {
-                EventStatus.LIVE -> ActionPill(
-                    label = "Watch Live",
-                    icon = Icons.Rounded.PlayArrow,
-                    bg = tokens.accent,
-                    desc = "Watch ${event.title}",
-                    onClick = onWatch,
-                )
-                EventStatus.UPCOMING -> ActionPill(
-                    label = if (reminded) "Reminder On" else "Remind Me",
-                    icon = if (reminded) Icons.Rounded.NotificationsActive else Icons.Rounded.NotificationsNone,
-                    bg = if (reminded) tokens.accent else Color.White.copy(alpha = 0.12f),
-                    desc = if (reminded) "Cancel reminder" else "Remind me",
-                    onClick = onRemind,
+                EventStatus.LIVE -> CardIcon(Icons.Rounded.PlayArrow, "Watch ${event.title}", tokens.accent, onWatch)
+                EventStatus.UPCOMING -> CardIcon(
+                    if (reminded) Icons.Rounded.NotificationsActive else Icons.Rounded.NotificationsNone,
+                    if (reminded) "Cancel reminder" else "Remind me",
+                    if (reminded) tokens.accent else Color.White.copy(alpha = 0.10f),
+                    onRemind,
                 )
                 else -> Unit
             }
         }
-    }
-}
-
-@Composable
-private fun PlayzFaceoffRow(matchup: ParsedMatchup, status: EventStatus?) {
-    val home = matchup.home
-    val away = matchup.away
-    val hasScores = status != EventStatus.UPCOMING && home.score != null && away.score != null
-
-    Row(
-        Modifier
-            .fillMaxWidth()
-            .padding(vertical = 4.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        TeamFaceoffSide(team = home, modifier = Modifier.weight(1f))
-
-        Box(
-            Modifier.width(96.dp),
-            contentAlignment = Alignment.Center,
-        ) {
-            if (hasScores) {
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Text(
-                        "${home.score} – ${away.score}",
-                        color = Color.White,
-                        fontWeight = FontWeight.Black,
-                        fontSize = 23.sp,
-                        textAlign = TextAlign.Center,
-                    )
-                    Text(
-                        if (status == EventStatus.LIVE) "IN PLAY" else "FINAL",
-                        color = if (status == EventStatus.LIVE) Cinetor.tokens.liveBadge else Color.White.copy(alpha = 0.55f),
-                        style = MaterialTheme.typography.labelSmall,
-                        fontWeight = FontWeight.Bold,
-                    )
-                }
-            } else {
-                Box(
-                    Modifier
-                        .size(40.dp)
-                        .clip(CircleShape)
-                        .background(Color.White.copy(alpha = 0.07f))
-                        .border(1.dp, Color.White.copy(alpha = 0.16f), CircleShape),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    Text(
-                        "VS",
-                        color = Color.White,
-                        fontWeight = FontWeight.Black,
-                        style = MaterialTheme.typography.labelLarge,
-                    )
-                }
-            }
-        }
-
-        TeamFaceoffSide(team = away, modifier = Modifier.weight(1f))
-    }
-}
-
-@Composable
-private fun TeamFaceoffSide(team: Team, modifier: Modifier = Modifier) {
-    Column(
-        modifier,
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(8.dp),
-    ) {
-        TeamCrest(team = team, size = 50.dp)
-        Text(
-            team.name,
-            color = Color.White,
-            style = MaterialTheme.typography.titleSmall,
-            fontWeight = FontWeight.SemiBold,
-            textAlign = TextAlign.Center,
-            maxLines = 2,
-            overflow = TextOverflow.Ellipsis,
-        )
-    }
-}
-
-@Composable
-private fun TournamentBannerFallback(event: Item) {
-    Row(
-        Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(12.dp))
-            .background(Color.White.copy(alpha = 0.05f))
-            .padding(10.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(12.dp),
-    ) {
-        Box(
-            Modifier
-                .size(width = 88.dp, height = 52.dp)
-                .clip(RoundedCornerShape(8.dp))
-                .background(Color.Black),
-        ) {
-            AsyncImage(
-                model = rememberSizedImage(event.backdrop.ifBlank { event.poster }, 160.dp, 90.dp),
-                contentDescription = null,
-                contentScale = ContentScale.Crop,
-                modifier = Modifier.fillMaxSize(),
-            )
-        }
-        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+        if (matchup != null) {
+            CompactFaceoff(matchup, event.status)
+        } else {
             Text(
                 event.title,
                 color = Color.White,
                 style = MaterialTheme.typography.titleSmall,
-                fontWeight = FontWeight.Bold,
+                fontWeight = FontWeight.SemiBold,
                 maxLines = 2,
                 overflow = TextOverflow.Ellipsis,
             )
-            if (event.synopsis.isNotBlank()) {
-                Text(
-                    event.synopsis,
-                    color = Color.White.copy(alpha = 0.68f),
-                    style = MaterialTheme.typography.bodySmall,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
-            }
         }
+    }
+}
+
+@Composable
+private fun CardIcon(icon: ImageVector, desc: String, bg: Color, onClick: () -> Unit) {
+    Box(
+        Modifier
+            .padding(start = 8.dp)
+            .size(30.dp)
+            .clip(CircleShape)
+            .background(bg)
+            .clickable(onClick = onClick)
+            .semantics { contentDescription = desc },
+        contentAlignment = Alignment.Center,
+    ) {
+        Icon(icon, contentDescription = null, tint = Color.White, modifier = Modifier.size(17.dp))
+    }
+}
+
+@Composable
+private fun CompactFaceoff(matchup: ParsedMatchup, status: EventStatus?) {
+    val home = matchup.home
+    val away = matchup.away
+    val hasScores = status != EventStatus.UPCOMING && home.score != null && away.score != null
+    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+        TeamCrest(team = home, size = 32.dp)
+        Text(
+            home.name,
+            color = Color.White,
+            style = MaterialTheme.typography.bodyMedium,
+            fontWeight = FontWeight.SemiBold,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.weight(1f).padding(horizontal = 8.dp),
+        )
+        Text(
+            if (hasScores) "${home.score} – ${away.score}" else "VS",
+            color = if (status == EventStatus.LIVE && hasScores) Cinetor.tokens.liveBadge else Color.White,
+            fontWeight = FontWeight.Black,
+            fontSize = if (hasScores) 18.sp else 13.sp,
+            textAlign = TextAlign.Center,
+            modifier = Modifier.widthIn(min = 48.dp),
+        )
+        Text(
+            away.name,
+            color = Color.White,
+            style = MaterialTheme.typography.bodyMedium,
+            fontWeight = FontWeight.SemiBold,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            textAlign = TextAlign.End,
+            modifier = Modifier.weight(1f).padding(horizontal = 8.dp),
+        )
+        TeamCrest(team = away, size = 32.dp)
     }
 }
 
@@ -560,25 +432,3 @@ private fun StatusPill(text: String) {
     )
 }
 
-@Composable
-private fun ActionPill(
-    label: String,
-    icon: androidx.compose.ui.graphics.vector.ImageVector,
-    bg: Color,
-    desc: String,
-    onClick: () -> Unit,
-) {
-    Row(
-        Modifier
-            .clip(CircleShape)
-            .background(bg)
-            .clickable(onClick = onClick)
-            .semantics { contentDescription = desc }
-            .padding(horizontal = 14.dp, vertical = 7.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(5.dp),
-    ) {
-        Icon(icon, contentDescription = null, tint = Color.White, modifier = Modifier.size(16.dp))
-        Text(label, color = Color.White, style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold)
-    }
-}

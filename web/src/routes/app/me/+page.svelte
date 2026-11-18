@@ -453,7 +453,7 @@
     color: var(--text-primary);
     box-shadow: inset 0 0 0 1px var(--glass-stroke);
   }
-  :global([data-theme='pearl']) .field input {
+  :global([data-theme='daylight']) .field input {
     background: var(--surface-elevated);
     box-shadow: inset 0 0 0 1px rgb(20 20 22 / 0.16);
   }

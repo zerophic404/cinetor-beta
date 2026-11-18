@@ -34,73 +34,69 @@ class ThemesParityTest {
     }
 
     @Test
-    fun appTheme_hasExactEightThemesInOrderAndGlassDefault() {
+    fun appTheme_hasExactSixThemesInOrderAndCinemaDefault() {
         val expected = listOf(
-            AppTheme.NOIR,
-            AppTheme.OBSIDIAN,
-            AppTheme.EMBER,
-            AppTheme.GLASS,
-            AppTheme.MATTE,
-            AppTheme.MATERIAL,
-            AppTheme.AURA,
-            AppTheme.PEARL,
+            AppTheme.CINEMA,
+            AppTheme.MIDNIGHT,
+            AppTheme.EMERALD,
+            AppTheme.SUNSET,
+            AppTheme.ROYAL,
+            AppTheme.DAYLIGHT,
         )
         assertEquals(expected, AppTheme.entries)
-        assertEquals(AppTheme.GLASS, CinetorTokens.Default)
+        assertEquals(AppTheme.CINEMA, CinetorTokens.Default)
     }
 
     @Test
-    fun pearlIsLight_andAllSevenDarkThemesAreNotLight() {
-        assertTrue(CinetorTokens.of(AppTheme.PEARL).isLight)
-        assertTrue(CinetorTokens.Pearl.isLight)
-
-        val darkThemes = listOf(
-            AppTheme.NOIR,
-            AppTheme.OBSIDIAN,
-            AppTheme.EMBER,
-            AppTheme.GLASS,
-            AppTheme.MATTE,
-            AppTheme.MATERIAL,
-            AppTheme.AURA,
-        )
-        for (theme in darkThemes) {
+    fun daylightIsLight_andTheFiveOthersAreDark() {
+        assertTrue(CinetorTokens.of(AppTheme.DAYLIGHT).isLight)
+        for (theme in AppTheme.entries - AppTheme.DAYLIGHT) {
             assertFalse("$theme must have isLight == false", CinetorTokens.of(theme).isLight)
         }
     }
 
     @Test
-    fun wcagContrast_textPrimaryMeetsAaOnBgAndSurfaceAcrossAllEightThemes() {
+    fun themes_areGenuinelyDifferentPalettes() {
+        val accents = AppTheme.entries.map { CinetorTokens.of(it).accent }
+        val grounds = AppTheme.entries.map { CinetorTokens.of(it).bg }
+        assertEquals("every theme has its own accent", accents.size, accents.toSet().size)
+        assertEquals("every theme has its own background", grounds.size, grounds.toSet().size)
+        // Accent hues spread around the wheel (red, blue, green, coral, gold), not five shades of red.
+        val hues = (AppTheme.entries - AppTheme.DAYLIGHT).map { rgbToHsv(CinetorTokens.of(it).accent)[0] }
+        for (i in hues.indices) for (j in i + 1 until hues.size) {
+            val d = kotlin.math.abs(hues[i] - hues[j]).let { kotlin.math.min(it, 360f - it) }
+            assertTrue("accent hues $i/$j too close ($d°)", d >= 10f)
+        }
+    }
+
+    @Test
+    fun wcagContrast_textAndAccentMeetAaAcrossAllSixThemes() {
         for (theme in AppTheme.entries) {
             val tokens = CinetorTokens.of(theme)
-            val bgRatio = contrastRatio(tokens.textPrimary, tokens.bg)
-            val surfaceRatio = contrastRatio(tokens.textPrimary, tokens.surface)
-            val elevatedRatio = contrastRatio(tokens.textPrimary, tokens.surfaceElevated)
-            val secondaryBgRatio = contrastRatio(tokens.textSecondary, tokens.bg)
-            val secondarySurfaceRatio = contrastRatio(tokens.textSecondary, tokens.surface)
-
-            assertTrue("$theme textPrimary vs bg contrast $bgRatio < 4.5", bgRatio >= 4.5)
-            assertTrue("$theme textPrimary vs surface contrast $surfaceRatio < 4.5", surfaceRatio >= 4.5)
-            assertTrue("$theme textPrimary vs surfaceElevated contrast $elevatedRatio < 4.5", elevatedRatio >= 4.5)
-            assertTrue("$theme textSecondary vs bg contrast $secondaryBgRatio < 4.5", secondaryBgRatio >= 4.5)
-            assertTrue("$theme textSecondary vs surface contrast $secondarySurfaceRatio < 4.5", secondarySurfaceRatio >= 4.5)
+            val pairs = mapOf(
+                "textPrimary/bg" to contrastRatio(tokens.textPrimary, tokens.bg),
+                "textPrimary/surface" to contrastRatio(tokens.textPrimary, tokens.surface),
+                "textPrimary/surfaceElevated" to contrastRatio(tokens.textPrimary, tokens.surfaceElevated),
+                "textSecondary/bg" to contrastRatio(tokens.textSecondary, tokens.bg),
+                "textSecondary/surface" to contrastRatio(tokens.textSecondary, tokens.surface),
+                "textTertiary/bg" to contrastRatio(tokens.textTertiary, tokens.bg),
+                "onAccent/accent" to contrastRatio(tokens.onAccent, tokens.accent),
+            )
+            for ((name, ratio) in pairs) assertTrue("$theme $name contrast $ratio < 4.5", ratio >= 4.5)
         }
-
-        val pearl = CinetorTokens.of(AppTheme.PEARL)
-        assertTrue(contrastRatio(pearl.textTertiary, pearl.bg) >= 4.5)
-        assertTrue(contrastRatio(pearl.textTertiary, pearl.surface) >= 4.5)
     }
 
     @Test
     fun sharedOutputs_matchIsLightAndColorSchemeContract() {
         val root = Json.parseToJsonElement(File(TestFiles.sharedDir, "tokens/themes.json").readText()).jsonObject
-        assertEquals("glass", root.getValue("default").jsonPrimitive.content)
+        assertEquals("cinema", root.getValue("default").jsonPrimitive.content)
         val themes = root.getValue("themes").jsonObject
-        assertEquals(8, themes.size)
+        assertEquals(6, themes.size)
 
         val css = File(TestFiles.sharedDir, "generated/tokens.css").readText()
         val ts = File(TestFiles.sharedDir, "generated/tokens.ts").readText()
         assertTrue(ts.contains("isLight: boolean;"))
-        assertTrue(ts.contains("export const defaultTheme: ThemeName = 'glass';"))
+        assertTrue(ts.contains("export const defaultTheme: ThemeName = 'cinema';"))
 
         for (theme in AppTheme.entries) {
             val key = theme.name.lowercase()

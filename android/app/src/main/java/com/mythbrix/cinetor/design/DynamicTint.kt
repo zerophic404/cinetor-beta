@@ -58,20 +58,18 @@ class DynamicTintState {
 }
 
 /**
- * App background: theme ground + atmospheric top glow (or full-page Aura wash), animated over 600 ms
+ * App background: theme ground + atmospheric top glow in the current content colour, animated over 600 ms
  * (tier-scaled, instant when reduceMotion is on). Colour state is read strictly in `drawBehind` so
  * transitions never recompose child screens.
  */
 @Composable
 fun AppBackground(modifier: Modifier = Modifier, content: @Composable BoxScope.() -> Unit) {
-    val theme = Cinetor.theme
     val tokens = Cinetor.tokens
     val tier = Cinetor.tier
     val tint = Cinetor.tint
     val reduceMotion = Cinetor.prefs.reduceMotion
     val specular = Cinetor.specularShine
     val isLight = tokens.isLight
-    val isAura = theme == AppTheme.AURA
 
     val activeSource = tint.source?.takeIf { tint.enabled }
     val target = blendTint(activeSource ?: tokens.accent, tokens.accent, tokens.tintStrength)
@@ -104,42 +102,20 @@ fun AppBackground(modifier: Modifier = Modifier, content: @Composable BoxScope.(
                     }
                     return@drawBehind
                 }
-                if (isAura) {
-                    val washStops = if (richStops) {
-                        arrayOf(
-                            0f to c.copy(alpha = 0.40f),
-                            0.52f to c.copy(alpha = 0.16f),
-                            1f to c.copy(alpha = 0.04f),
-                        )
-                    } else {
-                        arrayOf(0f to c.copy(alpha = 0.30f), 1f to Color.Transparent)
-                    }
-                    drawRect(Brush.verticalGradient(colorStops = *washStops))
-                    if (richStops) {
-                        drawRect(
-                            Brush.radialGradient(
-                                colors = listOf(c.copy(alpha = 0.22f), Color.Transparent),
-                                center = Offset(size.width * 0.5f, 0f),
-                                radius = max(size.width, size.height) * 0.78f,
-                            ),
-                        )
-                    }
+                val topAlpha = if (isLight) 0.13f else if (richStops) 0.34f else 0.24f
+                val midAlpha = if (isLight) 0.04f else 0.10f
+                val stops = if (richStops) {
+                    arrayOf(0f to c.copy(alpha = topAlpha), 0.45f to c.copy(alpha = midAlpha), 1f to Color.Transparent)
                 } else {
-                    val topAlpha = if (isLight) 0.13f else if (richStops) 0.34f else 0.24f
-                    val midAlpha = if (isLight) 0.04f else 0.10f
-                    val stops = if (richStops) {
-                        arrayOf(0f to c.copy(alpha = topAlpha), 0.45f to c.copy(alpha = midAlpha), 1f to Color.Transparent)
-                    } else {
-                        arrayOf(0f to c.copy(alpha = topAlpha), 1f to Color.Transparent)
-                    }
-                    drawRect(
-                        Brush.radialGradient(
-                            colorStops = *stops,
-                            center = Offset(size.width * 0.5f, 0f),
-                            radius = max(size.width, size.height) * 0.85f,
-                        ),
-                    )
+                    arrayOf(0f to c.copy(alpha = topAlpha), 1f to Color.Transparent)
                 }
+                drawRect(
+                    Brush.radialGradient(
+                        colorStops = *stops,
+                        center = Offset(size.width * 0.5f, 0f),
+                        radius = max(size.width, size.height) * 0.85f,
+                    ),
+                )
             },
         content = content,
     )

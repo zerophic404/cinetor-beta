@@ -20,16 +20,14 @@ describe('tint blending', () => {
     expect(blendTint('#0000FF', '#E50914', 1)).toBe('#0000FF');
   });
 
-  it('theme tintStrength blends item color toward accent (red identity holds)', () => {
-    // Noir is strictly black / white / red: posters never tint the chrome, the glow stays the accent.
-    const noir = themes.noir;
-    expect(noir.tintStrength).toBe(0);
-    expect(blendTint('#0000FF', noir.colors.accent, noir.tintStrength).toUpperCase()).toBe(noir.colors.accent.toUpperCase());
-    // Obsidian keeps a share of the item color but stays red-dominant.
-    const obsidian = themes.obsidian;
-    const k = obsidian.tintStrength;
-    const accent = parseHex(obsidian.colors.accent);
-    const out = parseHex(blendTint('#0000FF', obsidian.colors.accent, k));
+  it('theme tintStrength blends the artwork colour toward the theme accent', () => {
+    // Cinema keeps a share of the artwork colour but its red identity dominates.
+    const cinema = themes.cinema;
+    const k = cinema.tintStrength;
+    expect(k).toBeGreaterThan(0);
+    expect(k).toBeLessThan(0.5);
+    const accent = parseHex(cinema.colors.accent);
+    const out = parseHex(blendTint('#0000FF', cinema.colors.accent, k));
     expect(out.r).toBe(Math.round(accent.r * (1 - k)));
     expect(out.b).toBe(Math.round(accent.b + (255 - accent.b) * k));
     expect(out.r).toBeGreaterThan(out.b);

@@ -75,40 +75,34 @@ import com.mythbrix.cinetor.feature.adult.AdultSetupFlowDialog
 import java.util.Locale
 import kotlinx.coroutines.launch
 
-/** Curated display order: Cinetor Beta's 5 material themes first, followed by the 3 classic dark palettes. */
+/** The six themes, signature Cinema first, light Daylight last. */
 internal val ThemeDisplayOrder: List<AppTheme> = listOf(
-    AppTheme.GLASS,
-    AppTheme.MATTE,
-    AppTheme.MATERIAL,
-    AppTheme.AURA,
-    AppTheme.PEARL,
-    AppTheme.NOIR,
-    AppTheme.OBSIDIAN,
-    AppTheme.EMBER,
+    AppTheme.CINEMA,
+    AppTheme.MIDNIGHT,
+    AppTheme.EMERALD,
+    AppTheme.SUNSET,
+    AppTheme.ROYAL,
+    AppTheme.DAYLIGHT,
 )
 
 internal val DoubleTapChoices: List<Int> = listOf(5, 10, 15, 30)
 
 internal fun themeBadge(theme: AppTheme): String = when (theme) {
-    AppTheme.GLASS -> "Liquid Glass"
-    AppTheme.MATTE -> "Flat solid"
-    AppTheme.MATERIAL -> "Rounder shapes"
-    AppTheme.AURA -> "Adaptive aura"
-    AppTheme.PEARL -> "Daylight"
-    AppTheme.NOIR -> "OLED black"
-    AppTheme.OBSIDIAN -> "Slate glass"
-    AppTheme.EMBER -> "Warm glow"
+    AppTheme.CINEMA -> "Black · Red"
+    AppTheme.MIDNIGHT -> "Navy · Blue"
+    AppTheme.EMERALD -> "Forest · Mint"
+    AppTheme.SUNSET -> "Plum · Coral"
+    AppTheme.ROYAL -> "Violet · Gold"
+    AppTheme.DAYLIGHT -> "Light"
 }
 
 internal fun themeDescription(theme: AppTheme): String = when (theme) {
-    AppTheme.GLASS -> "Clear dark cinema glass with frosted blur and refractive edges"
-    AppTheme.MATTE -> "Flat solid charcoal panels with zero blur or specular shine"
-    AppTheme.MATERIAL -> "Soft layered neutral surfaces with 28dp cards and pill buttons"
-    AppTheme.AURA -> "Deep adaptive canvas washed in the color of the artwork on screen"
-    AppTheme.PEARL -> "Warm daylight paper and frosted white glass for bright rooms"
-    AppTheme.NOIR -> "Pure OLED black canvas with high-contrast cinema red accents"
-    AppTheme.OBSIDIAN -> "Cool slate-black glass paired with deep crimson highlights"
-    AppTheme.EMBER -> "Dark mahogany glass with warm vermilion rim light"
+    AppTheme.CINEMA -> "Pure black, white and Cinema Red: the signature Cinetor look"
+    AppTheme.MIDNIGHT -> "Deep navy glass with electric blue light, cool and calm"
+    AppTheme.EMERALD -> "Dark forest canvas with fresh mint highlights"
+    AppTheme.SUNSET -> "Warm plum dusk with coral and rose light"
+    AppTheme.ROYAL -> "Deep violet velvet with gold trim"
+    AppTheme.DAYLIGHT -> "Bright warm paper, ink text and red accents for daytime"
 }
 
 /**
@@ -524,11 +518,10 @@ private fun ThemePreviewCard(
 ) {
     val t = CinetorTokens.of(theme)
     val current = Cinetor.tokens
-    val isMaterial = theme == AppTheme.MATERIAL
     val specular = themeUsesSpecularShine(theme)
-    val outerShape = RoundedCornerShape(if (isMaterial) 18.dp else 14.dp)
-    val innerCardShape = RoundedCornerShape(if (isMaterial) 10.dp else 7.dp)
-    val buttonShape = if (isMaterial) CircleShape else RoundedCornerShape(4.dp)
+    val outerShape = RoundedCornerShape(14.dp)
+    val innerCardShape = RoundedCornerShape(7.dp)
+    val buttonShape = RoundedCornerShape(4.dp)
 
     val idleBorder = if (t.isLight == current.isLight) {
         t.glassStroke.copy(alpha = t.glassStroke.alpha.coerceAtLeast(0.18f))

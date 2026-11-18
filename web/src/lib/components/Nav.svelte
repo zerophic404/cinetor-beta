@@ -106,11 +106,7 @@
   .topbar::before {
     display: none;
   }
-  :global([data-theme='matte']) .topbar {
-    box-shadow: none;
-    border-bottom: 1px solid var(--divider);
-  }
-  :global([data-theme='pearl']) .topbar {
+  :global([data-theme='daylight']) .topbar {
     box-shadow:
       var(--glass-specular),
       0 6px 20px -12px rgb(28 22 18 / 0.14);
@@ -174,10 +170,6 @@
     box-shadow:
       inset 0 1px 0 rgb(255 255 255 / 0.28),
       0 6px 18px -6px var(--accent-glow);
-  }
-  :global([data-theme='matte']) .search-btn.active {
-    background: var(--accent);
-    box-shadow: none;
   }
 
   /* Bottom / side main navigation */
@@ -269,73 +261,15 @@
   }
 
   /* Matte: crisp solid active indicator with zero specular glare. */
-  :global([data-theme='matte']) a.active .ic {
-    background: var(--accent);
-    box-shadow: none;
-  }
 
   /* Material: rounder tonal dock and wider pill indicator. */
-  :global([data-theme='material']) .nav {
-    border-radius: 28px;
-  }
-  :global([data-theme='material']) a .ic {
-    width: 54px;
-    height: 30px;
-  }
 
   /* Pearl: crisp daylight shadow under active accent pill. */
-  :global([data-theme='pearl']) a.active .ic {
+  :global([data-theme='daylight']) a.active .ic {
     background: linear-gradient(135deg, var(--accent), var(--accent-end));
     box-shadow:
       inset 0 1px 0 rgb(255 255 255 / 0.32),
       0 6px 16px -6px color-mix(in srgb, var(--accent) 44%, transparent);
-  }
-
-  /* Cinetor Beta floating Aura capsule bottom bar (<900px). */
-  @media (max-width: 899.98px) {
-    :global([data-theme='aura']) .nav {
-      left: 50%;
-      right: auto;
-      transform: translateX(-50%);
-      width: min(416px, calc(100vw - 28px - var(--safe-l) - var(--safe-r)));
-      bottom: calc(14px + var(--safe-b));
-      height: 60px;
-      padding: 0 10px;
-      border-radius: 999px;
-      background:
-        var(--glass-sheen),
-        radial-gradient(110% 140% at 50% 0%, color-mix(in srgb, var(--tint) 24%, transparent), transparent 68%),
-        color-mix(in srgb, var(--surface) 76%, transparent);
-      box-shadow:
-        inset 0 1px 0 rgb(255 255 255 / 0.28),
-        0 20px 44px -12px rgb(0 0 0 / 0.82),
-        0 6px 22px -8px color-mix(in srgb, var(--tint) 36%, transparent);
-    }
-    :global([data-theme='aura'][data-blur='none']) .nav {
-      background:
-        radial-gradient(110% 140% at 50% 0%, color-mix(in srgb, var(--tint) 20%, transparent), transparent 68%),
-        color-mix(in srgb, var(--surface) 92%, transparent);
-    }
-    :global([data-theme='aura']) a:not(.brand-link):not(.search-btn) {
-      padding: 4px 2px;
-      gap: 2px;
-    }
-    :global([data-theme='aura']) a .ic {
-      width: 46px;
-      height: 26px;
-    }
-    :global([data-theme='aura']) a.active:not(.search-btn)::before {
-      content: '';
-      position: absolute;
-      top: 0;
-      left: 50%;
-      width: 22px;
-      height: 2px;
-      transform: translateX(-50%);
-      border-radius: 99px;
-      background: var(--focus-ring);
-      box-shadow: 0 4px 12px 1px color-mix(in srgb, var(--focus-ring) 55%, transparent);
-    }
   }
 
   /* ≥900px: floating Liquid Glass side rail below the persistent top header */
@@ -355,9 +289,6 @@
       padding: 14px 6px;
       border-radius: 28px;
     }
-    :global([data-theme='aura']) .nav {
-      border-radius: 36px;
-    }
     ul {
       flex-direction: column;
       justify-content: flex-start;
@@ -373,18 +304,6 @@
       max-width: 76px;
       padding: 7px 6px;
       border-radius: 18px;
-    }
-    :global([data-theme='aura']) a.active:not(.search-btn)::after {
-      content: '';
-      position: absolute;
-      left: 0;
-      top: 50%;
-      width: 2.5px;
-      height: 20px;
-      transform: translateY(-50%);
-      border-radius: 99px;
-      background: var(--focus-ring);
-      box-shadow: 2px 0 10px color-mix(in srgb, var(--focus-ring) 50%, transparent);
     }
   }
 </style>

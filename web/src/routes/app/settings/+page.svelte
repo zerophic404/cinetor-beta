@@ -216,10 +216,7 @@
         <button
           type="button"
           class="theme-card"
-          class:is-matte={key === 'matte'}
-          class:is-material={key === 'material'}
-          class:is-aura={key === 'aura'}
-          class:is-pearl={key === 'pearl'}
+          class:is-light={key === 'daylight'}
           data-theme={name}
           role="radio"
           aria-checked={selected}
@@ -644,19 +641,7 @@
       radial-gradient(85% 70% at 22% 8%, color-mix(in srgb, var(--pv-accent) 44%, transparent), transparent 70%),
       radial-gradient(60% 55% at 92% 24%, color-mix(in srgb, var(--pv-accent-end) 28%, transparent), transparent 68%);
   }
-  .theme-card.is-matte .pv-glow {
-    opacity: 0;
-  }
-  .theme-card.is-material .pv-glow {
-    background: radial-gradient(80% 60% at 50% 0%, color-mix(in srgb, var(--pv-accent) 16%, transparent), transparent 72%);
-  }
-  .theme-card.is-aura .pv-glow {
-    background:
-      radial-gradient(90% 80% at 20% 10%, rgb(225 29 46 / 0.42), transparent 68%),
-      radial-gradient(80% 75% at 86% 28%, rgb(255 255 255 / 0.18), transparent 70%),
-      linear-gradient(180deg, rgb(225 29 46 / 0.18), transparent 85%);
-  }
-  .theme-card.is-pearl .pv-glow {
+  .theme-card.is-light .pv-glow {
     background:
       radial-gradient(85% 65% at 24% 8%, color-mix(in srgb, var(--pv-accent) 16%, transparent), transparent 70%),
       linear-gradient(180deg, rgb(255 255 255 / 0.7), transparent 60%);
@@ -709,16 +694,7 @@
       inset 0 1px 0 rgb(255 255 255 / 0.18),
       inset 0 0 0 1px var(--pv-stroke);
   }
-  .theme-card.is-matte .pv-posters span {
-    background: var(--pv-elev);
-    box-shadow: none;
-  }
-  .theme-card.is-material .pv-posters span {
-    border-radius: 9px;
-    background: var(--pv-elev);
-    box-shadow: inset 0 0 0 1px var(--pv-stroke);
-  }
-  .theme-card.is-pearl .pv-posters span {
+  .theme-card.is-light .pv-posters span {
     background: linear-gradient(180deg, rgb(255 255 255 / 0.92), color-mix(in srgb, var(--pv-elev) 85%, transparent));
     box-shadow:
       inset 0 1px 0 rgb(255 255 255 / 0.95),
@@ -735,9 +711,6 @@
     height: 9px;
     border-radius: 4px;
     background: linear-gradient(135deg, var(--pv-accent), var(--pv-accent-end));
-  }
-  .theme-card.is-material .pv-cta {
-    border-radius: 99px;
   }
   .pv-circle {
     width: 10px;
@@ -762,27 +735,7 @@
       inset 0 1px 0 rgb(255 255 255 / 0.2),
       inset 0 0 0 1px var(--pv-stroke);
   }
-  .theme-card.is-matte .pv-glass {
-    background: var(--pv-surface);
-    box-shadow: inset 0 0 0 1px rgb(255 255 255 / 0.07);
-  }
-  .theme-card.is-material .pv-glass {
-    border-radius: 99px;
-    background: var(--pv-elev);
-  }
-  .theme-card.is-aura .pv-glass {
-    left: 16%;
-    right: 16%;
-    border-radius: 99px;
-    background:
-      radial-gradient(100% 140% at 50% 0%, rgb(225 29 46 / 0.28), transparent 70%),
-      color-mix(in srgb, var(--pv-surface) 76%, transparent);
-    box-shadow:
-      inset 0 1px 0 rgb(255 255 255 / 0.32),
-      inset 0 0 0 1px rgb(255 255 255 / 0.22),
-      0 4px 10px -3px rgb(0 0 0 / 0.7);
-  }
-  .theme-card.is-pearl .pv-glass {
+  .theme-card.is-light .pv-glass {
     background: rgb(255 255 255 / 0.88);
     box-shadow:
       inset 0 1px 0 #ffffff,

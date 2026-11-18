@@ -802,7 +802,7 @@
   :global([data-tier='low']) .hero-ambient {
     background: radial-gradient(65% 65% at 50% 35%, color-mix(in srgb, var(--tint) 24%, transparent), transparent 72%);
   }
-  :global([data-theme='pearl']) .hero-ambient {
+  :global([data-theme='daylight']) .hero-ambient {
     opacity: 0.45;
   }
 
@@ -881,11 +881,6 @@
     box-shadow:
       inset 0 1px 0 rgb(255 255 255 / 0.26),
       inset 0 0 0 1px rgb(255 255 255 / 0.14);
-  }
-  :global([data-theme='matte']) .rim,
-  :global([data-theme='matte']) .deck-rim,
-  :global([data-theme='matte']) .fg-rim {
-    box-shadow: inset 0 0 0 1px var(--divider);
   }
 
   .showcase-stage {

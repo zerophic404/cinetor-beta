@@ -11,6 +11,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawWithCache
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
@@ -98,12 +99,10 @@ fun Modifier.glass(
     shape: Shape = Cinetor.cardShape,
     level: GlassLevel = GlassLevel.SURFACE,
 ): Modifier {
-    val theme = Cinetor.theme
     val tokens = Cinetor.tokens
     val tier = Cinetor.tier
     val specular = Cinetor.specularShine
     val isLight = tokens.isLight
-    val isAura = theme == AppTheme.AURA
     val live = !LocalInsideHazeSource.current && specular && glassUsesLiveBlur(tier, level, Cinetor.theme)
 
     val tintSource = Cinetor.tint.let { if (it.enabled) it.source else null }
@@ -118,7 +117,6 @@ fun Modifier.glass(
         val haze = Cinetor.haze
         val surfaceAlpha = when {
             isLight -> 0.72f
-            isAura -> 0.48f
             else -> 0.56f
         }
         clipped.hazeChild(haze) {
@@ -153,7 +151,7 @@ fun Modifier.glass(
         val bodySheenBrush: Brush? = if (!live && specular && tier != PerformanceTier.LOW) {
             val topFill = tokens.glassFill
             val midFill = tokens.glassFill.copy(alpha = tokens.glassFill.alpha * 0.28f)
-            val cornerTint = gleamHue.copy(alpha = if (isLight) 0.025f else if (isAura) 0.065f else 0.038f)
+            val cornerTint = gleamHue.copy(alpha = if (isLight) 0.025f else 0.038f)
             Brush.linearGradient(
                 colors = listOf(topFill, midFill, cornerTint),
                 start = Offset.Zero,
@@ -168,7 +166,6 @@ fun Modifier.glass(
             val bandAlpha = when {
                 tier == PerformanceTier.LOW -> if (isLight) 0.34f else 0.045f
                 isLight -> 0.62f
-                isAura -> 0.13f
                 else -> (tokens.glassFill.alpha * 1.15f).coerceIn(0.065f, 0.15f)
             }
             Brush.verticalGradient(
@@ -193,13 +190,12 @@ fun Modifier.glass(
             val gleamAlpha = when {
                 tier == PerformanceTier.LOW -> (strokeAlpha * 0.50f).coerceAtLeast(0.08f)
                 isLight -> 0.20f
-                isAura -> 0.34f
                 else -> 0.24f
             }
             val bottomRightGleam = blendTint(
                 source = gleamHue,
                 accent = tokens.glassStroke,
-                strength = if (isAura) 0.65f else 0.42f,
+                strength = 0.42f,
             ).copy(alpha = gleamAlpha)
             Brush.linearGradient(
                 colorStops = arrayOf(
@@ -282,4 +278,69 @@ fun Modifier.liquidGlassButton(
                 if (active) drawOutline(outline = outline, color = tokens.accent.copy(alpha = 0.62f), style = activeStroke)
             }
         }
+}
+
+/**
+ * Floating navigation dock: noticeably more see-through than panels. Live blur with light tints
+ * where the device allows it (HIGH tier, outside a haze source); otherwise a 58% translucent fill.
+ * Both get a curved lens highlight, a top-left → bottom-right rim, and a soft accent-tinted shadow.
+ */
+@Composable
+fun Modifier.liquidGlassDock(shape: Shape): Modifier {
+    val tokens = Cinetor.tokens
+    val tier = Cinetor.tier
+    val live = !LocalInsideHazeSource.current && glassUsesLiveBlur(tier, GlassLevel.FLOATING, Cinetor.theme)
+    val shadowed = if (tier == PerformanceTier.LOW) {
+        this
+    } else {
+        this.shadow(18.dp, shape, ambientColor = tokens.accentGlow, spotColor = Color.Black.copy(alpha = 0.5f))
+    }
+    val clipped = shadowed.clip(shape)
+    val backdrop = if (live) {
+        clipped.hazeChild(Cinetor.haze) {
+            backgroundColor = tokens.bg
+            tints = listOf(HazeTint(tokens.surface.copy(alpha = if (tokens.isLight) 0.46f else 0.34f)))
+            blurRadius = tokens.blur
+            noiseFactor = 0.02f
+            fallbackTint = HazeTint(tokens.surface.copy(alpha = 0.62f))
+        }
+    } else {
+        clipped
+    }
+    return backdrop.drawWithCache {
+        val outline = shape.createOutline(size, layoutDirection, this)
+        val w = size.width.coerceAtLeast(1f)
+        val h = size.height.coerceAtLeast(1f)
+        val fill = if (live) {
+            null
+        } else {
+            Brush.verticalGradient(
+                listOf(
+                    tokens.surfaceElevated.copy(alpha = if (tokens.isLight) 0.70f else 0.58f),
+                    tokens.surface.copy(alpha = if (tokens.isLight) 0.78f else 0.66f),
+                ),
+            )
+        }
+        val lens = Brush.radialGradient(
+            colors = listOf(Color.White.copy(alpha = if (tokens.isLight) 0.50f else 0.16f), Color.Transparent),
+            center = Offset(w * 0.5f, -h * 0.35f),
+            radius = w * 0.55f,
+        )
+        val rim = Brush.linearGradient(
+            colorStops = arrayOf(
+                0f to Color.White.copy(alpha = if (tokens.isLight) 0.70f else 0.34f),
+                0.5f to tokens.glassStroke,
+                1f to tokens.accent.copy(alpha = 0.30f),
+            ),
+            start = Offset.Zero,
+            end = Offset(w, h),
+        )
+        val stroke = Stroke(width = 1.dp.toPx())
+        onDrawWithContent {
+            fill?.let { drawOutline(outline = outline, brush = it) }
+            if (tier != PerformanceTier.LOW) drawOutline(outline = outline, brush = lens)
+            drawContent()
+            drawOutline(outline = outline, brush = rim, style = stroke)
+        }
+    }
 }

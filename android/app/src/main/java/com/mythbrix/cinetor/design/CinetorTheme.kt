@@ -61,24 +61,25 @@ private val MaterialShapes = Shapes(
     extraLarge = RoundedCornerShape(32.dp),
 )
 
-/** Container/panel corner shape: `MATERIAL` steps up to rounder 28dp corners, matching Cinetor Beta. */
-fun cardShapeFor(theme: AppTheme): RoundedCornerShape =
-    if (theme == AppTheme.MATERIAL) MaterialCardShape else StandardCardShape
+/** Container/panel corner shape (shared by all six themes: they differ by colour, not geometry). */
+@Suppress("UNUSED_PARAMETER")
+fun cardShapeFor(theme: AppTheme): RoundedCornerShape = StandardCardShape
 
-/** Poster/media card corner shape: `MATERIAL` uses softer 20dp corners, others use 14dp. */
-fun posterShapeFor(theme: AppTheme): RoundedCornerShape =
-    if (theme == AppTheme.MATERIAL) MaterialPosterShape else StandardPosterShape
+/** Poster/media card corner shape. */
+@Suppress("UNUSED_PARAMETER")
+fun posterShapeFor(theme: AppTheme): RoundedCornerShape = StandardPosterShape
 
-/** Action button corner shape: `MATERIAL` uses 50% pill corners, others use 14dp rounded rect. */
-fun buttonShapeFor(theme: AppTheme): RoundedCornerShape =
-    if (theme == AppTheme.MATERIAL) MaterialButtonShape else StandardButtonShape
+/** Action button corner shape. */
+@Suppress("UNUSED_PARAMETER")
+fun buttonShapeFor(theme: AppTheme): RoundedCornerShape = StandardButtonShape
 
-/** Material3 shape ramp per theme. */
-fun shapesFor(theme: AppTheme): Shapes =
-    if (theme == AppTheme.MATERIAL) MaterialShapes else StandardShapes
+/** Material3 shape ramp. */
+@Suppress("UNUSED_PARAMETER")
+fun shapesFor(theme: AppTheme): Shapes = StandardShapes
 
-/** `MATTE` disables refractive rim gleam and inner specular highlight bands. */
-fun themeUsesSpecularShine(theme: AppTheme): Boolean = theme != AppTheme.MATTE
+/** Every theme keeps the Liquid Glass specular rim and highlight bands. */
+@Suppress("UNUSED_PARAMETER")
+fun themeUsesSpecularShine(theme: AppTheme): Boolean = true
 
 /** Accessors for the current design-system values. */
 object Cinetor {
