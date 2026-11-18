@@ -1,15 +1,23 @@
 <script lang="ts">
   // Custom Liquid Glass title bar for the frameless desktop window (Tauri on Windows & Linux).
   // Drag anywhere on the bar, double-click to maximize, min / max / close on the right.
-  import { base } from '$app/paths';
   import { theme } from '$lib/design/theme.svelte';
   import { desktop } from './desktop.svelte';
 </script>
 
 <header class="titlebar" data-theme-light={theme.isLight ? '1' : undefined} data-tauri-drag-region>
   <div class="brand" data-tauri-drag-region>
-    <img src="{base}/favicon.svg" alt="" width="16" height="16" data-tauri-drag-region />
-    <span class="wordmark" data-tauri-drag-region>Cinetor</span>
+    <svg class="mark" viewBox="0 0 100 100" width="18" height="18" aria-hidden="true">
+      <g stroke="var(--bg, #09090B)" stroke-width="3" stroke-linejoin="round">
+        <path d="M42.50,62.99L19.72,76.14A40,40 0,0 1,42.50,10.71L42.50,37.01Z" fill="#E50914" />
+        <path d="M42.50,37.01L42.50,10.71A40,40 0,0 1,87.78,63.15L65.00,50.00Z" fill="#C8102E" />
+        <path d="M65.00,50.00L87.78,63.15A40,40 0,0 1,19.72,76.14L42.50,62.99Z" fill="#FF2D3B" />
+      </g>
+      <path d="M65.00,50.00L42.50,62.99L42.50,37.01Z" fill="#FFFFFF" />
+    </svg>
+    <span class="wordmark" data-tauri-drag-region>
+      <span class="cine">CINE</span><span class="tor">TOR</span>
+    </span>
   </div>
   <div class="ctl">
     <button class="win-btn" type="button" onclick={() => desktop.minimize()} aria-label="Minimize" title="Minimize">
@@ -110,17 +118,27 @@
     flex: 1;
     min-width: 0;
   }
-  .brand img {
+  .mark {
     display: block;
     flex: none;
     pointer-events: none;
   }
   .wordmark {
-    font-size: 12px;
-    font-weight: 650;
-    letter-spacing: 0.14em;
+    display: inline-flex;
+    align-items: baseline;
+    font-size: 11.5px;
+    letter-spacing: 0.34em;
     text-transform: uppercase;
-    color: color-mix(in srgb, var(--text-primary) 88%, var(--text-secondary));
+    color: color-mix(in srgb, var(--text-primary) 92%, var(--text-secondary));
+    pointer-events: none;
+  }
+  .cine {
+    font-weight: 300;
+    pointer-events: none;
+  }
+  .tor {
+    font-weight: 700;
+    pointer-events: none;
   }
   .ctl {
     display: flex;
@@ -140,7 +158,7 @@
     color: color-mix(in srgb, var(--text-primary) 88%, var(--text-secondary));
     cursor: default;
     transition:
-      background 120ms ease,
+      background-color 120ms ease,
       color 120ms ease;
   }
   .win-btn:hover {

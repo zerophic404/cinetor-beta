@@ -1,5 +1,8 @@
 import { base } from '$app/paths';
 import { SPACE_SLUG, type Space } from './data/types';
+import { meSpaceEntries, type MeSpace } from './spaces';
+
+export { ISOLATED_SPACE_ENTRIES, visibleSpaceEntries, type SpaceEntry } from './spaces';
 
 export interface NavTab {
   id: string;
@@ -12,36 +15,37 @@ export interface NavTab {
 
 export type IconName = 'home' | 'anime' | 'drama' | 'search' | 'me' | 'tv' | 'sports' | 'music' | 'comics' | 'adult' | 'spaces' | 'back' | 'grid';
 
-/** Isolated space owning a path (/app/<slug>[/...]); HOME for everything else. */
+/** Space owning a path (/app/<slug>[/...]); HOME for /app, /app/me, /app/search, etc. */
 export function spaceOfPath(pathname: string): Space {
   const rel = pathname.startsWith(base) ? pathname.slice(base.length) : pathname;
-  const m = /^\/app\/(tv|music|comics|adult)(?:\/|$)/.exec(rel);
+  const m = /^\/app\/(anime|drama|tv|music|comics|adult)(?:\/|$)/.exec(rel);
   if (!m) return 'HOME';
   return (Object.keys(SPACE_SLUG) as Space[]).find((s) => SPACE_SLUG[s] === m[1]) ?? 'HOME';
 }
 
 export const spaceHref = (s: Space) => (s === 'HOME' ? `${base}/app` : `${base}/app/${SPACE_SLUG[s]}`);
 
+/** Top-right Search icon destination: in-space search for MUSIC/COMICS/ADULT; global search otherwise. */
+export function searchHrefForSpace(space: Space): string {
+  if (space === 'MUSIC' || space === 'COMICS' || space === 'ADULT') {
+    return `${base}/app/${SPACE_SLUG[space]}/search`;
+  }
+  return `${base}/app/search`;
+}
+
 export const VIDEO_TABS: NavTab[] = [
   { id: 'home', label: 'Home', href: `${base}/app`, icon: 'home', exact: true },
   { id: 'anime', label: 'Anime', href: `${base}/app/anime`, icon: 'anime' },
   { id: 'drama', label: 'Drama', href: `${base}/app/drama`, icon: 'drama' },
-  { id: 'search', label: 'Search', href: `${base}/app/search`, icon: 'search' },
+  { id: 'tv', label: 'TV', href: `${base}/app/tv`, icon: 'tv' },
   { id: 'me', label: 'Me', href: `${base}/app/me`, icon: 'me' }
 ];
 
-export { ISOLATED_SPACE_ENTRIES, visibleSpaceEntries, type SpaceEntry } from './spaces';
-import { meSpaceEntries, type MeSpace } from './spaces';
-
-/** Each isolated space gets its own tabs: its categories + in-space search + exit. */
+/** Isolated spaces under Me → Spaces (Music, Comics, 18+): category tabs + return to Me. */
 export function isolatedTabs(space: Space): NavTab[] {
   const slug = SPACE_SLUG[space];
   const root = `${base}/app/${slug}`;
   const cats: Record<string, NavTab[]> = {
-    TV: [
-      { id: 'tv-live', label: 'Live TV', href: `${root}?cat=tv-live`, icon: 'tv' },
-      { id: 'tv-sports', label: 'Sports', href: `${root}?cat=tv-sports`, icon: 'sports' }
-    ],
     MUSIC: [
       { id: 'mu-albums', label: 'Albums', href: `${root}?cat=mu-albums`, icon: 'music' },
       { id: 'mu-tracks', label: 'Tracks', href: `${root}?cat=mu-tracks`, icon: 'grid' }
@@ -58,11 +62,10 @@ export function isolatedTabs(space: Space): NavTab[] {
   };
   return [
     ...(cats[space] ?? []),
-    { id: 'search', label: 'Search', href: `${root}/search`, icon: 'search' },
-    // Spaces live under Me → back returns there.
+    // Isolated spaces live under Me → back returns there.
     { id: 'exit', label: 'Me', href: `${base}/app/me`, icon: 'back' }
   ];
 }
 
-/** Me → Spaces entries (existing space routes, unchanged). 18+ only once enabled; PIN asked inside. */
+/** Me → Spaces entries (Music, Comics, and 18+ only once enabled; PIN asked inside). */
 export const meSpaces = (adultEnabled: boolean): MeSpace[] => meSpaceEntries(adultEnabled, base);
