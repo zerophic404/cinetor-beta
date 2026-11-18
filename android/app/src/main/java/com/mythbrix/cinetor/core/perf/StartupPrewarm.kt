@@ -53,7 +53,7 @@ internal fun prewarmRows(cats: List<Category>, plan: PrewarmPlan): List<Row> {
  * Loads catalog rows and their thumbnails ahead of time so a space's first frame, a tab switch or a
  * scroll never shows a loading shimmer. Rows land in the gateway's memory/disk cache; images are
  * enqueued with the exact request each card builds ([sizedImageRequest]), so cards hit Coil's
- * memory cache. Adult is never pre-warmed (PIN-gated, kept off disk until unlocked).
+ * memory cache. Adult is pre-warmed only while the section is turned on in Settings.
  */
 class StartupPrewarmer(
     private val context: Context,
@@ -104,7 +104,7 @@ class StartupPrewarmer(
 
     /** Pre-warms [space] per [plan]. Returns once rows are fetched and thumbnails are enqueued. */
     suspend fun warm(space: Space, plan: PrewarmPlan) = coroutineScope {
-        if (space == Space.ADULT) return@coroutineScope
+        if (space == Space.ADULT && !container.adult.enabled.value) return@coroutineScope
         val cats = try {
             container.catalog.categories(space)
         } catch (e: CancellationException) {

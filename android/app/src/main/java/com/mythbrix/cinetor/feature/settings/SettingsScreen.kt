@@ -72,9 +72,6 @@ import com.mythbrix.cinetor.design.themeUsesSpecularShine
 import com.mythbrix.cinetor.feature.adult.AdultGate
 import com.mythbrix.cinetor.feature.adult.AdultSetupAction
 import com.mythbrix.cinetor.feature.adult.AdultSetupFlowDialog
-import com.mythbrix.cinetor.feature.adult.EnableResult
-import com.mythbrix.cinetor.feature.adult.UnlockResult
-import com.mythbrix.cinetor.feature.profile.ProfilePinDialog
 import java.util.Locale
 import kotlinx.coroutines.launch
 
@@ -249,7 +246,6 @@ fun SettingsScreen(
 
         Group("Content & Privacy") {
             AdultPrivacyToggleRow(container.adult)
-            ChangeAdultPin(container.adult)
             SectionDivider()
             ActionRow(
                 title = "Clear search history",
@@ -423,9 +419,9 @@ private fun AdultPrivacyToggleRow(gate: AdultGate) {
                 if (kids) {
                     "Unavailable while Kids mode is active"
                 } else if (enabled) {
-                    "PIN-protected Adult space visible under Me · Spaces"
+                    "Adult Content is shown under Me"
                 } else {
-                    "Hidden everywhere until enabled with age confirmation and a 4-digit PIN"
+                    "Hidden everywhere until you turn it on and confirm you are 18+"
                 },
                 style = MaterialTheme.typography.bodySmall,
                 color = tokens.textSecondary,
@@ -710,59 +706,6 @@ private fun CacheRow(container: AppContainer) {
             runCatching { container.clearImageCache() }
             refresh++
         }
-    }
-}
-
-/** Change the 18+ PIN: current → new → confirm. Hidden while the section is off. */
-@Composable
-private fun ChangeAdultPin(gate: AdultGate) {
-    val enabled by gate.enabled.collectAsStateWithLifecycle()
-    if (!enabled) return
-    var step by remember { mutableIntStateOf(0) }
-    var first by remember { mutableStateOf("") }
-    var done by remember { mutableStateOf<String?>(null) }
-    ActionRow("Change 18+ PIN", done ?: "Current PIN required") { step = 1; done = null }
-    if (step > 0) {
-        ProfilePinDialog(
-            title = when (step) {
-                1 -> "Current PIN"
-                2 -> "New 4-digit PIN"
-                else -> "Confirm new PIN"
-            },
-            onDismiss = { step = 0 },
-            onPin = { pin -> changePinStep(gate, step, pin, first, { first = it }, { step = it }, { done = it }) },
-        )
-    }
-}
-
-private suspend fun changePinStep(
-    gate: AdultGate,
-    step: Int,
-    pin: String,
-    first: String,
-    setFirst: (String) -> Unit,
-    setStep: (Int) -> Unit,
-    setDone: (String) -> Unit,
-): Boolean = when (step) {
-    1 -> {
-        val ok = gate.verify(pin) == UnlockResult.Ok
-        if (ok) setStep(2)
-        ok
-    }
-    2 -> {
-        setFirst(pin)
-        setStep(3)
-        true
-    }
-    else -> {
-        val ok = pin == first && gate.enable(ageConfirmed = true, pin = first, confirmPin = pin) == EnableResult.Ok
-        if (ok) {
-            setStep(0)
-            setDone("PIN changed")
-        } else {
-            setStep(2)
-        }
-        ok
     }
 }
 

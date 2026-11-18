@@ -62,7 +62,7 @@ fun CinetorRoot(container: AppContainer) {
         val screenWidthDp = LocalConfiguration.current.screenWidthDp.toFloat()
         LaunchedEffect(container) {
             val prewarmer = StartupPrewarmer(appContext, container, tier, density, screenWidthDp)
-            val spaces = listOf(Space.HOME, Space.ANIME, Space.DRAMA)
+            val spaces = listOf(Space.HOME, Space.ANIME, Space.DRAMA, Space.ADULT)
             if (showIntro) {
                 // Under the splash: hero + first rows of every space, so Home and every section
                 // switch open with thumbnails already decoded. The splash never waits past the cap.

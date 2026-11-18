@@ -70,7 +70,7 @@ fun spaceEntryLabel(space: Space): Pair<String, String> = when (space) {
     Space.TV -> "Live TV & Sports" to "Channels, guide, live events"
     Space.MUSIC -> "Music" to "Albums, tracks, queue"
     Space.COMICS -> "Comics" to "Manga · Manhwa · Manhua"
-    Space.ADULT -> "18+" to "PIN protected"
+    Space.ADULT -> "18+" to "Movies & series for adults"
     else -> space.displayName to ""
 }
 

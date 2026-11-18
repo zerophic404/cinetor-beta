@@ -44,13 +44,18 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.TextField
 import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextAlign
@@ -140,6 +145,18 @@ fun SearchScreen(
     val isPendingRemote = trimmedQuery.length >= SearchViewModel.MIN_REMOTE_CHARS &&
         (results.remoteLoading || results.query != trimmedQuery)
 
+    // Opening Search puts the cursor in the box and raises the keyboard right away (fresh search
+    // only: coming back from a result keeps the list in view).
+    val searchFocus = remember { FocusRequester() }
+    val keyboard = LocalSoftwareKeyboardController.current
+    LaunchedEffect(Unit) {
+        if (query.isEmpty()) {
+            withFrameNanos { }
+            runCatching { searchFocus.requestFocus() }
+            keyboard?.show()
+        }
+    }
+
     Column(Modifier.fillMaxSize().padding(top = contentPadding.calculateTopPadding())) {
         TextField(
             value = query,
@@ -177,7 +194,8 @@ fun SearchScreen(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(horizontal = 16.dp)
-                .glass(RoundedCornerShape(18.dp), GlassLevel.SURFACE),
+                .glass(RoundedCornerShape(18.dp), GlassLevel.SURFACE)
+                .focusRequester(searchFocus),
         )
         Box(Modifier.fillMaxWidth().height(3.dp).padding(horizontal = 24.dp)) {
             if (isPendingRemote) {

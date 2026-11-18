@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Phase 4b smoke (sourced by emulator-smoke.sh; uses its shot/tap_desc/W/H/BAR_Y/PKG/OUT).
 # Comics: home → manga details → RTL paged reader → manhwa vertical reader.
-# Adult: Settings toggle → 18+ confirm → set PIN → switcher shows Adult → PIN screen → wrong → right (FLAG_SECURE).
+# Adult: Settings toggle → 18+ confirm (no PIN) → Me shows Adult Content → opens straight in (FLAG_SECURE).
 
 tap_text() {
   adb shell uiautomator dump /sdcard/ui.xml >/dev/null 2>&1 || return 1
@@ -75,10 +75,7 @@ if find_desc "Settings"; then
   if find_desc "Toggle 18+ section"; then
     shot 61-adult-age-confirm 2
     if tap_desc "I am 18 or older" || tap_text "I am 18 or older" || tap_text "I am 18+"; then
-      shot 62-adult-set-pin 2
-      pin_enter 1234; sleep 1
-      shot 63-adult-confirm-pin 1
-      pin_enter 1234; sleep 2
+      sleep 2
       shot 64-settings-adult-on 1
     fi
   fi
@@ -97,10 +94,7 @@ adult_check() {
   fi
 }
 if open_space "18+"; then
-  shot 66-adult-pin 3
-  pin_enter 0000; shot 67-adult-pin-wrong 1
-  sleep 1
-  pin_enter 1234; shot 68-adult-unlocked-secure 10              # FLAG_SECURE → black capture expected
+  sleep 3; shot 68-adult-open-secure 10                          # no PIN; FLAG_SECURE → black capture expected
   adult_check unlocked
   adb shell input swipe $((W/2)) $((H*3/4)) $((W/2)) $((H/4)) 400; sleep 3
   adult_check scrolled

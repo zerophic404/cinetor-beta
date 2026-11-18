@@ -104,6 +104,7 @@ fun SpaceScreen(
         factory = viewModelFactory { initializer { SpaceViewModel(space, container.catalog) } },
     )
     val state by vm.state.collectAsStateWithLifecycle()
+    LaunchedEffect(space) { if (SectionTabReset.consume(space)) vm.selectTab(0) }
     val myList by container.myList.collectAsStateWithLifecycle()
     val readinessMap by container.preloader.readiness.collectAsStateWithLifecycle()
     val feeder = rememberTintFeeder()

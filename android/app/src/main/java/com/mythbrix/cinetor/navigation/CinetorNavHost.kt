@@ -1,5 +1,8 @@
 package com.mythbrix.cinetor.navigation
 
+import android.os.SystemClock
+import android.widget.Toast
+import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedContentScope
 import androidx.compose.animation.ExperimentalSharedTransitionApi
 import androidx.compose.animation.SharedTransitionLayout
@@ -41,6 +44,7 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -54,6 +58,7 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.scale
 import androidx.compose.ui.graphics.vector.PathParser
 import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
@@ -96,11 +101,13 @@ import com.mythbrix.cinetor.feature.comics.ComicIds
 import com.mythbrix.cinetor.feature.comics.ComicsHome
 import com.mythbrix.cinetor.feature.details.DetailsScreen
 import com.mythbrix.cinetor.feature.downloads.DownloadsScreen
+import com.mythbrix.cinetor.feature.home.SectionTabReset
 import com.mythbrix.cinetor.feature.home.SpaceScreen
 import com.mythbrix.cinetor.feature.music.AlbumScreen
 import com.mythbrix.cinetor.feature.music.MusicHome
 import com.mythbrix.cinetor.feature.music.MusicMiniBarHeight
 import com.mythbrix.cinetor.feature.player.HostMode
+import com.mythbrix.cinetor.feature.player.findActivity
 import com.mythbrix.cinetor.feature.profile.EditProfile
 import com.mythbrix.cinetor.feature.profile.LibraryScreen
 import com.mythbrix.cinetor.feature.profile.MeScreen
@@ -196,6 +203,20 @@ fun CinetorNavHost(container: AppContainer, modifier: Modifier = Modifier) {
     val activeSpace = placement.first
     val selectedTab = placement.second
 
+    // Root of the app (Home feed, nothing to pop): the first Back shows a hint, a second Back
+    // within 2 s closes the app, so one stray press never exits.
+    val exitContext = LocalContext.current
+    var lastRootBackAt by remember { mutableLongStateOf(0L) }
+    BackHandler(enabled = entry != null && nav.previousBackStackEntry == null) {
+        val now = SystemClock.uptimeMillis()
+        if (now - lastRootBackAt <= DOUBLE_BACK_WINDOW_MS) {
+            exitContext.findActivity()?.finish()
+        } else {
+            lastRootBackAt = now
+            Toast.makeText(exitContext, "Press back again to exit", Toast.LENGTH_SHORT).show()
+        }
+    }
+
     // Mini player / PiP → expand: return to (or open) the playing title's Details page, where the
     // player docks inline in the top slot with the same episode list.
     LaunchedEffect(nav, container.playback) {
@@ -225,6 +246,15 @@ fun CinetorNavHost(container: AppContainer, modifier: Modifier = Modifier) {
     }
 
     val onTab: (TabKey) -> Unit = { key ->
+        // Coming in from another section: that section opens on its first tab (All / For You).
+        val target = when (key) {
+            TabKey.HOME -> Space.HOME
+            TabKey.ANIME -> Space.ANIME
+            TabKey.DRAMA -> Space.DRAMA
+            TabKey.TV -> Space.TV
+            else -> null
+        }
+        if (target != null && target != activeSpace) SectionTabReset.request(target)
         when (key) {
             TabKey.HOME -> nav.navigateTab(HomeRoute)
             TabKey.ANIME -> nav.navigateTab(AnimeRoute)
@@ -675,3 +705,6 @@ private fun NavHostController.enterSpace(space: Space) {
         launchSingleTop = true
     }
 }
+
+/** Second Back press within this window exits from the app's root screen. */
+private const val DOUBLE_BACK_WINDOW_MS = 2_000L

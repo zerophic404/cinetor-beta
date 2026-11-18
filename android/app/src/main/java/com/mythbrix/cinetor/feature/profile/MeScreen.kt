@@ -23,8 +23,6 @@ import androidx.compose.material.icons.rounded.AutoStories
 import androidx.compose.material.icons.rounded.Download
 import androidx.compose.material.icons.rounded.Edit
 import androidx.compose.material.icons.rounded.Info
-import androidx.compose.material.icons.rounded.Lock
-import androidx.compose.material.icons.rounded.LockOpen
 import androidx.compose.material.icons.rounded.MusicNote
 import androidx.compose.material.icons.rounded.Settings
 import androidx.compose.material.icons.rounded.VideoLibrary
@@ -65,7 +63,7 @@ import kotlinx.coroutines.launch
  * Single-profile Cinetor Beta `Me` hub:
  * - Clean on-device profile summary card with inline display-name edit.
  * - One Liquid Glass menu list in Cinetor Beta order: `Library`, `Downloads`, `Comics`, `Music`,
- *   PIN-gated `Adult Content` (ONLY when enabled in Settings), `Settings`, `About`.
+ *   `Adult Content` (ONLY when enabled in Settings), `Settings`, `About`.
  */
 @Composable
 fun MeScreen(
@@ -88,7 +86,6 @@ fun MeScreen(
     val dl by container.downloads.visible.collectAsStateWithLifecycle()
     val comicsData by container.comics.store.data.collectAsStateWithLifecycle()
     val adultEnabled by container.adult.enabled.collectAsStateWithLifecycle()
-    val adultUnlocked by container.adult.unlocked.collectAsStateWithLifecycle()
 
     var editingName by remember { mutableStateOf(false) }
     var draftName by remember(active.name) { mutableStateOf(active.name) }
@@ -192,10 +189,8 @@ fun MeScreen(
                 MenuDivider()
                 SpaceMenuItem(
                     space = space,
-                    adultUnlocked = adultUnlocked,
                     comicsBookmarksCount = comicsData.bookmarks.size,
                     onClick = { onSpace(space) },
-                    onLockAdult = { container.adult.lock() },
                 )
             }
             MenuDivider()
@@ -266,10 +261,8 @@ private fun orderedSpaces(spaces: List<Space>): List<Space> {
 @Composable
 private fun SpaceMenuItem(
     space: Space,
-    adultUnlocked: Boolean,
     comicsBookmarksCount: Int,
     onClick: () -> Unit,
-    onLockAdult: () -> Unit,
 ) {
     val tokens = Cinetor.tokens
     val (semanticTitle, defaultSub) = spaceEntryLabel(space)
@@ -281,13 +274,13 @@ private fun SpaceMenuItem(
     val subtitle = when (space) {
         Space.MUSIC -> "Streaming · Lossless · MP3"
         Space.COMICS -> if (comicsBookmarksCount > 0) "Manga, Manhwa & Manhua · $comicsBookmarksCount saved" else "Manga, Manhwa & Manhua"
-        Space.ADULT -> if (adultUnlocked) "Unlocked" else "PIN protected"
+        Space.ADULT -> "Movies & series for adults"
         else -> defaultSub
     }
     val icon = when (space) {
         Space.MUSIC -> Icons.Rounded.MusicNote
         Space.COMICS -> Icons.Rounded.AutoStories
-        Space.ADULT -> if (adultUnlocked) Icons.Rounded.LockOpen else Icons.Rounded.Lock
+        Space.ADULT -> Icons.Rounded.VideoLibrary
         else -> Icons.Rounded.VideoLibrary
     }
     Row(
@@ -317,31 +310,16 @@ private fun SpaceMenuItem(
             )
         }
         if (space == Space.ADULT) {
-            if (adultUnlocked) {
-                Text(
-                    "Lock",
-                    style = MaterialTheme.typography.labelMedium,
-                    fontWeight = FontWeight.SemiBold,
-                    color = tokens.accent,
-                    modifier = Modifier
-                        .clip(CircleShape)
-                        .background(tokens.glassFill)
-                        .clickable(onClick = onLockAdult)
-                        .semantics { contentDescription = "Lock 18+" }
-                        .padding(horizontal = 10.dp, vertical = 4.dp),
-                )
-            } else {
-                Text(
-                    "18+",
-                    style = MaterialTheme.typography.labelSmall,
-                    fontWeight = FontWeight.Bold,
-                    color = tokens.onAccent,
-                    modifier = Modifier
-                        .clip(CircleShape)
-                        .background(tokens.accent)
-                        .padding(horizontal = 6.dp, vertical = 1.dp),
-                )
-            }
+            Text(
+                "18+",
+                style = MaterialTheme.typography.labelSmall,
+                fontWeight = FontWeight.Bold,
+                color = tokens.onAccent,
+                modifier = Modifier
+                    .clip(CircleShape)
+                    .background(tokens.accent)
+                    .padding(horizontal = 6.dp, vertical = 1.dp),
+            )
         }
         Icon(
             Icons.AutoMirrored.Rounded.KeyboardArrowRight,

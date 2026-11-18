@@ -125,13 +125,13 @@ class ProfilesTest {
         runCurrent()
         assertTrue(m.isKids.value)
         assertFalse(gate.canEnable)
-        assertEquals(EnableResult.KidsProfile, gate.enable(ageConfirmed = true, pin = "1234"))
+        assertEquals(EnableResult.KidsProfile, gate.enable(ageConfirmed = true))
         assertFalse(gate.enabled.value)
 
         // Enabled on the main profile → still hidden while the Kids profile is active.
         assertEquals(SelectResult.Ok, m.select(ProfileManager.MAIN_ID))
         runCurrent()
-        assertEquals(EnableResult.Ok, gate.enable(ageConfirmed = true, pin = "1234"))
+        assertEquals(EnableResult.Ok, gate.enable(ageConfirmed = true))
         runCurrent()
         assertTrue(gate.enabled.value)
         assertEquals(SelectResult.Ok, m.select(kid.id))
