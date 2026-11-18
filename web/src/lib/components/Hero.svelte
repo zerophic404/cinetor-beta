@@ -42,6 +42,7 @@
   let isWide = $state(typeof window !== 'undefined' ? window.matchMedia('(min-width: 768px)').matches : true);
   let dragPx = $state(0);
   let dragging = $state(false);
+  let rawFallbackIds = $state.raw<Record<string, boolean>>({});
   let failedIds = $state.raw<Record<string, boolean>>({});
   let ctrl: CarouselController | null = null;
 
@@ -146,9 +147,25 @@
     syncCtrlMeta();
   });
 
+  function stripResizeParam(url: string): string {
+    if (!/^https?:\/\//i.test(url)) return '';
+    return url
+      .replace(/([?&])x-oss-process=[^&]*(&|$)/, (_, p1: string, p2: string) => (p2 ? p1 : ''))
+      .replace(/[?&]$/, '');
+  }
+
   function markFailed(id: string) {
     if (failedIds[id]) return;
     failedIds = { ...failedIds, [id]: true };
+  }
+
+  function handleSlideImgError(id: string, rawUrl: string, a: { src: string; srcset?: string }) {
+    const fallbackUrl = stripResizeParam(rawUrl);
+    if (!rawFallbackIds[id] && fallbackUrl && (a.srcset || a.src !== fallbackUrl)) {
+      rawFallbackIds = { ...rawFallbackIds, [id]: true };
+      return;
+    }
+    markFailed(id);
   }
 
   // Swipe (touch/pen) with live 3D deck drag + 6s post-touch cooldown.
@@ -303,6 +320,8 @@
         {#each slides as item, i (item.id)}
           {#if nearWide(i)}
             {@const raw = item.backdrop || item.poster}
+            {@const rawUrl = stripResizeParam(raw)}
+            {@const useRaw = Boolean(rawFallbackIds[item.id] && rawUrl)}
             {@const a = imgFor(raw, 'hero')}
             {@const useGen = !a.src || Boolean(failedIds[item.id])}
             {#if useGen}
@@ -333,20 +352,23 @@
                 {/each}
               </svg>
             {:else}
-              <img
-                class="bg"
-                class:on={i === safeIndex}
-                class:kb={perf.flags.kenBurns}
-                sizes={a.sizes}
-                srcset={a.srcset}
-                src={a.src}
-                alt=""
-                loading={i === safeIndex ? 'eager' : 'lazy'}
-                fetchpriority={i === safeIndex ? 'high' : 'low'}
-                decoding="async"
-                draggable="false"
-                onerror={() => markFailed(item.id)}
-              />
+              {#key useRaw}
+                <img
+                  class="bg"
+                  class:on={i === safeIndex}
+                  class:kb={perf.flags.kenBurns}
+                  referrerpolicy="no-referrer"
+                  sizes={useRaw ? undefined : a.sizes}
+                  srcset={useRaw ? undefined : a.srcset}
+                  src={useRaw ? rawUrl : a.src}
+                  alt=""
+                  loading={i === safeIndex ? 'eager' : 'lazy'}
+                  fetchpriority={i === safeIndex ? 'high' : 'low'}
+                  decoding="async"
+                  draggable="false"
+                  onerror={() => handleSlideImgError(item.id, raw, a)}
+                />
+              {/key}
             {/if}
           {/if}
         {/each}
@@ -478,6 +500,8 @@
           {#if tf.visible}
             {@const isFront = i === safeIndex}
             {@const raw = item.poster || item.backdrop}
+            {@const rawUrl = stripResizeParam(raw)}
+            {@const useRaw = Boolean(rawFallbackIds[item.id] && rawUrl)}
             {@const a = imgFor(raw, 'poster')}
             {@const useGen = !a.src || Boolean(failedIds[item.id])}
             {@const ratingText = formatRating(item.rating)}
@@ -516,18 +540,21 @@
                   {/each}
                 </svg>
               {:else}
-                <img
-                  class="deck-art"
-                  sizes="(max-width: 767px) 78vw, 360px"
-                  srcset={a.srcset}
-                  src={a.src}
-                  alt=""
-                  loading={isFront ? 'eager' : 'lazy'}
-                  fetchpriority={isFront ? 'high' : 'low'}
-                  decoding="async"
-                  draggable="false"
-                  onerror={() => markFailed(item.id)}
-                />
+                {#key useRaw}
+                  <img
+                    class="deck-art"
+                    referrerpolicy="no-referrer"
+                    sizes={useRaw ? undefined : '(max-width: 767px) 78vw, 360px'}
+                    srcset={useRaw ? undefined : a.srcset}
+                    src={useRaw ? rawUrl : a.src}
+                    alt=""
+                    loading={isFront ? 'eager' : 'lazy'}
+                    fetchpriority={isFront ? 'high' : 'low'}
+                    decoding="async"
+                    draggable="false"
+                    onerror={() => handleSlideImgError(item.id, raw, a)}
+                  />
+                {/key}
               {/if}
 
               <div class="deck-scrim" aria-hidden="true"></div>
