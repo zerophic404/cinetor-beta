@@ -1,6 +1,7 @@
 package com.mythbrix.cinetor.tvui
 
 import com.mythbrix.cinetor.core.data.Space
+import java.util.Locale
 
 /** Remote keys the TV layer cares about (Android key codes mapped in [tvKeyOf]). */
 enum class TvKey {
@@ -31,23 +32,28 @@ fun tvKeyOf(keyCode: Int): TvKey = when (keyCode) {
 
 enum class TvDest { SEARCH, HOME, ANIME, DRAMA, LIVE_TV, MUSIC, COMICS, ADULT, DOWNLOADS, LIBRARY, PROFILES, SETTINGS }
 
-/** VIDEO spaces · PROFILE (profiles + the isolated spaces, like the phone Me screen) · MORE. */
+/** Primary video + TV spaces · SPACES (Music, Comics, gated 18+) · MORE. */
 enum class TvNavGroup { VIDEO, PROFILE, SYSTEM }
 
 data class TvNavEntry(val dest: TvDest, val label: String, val group: TvNavGroup)
 
 /**
- * Side nav: video spaces (+ search) · isolated spaces group · system. Adult only when the gate
- * allows it (enabled + not a Kids profile). Search is in-space while inside an isolated space.
+ * v2.1 TV side-nav:
+ * - Primary `VIDEO` group: `Search`, `Home`, `Anime`, `Drama`, `TV`.
+ * - `SPACES` group: `Music`, `Comics`, and `18+` ONLY when [adultEnabled] is `true`.
+ * - `MORE` group: `Downloads`, `Library`, `Settings`.
  */
 fun tvNavEntries(adultEnabled: Boolean, activeSpace: Space? = null): List<TvNavEntry> = buildList {
-    val searchLabel = if (activeSpace != null && !activeSpace.isVideo) "Search ${activeSpace.displayName}" else "Search"
+    val searchLabel = if (activeSpace != null && !activeSpace.isVideo && activeSpace != Space.TV) {
+        "Search ${activeSpace.displayName}"
+    } else {
+        "Search"
+    }
     add(TvNavEntry(TvDest.SEARCH, searchLabel, TvNavGroup.VIDEO))
     add(TvNavEntry(TvDest.HOME, "Home", TvNavGroup.VIDEO))
     add(TvNavEntry(TvDest.ANIME, "Anime", TvNavGroup.VIDEO))
     add(TvNavEntry(TvDest.DRAMA, "Drama", TvNavGroup.VIDEO))
-    add(TvNavEntry(TvDest.PROFILES, "Profiles", TvNavGroup.PROFILE))
-    add(TvNavEntry(TvDest.LIVE_TV, "Live TV & Sports", TvNavGroup.PROFILE))
+    add(TvNavEntry(TvDest.LIVE_TV, "TV", TvNavGroup.VIDEO))
     add(TvNavEntry(TvDest.MUSIC, "Music", TvNavGroup.PROFILE))
     add(TvNavEntry(TvDest.COMICS, "Comics", TvNavGroup.PROFILE))
     if (adultEnabled) add(TvNavEntry(TvDest.ADULT, "18+", TvNavGroup.PROFILE))
@@ -65,6 +71,66 @@ fun TvDest.space(): Space? = when (this) {
     TvDest.COMICS -> Space.COMICS
     TvDest.ADULT -> Space.ADULT
     else -> null
+}
+
+// ---------------------------------------------------------------- full human language names
+
+private val GENERIC_TRACK_LABEL = Regex("""(?i)^(?:track|audio|subtitle|sub|stream|cc)\s*\d*$""")
+
+/** Maps ISO 639-1 / 639-2 / regional tags and variants to full human language words (never short codes). */
+fun tvFullLanguageName(raw: String): String {
+    val clean = raw.trim().trim('[', ']', '(', ')').trim()
+    if (clean.isEmpty()) return "Original"
+    val norm = clean.lowercase(Locale.US).replace('_', '-')
+    val base = norm.substringBefore('-')
+    return when {
+        norm in setOf("und", "mul", "zxx", "unknown", "default", "original", "orig") -> "Original"
+        base in setOf("bn", "ben") || "bengali" in norm || "bangla" in norm -> "Bangla"
+        base in setOf("en", "eng") || "english" in norm -> "English"
+        base in setOf("hi", "hin") || "hindi" in norm -> "Hindi"
+        base in setOf("ur", "urd") || "urdu" in norm -> "Urdu"
+        base in setOf("zh", "chi", "zho", "cmn", "yue") || "chinese" in norm || "mandarin" in norm || "cantonese" in norm -> "Chinese"
+        base in setOf("ar", "ara") || "arabic" in norm -> "Arabic"
+        base in setOf("ko", "kor") || "korean" in norm -> "Korean"
+        base in setOf("ja", "jpn") || "japanese" in norm -> "Japanese"
+        base in setOf("es", "spa") || "spanish" in norm -> "Spanish"
+        base in setOf("fr", "fre", "fra") || "french" in norm -> "French"
+        base in setOf("id", "ind", "in") || "indonesian" in norm -> "Indonesian"
+        base in setOf("tr", "tur") || "turkish" in norm -> "Turkish"
+        base in setOf("ta", "tam") || "tamil" in norm -> "Tamil"
+        base in setOf("te", "tel") || "telugu" in norm -> "Telugu"
+        base in setOf("ml", "mal") || "malayalam" in norm -> "Malayalam"
+        base in setOf("pa", "pan") || "punjabi" in norm -> "Punjabi"
+        base in setOf("kn", "kan") || "kannada" in norm -> "Kannada"
+        base in setOf("mr", "mar") || "marathi" in norm -> "Marathi"
+        base in setOf("ru", "rus") || "russian" in norm -> "Russian"
+        base in setOf("pt", "por") || "portuguese" in norm -> "Portuguese"
+        base in setOf("ms", "may", "msa") || "malay" in norm -> "Malay"
+        base in setOf("th", "tha") || "thai" in norm -> "Thai"
+        base in setOf("vi", "vie") || "vietnamese" in norm -> "Vietnamese"
+        base in setOf("tl", "fil", "tgl") || "filipino" in norm || "tagalog" in norm -> "Filipino"
+        base in setOf("de", "ger", "deu") || "german" in norm -> "German"
+        base in setOf("it", "ita") || "italian" in norm -> "Italian"
+        base in setOf("fa", "per", "fas") || "persian" in norm || "farsi" in norm -> "Persian"
+        base in setOf("nl", "dut", "nld") || "dutch" in norm -> "Dutch"
+        base in setOf("pl", "pol") || "polish" in norm -> "Polish"
+        clean.length <= 3 -> "Original"
+        else -> clean.replaceFirstChar { if (it.isLowerCase()) it.titlecase(Locale.US) else it.toString() }
+    }
+}
+
+/** Formats a player audio or subtitle track with full human language words (no 2/3-letter ISO codes). */
+fun tvTrackLanguageLabel(label: String?, language: String? = null): String {
+    val trimmedLabel = label?.trim().orEmpty()
+    val fromLang = language?.trim()?.takeIf { it.isNotEmpty() }?.let(::tvFullLanguageName)
+    if (trimmedLabel.isEmpty() || GENERIC_TRACK_LABEL.matches(trimmedLabel)) {
+        return fromLang ?: "Original"
+    }
+    val mappedLabel = tvFullLanguageName(trimmedLabel)
+    if (mappedLabel != "Original" || trimmedLabel.equals("Original", ignoreCase = true) || trimmedLabel.equals("und", ignoreCase = true)) {
+        return mappedLabel
+    }
+    return fromLang ?: mappedLabel
 }
 
 // ---------------------------------------------------------------- TV player keys

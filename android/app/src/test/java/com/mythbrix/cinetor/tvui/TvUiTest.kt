@@ -6,8 +6,11 @@ import com.mythbrix.cinetor.core.data.RowStyle
 import com.mythbrix.cinetor.core.data.Source
 import com.mythbrix.cinetor.core.data.SourceKind
 import com.mythbrix.cinetor.core.data.Space
+import com.mythbrix.cinetor.core.player.Readiness
 import com.mythbrix.cinetor.core.player.ResumeEntry
 import com.mythbrix.cinetor.feature.home.RowUi
+import com.mythbrix.cinetor.feature.player.subs.SubEdge
+import com.mythbrix.cinetor.feature.player.subs.SubtitleStyle
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
@@ -44,7 +47,7 @@ class TvUiTest {
         sources = sources,
     )
 
-    // ------------------------------------------------------------ Card scale + poster/hero badges
+    // ------------------------------------------------------------ Card scale + poster/hero badges + ready dot
 
     @Test
     fun focusScale_matchesBeta106f() {
@@ -60,8 +63,8 @@ class TvUiTest {
         assertNull(tvRatingBadge(Double.NaN))
 
         assertEquals("Hindi", tvDubBadge(sampleItem(title = "Pushpa 2 [Hindi]")))
-        assertEquals("Bengali", tvDubBadge(sampleItem(genres = listOf("Drama", "Bengali"))))
-        assertEquals("Bengali", tvDubBadge(sampleItem(title = "Byomkesh [Bangla]")))
+        assertEquals("Bangla", tvDubBadge(sampleItem(genres = listOf("Drama", "Bengali"))))
+        assertEquals("Bangla", tvDubBadge(sampleItem(title = "Byomkesh [Bangla]")))
         assertEquals("Tamil", tvDubBadge(sampleItem(altTitle = "Vikram [Tamil]")))
         assertEquals("Telugu", tvDubBadge(sampleItem(genres = listOf("Action", "[Telugu]"))))
         assertEquals("English", tvDubBadge(sampleItem(title = "Dark Matter [English]")))
@@ -71,6 +74,17 @@ class TvUiTest {
         assertTrue(tvIs4k(sampleItem(sources = listOf(Source("https://cdn.example/v.mp4", SourceKind.MP4, label = "4K UHD")))))
         assertTrue(tvIs4k(sampleItem(genres = listOf("Sci-Fi", "4K UHD"))))
         assertFalse(tvIs4k(sampleItem(sources = listOf(Source("https://cdn.example/v.mp4", SourceKind.MP4, height = 1080, label = "1080p")))))
+    }
+
+    @Test
+    fun playReadyDotAndDetailsActions_enforceGreenDotOnlyAndThreeButtons() {
+        assertTrue(tvShowReadyDot(Readiness.READY, hasDirectSources = false))
+        assertFalse(tvShowReadyDot(Readiness.BUFFERING, hasDirectSources = true))
+        assertFalse(tvShowReadyDot(Readiness.RESOLVING, hasDirectSources = false))
+        assertTrue(tvShowReadyDot(null, hasDirectSources = true))
+        assertFalse(tvShowReadyDot(null, hasDirectSources = false))
+
+        assertEquals(listOf("Play", "Download", "My List"), TV_DETAILS_ACTIONS)
     }
 
     @Test
@@ -91,18 +105,15 @@ class TvUiTest {
 
     @Test
     fun heroHeight_keepsFirstContentRowPeekingOn1080pTv() {
-        // 1080p TV = 540dp tall; minus 5% top & bottom overscan = 486dp viewport height.
         val viewport1080p = 486f
         val withTabs = tvHeroHeightDp(viewport1080p, showTabs = true)
         val withoutTabs = tvHeroHeightDp(viewport1080p, showTabs = false)
 
-        // Hero stays widescreen and leaves >= 160dp below (tabs + first row header + cards peek).
         assertTrue(withTabs in 208f..268f)
         assertTrue(viewport1080p - withTabs - 56f >= 160f)
         assertTrue(withoutTabs in 220f..288f)
         assertTrue(viewport1080p - withoutTabs - 18f >= 190f)
 
-        // Clamped safely on compact and ultra-tall viewports.
         assertEquals(208f, tvHeroHeightDp(340f, showTabs = true), 0.01f)
         assertEquals(288f, tvHeroHeightDp(800f, showTabs = false), 0.01f)
     }
@@ -130,16 +141,16 @@ class TvUiTest {
         assertEquals("Sci-Fi • Action", tvHeroGenreLine(featured))
     }
 
-    // ------------------------------------------------------------ Top-10 charts + endless row paging
+    // ------------------------------------------------------------ Unnumbered Trending + endless row paging
 
     @Test
-    fun top10AndContinueRows_deduplicateAndCapRankedChartAtTen() {
+    fun trendingAndContinueRows_deduplicateWithoutArtificialRankCap() {
         val twelve = (1..12).map { sampleItem(id = "gw:$it", title = "Title $it") }
         val withDup = listOf(twelve[0]) + twelve
-        val top10 = RowUi("r-top", "Top 10 Today", RowStyle.TOP10, withDup)
-        val ranked = tvRowItems(top10)
-        assertEquals(10, ranked.size)
-        assertEquals((1..10).map { "gw:$it" }, ranked.map { it.id })
+        val trending = RowUi("r-top", "Trending Now", RowStyle.TOP10, withDup)
+        val items = tvRowItems(trending)
+        assertEquals(12, items.size)
+        assertEquals((1..12).map { "gw:$it" }, items.map { it.id })
 
         val resume = listOf(
             ResumeEntry(
@@ -161,8 +172,7 @@ class TvUiTest {
         assertFalse(tvShouldLoadMore(index = 4, totalCount = 12, style = RowStyle.POSTER))
         assertTrue(tvShouldLoadMore(index = 8, totalCount = 12, style = RowStyle.POSTER))
         assertTrue(tvShouldLoadMore(index = 9, totalCount = 12, style = RowStyle.LANDSCAPE))
-        // Top 10 charts, Continue Watching, Live channels, and tiny rows never page infinitely.
-        assertFalse(tvShouldLoadMore(index = 9, totalCount = 10, style = RowStyle.TOP10))
+        assertTrue(tvShouldLoadMore(index = 8, totalCount = 12, style = RowStyle.TOP10))
         assertFalse(tvShouldLoadMore(index = 8, totalCount = 10, style = RowStyle.CONTINUE))
         assertFalse(tvShouldLoadMore(index = 8, totalCount = 10, style = RowStyle.CHANNEL))
         assertFalse(tvShouldLoadMore(index = 3, totalCount = 5, style = RowStyle.POSTER))
@@ -171,15 +181,14 @@ class TvUiTest {
     // ------------------------------------------------------------ Side-nav groups + FocusMemory restore stability
 
     @Test
-    fun sideNavGroupHeaders_distinguishProfileSpacesAndMore() {
+    fun sideNavGroupHeaders_distinguishSpacesAndMore() {
         assertNull(tvNavGroupLabel(TvNavGroup.VIDEO))
-        assertEquals("PROFILE · SPACES", tvNavGroupLabel(TvNavGroup.PROFILE))
+        assertEquals("SPACES", tvNavGroupLabel(TvNavGroup.PROFILE))
         assertEquals("MORE", tvNavGroupLabel(TvNavGroup.SYSTEM))
     }
 
     @Test
     fun focusRestoreGate_skipsScrollJumpDuringInPlaceRowPagination() {
-        // Fresh screen mount or back from Details (previousRowIds == null) → restore FocusMemory.
         assertTrue(
             tvShouldRestoreFocusOnRowsChange(
                 previousRowIds = null,
@@ -189,7 +198,6 @@ class TvUiTest {
                 currentRefocus = 0,
             ),
         )
-        // PagedCatalog appends page 2 to r1 while card in r1 is actively focused → keep scroll steady.
         assertFalse(
             tvShouldRestoreFocusOnRowsChange(
                 previousRowIds = "r1,r2",
@@ -199,7 +207,6 @@ class TvUiTest {
                 currentRefocus = 1,
             ),
         )
-        // Category tab switch replaces row IDs → restore focus to new tab.
         assertTrue(
             tvShouldRestoreFocusOnRowsChange(
                 previousRowIds = "r1,r2",
@@ -209,7 +216,6 @@ class TvUiTest {
                 currentRefocus = 1,
             ),
         )
-        // Fullscreen TV player closed (refocus tick bumped) → restore remembered FocusMemory position.
         assertTrue(
             tvShouldRestoreFocusOnRowsChange(
                 previousRowIds = "r1,r2",
@@ -221,25 +227,20 @@ class TvUiTest {
         )
     }
 
-    // ------------------------------------------------------------ D-pad grid + side nav
+    // ------------------------------------------------------------ D-pad grid + v2.1 side nav
 
     @Test
     fun dpad_navigatesRowsAndNav() {
-        val rows = listOf(10, 0, 4, 6) // row 1 empty (skipped)
+        val rows = listOf(10, 0, 4, 6)
         val mem = FocusMemory()
         val col: (Int) -> Int? = { mem.columnFor("s", it) }
-        // Right / Left inside a row
         assertEquals(GridMove.To(FocusPos(0, 3)), TvGrid.move(FocusPos(0, 2), Dpad.RIGHT, rows, col))
         assertEquals(GridMove.To(FocusPos(0, 1)), TvGrid.move(FocusPos(0, 2), Dpad.LEFT, rows, col))
-        // Left at the first card → side nav; Right at the last card → stay (no jump)
         assertEquals(GridMove.ExitLeft, TvGrid.move(FocusPos(0, 0), Dpad.LEFT, rows, col))
         assertEquals(GridMove.Stay, TvGrid.move(FocusPos(0, 9), Dpad.RIGHT, rows, col))
-        // Down skips the empty row and clamps the column to the shorter row
         assertEquals(GridMove.To(FocusPos(2, 3)), TvGrid.move(FocusPos(0, 7), Dpad.DOWN, rows, col))
-        // Up from the first row → hero / tabs; Down from the last row → stay
         assertEquals(GridMove.ExitUp, TvGrid.move(FocusPos(0, 4), Dpad.UP, rows, col))
         assertEquals(GridMove.Stay, TvGrid.move(FocusPos(3, 1), Dpad.DOWN, rows, col))
-        // Up/Down return to the column last focused in the target row
         mem.save("s", FocusPos(0, 6))
         mem.save("s", FocusPos(2, 1))
         assertEquals(GridMove.To(FocusPos(0, 6)), TvGrid.move(FocusPos(2, 1), Dpad.UP, rows, col))
@@ -247,21 +248,64 @@ class TvUiTest {
     }
 
     @Test
-    fun sideNav_hasVideoSpacesIsolatedGroupAndSettings() {
+    fun sideNav_hasPrimaryTvRemovedProfilesAndHiddenAdultByDefault() {
         val off = tvNavEntries(adultEnabled = false)
         assertEquals(
-            listOf(TvDest.SEARCH, TvDest.HOME, TvDest.ANIME, TvDest.DRAMA),
+            listOf(TvDest.SEARCH, TvDest.HOME, TvDest.ANIME, TvDest.DRAMA, TvDest.LIVE_TV),
             off.filter { it.group == TvNavGroup.VIDEO }.map { it.dest },
         )
-        // Spaces moved under the Profile group (phone: Me → Spaces)
-        assertEquals(listOf(TvDest.PROFILES, TvDest.LIVE_TV, TvDest.MUSIC, TvDest.COMICS), off.filter { it.group == TvNavGroup.PROFILE }.map { it.dest })
-        assertEquals(TvDest.SETTINGS, off.last().dest)
+        assertEquals("TV", off.first { it.dest == TvDest.LIVE_TV }.label)
+        assertEquals(
+            listOf(TvDest.MUSIC, TvDest.COMICS),
+            off.filter { it.group == TvNavGroup.PROFILE }.map { it.dest },
+        )
+        assertFalse(off.any { it.dest == TvDest.PROFILES })
         assertFalse(off.any { it.dest == TvDest.ADULT })
-        assertTrue(tvNavEntries(adultEnabled = true).any { it.dest == TvDest.ADULT && it.group == TvNavGroup.PROFILE })
-        // Inside an isolated space, search is the in-space search (isolation)
+        assertEquals(
+            listOf(TvDest.DOWNLOADS, TvDest.LIBRARY, TvDest.SETTINGS),
+            off.filter { it.group == TvNavGroup.SYSTEM }.map { it.dest },
+        )
+        assertEquals(
+            listOf(TvDest.MUSIC, TvDest.COMICS, TvDest.ADULT),
+            tvNavEntries(adultEnabled = true).filter { it.group == TvNavGroup.PROFILE }.map { it.dest },
+        )
         assertEquals("Search Music", tvNavEntries(false, Space.MUSIC).first().label)
         assertEquals("Search", tvNavEntries(false, Space.HOME).first().label)
+        assertEquals("Search", tvNavEntries(false, Space.TV).first().label)
         assertEquals(Space.TV, TvDest.LIVE_TV.space())
+    }
+
+    // ------------------------------------------------------------ Full human language names + transparent subs
+
+    @Test
+    fun languageHelpers_mapAllIsoCodesToFullWordsAndDefaultTransparentSubs() {
+        assertEquals("Bangla", tvFullLanguageName("bn"))
+        assertEquals("Bangla", tvFullLanguageName("ben"))
+        assertEquals("Bangla", tvFullLanguageName("bengali"))
+        assertEquals("English", tvFullLanguageName("en"))
+        assertEquals("English", tvFullLanguageName("eng"))
+        assertEquals("Hindi", tvFullLanguageName("hi"))
+        assertEquals("Urdu", tvFullLanguageName("ur"))
+        assertEquals("Chinese", tvFullLanguageName("zh-CN"))
+        assertEquals("Arabic", tvFullLanguageName("ar"))
+        assertEquals("Korean", tvFullLanguageName("ko"))
+        assertEquals("Japanese", tvFullLanguageName("ja"))
+        assertEquals("Spanish", tvFullLanguageName("es"))
+        assertEquals("French", tvFullLanguageName("fr"))
+        assertEquals("Indonesian", tvFullLanguageName("id"))
+        assertEquals("Turkish", tvFullLanguageName("tr"))
+        assertEquals("Tamil", tvFullLanguageName("ta"))
+        assertEquals("Telugu", tvFullLanguageName("te"))
+        assertEquals("Original", tvFullLanguageName("und"))
+        assertEquals("Original", tvFullLanguageName(""))
+
+        assertEquals("Bangla", tvTrackLanguageLabel("bn", "bn"))
+        assertEquals("Hindi", tvTrackLanguageLabel("Track 1", "hi"))
+        assertEquals("Urdu", tvTrackLanguageLabel(null, "urd"))
+
+        val effective = tvEffectiveSubtitleStyle(SubtitleStyle())
+        assertEquals(0f, effective.bgOpacity, 0.0001f)
+        assertEquals(SubEdge.SHADOW, effective.edge)
     }
 
     // ------------------------------------------------------------ FocusMemory (Review Focus #5)
@@ -271,21 +315,14 @@ class TvUiTest {
         val memory = FocusMemory()
         val screen = tvScreenKey(Space.HOME)
         val rows = listOf(12, 8, 20)
-        // user walks to row 2, card 5 then opens Details (TV home leaves composition)
         memory.save(screen, FocusPos(0, 3))
         memory.save(screen, FocusPos(2, 5))
-        // back from Details → the same card, not the top of the screen
         assertEquals(FocusPos(2, 5), memory.resolve(screen, rows))
-        // other screens untouched
         assertNull(memory.resolve(tvScreenKey(Space.ANIME), rows))
-        // row reload with fewer items → clamped to the last card of that row
         assertEquals(FocusPos(2, 2), memory.resolve(screen, listOf(12, 8, 3)))
-        // row disappeared → last non-empty row
         assertEquals(FocusPos(1, 5), memory.resolve(screen, listOf(12, 8)))
         assertEquals(FocusPos(0, 5), memory.resolve(screen, listOf(12, 0, 0)))
-        // no content → caller falls back to its default focus (hero Play)
         assertNull(memory.resolve(screen, emptyList()))
-        // hero focused last (e.g. Play → player → back) → hero again, rows' columns kept
         memory.save(screen, FocusPos.HERO)
         assertEquals(FocusPos.HERO, memory.resolve(screen, rows))
         assertEquals(5, memory.columnFor(screen, 2))
@@ -303,23 +340,19 @@ class TvUiTest {
         val keys = TvPlayerKeys(clock::read)
         val a = keys.onKeyDown(TvKey.RIGHT, 0, TvOverlay.NONE, positionMs = 60_000, durationMs = 600_000)
         assertEquals(TvPlayerAction.Scrub(70_000, commit = true), a)
-        assertEquals(TvPlayerAction.Consumed, keys.onKeyUp(TvKey.RIGHT)) // tap already committed
+        assertEquals(TvPlayerAction.Consumed, keys.onKeyUp(TvKey.RIGHT))
         assertEquals(TvPlayerAction.Scrub(50_000, commit = true), keys.onKeyDown(TvKey.LEFT, 0, TvOverlay.NONE, 60_000, 600_000))
         keys.onKeyUp(TvKey.LEFT)
-        // clamped at both ends
         assertEquals(TvPlayerAction.Scrub(0, commit = true), keys.onKeyDown(TvKey.LEFT, 0, TvOverlay.NONE, 4_000, 600_000))
         keys.onKeyUp(TvKey.LEFT)
         assertEquals(TvPlayerAction.Scrub(600_000, commit = true), keys.onKeyDown(TvKey.RIGHT, 0, TvOverlay.NONE, 595_000, 600_000))
         keys.onKeyUp(TvKey.RIGHT)
-        // other keys with the overlay hidden
         assertEquals(TvPlayerAction.TogglePlay, keys.onKeyDown(TvKey.CENTER, 0, TvOverlay.NONE, 0, 1))
         assertEquals(TvPlayerAction.ShowControls(focusSettings = true), keys.onKeyDown(TvKey.UP, 0, TvOverlay.NONE, 0, 1))
         assertEquals(TvPlayerAction.OpenRail, keys.onKeyDown(TvKey.DOWN, 0, TvOverlay.NONE, 0, 1))
         assertEquals(TvPlayerAction.Exit, keys.onKeyDown(TvKey.BACK, 0, TvOverlay.NONE, 0, 1))
-        // overlay shown: arrows move focus, Back hides first
         assertEquals(TvPlayerAction.PassThrough, keys.onKeyDown(TvKey.RIGHT, 0, TvOverlay.CONTROLS, 0, 1))
         assertEquals(TvPlayerAction.Hide, keys.onKeyDown(TvKey.BACK, 0, TvOverlay.RAIL, 0, 1))
-        // media keys always; live: up/down zap (pass through), no seeking
         assertEquals(TvPlayerAction.TogglePlay, keys.onKeyDown(TvKey.PLAY_PAUSE, 0, TvOverlay.CONTROLS, 0, 1))
         assertEquals(TvPlayerAction.OpenSettings, keys.onKeyDown(TvKey.MENU, 0, TvOverlay.NONE, 0, 1))
         assertEquals(TvPlayerAction.PassThrough, keys.onKeyDown(TvKey.UP, 0, TvOverlay.NONE, 0, 1, seekable = false, live = true))
@@ -333,21 +366,17 @@ class TvUiTest {
         var target = (keys.onKeyDown(TvKey.RIGHT, 0, TvOverlay.NONE, 0, 3_600_000) as TvPlayerAction.Scrub).targetMs
         assertEquals(10_000, target)
         val steps = ArrayList<Long>()
-        // key repeats every 50 ms for 8 s
         for (r in 1..160) {
             clock.now += 50
             val a = keys.onKeyDown(TvKey.RIGHT, r, TvOverlay.NONE, 0, 3_600_000) as TvPlayerAction.Scrub
-            assertFalse(a.commit) // preview only while held
+            assertFalse(a.commit)
             steps += a.targetMs - target
             target = a.targetMs
         }
-        // steps never shrink and end much bigger than at the start
         assertTrue(steps.zipWithNext().all { (a, b) -> b >= a })
-        assertEquals(500L, steps.first()) // 10 s/s × 50 ms
-        assertEquals(6_000L, steps.last()) // 120 s/s × 50 ms
-        // 8 s held covers far more than 8 s × 10 s/s linear scrubbing
+        assertEquals(500L, steps.first())
+        assertEquals(6_000L, steps.last())
         assertTrue(target > 10_000 + 80_000 * 3)
-        // release commits the accumulated target
         assertEquals(TvPlayerAction.SeekTo(target), keys.onKeyUp(TvKey.RIGHT))
         assertNull(keys.scrubber.target)
         assertEquals(10_000L, TvScrubber.speedPerSec(0))
@@ -361,6 +390,6 @@ class TvUiTest {
         assertEquals(TvKey.CENTER, tvKeyOf(66))
         assertEquals(TvKey.MENU, tvKeyOf(82))
         assertEquals(TvKey.PLAY_PAUSE, tvKeyOf(85))
-        assertEquals(TvKey.OTHER, tvKeyOf(7)) // digit 0 → live TV channel entry (MainActivity)
+        assertEquals(TvKey.OTHER, tvKeyOf(7))
     }
 }

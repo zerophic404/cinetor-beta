@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -33,6 +34,12 @@ import kotlinx.coroutines.delay
 /** Incremented when the TV player closes; TV screens re-run their focus restore on change. */
 val LocalTvRefocus = androidx.compose.runtime.compositionLocalOf { 0 }
 
+/** Current NavHost entry key inside [TvShell], allowing sub-screens to observe route changes. */
+val LocalTvRouteKey = androidx.compose.runtime.compositionLocalOf<Any?> { null }
+
+/** Incremented whenever the user picks an item in [TvSideNav] so sub-stacks (e.g. TvDetails) reset cleanly. */
+val LocalTvNavPickTick = androidx.compose.runtime.compositionLocalOf { 0 }
+
 /** Overscan-safe margin: 5% of each screen edge (TV panels crop the outer area). */
 fun overscanMargin(sizeDp: Dp): Dp = sizeDp * 0.05f
 
@@ -55,15 +62,15 @@ fun TvShell(
     val contentFocus = remember { FocusRequester() }
     var contentHasFocus by remember { mutableStateOf(false) }
     var navHasFocus by remember { mutableStateOf(false) }
+    var navPickTick by remember { androidx.compose.runtime.mutableIntStateOf(0) }
     val prefs = Cinetor.prefs
     val tier = Cinetor.tier
     val scrimAlpha by animateFloatAsState(
-        targetValue = if (navHasFocus) 0.45f else 0f,
+        targetValue = if (navHasFocus) 0.48f else 0f,
         animationSpec = tween(if (prefs.reduceMotion) 0 else tier.scaled(CinetorTokens.Motion.mediumMs)),
         label = "tvNavBackdropScrim",
     )
 
-    // New destination or player closed: ensure focus enters content once NavHost animations settle.
     LaunchedEffect(routeKey, refocusKey) {
         val waits = longArrayOf(260L, 320L, 400L, 450L)
         for (waitMs in waits) {
@@ -102,7 +109,12 @@ fun TvShell(
                     .focusRequester(contentFocus)
                     .focusGroup(),
             ) {
-                content()
+                CompositionLocalProvider(
+                    LocalTvRouteKey provides routeKey,
+                    LocalTvNavPickTick provides navPickTick,
+                ) {
+                    content()
+                }
             }
             if (scrimAlpha > 0.01f) {
                 Box(
@@ -122,7 +134,10 @@ fun TvShell(
             TvSideNav(
                 entries = entries,
                 selected = selected,
-                onPick = onPick,
+                onPick = { dest ->
+                    navPickTick++
+                    onPick(dest)
+                },
                 modifier = Modifier
                     .align(Alignment.CenterStart)
                     .onFocusChanged { navHasFocus = it.hasFocus },

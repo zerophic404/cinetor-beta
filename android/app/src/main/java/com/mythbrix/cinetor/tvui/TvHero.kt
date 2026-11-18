@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -68,6 +69,7 @@ import androidx.lifecycle.compose.LocalLifecycleOwner
 import coil3.compose.AsyncImage
 import com.mythbrix.cinetor.core.data.Item
 import com.mythbrix.cinetor.core.perf.PerformanceTier
+import com.mythbrix.cinetor.core.player.Readiness
 import com.mythbrix.cinetor.core.ui.rememberSizedImage
 import com.mythbrix.cinetor.design.Cinetor
 import com.mythbrix.cinetor.design.CinetorTokens
@@ -124,11 +126,10 @@ fun tvHeroGenreLine(item: Item): String =
         .joinToString(" • ")
 
 /**
- * Cinetor Beta 10-foot widescreen Liquid Glass framed hero banner:
- * - Sized proportionally so hero + first content row fit comfortably on 1080p TVs.
- * - Horizontal + vertical cinema scrims for high-contrast legibility across all 8 themes.
- * - `4K UHD` / `★` rating / dub language / year pills, crisp D-pad spotlight focus rings on
- *   `Play`, `Details`, and `My List`, plus ambient `ArtTint` spill glow.
+ * Cinetor Beta 10-foot widescreen showcase hero banner:
+ * - Full-bleed atmospheric backdrop + multi-stop dark vignettes + crisp foreground 2:3 poster accent.
+ * - Balanced bold title (no eyebrow/kicker label), metadata pills, and capsule pagination dots.
+ * - `Play` button shows ONLY a `#22C55E` green dot when stream is ready — NO `"Ready"` text.
  */
 @OptIn(ExperimentalComposeUiApi::class)
 @Composable
@@ -143,6 +144,7 @@ fun TvHero(
     onToggleMyList: (Item) -> Unit,
     onColor: (Color) -> Unit,
     modifier: Modifier = Modifier,
+    readiness: Map<String, Readiness> = emptyMap(),
 ) {
     if (heroes.isEmpty()) return
     val count = heroes.size
@@ -209,13 +211,13 @@ fun TvHero(
     }
     val pills = remember(item) { tvHeroMetaPills(item) }
     val genreLine = remember(item.genres) { tvHeroGenreLine(item) }
+    val playReady = tvShowReadyDot(readiness[item.id], item.sources.isNotEmpty())
 
     Box(
         modifier
             .fillMaxWidth()
             .height(height)
             .drawBehind {
-                // Ambient ArtTint spill glow radiating softly behind and below the framed cinema screen.
                 val spillAlpha = if (tier == PerformanceTier.LOW) 0.18f else 0.32f
                 drawRect(
                     brush = Brush.radialGradient(
@@ -255,112 +257,138 @@ fun TvHero(
                         modifier = Modifier.fillMaxSize(),
                     )
                 }
-                // Horizontal left-to-right cinema scrim so title, pills, and CTAs stay razor-sharp.
                 Box(
                     Modifier.fillMaxSize().background(
                         Brush.horizontalGradient(
-                            0f to Color(0xF209090B),
-                            0.50f to Color(0xBD09090B),
-                            0.78f to Color(0x4509090B),
-                            1f to Color(0x1A09090B),
+                            0f to Color(0xF509090B),
+                            0.52f to Color(0xC209090B),
+                            0.80f to Color(0x4D09090B),
+                            1f to Color(0x1C09090B),
                         ),
                     ),
                 )
-                // Vertical bottom-to-top cinema scrim + subtle top specular sheen.
                 Box(
                     Modifier.fillMaxSize().background(
                         Brush.verticalGradient(
                             0f to Color.White.copy(alpha = 0.06f),
                             0.12f to Color.Transparent,
-                            0.54f to Color.Transparent,
-                            1f to Color(0xE609090B),
+                            0.52f to Color.Transparent,
+                            1f to Color(0xEB09090B),
                         ),
                     ),
                 )
             }
         }
 
-        Column(
+        Row(
             Modifier
-                .fillMaxHeight()
-                .widthIn(max = 540.dp)
-                .padding(horizontal = 28.dp, vertical = 18.dp),
-            verticalArrangement = Arrangement.Bottom,
-            horizontalAlignment = Alignment.Start,
+                .fillMaxSize()
+                .padding(horizontal = 26.dp, vertical = 18.dp),
+            verticalAlignment = Alignment.Bottom,
+            horizontalArrangement = Arrangement.spacedBy(22.dp),
         ) {
-            if (pills.isNotEmpty() || genreLine.isNotEmpty()) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+            if (height >= 224.dp && item.poster.isNotBlank()) {
+                val posterShape = RoundedCornerShape(14.dp)
+                Box(
+                    Modifier
+                        .fillMaxHeight(0.86f)
+                        .aspectRatio(2f / 3f)
+                        .shadow(12.dp, posterShape, clip = false, ambientColor = Color.Black, spotColor = artGlow)
+                        .clip(posterShape)
+                        .background(dominant)
+                        .border(1.dp, Color.White.copy(alpha = 0.28f), posterShape),
                 ) {
-                    pills.forEach { pill -> TvHeroMetaTag(pill) }
-                    if (genreLine.isNotEmpty()) {
-                        Text(
-                            text = genreLine,
-                            style = MaterialTheme.typography.labelMedium,
-                            color = Color(0xCCFFFFFF),
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                        )
-                    }
+                    AsyncImage(
+                        model = rememberSizedImage(item.poster, 128.dp, 192.dp),
+                        contentDescription = null,
+                        contentScale = ContentScale.Crop,
+                        modifier = Modifier.fillMaxSize(),
+                    )
                 }
-                Spacer(Modifier.height(6.dp))
             }
 
-            Text(
-                text = item.title,
-                style = MaterialTheme.typography.headlineMedium.copy(
-                    fontSize = 28.sp,
-                    lineHeight = 32.sp,
-                    fontWeight = FontWeight.Black,
-                ),
-                color = Color.White,
-                maxLines = if (height < 232.dp) 1 else 2,
-                overflow = TextOverflow.Ellipsis,
-            )
-
-            if (item.synopsis.isNotBlank() && height >= 216.dp) {
-                Spacer(Modifier.height(4.dp))
+            Column(
+                Modifier
+                    .fillMaxHeight()
+                    .widthIn(max = 520.dp),
+                verticalArrangement = Arrangement.Bottom,
+                horizontalAlignment = Alignment.Start,
+            ) {
                 Text(
-                    text = item.synopsis,
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = Color(0xCCFFFFFF),
-                    maxLines = 2,
+                    text = item.title,
+                    style = MaterialTheme.typography.headlineMedium.copy(
+                        fontSize = 28.sp,
+                        lineHeight = 32.sp,
+                        fontWeight = FontWeight.Black,
+                    ),
+                    color = Color.White,
+                    maxLines = if (height < 232.dp) 1 else 2,
                     overflow = TextOverflow.Ellipsis,
                 )
-            }
 
-            Spacer(Modifier.height(12.dp))
+                if (pills.isNotEmpty() || genreLine.isNotEmpty()) {
+                    Spacer(Modifier.height(7.dp))
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
+                        pills.forEach { pill -> TvHeroMetaTag(pill) }
+                        if (genreLine.isNotEmpty()) {
+                            Text(
+                                text = genreLine,
+                                style = MaterialTheme.typography.labelMedium,
+                                color = Color(0xCCFFFFFF),
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                            )
+                        }
+                    }
+                }
 
-            Row(
-                Modifier
-                    .onFocusChanged { auto.setPaused(HeroPause.FOCUS, it.hasFocus) }
-                    .focusProperties { enter = { playRequester } }
-                    .focusGroup(),
-                horizontalArrangement = Arrangement.spacedBy(12.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                TvButton(
-                    label = "Play",
-                    icon = Icons.Rounded.PlayArrow,
-                    onClick = { onPlay(item) },
-                    modifier = Modifier.focusRequester(playRequester),
-                    primary = true,
-                    onDarkScrim = true,
-                )
-                TvButton(
-                    label = "Details",
-                    icon = Icons.Rounded.Info,
-                    onClick = { onOpen(item) },
-                    onDarkScrim = true,
-                )
-                val inList = item.id in myList
-                TvButton(
-                    label = if (inList) "In My List" else "My List",
-                    icon = if (inList) Icons.Rounded.Check else Icons.Rounded.Add,
-                    onClick = { onToggleMyList(item) },
-                    onDarkScrim = true,
-                )
+                if (item.synopsis.isNotBlank() && height >= 220.dp) {
+                    Spacer(Modifier.height(5.dp))
+                    Text(
+                        text = item.synopsis,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = Color(0xCCFFFFFF),
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
+
+                Spacer(Modifier.height(12.dp))
+
+                Row(
+                    Modifier
+                        .onFocusChanged { auto.setPaused(HeroPause.FOCUS, it.hasFocus) }
+                        .focusProperties { enter = { playRequester } }
+                        .focusGroup(),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    TvButton(
+                        label = "Play",
+                        icon = Icons.Rounded.PlayArrow,
+                        onClick = { onPlay(item) },
+                        modifier = Modifier.focusRequester(playRequester),
+                        primary = true,
+                        onDarkScrim = true,
+                        readyDot = playReady,
+                    )
+                    TvButton(
+                        label = "Details",
+                        icon = Icons.Rounded.Info,
+                        onClick = { onOpen(item) },
+                        onDarkScrim = true,
+                    )
+                    val inList = item.id in myList
+                    TvButton(
+                        label = if (inList) "In My List" else "My List",
+                        icon = if (inList) Icons.Rounded.Check else Icons.Rounded.Add,
+                        onClick = { onToggleMyList(item) },
+                        onDarkScrim = true,
+                    )
+                }
             }
         }
 
@@ -388,7 +416,7 @@ fun TvHero(
 }
 
 @Composable
-private fun TvHeroMetaTag(pill: TvHeroPill) {
+internal fun TvHeroMetaTag(pill: TvHeroPill) {
     val tokens = Cinetor.tokens
     val shape = RoundedCornerShape(7.dp)
     when (pill.kind) {

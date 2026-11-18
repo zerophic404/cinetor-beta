@@ -19,6 +19,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -37,8 +38,6 @@ import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shadow
-import androidx.compose.ui.graphics.StrokeJoin
-import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -46,7 +45,6 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.DeviceFontFamilyName
 import androidx.compose.ui.text.font.Font
 import androidx.compose.ui.text.font.FontFamily
@@ -61,6 +59,7 @@ import com.mythbrix.cinetor.core.data.EventStatus
 import com.mythbrix.cinetor.core.data.Item
 import com.mythbrix.cinetor.core.data.ItemType
 import com.mythbrix.cinetor.core.perf.PerformanceTier
+import com.mythbrix.cinetor.core.player.Readiness
 import com.mythbrix.cinetor.core.player.progressByItem
 import com.mythbrix.cinetor.core.ui.LocalResumeEntries
 import com.mythbrix.cinetor.core.ui.rememberSizedImage
@@ -73,6 +72,9 @@ import kotlin.random.Random
 /** Cinetor Beta 10-foot D-pad focus zoom. */
 const val TV_FOCUS_SCALE = 1.06f
 
+/** Green ready indicator dot color (`#22C55E`). */
+val TvReadyGreen = Color(0xFF22C55E)
+
 private val PROGRESS_SHOWN = 0.02f..0.95f
 
 private val NON_GENRE_TAGS = setOf(
@@ -83,13 +85,13 @@ private val NON_GENRE_TAGS = setOf(
 
 private val DUB_RULES: List<Pair<String, List<String>>> = listOf(
     "Hindi" to listOf("[hindi]", "(hindi)", "hindi dub", "hindi"),
-    "Bengali" to listOf("[bengali]", "(bengali)", "[bangla]", "(bangla)", "bengali dub", "bangla dub", "bengali", "bangla"),
+    "Bangla" to listOf("[bengali]", "(bengali)", "[bangla]", "(bangla)", "bengali dub", "bangla dub", "bengali", "bangla"),
     "Tamil" to listOf("[tamil]", "(tamil)", "tamil dub", "tamil"),
     "Telugu" to listOf("[telugu]", "(telugu)", "telugu dub", "telugu"),
     "English" to listOf("[english]", "(english)", "english dub"),
 )
 
-/** Built-in condensed sans family for Ranked Top-10 chart numerals and compact TV badges. */
+/** Built-in condensed sans family for compact TV badges. */
 val TvCondensedFont: FontFamily by lazy {
     FontFamily(
         Font(DeviceFontFamilyName("sans-serif-condensed"), FontWeight.Normal),
@@ -114,8 +116,14 @@ private val TvArtPalettes by lazy {
 fun tvRatingBadge(rating: Double): String? =
     if (!rating.isNaN() && rating > 0.0) String.format(Locale.US, "%.1f", rating) else null
 
-/** Extracts a crisp dub/language badge (`Hindi`, `Bengali`, `Tamil`, `Telugu`, `English`) when tagged. */
+/** Extracts a crisp dub/language badge (`Hindi`, `Bangla`, `Tamil`, `Telugu`, `English`) when tagged. */
 fun tvDubBadge(item: Item): String? {
+    item.dubs.firstOrNull { d ->
+        d.languageName.isNotBlank() && !d.languageName.equals("Original", ignoreCase = true)
+    }?.let { return tvFullLanguageName(it.languageName) }
+    item.sources.firstOrNull { s ->
+        !s.audioLang.isNullOrBlank() && !s.audioLang.equals("Original", ignoreCase = true)
+    }?.audioLang?.let { return tvFullLanguageName(it) }
     val textFields = listOfNotNull(item.title, item.altTitle).map { it.lowercase(Locale.US) }
     val genreTokens = item.genres.map { it.trim().lowercase(Locale.US) }
     val sourceLabels = item.sources.mapNotNull { it.label?.lowercase(Locale.US) }
@@ -127,6 +135,10 @@ fun tvDubBadge(item: Item): String? {
     }
     return null
 }
+
+/** True when a Play button should show its `#22C55E` green ready dot (never any `"Ready"` text). */
+fun tvShowReadyDot(readiness: Readiness?, hasDirectSources: Boolean): Boolean =
+    readiness == Readiness.READY || (readiness == null && hasDirectSources)
 
 /** True when a title advertises 2160p / 4K UHD sources or tags. */
 fun tvIs4k(item: Item): Boolean {
@@ -208,8 +220,11 @@ fun rememberFocusSound(): () -> Unit {
 }
 
 /**
- * Focusable 10-foot card: D-pad focus = `1.06f` zoom + crisp spotlight focus border + item-accent glow,
- * CinePulse `★` rating pill, dub language badge (`Hindi`, `Bengali`, etc.), and watch-progress bar.
+ * Focusable 10-foot card:
+ * - ALWAYS renders the item title visibly underneath every thumbnail card (brightening to pure
+ *   white with an accent focus glow when D-pad focused).
+ * - D-pad focus = `1.06f` zoom + crisp spotlight focus border + item-accent glow.
+ * - CinePulse `★` rating pill, dub badge (`Hindi`, `Bangla`, etc.), and watch-progress bar.
  */
 @Composable
 fun TvCard(
@@ -227,19 +242,22 @@ fun TvCard(
     val reduceMotion = Cinetor.prefs.reduceMotion
     val interaction = remember { MutableInteractionSource() }
     val focused by interaction.collectIsFocusedAsState()
-    val targetScale = when {
-        !focused -> 1f
-        reduceMotion -> 1.02f
-        else -> TV_FOCUS_SCALE
-    }
-    val scale by animateFloatAsState(targetScale, label = "tvCardScale")
+    val scale by animateFloatAsState(
+        targetValue = when {
+            !focused -> 1f
+            reduceMotion -> 1.02f
+            else -> TV_FOCUS_SCALE
+        },
+        label = "tvCardScale",
+    )
     val glow by animateDpAsState(
         if (focused && tier != PerformanceTier.LOW) 20.dp else 0.dp,
         label = "tvCardGlow",
     )
     val accent = remember(item.accentColor) { hexColor(item.accentColor) }
     val dominant = remember(item.dominantColor) { hexColor(item.dominantColor) }
-    val spotlight = if (tokens.bg.luminance() > 0.5f) Color(0xFF141416) else Color.White
+    val isLight = tokens.bg.luminance() > 0.5f
+    val spotlight = if (isLight) Color(0xFF141416) else Color.White
     val sound = rememberFocusSound()
     val focusCb by rememberUpdatedState(onFocused)
     LaunchedEffect(focused) {
@@ -256,6 +274,12 @@ fun TvCard(
     val shape = RoundedCornerShape(14.dp)
     val imagePath = if (landscape) item.backdrop.ifBlank { item.poster } else item.poster.ifBlank { item.backdrop }
     val subtitle = remember(item.year, item.genres) { tvCardSubtitle(item) }
+
+    val titleColor = when {
+        focused && !isLight -> Color.White
+        focused -> tokens.textPrimary
+        else -> tokens.textPrimary.copy(alpha = 0.88f)
+    }
 
     Column(modifier.width(width).zIndex(if (focused) 1f else 0f)) {
         TvPosterBox(
@@ -276,150 +300,34 @@ fun TvCard(
             onClick = onClick,
         )
         Text(
-            item.title,
-            style = MaterialTheme.typography.labelLarge,
-            color = if (focused) tokens.textPrimary else tokens.textSecondary,
+            text = item.title,
+            style = MaterialTheme.typography.labelLarge.copy(
+                fontSize = 13.sp,
+                lineHeight = 16.sp,
+                shadow = if (focused && !isLight) {
+                    Shadow(
+                        color = tokens.accent.copy(alpha = 0.72f),
+                        offset = Offset.Zero,
+                        blurRadius = 10f,
+                    )
+                } else {
+                    null
+                },
+            ),
+            color = titleColor,
             fontWeight = if (focused) FontWeight.Bold else FontWeight.Medium,
-            maxLines = 1,
+            maxLines = 2,
             overflow = TextOverflow.Ellipsis,
             modifier = Modifier.padding(top = 8.dp, start = 2.dp, end = 2.dp),
         )
         if (showSubtitle && subtitle.isNotEmpty()) {
             Text(
-                subtitle,
+                text = subtitle,
                 style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.sp),
-                color = tokens.textTertiary,
+                color = if (focused) tokens.textSecondary else tokens.textTertiary,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
                 modifier = Modifier.padding(top = 2.dp, start = 2.dp, end = 2.dp),
-            )
-        }
-    }
-}
-
-/**
- * Cinetor Beta Ranked Top-10 Chart card (`1`–`10`): bold Condensed giant numeral anchored with
- * high-contrast stroke & shadow alongside the 2:3 poster, sharing one D-pad focus stop.
- */
-@Composable
-fun TvTop10Card(
-    rank: Int,
-    item: Item,
-    onClick: () -> Unit,
-    onFocused: () -> Unit,
-    modifier: Modifier = Modifier,
-    posterWidth: Dp = 148.dp,
-) {
-    val tokens = Cinetor.tokens
-    val tier = Cinetor.tier
-    val reduceMotion = Cinetor.prefs.reduceMotion
-    val interaction = remember { MutableInteractionSource() }
-    val focused by interaction.collectIsFocusedAsState()
-    val scale by animateFloatAsState(
-        when {
-            !focused -> 1f
-            reduceMotion -> 1.02f
-            else -> TV_FOCUS_SCALE
-        },
-        label = "tvRankScale",
-    )
-    val glow by animateDpAsState(
-        if (focused && tier != PerformanceTier.LOW) 20.dp else 0.dp,
-        label = "tvRankGlow",
-    )
-    val accent = remember(item.accentColor) { hexColor(item.accentColor) }
-    val dominant = remember(item.dominantColor) { hexColor(item.dominantColor) }
-    val isLight = tokens.bg.luminance() > 0.5f
-    val spotlight = if (isLight) Color(0xFF141416) else Color.White
-    val sound = rememberFocusSound()
-    val focusCb by rememberUpdatedState(onFocused)
-    LaunchedEffect(focused) {
-        if (focused) {
-            sound()
-            focusCb()
-        }
-    }
-    val resumeEntries = LocalResumeEntries.current
-    val effectiveProgress = remember(item.id, item.type, resumeEntries) {
-        tvWatchProgress(item, null, progressByItem(resumeEntries))
-    }
-    val gutterWidth = if (rank >= 10) 64.dp else 46.dp
-    val totalWidth = gutterWidth + posterWidth
-    val posterHeight = posterWidth * 1.5f
-    val shape = RoundedCornerShape(14.dp)
-    val imagePath = item.poster.ifBlank { item.backdrop }
-    val subtitle = remember(item.year, item.genres) { tvCardSubtitle(item) }
-    val rankFontSize = if (rank >= 10) 90.sp else 108.sp
-
-    Column(modifier.width(totalWidth).zIndex(if (focused) 1f else 0f)) {
-        Box(Modifier.fillMaxWidth().height(posterHeight)) {
-            val rankText = rank.coerceIn(1, 99).toString()
-            Text(
-                text = rankText,
-                style = TextStyle(
-                    fontFamily = TvCondensedFont,
-                    fontSize = rankFontSize,
-                    lineHeight = rankFontSize,
-                    fontWeight = FontWeight.Bold,
-                    letterSpacing = (-4).sp,
-                    shadow = Shadow(
-                        color = Color.Black.copy(alpha = if (isLight) 0.18f else 0.72f),
-                        offset = Offset(0f, 6f),
-                        blurRadius = 12f,
-                    ),
-                ),
-                color = if (focused) tokens.accent.copy(alpha = 0.28f) else tokens.surfaceElevated.copy(alpha = 0.92f),
-                modifier = Modifier.align(Alignment.BottomStart).padding(bottom = 2.dp),
-            )
-            Text(
-                text = rankText,
-                style = TextStyle(
-                    fontFamily = TvCondensedFont,
-                    fontSize = rankFontSize,
-                    lineHeight = rankFontSize,
-                    fontWeight = FontWeight.Bold,
-                    letterSpacing = (-4).sp,
-                    drawStyle = Stroke(width = if (focused) 4.5f else 3f, join = StrokeJoin.Round),
-                ),
-                color = if (focused) tokens.accent else tokens.textPrimary.copy(alpha = 0.78f),
-                modifier = Modifier.align(Alignment.BottomStart).padding(bottom = 2.dp),
-            )
-            TvPosterBox(
-                item = item,
-                imagePath = imagePath,
-                width = posterWidth,
-                height = posterHeight,
-                landscape = false,
-                focused = focused,
-                scale = scale,
-                glow = glow,
-                dominant = dominant,
-                accent = accent,
-                spotlight = spotlight,
-                progress = effectiveProgress,
-                shape = shape,
-                interaction = interaction,
-                onClick = onClick,
-                modifier = Modifier.align(Alignment.TopEnd),
-            )
-        }
-        Text(
-            item.title,
-            style = MaterialTheme.typography.labelLarge,
-            color = if (focused) tokens.textPrimary else tokens.textSecondary,
-            fontWeight = if (focused) FontWeight.Bold else FontWeight.Medium,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.padding(start = gutterWidth + 2.dp, top = 8.dp, end = 2.dp),
-        )
-        if (subtitle.isNotEmpty()) {
-            Text(
-                subtitle,
-                style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.sp),
-                color = tokens.textTertiary,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.padding(start = gutterWidth + 2.dp, top = 2.dp, end = 2.dp),
             )
         }
     }
@@ -475,7 +383,6 @@ private fun TvPosterBox(
             )
         }
 
-        // Top-Start: LIVE badge or CinePulse ★ rating pill
         if (isLive) {
             Box(
                 Modifier
@@ -516,7 +423,6 @@ private fun TvPosterBox(
             }
         }
 
-        // Top-End: Channel number, Dub language badge, or Series indicator
         val channelNo = item.channelNumber
         if (channelNo != null) {
             Box(
@@ -605,9 +511,9 @@ private fun TvPosterBox(
 }
 
 /**
- * Focusable cinema pill button (Hero / Player / TV Retry):
+ * Focusable cinema pill button (Hero / Details / Player / Retry):
  * - `primary = true`: Cinema Red gradient fill + crisp White Spotlight focus ring (`2.5.dp`).
- * - `primary = false`: Frosted Liquid Glass pill + crisp White Spotlight focus ring (`2.5.dp`).
+ * - `readyDot = true`: renders ONLY a crisp `8.dp` `#22C55E` green circle (never `"Ready"` text).
  */
 @Composable
 fun TvButton(
@@ -617,6 +523,7 @@ fun TvButton(
     modifier: Modifier = Modifier,
     primary: Boolean = false,
     onDarkScrim: Boolean = true,
+    readyDot: Boolean = false,
 ) {
     val tokens = Cinetor.tokens
     val tier = Cinetor.tier
@@ -691,11 +598,20 @@ fun TvButton(
             Icon(icon, contentDescription = null, tint = contentColor, modifier = Modifier.size(20.dp))
         }
         Text(
-            label,
+            text = label,
             color = contentColor,
             style = MaterialTheme.typography.titleSmall,
             fontWeight = FontWeight.SemiBold,
             maxLines = 1,
         )
+        if (readyDot) {
+            Box(
+                Modifier
+                    .size(8.dp)
+                    .clip(CircleShape)
+                    .background(TvReadyGreen)
+                    .border(1.dp, Color.White.copy(alpha = 0.65f), CircleShape),
+            )
+        }
     }
 }
