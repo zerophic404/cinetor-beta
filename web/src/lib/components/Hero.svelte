@@ -3,12 +3,13 @@
 </script>
 
 <script lang="ts">
-  import type { Item } from '$lib/data/types';
+  import { isVideoSpace, type Item } from '$lib/data/types';
   import { tint } from '$lib/design/tint.svelte';
   import { HERO_AUTO_ADVANCE_MS } from '$lib/design/motion';
   import { perf } from '$lib/perf/tier.svelte';
   import { colorOf, ensureColor } from '$lib/data/live-color.svelte';
   import { myList } from '$lib/data/library.svelte';
+  import { dataSaver, prepareMedia, preloader } from '$lib/player/controller';
   import {
     CarouselController,
     DEFAULT_TOUCH_COOLDOWN_MS,
@@ -25,7 +26,7 @@
     has4kBadge
   } from '$lib/ui/space-model';
   import { imgFor } from '$lib/ui/img';
-  import { detailsHref, handoff, watchHref } from '$lib/ui/handoff';
+  import { detailsHref, handoff } from '$lib/ui/handoff';
 
   interface Props {
     items: Item[];
@@ -34,16 +35,20 @@
   let { items, paused = false }: Props = $props();
 
   const heroUid = `hga-${++nextHeroArt}`;
+  const readiness = preloader.readiness;
 
   let index = $state(0);
   let activeMs = $state<number>(HERO_AUTO_ADVANCE_MS);
   let isPaused = $state(false);
   let el = $state<HTMLElement>();
+  let fgPosterEl = $state<HTMLImageElement>();
   let isWide = $state(typeof window !== 'undefined' ? window.matchMedia('(min-width: 768px)').matches : true);
   let dragPx = $state(0);
   let dragging = $state(false);
   let rawFallbackIds = $state.raw<Record<string, boolean>>({});
   let failedIds = $state.raw<Record<string, boolean>>({});
+  let fgRawFallbackIds = $state.raw<Record<string, boolean>>({});
+  let fgFailedIds = $state.raw<Record<string, boolean>>({});
   let ctrl: CarouselController | null = null;
 
   const slides = $derived(dedupeItems(items));
@@ -51,9 +56,26 @@
   const safeIndex = $derived(n > 0 ? Math.min(index, n - 1) : 0);
   const current = $derived(slides[safeIndex]);
   const lowTier = $derived(perf.flags.tier === 'LOW');
+  const readyMap = $derived($readiness);
 
   const nearWide = (i: number) =>
     n > 0 && (i === safeIndex || i === (safeIndex + 1) % n || i === (safeIndex - 1 + n) % n);
+
+  function isStreamReady(item: Item): boolean {
+    for (const [k, v] of Object.entries(readyMap)) {
+      if ((k === item.id || k.startsWith(`${item.id}#`) || k.startsWith(`${item.id}@`)) && v === 'ready') {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  /** Navigate to Title Details with inline autoplay (`&play=1`), never `/app/watch` for VOD. */
+  function heroPlayHref(item: Item): string {
+    const href = detailsHref(item);
+    if (item.type === 'CHANNEL' || item.space === 'MUSIC' || item.space === 'COMICS') return href;
+    return `${href}${href.includes('?') ? '&' : '?'}play=1`;
+  }
 
   $effect(() => {
     if (typeof window === 'undefined') return;
@@ -70,6 +92,29 @@
     ensureColor(current);
     tint.follow(current ? colorOf(current) : null);
     if (n > 1) ensureColor(slides[(safeIndex + 1) % n]);
+  });
+
+  // Gently pre-warm the front Hero slide on non-low, non-data-saver sessions so the green dot lights up.
+  $effect(() => {
+    const item = current;
+    if (!item || lowTier || !isVideoSpace(item.space) || dataSaver()) return;
+    if (typeof document !== 'undefined' && document.hidden) return;
+    const ctl = new AbortController();
+    const timer = setTimeout(async () => {
+      try {
+        const ep = item.seasons?.[0]?.episodes?.[0];
+        const m = await prepareMedia(item, ep, ctl.signal);
+        if (!ctl.signal.aborted && m.playable) {
+          void preloader.preload(m);
+        }
+      } catch {
+        /* ignore preload errors */
+      }
+    }, 650);
+    return () => {
+      clearTimeout(timer);
+      ctl.abort();
+    };
   });
 
   function syncCtrlMeta() {
@@ -166,6 +211,17 @@
       return;
     }
     markFailed(id);
+  }
+
+  function handleFgPosterError(id: string, rawUrl: string, a: { src: string; srcset?: string }) {
+    const fallbackUrl = stripResizeParam(rawUrl);
+    if (!fgRawFallbackIds[id] && fallbackUrl && (a.srcset || a.src !== fallbackUrl)) {
+      fgRawFallbackIds = { ...fgRawFallbackIds, [id]: true };
+      return;
+    }
+    if (!fgFailedIds[id]) {
+      fgFailedIds = { ...fgFailedIds, [id]: true };
+    }
   }
 
   // Swipe (touch/pen) with live 3D deck drag + 6s post-touch cooldown.
@@ -312,9 +368,16 @@
     {#if isWide}
       {@const ratingText = formatRating(current.rating)}
       {@const dub = detectDubBadge(current)}
-      {@const genres = displayGenres(current, 3)}
+      {@const genres = displayGenres(current, 2)}
       {@const is4k = has4kBadge(current)}
+      {@const qualityTag = is4k ? '4K UHD' : isVideoSpace(current.space) ? 'HD' : null}
       {@const saved = myList.has(current)}
+      {@const readyNow = isStreamReady(current)}
+      {@const fgRaw = current.poster || current.backdrop}
+      {@const fgRawUrl = stripResizeParam(fgRaw)}
+      {@const fgUseRaw = Boolean(fgRawFallbackIds[current.id] && fgRawUrl)}
+      {@const fgAttrs = imgFor(fgRaw, 'poster')}
+      {@const fgUseGen = !fgAttrs.src || Boolean(fgFailedIds[current.id])}
 
       <div class="showcase glass">
         {#each slides as item, i (item.id)}
@@ -373,105 +436,134 @@
           {/if}
         {/each}
 
-        <!-- Dual Cinema Scrims: horizontal left stage + vertical floor vignette + dynamic ArtTint wash -->
+        <!-- Multi-stop dark cinema vignette + Liquid Glass specular rim -->
         <div class="scrim-h" aria-hidden="true"></div>
         <div class="scrim-v" aria-hidden="true"></div>
         <div class="rim" aria-hidden="true"></div>
 
         {#key current.id}
-          <div class="meta">
-            <div class="pills">
-              {#if is4k}
-                <span class="pill pill-accent">4K UHD</span>
-              {/if}
-              {#if ratingText}
-                <span class="pill pill-rating">
-                  <svg class="star" width="11" height="11" viewBox="0 0 24 24" aria-hidden="true">
-                    <path
-                      fill="currentColor"
-                      d="M12 2.4l2.93 5.94 6.56.95-4.74 4.62 1.12 6.53L12 17.35 6.13 20.44l1.12-6.53L2.51 9.29l6.56-.95z"
-                    />
-                  </svg>
-                  {ratingText}
-                </span>
-              {/if}
-              {#if current.year > 0}
-                <span class="pill">{current.year}</span>
-              {/if}
-              {#if dub}
-                <span class="pill pill-dub">{dub}</span>
-              {/if}
-              {#if current.maturity && current.maturity !== 'NR'}
-                <span class="pill">{current.maturity}</span>
-              {/if}
-              {#each genres as g (g)}
-                <span class="pill pill-genre">{g}</span>
-              {/each}
-            </div>
+          <div class="showcase-stage">
+            <div class="meta">
+              <h1>
+                <a href={detailsHref(current)} onclick={(e) => guardClick(e, () => handoff(current, fgPosterEl))}>
+                  {current.title}
+                </a>
+              </h1>
 
-            <h1>
-              <a href={detailsHref(current)} onclick={(e) => guardClick(e, () => handoff(current))}>{current.title}</a>
-            </h1>
-
-            {#if current.synopsis}
-              <p class="syn">{current.synopsis}</p>
-            {/if}
-
-            <div class="actions">
-              <a
-                class="btn hero-play"
-                href={watchHref(current.id)}
-                onclick={(e) => guardClick(e)}
-              >
-                <svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true">
-                  <path fill="currentColor" d="M8 5.2v13.6L19 12z" />
-                </svg>
-                Play
-              </a>
-
-              <button
-                type="button"
-                class="btn hero-glass"
-                aria-pressed={saved}
-                onclick={(e) => guardClick(e, () => myList.toggle(current))}
-              >
-                {#if saved}
-                  <svg width="17" height="17" viewBox="0 0 24 24" aria-hidden="true">
-                    <path
-                      fill="none"
-                      stroke="currentColor"
-                      stroke-width="2.4"
-                      stroke-linecap="round"
-                      stroke-linejoin="round"
-                      d="M5 12.5l4.5 4.5L19 7.5"
-                    />
-                  </svg>
-                {:else}
-                  <svg width="17" height="17" viewBox="0 0 24 24" aria-hidden="true">
-                    <path
-                      fill="none"
-                      stroke="currentColor"
-                      stroke-width="2.2"
-                      stroke-linecap="round"
-                      d="M12 5v14M5 12h14"
-                    />
-                  </svg>
+              <div class="pills">
+                {#if ratingText}
+                  <span class="pill pill-rating">
+                    <svg class="star" width="11" height="11" viewBox="0 0 24 24" aria-hidden="true">
+                      <path
+                        fill="currentColor"
+                        d="M12 2.4l2.93 5.94 6.56.95-4.74 4.62 1.12 6.53L12 17.35 6.13 20.44l1.12-6.53L2.51 9.29l6.56-.95z"
+                      />
+                    </svg>
+                    {ratingText}
+                  </span>
                 {/if}
-                My List
-              </button>
+                {#if current.year > 0}
+                  <span class="pill">{current.year}</span>
+                {/if}
+                {#if qualityTag}
+                  <span class="pill" class:pill-accent={is4k}>{qualityTag}</span>
+                {/if}
+                {#if dub}
+                  <span class="pill pill-dub">{dub}</span>
+                {/if}
+                {#each genres as g (g)}
+                  <span class="pill pill-genre">{g}</span>
+                {/each}
+              </div>
 
-              <a
-                class="btn hero-glass"
-                href={detailsHref(current)}
-                onclick={(e) => guardClick(e, () => handoff(current))}
-              >
-                <svg width="17" height="17" viewBox="0 0 24 24" aria-hidden="true">
-                  <circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" stroke-width="2" />
-                  <path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" d="M12 11v5M12 8h.01" />
-                </svg>
-                Details
-              </a>
+              {#if current.synopsis}
+                <p class="syn">{current.synopsis}</p>
+              {/if}
+
+              <div class="actions">
+                <a
+                  class="btn hero-play"
+                  href={heroPlayHref(current)}
+                  onclick={(e) => guardClick(e, () => handoff(current, fgPosterEl))}
+                >
+                  <svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true">
+                    <path fill="currentColor" d="M8 5.2v13.6L19 12z" />
+                  </svg>
+                  <span>Play</span>
+                  {#if readyNow}
+                    <span class="ready-dot" aria-hidden="true"></span>
+                  {/if}
+                </a>
+
+                <button
+                  type="button"
+                  class="btn hero-glass"
+                  aria-pressed={saved}
+                  onclick={(e) => guardClick(e, () => myList.toggle(current))}
+                >
+                  {#if saved}
+                    <svg width="17" height="17" viewBox="0 0 24 24" aria-hidden="true">
+                      <path
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="2.4"
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                        d="M5 12.5l4.5 4.5L19 7.5"
+                      />
+                    </svg>
+                  {:else}
+                    <svg width="17" height="17" viewBox="0 0 24 24" aria-hidden="true">
+                      <path
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="2.2"
+                        stroke-linecap="round"
+                        d="M12 5v14M5 12h14"
+                      />
+                    </svg>
+                  {/if}
+                  <span>My List</span>
+                </button>
+              </div>
             </div>
+
+            <a
+              class="fg-poster"
+              href={detailsHref(current)}
+              tabindex="-1"
+              aria-hidden="true"
+              onclick={(e) => guardClick(e, () => handoff(current, fgPosterEl))}
+            >
+              {#if fgUseGen}
+                {@const art = generatedArtSpec(current.id || current.title)}
+                <svg class="fg-art" viewBox="0 0 100 150" preserveAspectRatio="none" aria-hidden="true">
+                  <defs>
+                    <linearGradient id="{heroUid}-fg" x1="{art.x1}%" y1="0%" x2="{art.x2}%" y2="100%">
+                      <stop offset="0%" stop-color={art.light} />
+                      <stop offset="100%" stop-color={art.dark} />
+                    </linearGradient>
+                  </defs>
+                  <rect width="100" height="150" fill="url(#{heroUid}-fg)" />
+                </svg>
+              {:else}
+                {#key fgUseRaw}
+                  <img
+                    bind:this={fgPosterEl}
+                    class="fg-art"
+                    referrerpolicy="no-referrer"
+                    sizes={fgUseRaw ? undefined : '220px'}
+                    srcset={fgUseRaw ? undefined : fgAttrs.srcset}
+                    src={fgUseRaw ? fgRawUrl : fgAttrs.src}
+                    alt=""
+                    decoding="async"
+                    draggable="false"
+                    onerror={() => handleFgPosterError(current.id, fgRaw, fgAttrs)}
+                  />
+                {/key}
+              {/if}
+              <span class="fg-rim" aria-hidden="true"></span>
+            </a>
           </div>
         {/key}
 
@@ -492,7 +584,7 @@
         {/if}
       </div>
     {:else}
-      <!-- Mobile / Portrait (< 768px): Movira-style 3D Peeking Poster Deck -->
+      <!-- Mobile / Portrait (< 768px): Cinetor Beta `Banner.kt` Showcase Deck -->
       <div class="deck-stage" class:dragging>
         {#each slides as item, i (item.id)}
           {@const offset = deckOffset(i, safeIndex, n, dragFraction)}
@@ -508,7 +600,9 @@
             {@const dub = detectDubBadge(item)}
             {@const genres = displayGenres(item, 2)}
             {@const is4k = has4kBadge(item)}
+            {@const qualityTag = is4k ? '4K' : isVideoSpace(item.space) ? 'HD' : null}
             {@const saved = myList.has(item)}
+            {@const readyNow = isFront && isStreamReady(item)}
 
             <article
               class="deck-card"
@@ -561,10 +655,11 @@
               <div class="deck-rim" aria-hidden="true"></div>
 
               <div class="deck-meta">
+                <h2 class="deck-title">
+                  <a href={detailsHref(item)} onclick={(e) => guardClick(e, () => handoff(item))}>{item.title}</a>
+                </h2>
+
                 <div class="pills deck-pills">
-                  {#if is4k}
-                    <span class="pill pill-accent">4K UHD</span>
-                  {/if}
                   {#if ratingText}
                     <span class="pill pill-rating">
                       <svg class="star" width="10" height="10" viewBox="0 0 24 24" aria-hidden="true">
@@ -579,6 +674,9 @@
                   {#if item.year > 0}
                     <span class="pill">{item.year}</span>
                   {/if}
+                  {#if qualityTag}
+                    <span class="pill" class:pill-accent={is4k}>{qualityTag}</span>
+                  {/if}
                   {#if dub}
                     <span class="pill pill-dub">{dub}</span>
                   {/if}
@@ -587,20 +685,19 @@
                   {/each}
                 </div>
 
-                <h2 class="deck-title">
-                  <a href={detailsHref(item)} onclick={(e) => guardClick(e, () => handoff(item))}>{item.title}</a>
-                </h2>
-
                 <div class="deck-actions">
                   <a
                     class="btn hero-play deck-btn"
-                    href={watchHref(item.id)}
-                    onclick={(e) => guardClick(e)}
+                    href={heroPlayHref(item)}
+                    onclick={(e) => guardClick(e, () => handoff(item))}
                   >
                     <svg width="16" height="16" viewBox="0 0 24 24" aria-hidden="true">
                       <path fill="currentColor" d="M8 5.2v13.6L19 12z" />
                     </svg>
-                    Play
+                    <span>Play</span>
+                    {#if readyNow}
+                      <span class="ready-dot" aria-hidden="true"></span>
+                    {/if}
                   </a>
 
                   <button
@@ -631,20 +728,8 @@
                         />
                       </svg>
                     {/if}
-                    My List
+                    <span>My List</span>
                   </button>
-
-                  <a
-                    class="btn hero-glass deck-info"
-                    href={detailsHref(item)}
-                    aria-label="Details for {item.title}"
-                    onclick={(e) => guardClick(e, () => handoff(item))}
-                  >
-                    <svg width="16" height="16" viewBox="0 0 24 24" aria-hidden="true">
-                      <circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" stroke-width="2" />
-                      <path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" d="M12 11v5M12 8h.01" />
-                    </svg>
-                  </a>
                 </div>
               </div>
 
@@ -722,12 +807,12 @@
   }
 
   /* ==========================================================================
-     Desktop / TV / Landscape (>= 768px): Cinematic 16:9 / 21:9 Showcase Card
+     Desktop / Tablet / TV (>= 768px): Atmospheric Backdrop + Foreground Poster
      ========================================================================== */
   .showcase {
     position: relative;
     margin: 0 16px;
-    height: clamp(340px, 43vw, 530px);
+    height: clamp(350px, 42vw, 520px);
     border-radius: var(--radius-xl);
     overflow: hidden;
     isolation: isolate;
@@ -738,7 +823,7 @@
   }
   @media (min-width: 1280px) {
     .showcase {
-      height: clamp(390px, 39vw, 540px);
+      height: clamp(390px, 38vw, 520px);
     }
   }
 
@@ -759,7 +844,7 @@
   }
   @keyframes kb {
     from {
-      transform: scale(1.1) translate3d(1.2%, 0.8%, 0);
+      transform: scale(1.09) translate3d(1%, 0.6%, 0);
     }
     to {
       transform: scale(1) translate3d(0, 0, 0);
@@ -772,10 +857,10 @@
     pointer-events: none;
     background: linear-gradient(
       90deg,
-      rgb(7 7 10 / 0.94) 0%,
-      rgb(7 7 10 / 0.78) 38%,
-      rgb(7 7 10 / 0.34) 64%,
-      rgb(7 7 10 / 0.08) 100%
+      rgb(6 6 9 / 0.95) 0%,
+      rgb(6 6 9 / 0.8) 42%,
+      rgb(6 6 9 / 0.42) 72%,
+      rgb(6 6 9 / 0.24) 100%
     );
   }
   .scrim-v {
@@ -783,11 +868,12 @@
     inset: 0;
     pointer-events: none;
     background:
-      linear-gradient(0deg, rgb(7 7 10 / 0.93) 0%, rgb(7 7 10 / 0.38) 44%, transparent 78%),
-      linear-gradient(0deg, color-mix(in srgb, var(--tint) 22%, transparent), transparent 42%);
+      linear-gradient(0deg, rgb(6 6 9 / 0.94) 0%, rgb(6 6 9 / 0.36) 46%, rgb(6 6 9 / 0.14) 100%),
+      linear-gradient(0deg, color-mix(in srgb, var(--tint) 22%, transparent), transparent 44%);
   }
   .rim,
-  .deck-rim {
+  .deck-rim,
+  .fg-rim {
     position: absolute;
     inset: 0;
     border-radius: inherit;
@@ -797,17 +883,20 @@
       inset 0 0 0 1px rgb(255 255 255 / 0.14);
   }
   :global([data-theme='matte']) .rim,
-  :global([data-theme='matte']) .deck-rim {
+  :global([data-theme='matte']) .deck-rim,
+  :global([data-theme='matte']) .fg-rim {
     box-shadow: inset 0 0 0 1px var(--divider);
   }
 
-  .meta {
+  .showcase-stage {
     position: absolute;
-    left: clamp(22px, 3.6vw, 44px);
-    right: 24px;
-    bottom: clamp(26px, 3.8vw, 44px);
-    max-width: min(620px, 60%);
+    inset: 0;
     z-index: 2;
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: clamp(20px, 3vw, 48px);
+    padding: clamp(24px, 3.6vw, 44px) clamp(24px, 4vw, 48px) clamp(32px, 4.2vw, 48px);
     animation: rise calc(var(--dur-long) * var(--dur-scale)) var(--ease-emphasized) both;
   }
   @keyframes rise {
@@ -817,9 +906,15 @@
     }
   }
 
+  .meta {
+    flex: 1;
+    min-width: 0;
+    max-width: 600px;
+  }
+
   h1 {
-    margin: 8px 0 8px;
-    font-size: clamp(1.75rem, 3.6vw, 2.95rem);
+    margin: 0 0 10px;
+    font-size: clamp(1.8rem, 3.5vw, 2.95rem);
     line-height: 1.05;
     font-weight: 850;
     letter-spacing: -0.03em;
@@ -837,11 +932,11 @@
   }
 
   .syn {
-    margin: 0 0 18px;
-    max-width: 58ch;
+    margin: 12px 0 18px;
+    max-width: 56ch;
     font-size: 0.92rem;
     line-height: 1.48;
-    color: rgb(255 255 255 / 0.82);
+    color: rgb(255 255 255 / 0.8);
     display: -webkit-box;
     -webkit-line-clamp: 2;
     line-clamp: 2;
@@ -849,8 +944,33 @@
     overflow: hidden;
   }
 
+  .fg-poster {
+    position: relative;
+    flex: none;
+    align-self: center;
+    width: clamp(144px, 15.5vw, 214px);
+    aspect-ratio: 2 / 3;
+    border-radius: 18px;
+    overflow: hidden;
+    background: #101014;
+    box-shadow:
+      0 26px 52px -18px rgb(0 0 0 / 0.82),
+      0 0 42px -18px color-mix(in srgb, var(--tint) 65%, transparent);
+    transform: translateZ(0);
+    transition: transform calc(var(--dur-medium) * var(--dur-scale)) var(--ease-emphasized);
+  }
+  .fg-poster:hover {
+    transform: translateY(-3px) scale(1.02);
+  }
+  .fg-art {
+    width: 100%;
+    height: 100%;
+    display: block;
+    object-fit: cover;
+  }
+
   /* ==========================================================================
-     Shared Metadata Capsule Pills & Hero Liquid Glass CTAs
+     Shared Metadata Pills, Play Green Dot & Liquid Glass CTAs
      ========================================================================== */
   .pills {
     display: flex;
@@ -905,6 +1025,7 @@
     flex-wrap: wrap;
     align-items: center;
     gap: 10px;
+    margin-top: 14px;
   }
   .hero-play {
     color: var(--on-accent);
@@ -914,9 +1035,15 @@
       inset 0 1px 0 rgb(255 255 255 / 0.25);
   }
   .hero-play:hover {
-    box-shadow:
-      0 14px 36px -4px var(--accent-glow),
-      inset 0 1px 0 rgb(255 255 255 / 0.32);
+    transform: translateY(-1px);
+  }
+  .ready-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: #22c55e;
+    box-shadow: 0 0 8px rgb(34 197 94 / 0.85);
+    flex: none;
   }
   .hero-glass {
     color: #ffffff;
@@ -942,7 +1069,7 @@
   }
 
   /* ==========================================================================
-     Mobile / Portrait (< 768px): Movira 3D Peeking Poster Deck
+     Mobile / Portrait (< 768px): Cinetor Beta `Banner.kt` Showcase Deck
      ========================================================================== */
   .deck-stage {
     --deck-w: min(76vw, 356px);
@@ -963,7 +1090,6 @@
     width: var(--deck-w);
     aspect-ratio: 0.76;
     border-radius: 20px;
-    will-change: transform;
     transition:
       transform 460ms var(--ease-emphasized),
       filter 360ms var(--ease-standard);
@@ -1006,7 +1132,7 @@
       180deg,
       rgb(6 6 9 / 0.06) 0%,
       transparent 34%,
-      rgb(6 6 9 / 0.72) 68%,
+      rgb(6 6 9 / 0.76) 66%,
       rgb(6 6 9 / 0.96) 100%
     );
   }
@@ -1030,17 +1156,9 @@
     align-items: center;
     text-align: center;
   }
-  .deck-pills {
-    justify-content: center;
-    gap: 5px;
-  }
-  .deck-pills .pill {
-    padding: 2px 7px;
-    font-size: 0.66rem;
-  }
   .deck-title {
-    margin: 7px 0 11px;
-    font-size: clamp(1.32rem, 5.8vw, 1.82rem);
+    margin: 0 0 8px;
+    font-size: clamp(1.36rem, 5.8vw, 1.84rem);
     line-height: 1.06;
     font-weight: 850;
     letter-spacing: -0.025em;
@@ -1056,30 +1174,32 @@
     color: #ffffff;
     text-decoration: none;
   }
+  .deck-pills {
+    justify-content: center;
+    gap: 5px;
+    margin-bottom: 12px;
+  }
+  .deck-pills .pill {
+    padding: 2px 7px;
+    font-size: 0.66rem;
+  }
 
   .deck-actions {
     width: 100%;
     display: flex;
     align-items: center;
-    gap: 8px;
+    gap: 10px;
   }
   .deck-btn {
     flex: 1;
-    min-height: 42px;
+    min-height: 44px;
     padding: 0 12px;
-    font-size: 0.86rem;
-    border-radius: 12px;
-  }
-  .deck-info {
-    flex: none;
-    width: 42px;
-    min-height: 42px;
-    padding: 0;
+    font-size: 0.88rem;
     border-radius: 12px;
   }
 
   /* ==========================================================================
-     Interactive Capsule Progress Dots (pauses on hover, focus, or hidden tab)
+     Capsule Pagination Dots (composite-only transform animation)
      ========================================================================== */
   .dots {
     display: flex;
@@ -1089,8 +1209,8 @@
   }
   .dots-wide {
     position: absolute;
-    right: 22px;
-    bottom: 20px;
+    right: clamp(24px, 4vw, 48px);
+    bottom: 14px;
   }
   .dots-deck {
     justify-content: center;
@@ -1101,16 +1221,14 @@
   .dots button {
     position: relative;
     width: 7px;
-    height: 7px;
+    height: 6px;
     padding: 0;
     border: 0;
     border-radius: 99px;
     background: color-mix(in srgb, var(--text-primary) 30%, transparent);
     cursor: pointer;
     overflow: hidden;
-    transition:
-      width calc(var(--dur-medium) * var(--dur-scale)) var(--ease-emphasized),
-      background calc(var(--dur-short) * var(--dur-scale)) var(--ease-standard);
+    transition: background calc(var(--dur-short) * var(--dur-scale)) var(--ease-standard);
   }
   .dots-wide button {
     background: rgb(255 255 255 / 0.34);

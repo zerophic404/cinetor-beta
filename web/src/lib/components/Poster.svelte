@@ -20,13 +20,13 @@
   interface Props {
     item: Item;
     variant?: CardVariant;
-    /** TOP10 Condensed Ranked Chart numeral (1..10). */
+    /** Deprecated/ignored in v2.1+: Trending Now renders clean unnumbered cards. */
     rank?: number;
     /** Watch progress 0..1 (rendered when within 2%..95%). */
     progress?: number;
     eager?: boolean;
   }
-  let { item, variant = 'poster', rank, progress, eager = false }: Props = $props();
+  let { item, variant = 'poster', progress, eager = false }: Props = $props();
 
   const artUid = `ga-${++nextArtInstance}`;
 
@@ -66,6 +66,7 @@
   const watched = $derived(visibleWatchProgress(progress));
 
   const subLabel = $derived.by(() => {
+    if (variant === 'channel') return displayGenres(item, 1)[0] ?? '';
     if (variant !== 'poster' && variant !== 'landscape') return '';
     const parts: string[] = [];
     if (item.year > 0) parts.push(String(item.year));
@@ -83,20 +84,14 @@
 
 <a
   class="card {variant}"
-  class:ranked={rank !== undefined}
-  class:double={rank !== undefined && rank >= 10}
   href={detailsHref(item)}
-  aria-label={rank !== undefined ? `#${rank} ${item.title}` : item.title}
+  aria-label={item.title}
   title={item.title}
   style:--card-accent={color}
   onfocus={hot}
   onpointerenter={hot}
   onclick={() => handoff(item, imgEl)}
 >
-  {#if rank !== undefined}
-    <span class="rank" aria-hidden="true">{rank}</span>
-  {/if}
-
   <div class="frame" class:loaded={loaded && !useGenerated} style:background-color={art ? art.dark : color}>
     {#if useGenerated && art}
       <svg class="gen-art" viewBox="0 0 100 150" preserveAspectRatio="none" aria-hidden="true">
@@ -203,7 +198,8 @@
   .card {
     --w: clamp(112px, 28vw, 168px);
     position: relative;
-    display: block;
+    display: flex;
+    flex-direction: column;
     flex: none;
     width: var(--w);
     text-decoration: none;
@@ -217,18 +213,11 @@
   .card.channel {
     --w: clamp(96px, 24vw, 136px);
   }
-  .card.ranked {
-    width: calc(var(--w) + 42px);
-    padding-left: 42px;
-  }
-  .card.ranked.double {
-    width: calc(var(--w) + 56px);
-    padding-left: 56px;
-  }
 
   .frame {
     position: relative;
     z-index: 1;
+    width: 100%;
     aspect-ratio: 2 / 3;
     border-radius: var(--radius-card);
     overflow: hidden;
@@ -258,7 +247,7 @@
   .card:hover .frame,
   .card:focus-visible .frame,
   :global([data-tv]) .card:focus .frame {
-    transform: scale(var(--card-focus-scale, 1.06));
+    transform: scale(var(--card-focus-scale, 1.05));
     box-shadow:
       0 14px 32px -10px color-mix(in srgb, var(--card-accent) 65%, rgb(0 0 0 / 0.7)),
       0 0 0 2px var(--focus-ring);
@@ -403,20 +392,32 @@
     box-shadow: 0 0 8px var(--accent-glow);
   }
 
+  /* Always-visible title underneath EVERY thumbnail (1-2 lines, ellipsis, touch & desktop) */
   .title {
-    display: block;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    line-clamp: 2;
+    -webkit-box-orient: vertical;
     margin-top: 7px;
-    font-size: 0.82rem;
-    font-weight: 600;
+    font-size: 0.83rem;
+    font-weight: 650;
+    line-height: 1.28;
     color: var(--text-primary);
-    white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
+    word-break: break-word;
+    transition: color calc(var(--dur-short) * var(--dur-scale)) var(--ease-standard);
+  }
+  .card:hover .title,
+  .card:focus-visible .title,
+  :global([data-tv]) .card:focus .title {
+    color: var(--text-primary);
   }
   .sub {
     display: block;
-    margin-top: 1px;
-    font-size: 0.71rem;
+    margin-top: 2px;
+    font-size: 0.72rem;
+    line-height: 1.25;
     color: var(--text-tertiary);
     font-variant-numeric: tabular-nums;
     white-space: nowrap;
@@ -425,47 +426,6 @@
   }
   .circle .title {
     text-align: center;
-  }
-
-  /* Condensed Ranked Chart Numeral (1..10) */
-  .rank {
-    position: absolute;
-    left: 0;
-    bottom: 36px;
-    z-index: 0;
-    font-size: clamp(4.6rem, 13.5vw, 6.6rem);
-    font-weight: 900;
-    line-height: 0.78;
-    letter-spacing: -0.06em;
-    font-variant-numeric: tabular-nums;
-    transform: scaleX(0.82);
-    transform-origin: left bottom;
-    color: color-mix(in srgb, var(--surface-elevated) 84%, var(--bg));
-    -webkit-text-stroke: 2.6px color-mix(in srgb, var(--text-primary) 72%, var(--accent));
-    paint-order: stroke fill;
-    filter: drop-shadow(0 6px 14px rgb(0 0 0 / 0.42));
-    pointer-events: none;
-    user-select: none;
-    transition:
-      transform calc(var(--dur-medium) * var(--dur-scale)) var(--ease-emphasized),
-      -webkit-text-stroke-color calc(var(--dur-medium) * var(--dur-scale)) var(--ease-standard);
-  }
-  .card.ranked.double .rank {
-    left: -2px;
-    font-size: clamp(4.2rem, 12.2vw, 6rem);
-    letter-spacing: -0.09em;
-    transform: scaleX(0.78);
-  }
-  .card.ranked:hover .rank,
-  .card.ranked:focus-visible .rank,
-  :global([data-tv]) .card.ranked:focus .rank {
-    -webkit-text-stroke-color: var(--accent);
-    transform: scaleX(0.84) translateY(-2px);
-  }
-  .card.ranked.double:hover .rank,
-  .card.ranked.double:focus-visible .rank,
-  :global([data-tv]) .card.ranked.double:focus .rank {
-    transform: scaleX(0.8) translateY(-2px);
   }
 
   @media (prefers-reduced-motion: reduce) {
