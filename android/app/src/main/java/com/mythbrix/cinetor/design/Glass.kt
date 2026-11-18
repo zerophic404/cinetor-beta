@@ -1,6 +1,7 @@
 package com.mythbrix.cinetor.design
 
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawWithCache
@@ -20,8 +21,16 @@ import dev.chrisbanes.haze.hazeChild
 import kotlin.math.min
 
 /**
+ * True inside any subtree recorded by `Modifier.haze(state)`. Calling `Modifier.hazeChild(state)` on
+ * a descendant of the same `HazeState` causes a fatal `RenderNode cannot be drawn into itself` crash
+ * on Android 12–15 (`API 31–35`), so [Modifier.glass] unconditionally uses its cached drawn-glass path
+ * whenever [LocalInsideHazeSource] is `true`.
+ */
+val LocalInsideHazeSource = compositionLocalOf { false }
+
+/**
  * Where a glass surface sits. [overlay] levels float above the blurred content layer and can use
- * live blur; in-content surfaces never do (they live inside the haze source — no recursion).
+ * live blur when outside [LocalInsideHazeSource]; in-content surfaces never do.
  */
 enum class GlassLevel(val overlay: Boolean) {
     /** Cards/panels inside scrolling content. */
@@ -48,6 +57,18 @@ fun glassUsesLiveBlur(tier: PerformanceTier, level: GlassLevel): Boolean = when 
 fun glassUsesLiveBlur(tier: PerformanceTier, level: GlassLevel, blurRadius: Dp): Boolean =
     blurRadius > 0.dp && glassUsesLiveBlur(tier, level)
 
+/** Theme-aware overload checking specular shine and theme blur radius (`MATTE` = false). */
+fun glassUsesLiveBlur(tier: PerformanceTier, level: GlassLevel, theme: AppTheme): Boolean =
+    themeUsesSpecularShine(theme) && glassUsesLiveBlur(tier, level, CinetorTokens.of(theme).blur)
+
+/** Pure JVM-testable gate combining [LocalInsideHazeSource] cyclic-RenderNode immunity with tier/level/theme rules. */
+fun glassAllowsLiveBlur(
+    insideHazeSource: Boolean,
+    tier: PerformanceTier,
+    level: GlassLevel,
+    theme: AppTheme,
+): Boolean = !insideHazeSource && glassUsesLiveBlur(tier, level, theme)
+
 /** Opacity of the tinted fallback fill (no live blur). LOW is near-opaque (88%) for locked 60 fps. */
 internal fun fallbackFillAlpha(tier: PerformanceTier, level: GlassLevel): Float = when {
     tier == PerformanceTier.LOW || level.overlay -> 0.88f
@@ -56,7 +77,9 @@ internal fun fallbackFillAlpha(tier: PerformanceTier, level: GlassLevel): Float 
 
 /**
  * Liquid Glass optics:
- * - Live `Haze` backdrop blur (`hazeChild`, Haze 1.1.1) on allowed [overlay] levels when `tokens.blur > 0.dp`.
+ * - Live `Haze` backdrop blur (`hazeChild`, Haze 1.1.1) ONLY when `!LocalInsideHazeSource.current`,
+ *   `specular`, and `glassUsesLiveBlur(tier, level, Cinetor.theme)` (preventing `RenderNode` self-blur
+ *   crashes on Android 12–15 while keeping top/bottom bars live-blurred outside `AppBackground`).
  * - Tinted translucent fallback fill (88% alpha on `PerformanceTier.LOW` with zero live blur so 2 GB RAM
  *   phones stay at locked 60 fps).
  * - Cached single-pass drawn optics (`drawWithCache`): soft top inner highlight band (disabled in `MATTE`)
@@ -74,7 +97,7 @@ fun Modifier.glass(
     val specular = Cinetor.specularShine
     val isLight = tokens.isLight
     val isAura = theme == AppTheme.AURA
-    val live = specular && glassUsesLiveBlur(tier, level, tokens.blur)
+    val live = !LocalInsideHazeSource.current && specular && glassUsesLiveBlur(tier, level, Cinetor.theme)
 
     val tintSource = Cinetor.tint.let { if (it.enabled) it.source else null }
     val gleamHue = if (tintSource != null && tokens.tintStrength > 0f) {
