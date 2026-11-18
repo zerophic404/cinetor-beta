@@ -662,7 +662,13 @@ class GatewayV21FeaturesTest {
             for (token in bannedTokens) {
                 assertFalse("Banned row '$token' on HOME: ${row.title}", row.title.contains(token, ignoreCase = true))
             }
-            assertFalse("RowStyle.TOP10 must not be used on HOME: ${row.title}", row.style == RowStyle.TOP10)
+            if (row.style == RowStyle.TOP10) {
+                assertTrue("Only ranked charts use TOP10 on HOME: ${row.title}", row.title.startsWith("Top 10"))
+            }
+        }
+        // One ranked chart per HOME tab; Trending itself stays an unnumbered shelf.
+        for (cat in homeCats) {
+            assertEquals("Top 10 charts in ${cat.title}", 1, cat.rows.count { it.style == RowStyle.TOP10 })
         }
         val trending = homeCats.first().rows.first { it.title == "Trending Now" }
         assertEquals(RowStyle.POSTER, trending.style)

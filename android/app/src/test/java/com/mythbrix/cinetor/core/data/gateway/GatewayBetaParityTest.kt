@@ -175,9 +175,12 @@ class GatewayBetaParityTest {
         val cats = gw.categories(Space.ANIME)
         val animeRows = cats.first().rows
         assertEquals(
-            listOf("Trending Anime", "Latest Anime", "Top Rated Anime", "Animated Movies", "Cartoons"),
+            listOf("Trending Anime", "Top 10 Anime", "Latest Anime", "Animated Movies", "Cartoons"),
             animeRows.take(5).map { it.title },
         )
+        // "Top Rated Anime" is promoted to the ranked chart in the second slot.
+        assertEquals(RowStyle.TOP10, animeRows[1].style)
+        assertEquals(1, animeRows.count { it.style == RowStyle.TOP10 })
         val cartoons = animeRows.first { it.title == "Cartoons" }
         gw.row(cartoons.id)
         assertTrue(http.urls.last().contains("animation?"))
