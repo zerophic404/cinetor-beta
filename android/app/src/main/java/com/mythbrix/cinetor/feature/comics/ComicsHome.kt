@@ -16,15 +16,21 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.AutoStories
 import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.MenuBook
 import androidx.compose.material.icons.rounded.Search
@@ -36,11 +42,13 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TextField
 import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -59,27 +67,40 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import coil3.compose.AsyncImage
 import com.mythbrix.cinetor.core.data.AppContainer
+import com.mythbrix.cinetor.core.data.Category
 import com.mythbrix.cinetor.core.data.Item
+import com.mythbrix.cinetor.core.data.RowStyle
 import com.mythbrix.cinetor.core.data.Space
 import com.mythbrix.cinetor.core.data.comics.ComicKind
-import com.mythbrix.cinetor.core.ui.rememberSizedImage
+import com.mythbrix.cinetor.core.ui.CinetorArtwork
 import com.mythbrix.cinetor.design.Cinetor
 import com.mythbrix.cinetor.design.GlassLevel
 import com.mythbrix.cinetor.design.glass
-import com.mythbrix.cinetor.feature.home.SpaceScreen
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import java.util.Locale
+
+private data class ComicShelfData(
+    val id: String,
+    val title: String,
+    val ranked: Boolean,
+    val items: List<Item>,
+)
 
 /**
  * Comics hub (`Manga · Manhwa · Manhua`):
- * - Inline Liquid Glass live search across MangaDex + local offline fallback, filterable by kind.
- * - Dedicated Manga / Manhwa / Manhua tabs & shelves via [SpaceScreen].
- * - Floating Liquid Glass "Continue reading" capsule isolated from global Continue Watching.
+ * - Signed-gateway AniList shelves (`Trending`, `Popular`, `Top Rated`, `Recently Updated`) with offline fallback.
+ * - Inline Liquid Glass live search across Manga / Manhwa / Manhua.
+ * - Full comic title cleanly rendered underneath every cover thumbnail.
+ * - Floating "Continue reading" capsule isolated from global Continue Watching.
  */
 @Composable
 fun ComicsHome(container: AppContainer, contentPadding: PaddingValues, onOpenItem: (Item, String?) -> Unit) {
@@ -133,7 +154,7 @@ fun ComicsHome(container: AppContainer, contentPadding: PaddingValues, onOpenIte
         searching = false
     }
 
-    val continuePad = if (last != null) 68.dp else 0.dp
+    val continuePad = if (last != null) 72.dp else 0.dp
     Box(Modifier.fillMaxSize()) {
         Column(Modifier.fillMaxSize()) {
             Spacer(Modifier.height(contentPadding.calculateTopPadding()))
@@ -179,13 +200,9 @@ fun ComicsHome(container: AppContainer, contentPadding: PaddingValues, onOpenIte
             )
 
             if (query.isBlank()) {
-                SpaceScreen(
-                    space = Space.COMICS,
+                ComicsBrowseContent(
                     container = container,
-                    contentPadding = PaddingValues(
-                        top = 8.dp,
-                        bottom = contentPadding.calculateBottomPadding() + continuePad,
-                    ),
+                    bottomPadding = contentPadding.calculateBottomPadding() + continuePad + 16.dp,
                     onOpenItem = onOpenItem,
                 )
             } else {
@@ -194,7 +211,7 @@ fun ComicsHome(container: AppContainer, contentPadding: PaddingValues, onOpenIte
                     loading = searching,
                     selectedKind = selectedKind,
                     onSelectKind = { k -> kindFilterName = k?.name },
-                    bottomPadding = contentPadding.calculateBottomPadding() + continuePad,
+                    bottomPadding = contentPadding.calculateBottomPadding() + continuePad + 16.dp,
                     onOpen = { item -> onOpenItem(item, null) },
                 )
             }
@@ -204,9 +221,9 @@ fun ComicsHome(container: AppContainer, contentPadding: PaddingValues, onOpenIte
             Row(
                 Modifier
                     .align(Alignment.BottomCenter)
-                    .padding(bottom = contentPadding.calculateBottomPadding())
+                    .padding(bottom = contentPadding.calculateBottomPadding() + 6.dp)
                     .padding(horizontal = 20.dp)
-                    .glass(RoundedCornerShape(50), GlassLevel.BAR)
+                    .glass(RoundedCornerShape(50), GlassLevel.SURFACE)
                     .clickable {
                         scope.launch {
                             runCatching { container.catalog.item(last.comicId) }.getOrNull()
@@ -247,12 +264,361 @@ fun ComicsHome(container: AppContainer, contentPadding: PaddingValues, onOpenIte
 }
 
 @Composable
+private fun ComicsBrowseContent(
+    container: AppContainer,
+    bottomPadding: Dp,
+    onOpenItem: (Item, String?) -> Unit,
+) {
+    val tokens = Cinetor.tokens
+    var categories by remember { mutableStateOf<List<Category>>(emptyList()) }
+    var selectedTabIndex by rememberSaveable { mutableIntStateOf(0) }
+    var shelvesByCategory by remember { mutableStateOf<Map<String, List<ComicShelfData>>>(emptyMap()) }
+    var loadingCategories by remember { mutableStateOf(true) }
+    var loadingShelves by remember { mutableStateOf(false) }
+    var loadError by remember { mutableStateOf<String?>(null) }
+    var retryTick by remember { mutableIntStateOf(0) }
+
+    LaunchedEffect(container, retryTick) {
+        loadingCategories = true
+        loadError = null
+        try {
+            categories = container.catalog.categories(Space.COMICS)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (_: Exception) {
+            loadError = "Could not load comics catalog."
+        } finally {
+            loadingCategories = false
+        }
+    }
+
+    val activeCategory = categories.getOrNull(selectedTabIndex.coerceIn(0, (categories.size - 1).coerceAtLeast(0)))
+
+    LaunchedEffect(activeCategory?.id, retryTick) {
+        val cat = activeCategory ?: return@LaunchedEffect
+        if (shelvesByCategory[cat.id]?.isNotEmpty() == true) return@LaunchedEffect
+        loadingShelves = true
+        loadError = null
+        try {
+            val loaded = coroutineScope {
+                cat.rows.map { row ->
+                    async {
+                        val list = runCatching { container.catalog.row(row.id) }.getOrDefault(emptyList())
+                        if (list.isEmpty()) {
+                            null
+                        } else {
+                            ComicShelfData(
+                                id = row.id,
+                                title = row.title,
+                                ranked = row.style == RowStyle.TOP10,
+                                items = list,
+                            )
+                        }
+                    }
+                }.awaitAll().filterNotNull()
+            }
+            if (loaded.isNotEmpty()) {
+                shelvesByCategory = shelvesByCategory + (cat.id to loaded)
+            } else {
+                loadError = "No titles available right now."
+            }
+        } catch (e: CancellationException) {
+            throw e
+        } catch (_: Exception) {
+            loadError = "Could not load ${cat.title} shelves."
+        } finally {
+            loadingShelves = false
+        }
+    }
+
+    val activeShelves = activeCategory?.let { shelvesByCategory[it.id] }.orEmpty()
+    val featuredItem = remember(activeShelves) {
+        activeShelves.asSequence().flatMap { it.items.asSequence() }.firstOrNull { it.poster.isNotBlank() }
+            ?: activeShelves.firstOrNull()?.items?.firstOrNull()
+    }
+
+    Column(Modifier.fillMaxSize()) {
+        // Segmented Manga · Manhwa · Manhua tabs (preserves exact "Tab Manga", "Tab Manhwa", "Tab Manhua" semantics)
+        val tabTitles = if (categories.isNotEmpty()) {
+            categories.map { it.title }
+        } else {
+            ComicKind.entries.map { it.title }
+        }
+        Row(
+            Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 10.dp)
+                .glass(RoundedCornerShape(16.dp), GlassLevel.SURFACE)
+                .padding(4.dp),
+            horizontalArrangement = Arrangement.spacedBy(4.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            tabTitles.forEachIndexed { index, title ->
+                val selected = index == selectedTabIndex
+                Box(
+                    Modifier
+                        .weight(1f)
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(if (selected) tokens.accent else Color.Transparent)
+                        .clickable { selectedTabIndex = index }
+                        .semantics { contentDescription = "Tab $title" }
+                        .padding(vertical = 9.dp),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Text(
+                        text = title,
+                        style = MaterialTheme.typography.labelLarge,
+                        fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
+                        color = if (selected) tokens.onAccent else tokens.textPrimary,
+                        maxLines = 1,
+                    )
+                }
+            }
+        }
+
+        when {
+            (loadingCategories || loadingShelves) && activeShelves.isEmpty() -> {
+                Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    CircularProgressIndicator(color = tokens.accent)
+                }
+            }
+            loadError != null && activeShelves.isEmpty() -> {
+                Box(Modifier.fillMaxSize().padding(24.dp), contentAlignment = Alignment.Center) {
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.spacedBy(10.dp),
+                    ) {
+                        Text(loadError.orEmpty(), color = tokens.textSecondary, style = MaterialTheme.typography.bodyMedium)
+                        TextButton(onClick = {
+                            shelvesByCategory = emptyMap()
+                            retryTick += 1
+                        }) {
+                            Text("Retry", color = tokens.accent, fontWeight = FontWeight.SemiBold)
+                        }
+                    }
+                }
+            }
+            else -> {
+                LazyColumn(
+                    contentPadding = PaddingValues(bottom = bottomPadding),
+                    verticalArrangement = Arrangement.spacedBy(20.dp),
+                    modifier = Modifier.fillMaxSize(),
+                ) {
+                    if (featuredItem != null) {
+                        item(key = "featured-${featuredItem.id}") {
+                            ComicFeaturedBanner(
+                                item = featuredItem,
+                                onOpen = { onOpenItem(featuredItem, null) },
+                            )
+                        }
+                    }
+
+                    items(activeShelves, key = { it.id }) { shelf ->
+                        ComicShelfSection(
+                            shelf = shelf,
+                            onOpen = { item -> onOpenItem(item, null) },
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun ComicFeaturedBanner(
+    item: Item,
+    onOpen: () -> Unit,
+) {
+    val tokens = Cinetor.tokens
+    val shape = RoundedCornerShape(20.dp)
+    val kindLabel = comicBadgeLabel(item)
+
+    Box(
+        Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp)
+            .height(228.dp)
+            .clip(shape)
+            .background(tokens.surfaceElevated)
+            .border(1.dp, tokens.glassStroke, shape)
+            .clickable(onClick = onOpen)
+            .semantics { contentDescription = "Featured ${item.title}" },
+    ) {
+        CinetorArtwork(
+            seedKey = item.id,
+            path = item.backdrop.ifBlank { item.poster },
+            width = 380.dp,
+            height = 228.dp,
+            large = true,
+            contentScale = ContentScale.Crop,
+            modifier = Modifier.fillMaxSize(),
+        )
+        Box(
+            Modifier
+                .fillMaxSize()
+                .background(
+                    Brush.horizontalGradient(
+                        0f to Color.Black.copy(alpha = 0.86f),
+                        0.62f to Color.Black.copy(alpha = 0.68f),
+                        1f to Color.Black.copy(alpha = 0.38f),
+                    ),
+                ),
+        )
+        Row(
+            Modifier
+                .fillMaxSize()
+                .padding(16.dp),
+            horizontalArrangement = Arrangement.spacedBy(14.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Box(
+                Modifier
+                    .width(106.dp)
+                    .aspectRatio(2f / 3f)
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(tokens.skeletonBase)
+                    .border(1.dp, Color.White.copy(alpha = 0.18f), RoundedCornerShape(12.dp)),
+            ) {
+                CinetorArtwork(
+                    seedKey = item.id,
+                    path = item.poster,
+                    width = 106.dp,
+                    height = 159.dp,
+                    fallbackTitle = item.title,
+                    modifier = Modifier.fillMaxSize(),
+                )
+            }
+
+            Column(
+                Modifier.weight(1f),
+                verticalArrangement = Arrangement.spacedBy(6.dp),
+            ) {
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text(
+                        text = kindLabel.uppercase(Locale.US),
+                        style = MaterialTheme.typography.labelSmall,
+                        fontWeight = FontWeight.Bold,
+                        color = tokens.onAccent,
+                        modifier = Modifier
+                            .clip(CircleShape)
+                            .background(tokens.accent)
+                            .padding(horizontal = 8.dp, vertical = 3.dp),
+                    )
+                    if (item.rating > 0.0) {
+                        Text(
+                            text = "★ %.1f".format(Locale.US, item.rating),
+                            style = MaterialTheme.typography.labelSmall,
+                            fontWeight = FontWeight.SemiBold,
+                            color = Color(0xFFFFD54F),
+                        )
+                    }
+                    if (!item.artist.isNullOrBlank()) {
+                        Text(
+                            text = "· ${item.artist}",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = Color.White.copy(alpha = 0.75f),
+                            maxLines = 1,
+                        )
+                    }
+                }
+
+                Text(
+                    text = item.title,
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = Color.White,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                )
+
+                if (item.synopsis.isNotBlank()) {
+                    Text(
+                        text = item.synopsis,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = Color.White.copy(alpha = 0.78f),
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                } else if (item.genres.isNotEmpty()) {
+                    Text(
+                        text = item.genres.take(3).joinToString(" · "),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = Color.White.copy(alpha = 0.78f),
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
+
+                Spacer(Modifier.height(2.dp))
+
+                Row(
+                    Modifier
+                        .clip(CircleShape)
+                        .background(Color.White.copy(alpha = 0.16f))
+                        .border(1.dp, Color.White.copy(alpha = 0.24f), CircleShape)
+                        .padding(horizontal = 12.dp, vertical = 6.dp),
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Icon(
+                        Icons.Rounded.AutoStories,
+                        contentDescription = null,
+                        tint = Color.White,
+                        modifier = Modifier.size(15.dp),
+                    )
+                    Text(
+                        text = "Open Chapters",
+                        style = MaterialTheme.typography.labelMedium,
+                        fontWeight = FontWeight.SemiBold,
+                        color = Color.White,
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun ComicShelfSection(
+    shelf: ComicShelfData,
+    onOpen: (Item) -> Unit,
+) {
+    val tokens = Cinetor.tokens
+    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        Text(
+            text = shelf.title,
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.Bold,
+            color = tokens.textPrimary,
+            modifier = Modifier.padding(horizontal = 16.dp),
+        )
+        LazyRow(
+            contentPadding = PaddingValues(horizontal = 16.dp),
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            itemsIndexed(shelf.items, key = { _, item -> "${shelf.id}:${item.id}" }) { idx, item ->
+                ComicPosterCard(
+                    item = item,
+                    rank = if (shelf.ranked) idx + 1 else null,
+                    onClick = { onOpen(item) },
+                    modifier = Modifier.width(128.dp),
+                )
+            }
+        }
+    }
+}
+
+@Composable
 private fun ComicsSearchResults(
     results: List<Item>,
     loading: Boolean,
     selectedKind: ComicKind?,
     onSelectKind: (ComicKind?) -> Unit,
-    bottomPadding: androidx.compose.ui.unit.Dp,
+    bottomPadding: Dp,
     onOpen: (Item) -> Unit,
 ) {
     val tokens = Cinetor.tokens
@@ -312,25 +678,35 @@ private fun ComicsSearchResults(
                 modifier = Modifier.fillMaxSize(),
             ) {
                 items(results, key = { it.id }) { item ->
-                    ComicSearchCard(item = item, onClick = { onOpen(item) })
+                    ComicPosterCard(
+                        item = item,
+                        rank = null,
+                        onClick = { onOpen(item) },
+                        modifier = Modifier.fillMaxWidth(),
+                    )
                 }
             }
         }
     }
 }
 
+/**
+ * Shared Comics thumbnail card used across every browse shelf and search grid:
+ * renders crisp 2:3 cover art + format/rank/rating pills + visible 2-line title underneath.
+ */
 @Composable
-private fun ComicSearchCard(item: Item, onClick: () -> Unit) {
+private fun ComicPosterCard(
+    item: Item,
+    rank: Int?,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
     val tokens = Cinetor.tokens
     val shape = RoundedCornerShape(12.dp)
-    val badge = when {
-        item.categoryId.endsWith("manhwa") -> "Manhwa"
-        item.categoryId.endsWith("manhua") -> "Manhua"
-        else -> "Manga"
-    }
+    val badge = comicBadgeLabel(item)
+
     Column(
-        Modifier
-            .fillMaxWidth()
+        modifier
             .clickable(onClick = onClick)
             .semantics { contentDescription = item.title },
     ) {
@@ -342,40 +718,74 @@ private fun ComicSearchCard(item: Item, onClick: () -> Unit) {
                 .background(tokens.skeletonBase)
                 .border(1.dp, tokens.glassStroke, shape),
         ) {
-            AsyncImage(
-                model = rememberSizedImage(item.poster, 124.dp, 186.dp),
-                contentDescription = null,
-                contentScale = ContentScale.Crop,
+            CinetorArtwork(
+                seedKey = item.id,
+                path = item.poster,
+                width = 128.dp,
+                height = 192.dp,
+                fallbackTitle = item.title,
                 modifier = Modifier.fillMaxSize(),
             )
             Box(
                 Modifier
                     .fillMaxWidth()
-                    .height(48.dp)
+                    .height(44.dp)
                     .align(Alignment.BottomCenter)
-                    .background(Brush.verticalGradient(listOf(Color.Transparent, Color.Black.copy(alpha = 0.7f)))),
+                    .background(Brush.verticalGradient(listOf(Color.Transparent, Color.Black.copy(alpha = 0.65f)))),
             )
             Text(
-                badge,
+                text = if (rank != null) "#$rank" else badge,
                 style = MaterialTheme.typography.labelSmall,
-                fontWeight = FontWeight.SemiBold,
-                color = Color.White,
+                fontWeight = FontWeight.Bold,
+                color = if (rank != null) tokens.onAccent else Color.White,
                 modifier = Modifier
                     .align(Alignment.TopStart)
                     .padding(6.dp)
                     .clip(CircleShape)
-                    .background(Color.Black.copy(alpha = 0.65f))
+                    .background(if (rank != null) tokens.accent else Color.Black.copy(alpha = 0.68f))
                     .padding(horizontal = 8.dp, vertical = 3.dp),
             )
+            if (item.rating > 0.0) {
+                Text(
+                    text = "★ %.1f".format(Locale.US, item.rating),
+                    style = MaterialTheme.typography.labelSmall,
+                    fontWeight = FontWeight.SemiBold,
+                    color = Color(0xFFFFD54F),
+                    modifier = Modifier
+                        .align(Alignment.TopEnd)
+                        .padding(6.dp)
+                        .clip(CircleShape)
+                        .background(Color.Black.copy(alpha = 0.72f))
+                        .padding(horizontal = 7.dp, vertical = 2.dp),
+                )
+            }
         }
         Text(
-            item.title,
+            text = item.title,
             style = MaterialTheme.typography.labelLarge,
             fontWeight = FontWeight.SemiBold,
             color = tokens.textPrimary,
             maxLines = 2,
+            minLines = 2,
             overflow = TextOverflow.Ellipsis,
             modifier = Modifier.padding(top = 6.dp),
         )
+        val sub = item.genres.firstOrNull() ?: item.artist ?: item.year.takeIf { it > 0 }?.toString()
+        if (!sub.isNullOrBlank()) {
+            Text(
+                text = sub,
+                style = MaterialTheme.typography.bodySmall,
+                color = tokens.textSecondary,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.padding(top = 2.dp),
+            )
+        }
     }
+}
+
+private fun comicBadgeLabel(item: Item): String = when {
+    item.categoryId.endsWith("manhwa") -> "Manhwa"
+    item.categoryId.endsWith("manhua") -> "Manhua"
+    else -> "Manga"
 }

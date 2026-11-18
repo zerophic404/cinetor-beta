@@ -67,9 +67,9 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil3.compose.AsyncImage
 import com.mythbrix.cinetor.core.data.AppContainer
-import com.mythbrix.cinetor.core.data.AssetUris
 import com.mythbrix.cinetor.core.data.Chapter
 import com.mythbrix.cinetor.core.data.Item
+import com.mythbrix.cinetor.core.ui.CinetorArtwork
 import com.mythbrix.cinetor.core.ui.rememberSizedImage
 import com.mythbrix.cinetor.design.Cinetor
 import com.mythbrix.cinetor.design.GlassLevel
@@ -417,10 +417,13 @@ fun ComicDetails(id: String, container: AppContainer, contentPadding: PaddingVal
 private fun ComicHeader(item: Item?, summary: ComicReadSummary?, contentPadding: PaddingValues) {
     val tokens = Cinetor.tokens
     Box(Modifier.fillMaxWidth().height(340.dp)) {
-        if (item != null && item.backdrop.isNotBlank()) {
-            AsyncImage(
-                model = AssetUris.of(item.backdrop),
-                contentDescription = null,
+        if (item != null) {
+            CinetorArtwork(
+                seedKey = item.id,
+                path = item.backdrop.ifBlank { item.poster },
+                width = 412.dp,
+                height = 340.dp,
+                large = true,
                 contentScale = ContentScale.Crop,
                 modifier = Modifier.fillMaxSize(),
             )
@@ -428,8 +431,8 @@ private fun ComicHeader(item: Item?, summary: ComicReadSummary?, contentPadding:
         Box(
             Modifier.fillMaxSize().background(
                 Brush.verticalGradient(
-                    0f to Color.Black.copy(alpha = 0.35f),
-                    0.5f to tokens.bg.copy(alpha = 0.45f),
+                    0f to Color.Black.copy(alpha = 0.38f),
+                    0.5f to tokens.bg.copy(alpha = 0.52f),
                     1f to tokens.bg,
                 ),
             ),
@@ -450,16 +453,19 @@ private fun ComicHeader(item: Item?, summary: ComicReadSummary?, contentPadding:
                     .background(tokens.skeletonBase)
                     .border(1.dp, tokens.glassStroke, RoundedCornerShape(14.dp)),
             ) {
-                if (item != null && item.poster.isNotBlank()) {
-                    AsyncImage(
-                        model = rememberSizedImage(item.poster, 112.dp, 168.dp),
+                if (item != null) {
+                    CinetorArtwork(
+                        seedKey = item.id,
+                        path = item.poster,
+                        width = 112.dp,
+                        height = 168.dp,
                         contentDescription = item.title,
-                        contentScale = ContentScale.Crop,
+                        fallbackTitle = item.title,
                         modifier = Modifier.fillMaxSize(),
                     )
                 }
             }
-            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            Column(verticalArrangement = Arrangement.spacedBy(5.dp)) {
                 Text(
                     item?.title ?: "",
                     style = MaterialTheme.typography.titleLarge,
@@ -468,12 +474,19 @@ private fun ComicHeader(item: Item?, summary: ComicReadSummary?, contentPadding:
                     maxLines = 3,
                     overflow = TextOverflow.Ellipsis,
                 )
-                item?.artist?.let {
-                    Text(it, style = MaterialTheme.typography.bodyMedium, color = tokens.textSecondary)
+                item?.altTitle?.takeIf { it.isNotBlank() && !it.equals(item.title, ignoreCase = true) }?.let { alt ->
+                    Text(
+                        alt,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = tokens.textSecondary,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
                 }
                 if (item != null) {
                     val metaParts = buildList {
                         add(categoryLabel(item))
+                        if (!item.artist.isNullOrBlank()) add(item.artist)
                         if (item.year > 0) add(item.year.toString())
                         if (item.rating > 0.0) add("★ %.1f".format(java.util.Locale.US, item.rating))
                         if (item.maturity.isNotBlank() && item.maturity != "All") add(item.maturity)

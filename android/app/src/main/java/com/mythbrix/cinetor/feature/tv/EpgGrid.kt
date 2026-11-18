@@ -39,6 +39,7 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import coil3.compose.AsyncImage
@@ -47,8 +48,8 @@ import com.mythbrix.cinetor.core.ui.rememberSizedImage
 import com.mythbrix.cinetor.design.Cinetor
 import com.mythbrix.cinetor.design.hexColor
 
-private val ChannelColWidth = 92.dp
-private val RowHeight = 62.dp
+private val ChannelColWidth = 98.dp
+private val RowHeight = 66.dp
 private const val DP_PER_MIN = 4f
 private const val WINDOW_HOURS = 6
 
@@ -83,8 +84,10 @@ fun EpgGrid(
         Row(Modifier.fillMaxWidth().height(30.dp)) {
             Box(Modifier.width(ChannelColWidth).fillMaxHeight(), contentAlignment = Alignment.Center) {
                 Text(
-                    "Now ${formatClock(nowSec, tz)}", color = tokens.accent,
-                    style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold,
+                    "Now ${formatClock(nowSec, tz)}",
+                    color = tokens.accent,
+                    style = MaterialTheme.typography.labelMedium,
+                    fontWeight = FontWeight.Bold,
                 )
             }
             Box(Modifier.weight(1f).fillMaxHeight().horizontalScroll(hScroll)) {
@@ -141,23 +144,43 @@ private fun ChannelCell(ch: Item, favorite: Boolean, onClick: () -> Unit) {
             .fillMaxHeight()
             .padding(end = 4.dp, start = 6.dp)
             .clip(RoundedCornerShape(10.dp))
-            .background(dominant.copy(alpha = 0.55f))
+            .background(dominant.copy(alpha = 0.65f))
+            .border(1.dp, Cinetor.tokens.glassStroke, RoundedCornerShape(10.dp))
             .clickable(onClick = onClick)
             .semantics { contentDescription = "Guide channel ${ch.channelNumber ?: ""}" },
     ) {
         AsyncImage(
-            model = rememberSizedImage(ch.logo ?: ch.poster, 80.dp, 40.dp),
+            model = rememberSizedImage(ch.logo ?: ch.poster, 72.dp, 32.dp),
             contentDescription = null,
             contentScale = ContentScale.Fit,
-            modifier = Modifier.fillMaxSize().padding(horizontal = 10.dp, vertical = 12.dp),
+            modifier = Modifier
+                .align(Alignment.TopCenter)
+                .padding(top = 10.dp, start = 10.dp, end = 10.dp)
+                .height(26.dp),
         )
         Text(
-            "${ch.channelNumber ?: ""}", color = Color.White, style = MaterialTheme.typography.labelSmall,
-            modifier = Modifier.align(Alignment.TopStart).padding(4.dp),
+            ch.title,
+            color = Color.White,
+            style = MaterialTheme.typography.labelSmall,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            textAlign = TextAlign.Center,
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .fillMaxWidth()
+                .padding(horizontal = 4.dp, vertical = 3.dp),
+        )
+        Text(
+            "${ch.channelNumber ?: ""}",
+            color = Color.White.copy(alpha = 0.85f),
+            style = MaterialTheme.typography.labelSmall,
+            modifier = Modifier.align(Alignment.TopStart).padding(3.dp),
         )
         if (favorite) {
             Icon(
-                Icons.Rounded.Star, contentDescription = null, tint = Color(0xFFFFC233),
+                Icons.Rounded.Star,
+                contentDescription = null,
+                tint = Color(0xFFFFC233),
                 modifier = Modifier.align(Alignment.TopEnd).padding(3.dp).size(12.dp),
             )
         }
@@ -194,12 +217,15 @@ private fun ProgramBlock(block: EpgBlock, nowSec: Long, tz: Int, onClick: () -> 
                 color = if (past) tokens.textTertiary else tokens.textPrimary,
                 style = MaterialTheme.typography.labelLarge,
                 fontWeight = if (airing) FontWeight.Bold else FontWeight.Medium,
-                maxLines = 1, overflow = TextOverflow.Ellipsis,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
             )
             Text(
                 "${formatClock(block.startSec, tz)}–${formatClock(block.endSec, tz)}" + (block.program.genre?.let { " · $it" } ?: ""),
-                color = tokens.textSecondary, style = MaterialTheme.typography.labelSmall,
-                maxLines = 1, overflow = TextOverflow.Ellipsis,
+                color = tokens.textSecondary,
+                style = MaterialTheme.typography.labelSmall,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
             )
         }
     }

@@ -66,7 +66,7 @@ class TvRepository(
         val d = _data.value ?: return listOf(item)
         return when {
             item.type == ItemType.CHANNEL -> d.channels
-            item.type == ItemType.EVENT && item.status == EventStatus.LIVE -> d.liveEvents
+            item.type == ItemType.EVENT && item.status == EventStatus.LIVE -> d.liveEvents.ifEmpty { listOf(item) }
             else -> listOf(item)
         }
     }

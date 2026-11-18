@@ -59,7 +59,7 @@ data class ComicReadSummary(
 }
 
 object ComicIds {
-    /** Mock comic ids (`co-ma-001`, `co-mw-…`, `co-mh-…`) and MangaDex ids (`cm:<uuid>`). */
+    /** Mock comic ids (`co-ma-001`, `co-mw-…`, `co-mh-…`), AniList gateway ids (`cm:al:<id>`) and MangaDex ids (`cm:<uuid>`). */
     fun isComic(id: String): Boolean = id.startsWith("co-") || id.startsWith("cm:")
 }
 
@@ -82,7 +82,7 @@ fun comicReadSummary(chapters: List<Chapter>, data: ComicsData, comicId: String)
     var inProgress = 0
     for (ch in chapters) {
         val p = byChapter[ch.id] ?: continue
-        if (p.read) read++ else inProgress++
+        if (p.read) read += 1 else inProgress += 1
     }
     return ComicReadSummary(read, inProgress, chapters.size)
 }
@@ -147,9 +147,10 @@ fun preloadPages(chapters: List<Chapter>, chapterIndex: Int, page: Int, count: I
     while (out.size < count && c < chapters.size) {
         val pages = chapters[c].pages
         if (p < pages.size) {
-            out += pages[p++]
+            out += pages[p]
+            p += 1
         } else {
-            c++
+            c += 1
             p = 0
         }
     }

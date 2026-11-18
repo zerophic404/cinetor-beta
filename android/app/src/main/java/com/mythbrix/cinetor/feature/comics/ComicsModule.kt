@@ -11,6 +11,7 @@ import com.mythbrix.cinetor.core.data.Chapter
 import com.mythbrix.cinetor.core.data.HistoryStorage
 import com.mythbrix.cinetor.core.data.Item
 import com.mythbrix.cinetor.core.data.comics.MangaDexCatalogSource
+import com.mythbrix.cinetor.core.data.gateway.GatewaySigner
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -48,8 +49,8 @@ sealed interface ChapterDownload {
 
 /**
  * Chapter downloads: pages copied into app-private storage (`files/comics/<comic>/<chapter>/NNN.ext` + `.done`
- * marker). The reader prefers local pages, so downloaded chapters read offline. Remote MangaDex chapters resolve
- * their page URLs lazily via [resolvePages] and fall back to compressed `data-saver` URLs via [fallbackUrl].
+ * marker). The reader prefers local pages, so downloaded chapters read offline. Remote gateway chapters resolve
+ * their page URLs lazily via [resolvePages] and fall back to backup URLs via [fallbackUrl].
  */
 class ComicDownloads(
     private val root: File,
@@ -74,8 +75,9 @@ class ComicDownloads(
     private fun dir(comicId: String, chapterId: String) = File(File(root, safe(comicId)), safe(chapterId))
 
     private fun pageFile(comicId: String, chapterId: String, index: Int, path: String): File {
-        val cleanPath = path.substringBefore('?')
-        val ext = cleanPath.substringAfterLast('.', "img").take(5).ifBlank { "img" }
+        val segment = path.substringBefore('?').substringAfterLast('/')
+        val rawExt = if ('.' in segment) segment.substringAfterLast('.') else "img"
+        val ext = rawExt.filter { it.isLetterOrDigit() }.take(5).ifBlank { "img" }
         return File(dir(comicId, chapterId), "%03d.%s".format(index, ext))
     }
 
@@ -95,7 +97,7 @@ class ComicDownloads(
     fun pageModel(comicId: String, chapter: Chapter, index: Int): Any =
         localPage(comicId, chapter, index) ?: chapter.pages.getOrNull(index)?.let(AssetUris::of).orEmpty()
 
-    /** Compressed data-saver backup URL for a primary page URL when known. */
+    /** Compressed data-saver or raw CDN backup URL for a primary page URL when known. */
     fun backupPageUrl(url: String): String? = fallbackUrl?.invoke(url)
 
     fun download(comic: Item, chapter: Chapter) {
@@ -167,7 +169,7 @@ data class ReaderRequest(val comic: Item, val chapterId: String?)
 class ComicsModule(
     context: Context,
     scope: CoroutineScope,
-    /** Resolves a chapter's page URLs on demand (MangaDex); mock chapters already carry theirs. */
+    /** Resolves a chapter's page URLs on demand (gateway / MangaDex); mock chapters already carry theirs. */
     val pageResolver: (suspend (Chapter) -> List<String>)? = null,
 ) {
     private val appContext = context.applicationContext
@@ -180,7 +182,7 @@ class ComicsModule(
 
     val store: ComicsStore = ComicsStore(ComicsDataStore(appContext), scope)
 
-    /** Attaches [MangaDexCatalogSource] for data-saver page mirrors and alternate host/chapter fallback. */
+    /** Attaches [MangaDexCatalogSource] for data-saver page mirrors, Referer headers, and alternate chapter fallback. */
     fun attachCatalog(catalog: MangaDexCatalogSource, dataSaver: () -> Boolean = { false }) {
         catalogRef = catalog
         dataSaverPref = dataSaver
@@ -189,6 +191,8 @@ class ComicsModule(
     fun isDefaultDataSaver(): Boolean = dataSaverPref()
 
     fun fallbackUrlFor(url: String): String? = catalogRef?.fallbackUrlFor(url)
+
+    fun refererFor(url: String): String? = catalogRef?.refererFor(url)
 
     val fallbackPageResolver: (suspend (Chapter, Boolean, Boolean) -> List<String>)?
         get() = { chapter, dataSaver, preferBackup ->
@@ -209,7 +213,8 @@ class ComicsModule(
                 val conn = (java.net.URL(path).openConnection() as java.net.HttpURLConnection).apply {
                     connectTimeout = 10_000
                     readTimeout = 15_000
-                    setRequestProperty("User-Agent", "CinetorApp/1.0")
+                    setRequestProperty("User-Agent", GatewaySigner.BROWSER_USER_AGENT)
+                    refererFor(path)?.let { ref -> setRequestProperty("Referer", ref) }
                 }
                 conn.inputStream
             } else {
