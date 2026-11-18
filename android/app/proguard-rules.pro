@@ -24,10 +24,11 @@
 -keepclassmembers class <1> {
     static <1>$Companion Companion;
     static kotlinx.serialization.KSerializer serializer(...);
-    <init>(..., kotlinx.serialization.internal.SerializationConstructorMarker);
+    <init>(...);
     static *** write$Self*(...);
     <fields>;
 }
+-keep class kotlinx.serialization.internal.SerializationConstructorMarker
 -keepclasseswithmembers class * {
     @kotlinx.serialization.* <fields>;
 }
