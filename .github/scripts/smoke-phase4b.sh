@@ -27,32 +27,39 @@ pin_enter() {
 }
 
 echo "== phase 4b: comics =="
-open_space "Comics" && shot 50-comics-home 5
-adb shell input tap $((W/2)) $((H/3)); shot 51-comic-details-loading 1
-shot 52-comic-details 3
-if tap_desc "Read"; then
-  shot 53-reader-manga-rtl 4
-  # RTL: swipe left→right turns to the NEXT page
-  adb shell input swipe $((W/5)) $((H/2)) $((W*4/5)) $((H/2)) 250; shot 54-reader-manga-page2 3
-  adb shell input tap $((W/2)) $((H/2)); shot 55-reader-manga-ui 2
-  tap_desc "Reader settings" && shot 56-reader-settings 2
-  adb shell input keyevent KEYCODE_BACK; sleep 1                    # close reader
-fi
-shot 57-comic-details-progress 2
-adb shell input keyevent KEYCODE_BACK; sleep 2                      # details → comics home
-if tap_desc "Tab Manhwa"; then
-  shot 58-comics-manhwa 4
-  adb shell input tap $((W/2)) $((H/3)); sleep 4
+# Return to main shell first if still inside Music space
+tap_text "Video" >/dev/null 2>&1 || true
+sleep 1
+if open_space "Comics"; then
+  shot 50-comics-home 6
+  adb shell input tap $((W/2)) $((H/3)); shot 51-comic-details-loading 1
+  shot 52-comic-details 4
   if tap_desc "Read"; then
-    shot 59-reader-manhwa-vertical 4
-    adb shell input swipe $((W/2)) $((H*3/4)) $((W/2)) $((H/4)) 300; shot 60-reader-manhwa-scrolled 3
-    adb shell input keyevent KEYCODE_BACK; sleep 1
+    shot 53-reader-manga-rtl 4
+    # RTL: swipe left→right turns to the NEXT page
+    adb shell input swipe $((W/5)) $((H/2)) $((W*4/5)) $((H/2)) 250; shot 54-reader-manga-page2 3
+    adb shell input tap $((W/2)) $((H/2)); shot 55-reader-manga-ui 2
+    tap_desc "Reader settings" && { shot 56-reader-settings 2; adb shell input keyevent KEYCODE_BACK; sleep 1; }
+    adb shell input keyevent KEYCODE_BACK; sleep 1                  # close reader
   fi
-  adb shell input keyevent KEYCODE_BACK; sleep 2
+  shot 57-comic-details-progress 2
+  adb shell input keyevent KEYCODE_BACK; sleep 2                    # details → comics home
+  if tap_desc "Tab Manhwa"; then
+    shot 58-comics-manhwa 4
+    adb shell input tap $((W/2)) $((H/3)); sleep 4
+    if tap_desc "Read"; then
+      shot 59-reader-manhwa-vertical 4
+      adb shell input swipe $((W/2)) $((H*3/4)) $((W/2)) $((H/4)) 300; shot 60-reader-manhwa-scrolled 3
+      adb shell input keyevent KEYCODE_BACK; sleep 1
+    fi
+    adb shell input keyevent KEYCODE_BACK; sleep 2
+  fi
 fi
+ensure_fg
 
 echo "== phase 4b: adult gate (gateway 18+) =="
-adb shell input keyevent KEYCODE_BACK; sleep 1
+tap_text "Video" || adb shell input keyevent KEYCODE_BACK; sleep 2
+ensure_fg
 tap_text "Me" || adb shell input tap $(( W * 9 / 10 )) $BAR_Y; sleep 2
 # Settings is below the Spaces card on Me → scroll until it is on screen.
 find_desc() { # $1 = content-desc; swipes up to 8 times
@@ -67,7 +74,7 @@ if find_desc "Settings"; then
   sleep 2
   if find_desc "Toggle 18+ section"; then
     shot 61-adult-age-confirm 2
-    if tap_desc "I am 18 or older" || tap_text "I am 18+"; then
+    if tap_desc "I am 18 or older" || tap_text "I am 18 or older" || tap_text "I am 18+"; then
       shot 62-adult-set-pin 2
       pin_enter 1234; sleep 1
       shot 63-adult-confirm-pin 1
@@ -76,11 +83,15 @@ if find_desc "Settings"; then
     fi
   fi
   adb shell input keyevent KEYCODE_BACK; sleep 2
+  ensure_fg
 fi
 adult_check() {
-  if ! adb shell pidof "$PKG" >/dev/null 2>&1 || adb logcat -d | grep -q "FATAL EXCEPTION"; then
+  local lc
+  lc=$(timeout 10 adb logcat -d 2>/dev/null || true)
+  if ! alive || echo "$lc" | grep -A35 -E "FATAL EXCEPTION|E AndroidRuntime:" | grep -q "$PKG" \
+     || echo "$lc" | grep -qE "F DEBUG.*$PKG|Fatal signal.*mythbrix\.cinetor"; then
     echo "::error::CRASH in adult flow at $1"
-    adb logcat -d | grep -A40 "FATAL EXCEPTION" | head -80 | tee "$OUT/adult-crash.txt"
+    echo "$lc" | grep -A40 -E "FATAL EXCEPTION|E AndroidRuntime:|F DEBUG|Fatal signal" | head -80 | tee "$OUT/adult-crash.txt"
     adb logcat -d '*:E' > "$OUT/adult-logcat-errors.txt" 2>/dev/null || true
     return 1
   fi
@@ -99,6 +110,7 @@ if open_space "18+"; then
   adult_check back
   adb shell dumpsys window | grep -iE "FLAG_SECURE|fl=.*SECURE" | head -3 || true
   adb logcat -d '*:E' > "$OUT/adult-logcat-errors.txt" 2>/dev/null || true
-  adb shell input keyevent KEYCODE_BACK; sleep 2                  # → Me
+  tap_text "Video" || adb shell input keyevent KEYCODE_BACK; sleep 2
+  ensure_fg
 fi
 shot 69-phase4b-end 1

@@ -9,11 +9,13 @@ import { DebugLog, GENERIC, report, scrub, userMessage } from './errors';
 import { memoryKV } from './data/kv';
 import { ownershipNotice, verifyOwnership } from './legal/notice';
 import { GATEWAY_DEFAULT } from './data/gateway';
-import { MD_API } from './comics/mangadex';
+import * as mangadexMod from './comics/mangadex';
 import { isLocalMediaUrl } from './player/sources';
 import { clampMiniWidth, miniFrac, miniHeight, MINI_MAX_FRAC, MINI_MIN_FRAC } from './player/mini-math';
 
 const SRC = fileURLToPath(new URL('../', import.meta.url));
+const rawMdApi = (mangadexMod as Record<string, unknown>).MD_API;
+const MD_HOST = typeof rawMdApi === 'string' && rawMdApi.startsWith('http') ? new URL(rawMdApi).host : 'api.mangadex.org';
 
 function walk(dir: string, out: string[] = []): string[] {
   for (const e of readdirSync(dir)) {
@@ -33,13 +35,23 @@ function template(src: string): string {
 }
 
 describe('no endpoint leakage in the UI', () => {
-  it('gateway + comics base URLs never appear in a Svelte template', () => {
+  it('gateway + comics base URLs and signing secrets never appear in a Svelte template', () => {
     const host = new URL(GATEWAY_DEFAULT).host;
-    const mdHost = new URL(MD_API).host;
     const bad: string[] = [];
     for (const f of svelte) {
       const t = template(readFileSync(f, 'utf8'));
-      if (t.includes(host) || t.includes(mdHost) || t.includes('GATEWAY_DEFAULT') || /antiblock/i.test(t)) bad.push(f.slice(SRC.length));
+      if (
+        t.includes(host) ||
+        t.includes(MD_HOST) ||
+        t.includes('GATEWAY_DEFAULT') ||
+        t.includes('__GATEWAY_SECRET__') ||
+        t.includes('GATEWAY_SIGNING_SECRET') ||
+        t.includes('PUBLIC_GATEWAY_SECRET') ||
+        t.includes('X-App-Signature') ||
+        /antiblock/i.test(t)
+      ) {
+        bad.push(f.slice(SRC.length));
+      }
     }
     expect(bad).toEqual([]);
   });

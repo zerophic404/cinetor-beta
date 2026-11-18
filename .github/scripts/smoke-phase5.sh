@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Phase 5 smoke (sourced by emulator-smoke.sh; uses its shot/tap_desc/tap_text/W/H/BAR_Y).
-# Me → profiles (create a 2nd Kids profile) → Library → Settings (Ember theme, back to Noir) → About. Shots 70-79.
+# Me (single profile, Switch profile removed in v2.1.0) → Library → simplified Cinetor Beta Settings → About ("All rights reserved Mythbrix"). Shots 70-79.
 
 # Fresh uiautomator dump (old file removed → never a stale tree), retried; prints the error when it fails.
 dump_ui() {
@@ -42,55 +42,58 @@ dismiss_anr() {
   fi
 }
 
-echo "== phase 5: profiles =="
+echo "== phase 5: me & library =="
 dismiss_anr
+ensure_fg
 # Back to the video shell from wherever 4b ended (an isolated space has no Me tab).
-# 4b may end in Comics with the Spaces switcher open. The first text="Video" node can be the bottom "Video" tab
-# behind the switcher scrim (tap only closes the switcher) → loop until the video shell ("Me" tab) is showing.
 for i in 1 2 3 4; do
   dump_ui || break
   if adb shell cat /sdcard/ui.xml | grep -q 'text="Me"'; then break; fi
   echo "not in video shell (try $i)"
   tap_text "Video" || adb shell input keyevent KEYCODE_BACK
   sleep 2
+  ensure_fg
 done
-adb shell input tap $(( W * 9 / 10 )) $BAR_Y; shot 70-me-profiles 3
-if tap_desc "Switch profile"; then
-  shot 71-profile-picker 2
-  if tap_desc "Add profile"; then
-    sleep 2
-    if tap_desc "Profile name"; then
-      sleep 1; adb shell input text "Kids"; sleep 1
-      hide_kb
-    fi
-    tap_desc "Avatar 3"; sleep 0.5
-    tap_desc "Colour 5"; sleep 0.5
-    tap_desc "Kids profile"; shot 72-edit-profile-kids 1
-    tap_desc "Save profile"; shot 73-picker-two-profiles 3
-  fi
-  adb shell input keyevent KEYCODE_BACK; sleep 2                    # picker → Me
-fi
-if tap_desc "Library"; then
+adb shell input tap $(( W * 9 / 10 )) $BAR_Y; sleep 1
+adb shell input swipe $((W/2)) $((H/3)) $((W/2)) $((H*4/5)) 250
+shot 70-me-profile 3
+if tap_desc "Library" || tap_text "Library"; then
   shot 74-library 3
   tap_desc "Library History" && shot 75-library-history 2
   adb shell input keyevent KEYCODE_BACK; sleep 2
+  ensure_fg
 fi
+
+find_on_me() {
+  local i
+  for i in 1 2 3 4 5; do
+    tap_desc "$1" && return 0
+    tap_text "$1" && return 0
+    adb shell input swipe $((W/2)) $((H*3/4)) $((W/2)) $((H/3)) 300; sleep 1
+  done
+  return 1
+}
 
 echo "== phase 5: settings =="
 dismiss_anr
-if tap_desc "Settings"; then
+if find_on_me "Settings"; then
   shot 76-settings-top 2
   if tap_desc "Theme Ember"; then
     shot 77-settings-ember 3                                       # live theme switch, no restart
     tap_desc "Theme Noir"; sleep 2
   fi
-  adb shell input swipe $((W/2)) $((H*3/4)) $((W/2)) $((H/4)) 300; shot 78-settings-playback 2
+  adb shell input swipe $((W/2)) $((H*3/4)) $((W/2)) $((H/4)) 300; shot 78-settings-privacy 2
   adb shell input keyevent KEYCODE_BACK; sleep 2
+  ensure_fg
 fi
 
 echo "== phase 5: about =="
 dismiss_anr
-if tap_desc "About"; then
+if find_on_me "About"; then
   shot 79-about 4
+  if dump_ui && adb shell cat /sdcard/ui.xml | grep -qi "All rights reserved Mythbrix"; then
+    echo "About verified: All rights reserved Mythbrix"
+  fi
   adb shell input keyevent KEYCODE_BACK; sleep 1
+  ensure_fg
 fi

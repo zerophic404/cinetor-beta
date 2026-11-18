@@ -27,6 +27,12 @@ shot() {
   echo "shot $1"
 }
 alive() { [ "$(adb get-state 2>/dev/null || true)" = "device" ] && adb shell pidof "$PKG" >/dev/null 2>&1; }
+ensure_fg() {
+  if ! adb shell dumpsys window 2>/dev/null | grep -E 'mCurrentFocus|mFocusedApp' | grep -q "$PKG"; then
+    adb shell am start -n "$PKG/.MainActivity" >/dev/null 2>&1 || true
+    sleep 1
+  fi
+}
 
 adb shell am start -W -n "$PKG/.MainActivity"
 shot 01-splash 1
@@ -40,11 +46,11 @@ adb shell dumpsys gfxinfo "$PKG" > "$OUT/gfxinfo-home.txt" 2>/dev/null || true
 grep -E "Total frames rendered|Janky frames|50th percentile|90th percentile|99th percentile" "$OUT/gfxinfo-home.txt" | head -5 || true
 adb shell input swipe $((W/2)) $((H*3/4)) $((W/2)) $((H/4)) 400; shot 03-home-scrolled 3
 adb shell input swipe $((W/2)) $((H/4)) $((W/2)) $((H*3/4)) 400; sleep 1
-# bottom bar: 5 tabs Home Anime Drama Search Me
+# bottom bar: 5 tabs Home Anime Drama TV Me (v2.1.0)
 # in-app glass bar sits above the system nav bar (~48dp) → ~89% of screen height
 BAR_Y=$((H * 89 / 100))
 i=0
-for name in home anime drama search me; do
+for name in home anime drama tv me; do
   X=$(( W * (2*i + 1) / 10 ))
   adb shell input tap $X $BAR_Y
   shot "1$i-tab-$name" 4
@@ -59,41 +65,47 @@ tap_desc() {
   set -- $b
   adb shell input tap $(( ($1 + $3) / 2 )) $(( ($2 + $4) / 2 ))
 }
-# back to home: hero tap → details (skeleton, then loaded)
-adb shell input tap $((W/10)) $BAR_Y; sleep 3
+# back to home + persistent top-right header Search icon check (v2.1.0)
+adb shell input tap $((W/10)) $BAR_Y; sleep 2
+if tap_desc "Search"; then
+  shot 15-top-search 3
+  adb shell input keyevent KEYCODE_BACK; sleep 2
+  ensure_fg
+fi
+# hero tap → details (skeleton, then loaded)
+adb shell input tap $((W/10)) $BAR_Y; sleep 2
 adb shell input tap $((W/2)) $((H/3)); shot 20-details-loading 1
 shot 21-details 4
-# Play → player portrait (16:9 + info below) → settings → landscape → back = mini player.
-# Controls auto-hide after 3 s and uiautomator dumps are slower → position taps right after a show-tap.
+# Play → in-place inline 16:9 player at top of DetailsScreen (never navigates to a separate screen).
+PLAYED_INLINE=0
 if tap_desc "Play"; then
-  shot 30-player-portrait 3
-  shot 31-player-playing 12   # real gateway stream: resolve + first segments
-  adb logcat -d | grep -E "CinetorPlayback|playback error" | tail -8 || true
-  adb shell input tap $((W*85/100)) $((H/8)); sleep 0.6          # show controls
-  adb shell input tap $((W*93/100)) $((H*64/1000))               # gear
-  shot 35-player-settings 2
-  adb shell input keyevent KEYCODE_BACK; sleep 4                 # close sheet, let controls hide
-  adb shell input tap $((W*85/100)) $((H/8)); sleep 0.6
-  adb shell input tap $((W*93/100)) $((H*27/100))                # rotate → landscape
-  shot 32-player-landscape 4
-  adb shell input tap $((H/2)) $((W/4)); shot 33-player-landscape-controls 1
-  adb shell input keyevent KEYCODE_BACK; shot 34-mini-player 3   # back → in-app mini (keeps playing)
-  adb logcat -d | grep -E "tap→firstFrame" | tail -3 || true
+  PLAYED_INLINE=1
+  shot 30-details-inline-player 3
+  shot 31-details-inline-playing 10   # real gateway stream inline in DetailsScreen
+  adb logcat -d | grep -E "CinetorPlayback|playback error|tap→firstFrame" | tail -8 || true
 fi
+# Scroll DetailsScreen to verify Seasons/Episodes, Cast, and For You below the inline player
 adb shell input swipe $((W/2)) $((H*3/4)) $((W/2)) $((H/4)) 400; shot 22-details-scrolled 2
 adb shell input swipe $((W/2)) $((H/4)) $((W/2)) $((H*3/4)) 400; sleep 1
 if tap_desc "Download"; then
-  shot 23-download-sheet 8   # gateway resolutions with real sizes (no 1 GB download on CI)
+  shot 23-download-sheet 6   # movie options or series batch download sheet
   adb shell input keyevent KEYCODE_BACK; sleep 1
 fi
-adb shell input keyevent KEYCODE_BACK; shot 24-back-home 2
+# Back from DetailsScreen → playback minimizes into the free-drag MiniPlayer on Home
+adb shell input keyevent KEYCODE_BACK
+ensure_fg
+if [ "$PLAYED_INLINE" = "1" ]; then
+  shot 34-mini-player 3
+fi
+shot 24-back-home 2
 # category tab swap (Series) → hero swaps
 tap_desc "Tab Series" && shot 25-home-series 4
 # scroll to rows and open a poster card
 adb shell input swipe $((W/2)) $((H*3/4)) $((W/2)) $((H/3)) 400; shot 26-home-rows 2
 adb shell input tap $((W/6)) $((H*2/3)); shot 27-card-details 4
 adb shell input keyevent KEYCODE_BACK; sleep 1
-# Me → Downloads → first download → details sheet
+ensure_fg
+# Me → Downloads → first download (if present) → details sheet
 tap_prefix() {
   adb shell uiautomator dump /sdcard/ui.xml >/dev/null 2>&1 || return 1
   local b
@@ -103,17 +115,16 @@ tap_prefix() {
   adb shell input tap $(( ($1 + $3) / 2 )) $(( ($2 + $4) / 2 ))
 }
 adb shell input tap $(( W * 9 / 10 )) $BAR_Y; shot 29-me 3
-# Downloads row ≈ 49% H on Me (fallback when the uiautomator dump misses it)
-if tap_desc "Downloads" || { adb shell input tap $((W/2)) $((H * 49 / 100)); sleep 2; true; }; then
+if tap_desc "Downloads"; then
   shot 30-downloads 4
-  # dump can fail while progress animates → fallback: first row ≈ 35% H
-  if tap_prefix "Download " || { adb shell input tap $((W/2)) $((H * 35 / 100)); true; }; then
+  if tap_prefix "Download "; then
     shot 31-download-details 3
     adb shell input swipe $((W/2)) $((H*4/5)) $((W/2)) $((H/4)) 300; shot 32-download-details-more 2
     adb shell input keyevent KEYCODE_BACK; sleep 1
   fi
   tap_desc "Tab Completed" && shot 33-downloads-completed 2
   adb shell input keyevent KEYCODE_BACK; sleep 1
+  ensure_fg
 fi
 
 # mini player should have survived navigation; Home → system PiP; back to app; close mini
@@ -122,15 +133,17 @@ adb shell input keyevent KEYCODE_HOME; shot 42-pip 3
 adb shell am start -n "$PKG/.MainActivity" >/dev/null 2>&1; shot 43-back-from-pip 3
 tap_desc "Close mini player" && shot 41-mini-closed 2
 
-# Spaces live in Me → Spaces now (top switcher removed). $1 = space title as in the XML (escaped).
+# Isolated spaces (Music, Comics, 18+) live in Me → Spaces; TV is the 4th main bottom-bar tab.
 open_space() {
   tap_text "Me" || adb shell input tap $(( W * 9 / 10 )) $BAR_Y
   sleep 2
+  adb shell input swipe $((W/2)) $((H/3)) $((W/2)) $((H*4/5)) 250; sleep 1
+  tap_desc "Space $1" && return 0
+  adb shell input swipe $((W/2)) $((H*3/4)) $((W/2)) $((H/3)) 300; sleep 1
   tap_desc "Space $1"
 }
 
-# --- Phase 4A: Live TV grid, EPG, Sports, live player zap, Music album → now playing → queue ---
-# last match = topmost overlay (switcher is drawn above the space content)
+# --- Phase 4A: TV main tab (Live TV grid, EPG, PlayzTV Sports, live player zap) + Music space ---
 tap_text() {
   adb shell uiautomator dump /sdcard/ui.xml >/dev/null 2>&1 || return 1
   local b
@@ -139,45 +152,39 @@ tap_text() {
   set -- $b
   adb shell input tap $(( ($1 + $3) / 2 )) $(( ($2 + $4) / 2 ))
 }
-if true; then
-  if open_space "Live TV &amp; Sports"; then
-    shot 50-tv-live 6
-    adb shell input swipe $((W/2)) $((H*3/4)) $((W/2)) $((H/4)) 400; shot 51-tv-grid 2
-    adb shell input swipe $((W/2)) $((H/4)) $((W/2)) $((H*3/4)) 400; sleep 1
-    tap_desc "Tab Guide" && shot 52-tv-epg 5
-    tap_desc "Tab Sports" && { shot 53-tv-sports 4; tap_desc "Tab Upcoming" && shot 54-tv-sports-upcoming 2; }
-    tap_desc "Tab Live" && sleep 2
-    if tap_desc "Watch live"; then
-      shot 55-live-player 7
-      adb shell input keyevent KEYCODE_CHANNEL_UP; shot 56-live-zapped 5
-      adb shell input tap $((W*85/100)) $((H/8)); sleep 0.6
-      tap_desc "Channel list" && shot 57-live-channel-list 2
-      adb shell input keyevent KEYCODE_BACK; sleep 1
-      adb shell input keyevent KEYCODE_BACK; sleep 2                 # → mini
-      tap_desc "Close mini player"; sleep 1
-    fi
-  else
-    adb shell input keyevent KEYCODE_BACK; sleep 1
+if tap_text "TV" || { adb shell input tap $(( W * 7 / 10 )) $BAR_Y; true; }; then
+  shot 50-tv-live 6
+  adb shell input swipe $((W/2)) $((H*3/4)) $((W/2)) $((H/4)) 400; shot 51-tv-grid 2
+  adb shell input swipe $((W/2)) $((H/4)) $((W/2)) $((H*3/4)) 400; sleep 1
+  tap_desc "Tab Guide" && shot 52-tv-epg 5
+  tap_desc "Tab Sports" && { shot 53-tv-sports 4; tap_desc "Tab Upcoming" && shot 54-tv-sports-upcoming 2; }
+  tap_desc "Tab Live" && sleep 2
+  if tap_desc "Watch live"; then
+    shot 55-live-player 7
+    adb shell input keyevent KEYCODE_CHANNEL_UP; shot 56-live-zapped 5
+    adb shell input tap $((W*85/100)) $((H/8)); sleep 0.6
+    tap_desc "Channel list" && { shot 57-live-channel-list 2; adb shell input keyevent KEYCODE_BACK; sleep 1; }
+    adb shell input keyevent KEYCODE_BACK; sleep 2                 # → mini
+    tap_desc "Close mini player"; sleep 1
   fi
+  ensure_fg
 fi
-adb shell input keyevent KEYCODE_BACK; sleep 2   # space → back to Me
-if true; then
-  if open_space "Music"; then
-    shot 60-music-home 6
-    adb shell input swipe $((W/2)) $((H*3/4)) $((W/2)) $((H/3)) 400; sleep 2
-    if tap_prefix "Album "; then
-      shot 61-music-album 4
-      tap_desc "Play album" && shot 62-music-mini-bar 5
-      if tap_desc "Open now playing"; then
-        shot 63-music-now-playing 4
-        tap_desc "Queue" && { shot 64-music-queue 3; adb shell input keyevent KEYCODE_BACK; sleep 1; }
-        adb shell input keyevent KEYCODE_BACK; sleep 2                # collapse to mini bar
-      fi
-      # navigate away: music keeps playing, mini bar stays above the nav
-      tap_text "Video" && shot 65-music-mini-on-home 4
-      adb logcat -d | grep -cE "CinetorPlayer.*error" || true
+if open_space "Music"; then
+  shot 60-music-home 6
+  adb shell input swipe $((W/2)) $((H*3/4)) $((W/2)) $((H/3)) 400; sleep 2
+  if tap_prefix "Album "; then
+    shot 61-music-album 4
+    tap_desc "Play album" && shot 62-music-mini-bar 5
+    if tap_desc "Open now playing"; then
+      shot 63-music-now-playing 4
+      tap_desc "Queue" && { shot 64-music-queue 3; adb shell input keyevent KEYCODE_BACK; sleep 1; }
+      adb shell input keyevent KEYCODE_BACK; sleep 2                # collapse to mini bar
     fi
+    # navigate away: music keeps playing, mini bar stays above the nav
+    tap_text "Video" && shot 65-music-mini-on-home 4
+    adb logcat -d | grep -cE "CinetorPlayer.*error" || true
   fi
+  ensure_fg
 fi
 
 # Phase 4b: comics reader + adult gate (separate file to keep merges with phase 4a small)

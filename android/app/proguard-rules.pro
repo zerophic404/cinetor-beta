@@ -24,14 +24,24 @@
 -keepclassmembers class <1> {
     static <1>$Companion Companion;
     static kotlinx.serialization.KSerializer serializer(...);
+    <init>(..., kotlinx.serialization.internal.SerializationConstructorMarker);
+    static *** write$Self*(...);
     <fields>;
 }
 -keepclasseswithmembers class * {
     @kotlinx.serialization.* <fields>;
 }
-# Type-safe navigation routes (including @Serializable data object) + settings/profile/gateway/music/comics models.
--keep @kotlinx.serialization.Serializable class com.mythbrix.cinetor.** { *; }
+# Type-safe navigation routes (including @Serializable data object) + settings/profile/gateway/music/comics/TMDB models.
+-keep,includedescriptorclasses @kotlinx.serialization.Serializable class com.mythbrix.cinetor.** { *; }
 -keepclassmembers enum com.mythbrix.cinetor.** { *; }
+# Explicit DTO field & constructor preservation across core.data (DubOption, gateway subtitle/manga/dubs DTOs, TMDB DTOs).
+-keep class com.mythbrix.cinetor.core.data.DubOption { *; }
+-keepclassmembers class com.mythbrix.cinetor.core.data.** {
+    <fields>;
+    <init>(...);
+    *** Companion;
+    kotlinx.serialization.KSerializer serializer(...);
+}
 
 # ---- Chromeless YouTube WebView bridge (@JavascriptInterface on phone & Android TV) ----
 # Prevent R8 full mode from stripping, renaming, privatizing, or merging AndroidBridge / YouTubeAndroidBridge
