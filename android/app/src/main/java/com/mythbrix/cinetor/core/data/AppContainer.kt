@@ -9,6 +9,7 @@ import com.mythbrix.cinetor.core.data.gateway.FileGatewayDiskCache
 import com.mythbrix.cinetor.core.data.gateway.GatewayApi
 import com.mythbrix.cinetor.core.data.gateway.GatewayCache
 import com.mythbrix.cinetor.core.data.gateway.GatewayCatalogSource
+import com.mythbrix.cinetor.core.data.gateway.GatewaySigner
 import com.mythbrix.cinetor.core.data.gateway.OkHttpGatewayHttp
 import com.mythbrix.cinetor.core.data.gateway.PaletteDominantColors
 import com.mythbrix.cinetor.core.data.gateway.SharedPrefsSlugStore
@@ -74,6 +75,15 @@ class AppContainer(context: Context) {
         OkHttpClient.Builder()
             .connectTimeout(8, TimeUnit.SECONDS)
             .readTimeout(12, TimeUnit.SECONDS)
+            .addInterceptor { chain ->
+                val req = chain.request()
+                val next = if (req.header("User-Agent") == null) {
+                    req.newBuilder().header("User-Agent", GatewaySigner.BROWSER_USER_AGENT).build()
+                } else {
+                    req
+                }
+                chain.proceed(next)
+            }
             .build()
     }
 
@@ -85,7 +95,11 @@ class AppContainer(context: Context) {
     /** User's gateway (docs/gateway.md); base URL from Settings → Developer (blank = default). */
     val gatewayApi: GatewayApi by lazy {
         GatewayApi(
-            http = OkHttpGatewayHttp(httpClient),
+            http = OkHttpGatewayHttp(
+                client = httpClient,
+                signingSecret = { BuildConfig.GATEWAY_SIGNING_SECRET },
+                gatewayBase = { runCatching { settingsState.state.value.gatewayUrl }.getOrDefault("") },
+            ),
             cache = GatewayCache(disk = FileGatewayDiskCache(java.io.File(appContext.cacheDir, "gateway"))),
             baseUrl = { runCatching { settingsState.state.value.gatewayUrl }.getOrDefault("") },
         )
@@ -96,7 +110,11 @@ class AppContainer(context: Context) {
     /** Comics metadata/chapters from MangaDex; chapter pages via the gateway proxy (docs/gateway.md). */
     val comicsApi: com.mythbrix.cinetor.core.data.comics.MangaDexApi by lazy {
         com.mythbrix.cinetor.core.data.comics.MangaDexApi(
-            http = OkHttpGatewayHttp(httpClient),
+            http = OkHttpGatewayHttp(
+                client = httpClient,
+                signingSecret = { BuildConfig.GATEWAY_SIGNING_SECRET },
+                gatewayBase = { runCatching { settingsState.state.value.gatewayUrl }.getOrDefault("") },
+            ),
             cache = GatewayCache(disk = FileGatewayDiskCache(java.io.File(appContext.cacheDir, "comics"))),
             gatewayBase = { runCatching { settingsState.state.value.gatewayUrl }.getOrDefault("") },
         )
@@ -298,7 +316,11 @@ class AppContainer(context: Context) {
         MusicRepository(
             catalog = catalog,
             api = GatewayMusicApi(
-                http = OkHttpGatewayHttp(httpClient),
+                http = OkHttpGatewayHttp(
+                    client = httpClient,
+                    signingSecret = { BuildConfig.GATEWAY_SIGNING_SECRET },
+                    gatewayBase = { runCatching { settingsState.state.value.gatewayUrl }.getOrDefault("") },
+                ),
                 cache = GatewayCache(disk = FileGatewayDiskCache(java.io.File(appContext.cacheDir, "music"))),
                 urlFor = gatewayApi::url,
                 absoluteUrl = gatewayApi::absolute,

@@ -15,6 +15,12 @@ import com.mythbrix.cinetor.core.player.GatewaySourceResolver
 import com.mythbrix.cinetor.core.player.SourceResolver
 import com.mythbrix.cinetor.core.player.StreamType
 import kotlinx.coroutines.test.runTest
+import okhttp3.MediaType.Companion.toMediaType
+import okhttp3.OkHttpClient
+import okhttp3.Protocol
+import okhttp3.Request
+import okhttp3.Response
+import okhttp3.ResponseBody.Companion.toResponseBody
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
@@ -393,5 +399,133 @@ class GatewayRoutingTest {
         val repo = SearchRepository(hybrid)
         assertTrue(repo.searchInSpace(Space.ADULT, "labas").isNotEmpty())
         assertTrue(repo.search("labas").isEmpty())
+    }
+}
+
+class GatewaySigningTest {
+
+    @Test
+    fun signHeaders_deterministicHmacSha256_preservesEncodedPathname_andSkipsBlankSecret() {
+        assertTrue(GatewaySigner.signHeaders("", "GET", "https://gw.example/api/public/v1/home", 1763452800L).isEmpty())
+        assertTrue(GatewaySigner.signHeaders("   ", "GET", "https://gw.example/api/public/v1/home", 1763452800L).isEmpty())
+
+        val headers = GatewaySigner.signHeaders(
+            secret = "test-gateway-secret-key",
+            method = "get",
+            url = "https://gw.example/api/public/v1/home?page=1&sort=hottest",
+            nowEpochSec = 1763452800L,
+        )
+        assertEquals("1763452800", headers["X-App-Timestamp"])
+        assertEquals("1857199d56694186b630fb765cd71acf6516e250fd306492470fec352a773b87", headers["X-App-Signature"])
+        assertEquals(64, headers["X-App-Signature"]?.length)
+
+        assertEquals(
+            "/api/public/v1/detail/inception%202010",
+            GatewaySigner.encodedPathOf("https://gw.example/api/public/v1/detail/inception%202010?foo=bar#frag"),
+        )
+    }
+
+    @Test
+    fun shouldSign_andUserAgent_isolateGatewayFromMangaDexAndThirdParties() {
+        val base = "https://gw.example/"
+        assertTrue(GatewaySigner.shouldSign("https://gw.example/api/public/v1/home", base))
+        assertTrue(GatewaySigner.shouldSign("https://gw.example:443/api/public/v1/manga?action=c2&id=abc", base))
+        assertTrue(GatewaySigner.shouldSign("https://gw.example/api/v1/resolve?tmdb=1", base))
+
+        // Health endpoints and non-/api/ paths are never signed.
+        assertFalse(GatewaySigner.shouldSign("https://gw.example/api/public/v1/health", base))
+        assertFalse(GatewaySigner.shouldSign("https://gw.example/api/v1/health", base))
+        assertFalse(GatewaySigner.shouldSign("https://gw.example/static/logo.png", base))
+
+        // Different scheme, port, MangaDex, or CDN hosts are never signed.
+        assertFalse(GatewaySigner.shouldSign("http://gw.example/api/public/v1/home", base))
+        assertFalse(GatewaySigner.shouldSign("https://gw.example:8443/api/public/v1/home", base))
+        assertFalse(GatewaySigner.shouldSign("https://api.mangadex.org/manga?limit=20", base))
+        assertFalse(GatewaySigner.shouldSign("https://api.mangadex.org/api/public/v1/home", base))
+        assertFalse(GatewaySigner.shouldSign("https://pbcdnw.aoneroom.com/image/poster.jpg", base))
+
+        // User-Agent selection: browser UA for gateway, CinetorApp/1.0 strictly for mangadex.org.
+        assertTrue(GatewaySigner.userAgentFor("https://gw.example/api/public/v1/home", base).contains("Cinetor/2.0"))
+        assertEquals("CinetorApp/1.0", GatewaySigner.userAgentFor("https://api.mangadex.org/manga?limit=20", base))
+        assertEquals("CinetorApp/1.0", GatewaySigner.userAgentFor("https://uploads.mangadex.org/covers/a/b.jpg", base))
+    }
+
+    @Test
+    fun okHttpGatewayHttp_recoversFrom401ClockSkewViaServerTimeAndDateHeader_withoutSigningMangaDex() = runTest {
+        val seenRequests = mutableListOf<Request>()
+        val secret = "test-gateway-secret-key"
+        val serverSec = 1763452800L
+        val mockClient = OkHttpClient.Builder()
+            .addInterceptor { chain ->
+                val req = chain.request()
+                seenRequests += req
+                val jsonMedia = "application/json".toMediaType()
+                if (req.url.host.contains("mangadex.org")) {
+                    Response.Builder()
+                        .request(req)
+                        .protocol(Protocol.HTTP_1_1)
+                        .code(200)
+                        .message("OK")
+                        .body("""{"result":"ok"}""".toResponseBody(jsonMedia))
+                        .build()
+                } else {
+                    val ts = req.header("X-App-Timestamp")?.toLongOrNull() ?: 0L
+                    val sig = req.header("X-App-Signature").orEmpty()
+                    val expected = GatewaySigner.signHeaders(secret, req.method, req.url.toString(), serverSec)["X-App-Signature"]
+                    if (kotlin.math.abs(ts - serverSec) > 60L || sig != expected) {
+                        Response.Builder()
+                            .request(req)
+                            .protocol(Protocol.HTTP_1_1)
+                            .code(401)
+                            .message("Unauthorized")
+                            .body("""{"error":"clock_skew","serverTime":$serverSec}""".toResponseBody(jsonMedia))
+                            .build()
+                    } else {
+                        Response.Builder()
+                            .request(req)
+                            .protocol(Protocol.HTTP_1_1)
+                            .code(200)
+                            .message("OK")
+                            .body("""{"status":"success","sections":[]}""".toResponseBody(jsonMedia))
+                            .build()
+                    }
+                }
+            }
+            .build()
+
+        val http = OkHttpGatewayHttp(
+            client = mockClient,
+            signingSecret = { secret },
+            gatewayBase = { "https://gw.example" },
+            nowMs = { 1_000_000L }, // skewed local clock (1000s vs 1763452800s)
+        )
+
+        val body = http.get("https://gw.example/api/public/v1/home", 5_000L)
+        assertTrue(body.contains("\"success\""))
+        assertEquals(2, seenRequests.size) // 1st skewed 401 -> 2nd corrected 200
+        assertEquals("1000", seenRequests[0].header("X-App-Timestamp"))
+        assertEquals("1763452800", seenRequests[1].header("X-App-Timestamp"))
+        assertEquals(
+            "1857199d56694186b630fb765cd71acf6516e250fd306492470fec352a773b87",
+            seenRequests[1].header("X-App-Signature"),
+        )
+        assertTrue(seenRequests[1].header("User-Agent").orEmpty().contains("Cinetor/2.0"))
+
+        // Subsequent call reuses learned clockOffsetSec immediately with zero extra 401 round-trip.
+        http.get("https://gw.example/api/public/v1/home", 5_000L)
+        assertEquals(3, seenRequests.size)
+        assertEquals("1763452800", seenRequests[2].header("X-App-Timestamp"))
+
+        // MangaDex requests through the same transport never carry signature headers and keep CinetorApp/1.0.
+        http.get("https://api.mangadex.org/manga?limit=1", 5_000L)
+        val mdReq = seenRequests.last()
+        assertNull(mdReq.header("X-App-Timestamp"))
+        assertNull(mdReq.header("X-App-Signature"))
+        assertEquals("CinetorApp/1.0", mdReq.header("User-Agent"))
+
+        // RFC 1123 HTTP Date header fallback when error body has no serverTime field.
+        val parsedDate = GatewaySigner.parseServerEpochSec("""{"error":"unauthorized"}""", "Wed, 18 Nov 2026 08:00:00 GMT")
+        assertNotNull(parsedDate)
+        assertEquals(1794988800L, parsedDate)
     }
 }
