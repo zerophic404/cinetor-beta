@@ -2,14 +2,16 @@
   import { page } from '$app/state';
   import { base } from '$app/paths';
   import { img } from '$lib/data/repo';
+  import { gatewayBase } from '$lib/data/gateway';
   import { catalog, comicsSource } from '$lib/data/app-catalog';
   import type { Item } from '$lib/data/types';
   import { SkeletonBox, SkeletonChapterList } from '$lib/design/skeleton';
   import Sheet from '$lib/components/Sheet.svelte';
   import Poster from '$lib/components/Poster.svelte';
+  import { handedOff } from '$lib/ui/handoff';
   import { myList, activeProfileId } from '$lib/data/library.svelte';
   import { localKV } from '$lib/data/kv';
-  import { COMIC_CATS, type ComicCatId } from '$lib/comics/mangadex';
+  import { COMIC_CATS, gwMangaImgUrl, type ComicCatId } from '$lib/comics/mangadex';
   import {
     COMIC_KIND_LABEL,
     MODE_LABEL,
@@ -24,6 +26,7 @@
   let item = $state.raw<Item | null>(null);
   let loadStatus = $state<'loading' | 'ready' | 'missing'>('loading');
   let chaptersReady = $state(false);
+  let coverProxy = $state(false);
   let coverFailed = $state(false);
   let expandedSynopsis = $state(false);
 
@@ -45,29 +48,41 @@
   $effect(() => {
     const want = id;
     let alive = true;
-    const peeked = want ? catalog.peek(want) : undefined;
+    const peeked = want ? (handedOff(want) ?? catalog.peek(want)) : undefined;
     if (peeked && peeked.space === 'COMICS') {
       item = peeked;
       loadStatus = 'ready';
     } else {
+      item = null;
       loadStatus = 'loading';
     }
     chaptersReady = false;
+    coverProxy = false;
     coverFailed = false;
     expandedSynopsis = false;
     chapterQuery = '';
     catalog.item(want, 'COMICS').then(
       (it) => {
         if (!alive) return;
-        if (!it || it.space !== 'COMICS') {
+        const resolved = it && it.space === 'COMICS' ? it : peeked?.space === 'COMICS' ? peeked : null;
+        if (!resolved) {
           loadStatus = 'missing';
           return;
         }
-        item = it;
+        item = resolved;
         loadStatus = 'ready';
-        setTimeout(() => alive && (chaptersReady = true), 180);
+        setTimeout(() => alive && (chaptersReady = true), 160);
       },
-      () => alive && (loadStatus = 'missing')
+      () => {
+        if (!alive) return;
+        if (peeked?.space === 'COMICS') {
+          item = peeked;
+          loadStatus = 'ready';
+          chaptersReady = true;
+        } else {
+          loadStatus = 'missing';
+        }
+      }
     );
     return () => {
       alive = false;
@@ -182,12 +197,15 @@
     {#if item.poster && !coverFailed}
       <img
         class="cover"
-        src={img(item.poster)}
+        src={coverProxy ? gwMangaImgUrl(gatewayBase(), item.poster) : img(item.poster)}
         alt="{item.title} cover"
         width="150"
         height="225"
         referrerpolicy="no-referrer"
-        onerror={() => (coverFailed = true)}
+        onerror={() => {
+          if (!coverProxy && /^https?:\/\//i.test(item.poster) && gatewayBase()) coverProxy = true;
+          else coverFailed = true;
+        }}
       />
     {:else}
       <div class="cover fallback" aria-hidden="true">
@@ -818,5 +836,19 @@
   }
   .search-grid :global(.card) {
     width: auto;
+  }
+  .search-grid :global(.card .title) {
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    line-clamp: 2;
+    -webkit-box-orient: vertical;
+    white-space: normal;
+    overflow: hidden;
+    color: var(--text-primary);
+    font-size: 0.82rem;
+    font-weight: 680;
+    line-height: 1.28;
+    opacity: 1;
+    visibility: visible;
   }
 </style>

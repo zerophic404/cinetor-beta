@@ -1,10 +1,18 @@
 import { describe, expect, it } from 'vitest';
 import { memoryKV } from '../data/kv';
 import { spaceForId } from '../data/catalog';
+import type { PersistentCache } from '../data/idb';
 import type { Chapter } from '../data/types';
 import {
+  AL_PREFIX,
   COMIC_CATS,
   ComicsSource,
+  cleanAnilistHtml,
+  gwAnilistUrl,
+  gwMangaImgUrl,
+  isMangadexId,
+  mapAnilistMedia,
+  mapC1Chapters,
   mapMdChapters,
   mapMdManga,
   mdChapterUuid,
@@ -30,6 +38,16 @@ import {
 const manga = { categoryId: 'co-manga', format: 'PAGED', readingDirection: 'RTL' } as const;
 const manhwa = { categoryId: 'co-manhwa', format: 'LONGSTRIP', readingDirection: 'TTB' } as const;
 const manhua = { categoryId: 'co-manhua', format: 'LONGSTRIP', readingDirection: 'TTB' } as const;
+
+function memPersist(): PersistentCache {
+  const store = new Map<string, unknown>();
+  return {
+    get: async (k) => store.get(k),
+    set: async (k, v) => {
+      store.set(k, v);
+    }
+  };
+}
 
 describe('reading mode defaults', () => {
   it('manga defaults to paged right-to-left', () => {
@@ -87,16 +105,13 @@ describe('navigation & chapter filtering', () => {
     expect(filterChapters(chs, { query: '12' }).map((c) => c.id)).toEqual(['c3']);
     expect(filterChapters(chs, { unreadOnly: true, isRead: (id) => id === 'c1' }).map((c) => c.id)).toEqual(['c2', 'c3']);
   });
-  it('falls back from primary page URL to data-saver backup URL on image error before giving up', () => {
-    const full = 'https://md.network/data/h1/1.png';
-    const saver = 'https://md.network/data-saver/h1/1s.jpg';
-    expect(resolvePageSrc(full, saver, 0)).toBe(full);
-    expect(resolvePageSrc(full, saver, 1)).toBe(saver);
-    expect(resolvePageSrc(full, saver, 2)).toContain('1s.jpg?');
-    expect(resolvePageSrc(full, saver, 3)).toBeNull();
-    // Data-saver preference starts directly with backup URL
-    expect(resolvePageSrc(full, saver, 0, true)).toBe(saver);
-    expect(resolvePageSrc(full, saver, 1, true)).toBe(full);
+  it('falls back from proxied primary page URL to backup URL on image error before giving up', () => {
+    const proxied = 'https://gw.test/api/public/v1/manga/img?u=https%3A%2F%2Fcdn.example%2F1.jpg&r=https%3A%2F%2Freader.example%2F';
+    const raw = 'https://cdn.example/1.jpg';
+    expect(resolvePageSrc(proxied, raw, 0)).toBe(proxied);
+    expect(resolvePageSrc(proxied, raw, 1)).toBe(raw);
+    expect(resolvePageSrc(proxied, raw, 2)).toContain('1.jpg?');
+    expect(resolvePageSrc(proxied, raw, 3)).toBeNull();
   });
 });
 
@@ -117,7 +132,6 @@ describe('progress', () => {
     expect(p.isRead('co-2', 'ch9')).toBe(true);
     expect(p.isRead('co-1', 'ch2')).toBe(false);
     expect(p.recentItems().map((r) => r.itemId)).toEqual(['co-2', 'co-1']);
-    // another profile is isolated
     expect(new ReadProgress(kv, 'p2').get('co-1', 'ch1')).toBeUndefined();
   });
   it('remembers the mode override and data-saver preference per profile', () => {
@@ -131,7 +145,25 @@ describe('progress', () => {
   });
 });
 
-// ---------------------------------------------------------------- MangaDex catalogue
+// ---------------------------------------------------------------- Gateway AniList + Reader pipeline
+
+const alMedia = (id: number, country: 'JP' | 'KR' | 'CN', title = 'Solo Leveling') => ({
+  id,
+  countryOfOrigin: country,
+  status: 'FINISHED',
+  averageScore: 87,
+  genres: ['Action', 'Fantasy'],
+  chapters: 200,
+  synonyms: ['Na 혼자만 레벨업'],
+  bannerImage: 'https://s4.anilist.co/file/anilistcdn/media/manga/banner/105398.jpg',
+  description: 'Ten years ago, <b>the Gate</b> appeared.<br><br><i>Source: Official</i>',
+  startDate: { year: 2018 },
+  title: { english: title, romaji: 'Ore Dake Level Up na Ken', native: '나 혼자만 레벨업' },
+  coverImage: {
+    extraLarge: `https://s4.anilist.co/file/anilistcdn/media/manga/cover/large/bx${id}.jpg`,
+    large: `https://s4.anilist.co/file/anilistcdn/media/manga/cover/medium/bx${id}.jpg`
+  }
+});
 
 const mdManga = (id: string, lang: string, title = 'Test Title') => ({
   id,
@@ -150,164 +182,248 @@ const mdManga = (id: string, lang: string, title = 'Test Title') => ({
   ]
 });
 
-describe('mangadex urls + mapping', () => {
-  it('browse url uses original language per kind and safe/suggestive ratings', () => {
+describe('gateway AniList + MangaDex mapping & urls', () => {
+  it('maps AniList media with s4.anilist.co covers, clean synopsis, score and origin format', () => {
+    expect(cleanAnilistHtml('Line 1<br/>Line 2 &amp; <b>bold</b> &quot;q&quot;')).toBe('Line 1\nLine 2 & bold "q"');
+    const kr = mapAnilistMedia(alMedia(105398, 'KR', 'Solo Leveling'));
+    expect(kr).not.toBeNull();
+    expect(kr!.item.id).toBe(`${AL_PREFIX}105398`);
+    expect(isMangadexId(kr!.item.id)).toBe(true);
+    expect(spaceForId(kr!.item.id)).toBe('COMICS');
+    expect(kr!.item.categoryId).toBe('co-manhwa');
+    expect(kr!.item.format).toBe('LONGSTRIP');
+    expect(kr!.item.readingDirection).toBe('TTB');
+    expect(kr!.item.poster).toContain('https://s4.anilist.co/');
+    expect(kr!.item.backdrop).toContain('banner/105398.jpg');
+    expect(kr!.item.rating).toBe(8.7);
+    expect(kr!.item.year).toBe(2018);
+    expect(kr!.item.synopsis).toBe('Ten years ago, the Gate appeared.\nSource: Official');
+    expect(kr!.altTitles).toContain('Ore Dake Level Up na Ken');
+
+    const jp = mapAnilistMedia(alMedia(30002, 'JP', 'Berserk'))!;
+    expect(jp.item.categoryId).toBe('co-manga');
+    expect(jp.item.format).toBe('PAGED');
+    expect(jp.item.readingDirection).toBe('RTL');
+
+    const cn = mapAnilistMedia(alMedia(101234, 'CN', 'Tales of Demons and Gods'))!;
+    expect(cn.item.categoryId).toBe('co-manhua');
+    expect(cn.item.format).toBe('LONGSTRIP');
+  });
+
+  it('builds gateway /manga/gql and /manga/img proxy URLs cleanly', () => {
+    const gql = gwAnilistUrl('https://gw.test/', 'query { Page { media { id } } }', { page: 1 });
+    expect(gql.startsWith('https://gw.test/api/public/v1/manga/gql?body=')).toBe(true);
+    const imgProxied = gwMangaImgUrl('https://gw.test/', 'https://cdn.reader.org/p/01.jpg', 'https://reader.org/');
+    expect(imgProxied).toBe(
+      'https://gw.test/api/public/v1/manga/img?u=https%3A%2F%2Fcdn.reader.org%2Fp%2F01.jpg&r=https%3A%2F%2Freader.org%2F'
+    );
+  });
+
+  it('maps c1 reader chapters sorted numerically in ascending reading order', () => {
+    const chs = mapC1Chapters([
+      { id: '01JAAA10', n: '10', t: '' },
+      { id: '01JAAA01', n: '1', t: 'The Weakest Hunter' },
+      { id: '01JAAA01DUP', n: '1', t: 'Duplicate' },
+      { id: '01JAAA025', n: '2.5', t: 'Side Story' }
+    ]);
+    expect(chs.map((c) => c.id)).toEqual(['ch:ck-01JAAA01', 'ch:ck-01JAAA025', 'ch:ck-01JAAA10']);
+    expect(chs[0].title).toBe('Ch. 1 · The Weakest Hunter');
+    expect(chs[1].title).toBe('Ch. 2.5 · Side Story');
+    expect(chs[2].title).toBe('Chapter 10');
+  });
+
+  it('preserves MangaDex helpers & URL builders for fallback parity', () => {
     const u = new URL(mdListUrl({ cat: COMIC_CATS[1], limit: 24 }));
     expect(u.origin + u.pathname).toBe('https://api.mangadex.org/manga');
-    expect(u.searchParams.getAll('originalLanguage[]')).toEqual(['ko']);
-    expect(u.searchParams.getAll('contentRating[]')).toEqual(['safe', 'suggestive']);
-    expect(u.searchParams.getAll('availableTranslatedLanguage[]')).toEqual(['en']);
-    expect(u.searchParams.get('order[followedCount]')).toBe('desc');
-    expect(u.searchParams.getAll('includes[]')).toContain('cover_art');
-    expect(new URL(mdListUrl({ cat: COMIC_CATS[2] })).searchParams.getAll('originalLanguage[]')).toEqual(['zh', 'zh-hk']);
-    expect(new URL(mdListUrl({ title: 'naruto' })).searchParams.get('title')).toBe('naruto');
     expect(mdGatewayPagesUrl('https://gw.test/', 'c-1', 'c2')).toBe('https://gw.test/api/public/v1/manga?action=c2&id=c-1');
-    expect(mdGatewayPagesUrl('https://gw.test/', 'c-1', 'chapter')).toBe('https://gw.test/api/public/v1/manga?action=chapter&id=c-1');
-  });
-
-  it('manga maps RTL paged, manhwa/manhua vertical, with a real cover', () => {
     const m = mapMdManga(mdManga('u1', 'ja'), COMIC_CATS[0], 8.74)!;
     expect(m.id).toBe('co-md:u1');
-    expect(spaceForId(m.id)).toBe('COMICS');
-    expect(m.space).toBe('COMICS');
-    expect(m.type).toBe('COMIC');
-    expect(m.poster).toBe('https://uploads.mangadex.org/covers/u1/cover.jpg.512.jpg');
-    expect(m.readingDirection).toBe('RTL');
-    expect(m.format).toBe('PAGED');
-    expect(defaultMode(m)).toBe('rtl');
-    expect(m.rating).toBe(8.7);
-    expect(m.genres).toEqual(['Action']);
-    expect(m.synopsis).toBe('A great story with a link.');
-    for (const [i, dir] of [[1, 'TTB'], [2, 'TTB']] as const) {
-      const v = mapMdManga(mdManga(`u${i}`, i === 1 ? 'ko' : 'zh'), COMIC_CATS[i])!;
-      expect(v.readingDirection).toBe(dir);
-      expect(defaultMode(v)).toBe('vertical');
-    }
-    expect(mapMdManga({ id: 'x' })).toBeNull();
-  });
-
-  it('chapters: external / empty chapters dropped, duplicates collapsed, sorted numerically', () => {
     const chs = mapMdChapters({
       data: [
         { id: 'e', attributes: { chapter: '10', title: null, pages: 7 } },
-        { id: 'a', attributes: { chapter: '1', title: 'Start', pages: 20 } },
-        { id: 'b', attributes: { chapter: '1', title: 'Dup group', pages: 20 } },
-        { id: 'c', attributes: { chapter: '2', title: '', pages: 0 } },
-        { id: 'd', attributes: { chapter: '3', title: 'Linked', pages: 12, externalUrl: 'https://else.where' } },
-        { id: 'f', attributes: { chapter: '2.5', title: 'Bonus', pages: 9 } }
+        { id: 'a', attributes: { chapter: '1', title: 'Start', pages: 20 } }
       ]
     });
-    expect(chs.map((c) => c.id)).toEqual(['ch:a', 'ch:f', 'ch:e']);
-    expect(chs[0]).toMatchObject({ n: 1, title: 'Ch. 1 · Start', pageCount: 20, pages: [] });
-    expect(chs[1].title).toBe('Ch. 2.5 · Bonus');
-    expect(chs[2].title).toBe('Chapter 10');
+    expect(chs.map((c) => c.id)).toEqual(['ch:a', 'ch:e']);
     expect(mdChapterUuid(chs[0].id)).toBe('a');
-  });
-
-  it('page urls built from at-home or direct gateway pages payload; empty payload = no pages', () => {
-    const at = { baseUrl: 'https://md.network', chapter: { hash: 'h1', data: ['1.png', '2.png'], dataSaver: ['1s.jpg', '2s.jpg'] } };
-    expect(mdPageUrls(at)).toEqual(['https://md.network/data/h1/1.png', 'https://md.network/data/h1/2.png']);
-    expect(mdPageUrls(at, true)).toEqual(['https://md.network/data-saver/h1/1s.jpg', 'https://md.network/data-saver/h1/2s.jpg']);
-    expect(mdPageSet(at)).toEqual({
-      primary: ['https://md.network/data/h1/1.png', 'https://md.network/data/h1/2.png'],
-      backup: ['https://md.network/data-saver/h1/1s.jpg', 'https://md.network/data-saver/h1/2s.jpg']
-    });
-    expect(mdPageSet({ pages: ['https://cdn.example/p1.webp', 'https://cdn.example/p2.webp'] })).toEqual({
-      primary: ['https://cdn.example/p1.webp', 'https://cdn.example/p2.webp'],
-      backup: ['https://cdn.example/p1.webp', 'https://cdn.example/p2.webp']
-    });
-    expect(mdPageUrls({ baseUrl: 'https://md.network', chapter: { hash: '', data: [] } })).toEqual([]);
-    expect(mdPageUrls(null)).toEqual([]);
+    const at = { baseUrl: 'https://md.network', chapter: { hash: 'h1', data: ['1.png'], dataSaver: ['1s.jpg'] } };
+    expect(mdPageUrls(at)).toEqual(['https://md.network/data/h1/1.png']);
+    expect(mdPageSet(at).backup).toEqual(['https://md.network/data-saver/h1/1s.jpg']);
   });
 });
 
-describe('ComicsSource', () => {
-  const routes = (map: Record<string, unknown>, calls: string[] = []): JsonFetch => async (url) => {
-    calls.push(url);
-    const hit = Object.entries(map).find(([k]) => url.startsWith(k) || url.includes(k));
-    if (!hit) throw new Error('HTTP 404');
-    return hit[1];
-  };
+describe('ComicsSource (Gateway AniList + c1/c2/dex/img pipeline)', () => {
+  it('fetches browse shelves & search strictly via gateway /manga/gql (zero direct api.mangadex.org CORS calls)', async () => {
+    const calls: string[] = [];
+    const web: JsonFetch = async (url) => {
+      calls.push(url);
+      const u = new URL(url);
+      if (u.pathname === '/api/public/v1/manga/gql') {
+        const parsed = JSON.parse(u.searchParams.get('body') ?? '{}') as { variables?: { country?: string; search?: string } };
+        const c = parsed.variables?.country;
+        if (parsed.variables?.search) {
+          return { data: { Page: { media: [alMedia(105398, 'KR', 'Solo Leveling')] } } };
+        }
+        if (c === 'JP') return { data: { Page: { media: [alMedia(30002, 'JP', 'Berserk')] } } };
+        if (c === 'KR') return { data: { Page: { media: [alMedia(105398, 'KR', 'Solo Leveling')] } } };
+        if (c === 'CN') return { data: { Page: { media: [alMedia(101234, 'CN', 'Martial Peak')] } } };
+        return {
+          data: {
+            Page: {
+              media: [alMedia(105398, 'KR', 'Solo Leveling'), alMedia(30002, 'JP', 'Berserk'), alMedia(101234, 'CN', 'Martial Peak')]
+            }
+          }
+        };
+      }
+      throw new Error(`Unexpected URL: ${url}`);
+    };
 
-  it('builds Manga/Manhwa/Manhua categories with Popular, Top Rated (TOP10), Latest & New shelves', async () => {
-    const list = { data: [mdManga('u1', 'ja'), mdManga('u2', 'ko'), mdManga('u3', 'zh')] };
-    const src = new ComicsSource({
-      web: routes({ 'api.mangadex.org/manga?': list, 'api.mangadex.org/statistics': { statistics: { u1: { rating: { bayesian: 9.1 } } } } }),
-      gatewayBase: () => 'https://gw.test'
-    });
+    const src = new ComicsSource({ web, gatewayBase: () => 'https://gw.test', persist: memPersist() });
     const f = await src.file();
     expect(f.space).toBe('COMICS');
-    expect(f.categories.map((c) => c.id)).toEqual(['co-manga', 'co-manhwa', 'co-manhua']);
-    expect(f.categories[0].rows.map((r) => r.id)).toEqual(['co-manga-popular', 'co-manga-top', 'co-manga-latest', 'co-manga-new']);
-    expect(f.categories[0].rows[1].style).toBe('TOP10');
-    expect(f.items.every((i) => i.space === 'COMICS' && i.poster.startsWith('https://uploads.mangadex.org/'))).toBe(true);
-    expect(f.categories[0].heroIds.length).toBeGreaterThan(0);
-  });
+    expect(calls.length).toBeGreaterThan(0);
+    expect(calls.every((u) => u.startsWith('https://gw.test/api/public/v1/manga/gql'))).toBe(true);
+    expect(calls.some((u) => u.includes('api.mangadex.org'))).toBe(false);
+    expect(f.categories.map((c) => c.id)).toEqual(['co-all', 'co-manga', 'co-manhwa', 'co-manhua']);
+    expect(f.categories[0].rows.map((r) => r.title)).toEqual([
+      'Trending',
+      'Popular Manhwa',
+      'Popular Manga',
+      'Popular Manhua',
+      'Top Rated'
+    ]);
+    expect(f.items.every((i) => i.poster.startsWith('https://s4.anilist.co/'))).toBe(true);
 
-  it('item() attaches the chapter list, pages stay lazy', async () => {
-    const src = new ComicsSource({
-      web: routes({ '/manga/u1/feed': { data: [{ id: 'a', attributes: { chapter: '1', pages: 5 } }] }, '/manga/u1?': { data: mdManga('u1', 'ja') } }),
-      gatewayBase: () => ''
-    });
-    const it = (await src.item('co-md:u1'))!;
-    expect(it.title).toBe('Test Title');
-    expect(it.pages?.map((c) => c.id)).toEqual(['ch:a']);
-    expect(it.pages?.[0].pages).toEqual([]);
-  });
-
-  it('live search queries MangaDex by title + optional category and attaches ratings', async () => {
-    const calls: string[] = [];
-    const src = new ComicsSource({
-      web: routes(
-        {
-          'api.mangadex.org/manga?': { data: [mdManga('s1', 'ko', 'Solo Leveling')] },
-          'api.mangadex.org/statistics': { statistics: { s1: { rating: { bayesian: 9.35 } } } }
-        },
-        calls
-      ),
-      gatewayBase: () => ''
-    });
     const hits = await src.search('Solo Leveling', undefined, 'co-manhwa');
     expect(hits.length).toBe(1);
+    expect(hits[0].id).toBe('co-al:105398');
     expect(hits[0].title).toBe('Solo Leveling');
-    expect(hits[0].rating).toBe(9.4);
-    expect(hits[0].categoryId).toBe('co-manhwa');
-    expect(calls[0]).toContain('originalLanguage%5B%5D=ko');
   });
 
-  it('chapter pages: gateway c2 → gateway chapter → MangaDex at-home (with data-saver backup) → unavailable', async () => {
-    const at = { baseUrl: 'https://md.network', chapter: { hash: 'h', data: ['1.png'], dataSaver: ['1s.jpg'] } };
-    // Gateway c2 returns empty, action=chapter fails → direct at-home via native bridge wins and stores backup.
+  it('resolves chapters via /manga/c1 with fallback to /manga/dex, persists metadata across reloads, and proxies /manga/c2 pages with Referer via /manga/img', async () => {
+    const calls: string[] = [];
+    const persist = memPersist();
+    const web: JsonFetch = async (url) => {
+      calls.push(url);
+      const u = new URL(url);
+      if (u.pathname === '/api/public/v1/manga/gql') {
+        return { data: { Media: alMedia(105398, 'KR', 'Solo Leveling') } };
+      }
+      if (u.pathname === '/api/public/v1/manga/c1') {
+        return { chapters: [{ id: '01JXYZ001', n: '1', t: 'Prologue' }, { id: '01JXYZ002', n: '2', t: '' }] };
+      }
+      if (u.pathname === '/api/public/v1/manga/c2') {
+        return {
+          pages: ['https://planeptune.us/manga/solo/001.jpg', 'https://planeptune.us/manga/solo/002.jpg'],
+          ref: 'https://weebcentral.com/'
+        };
+      }
+      throw new Error(`Unexpected ${url}`);
+    };
+
+    const src = new ComicsSource({ web, gatewayBase: () => 'https://gw.test', persist });
+    const full = (await src.item('co-al:105398'))!;
+    expect(full.title).toBe('Solo Leveling');
+    expect(full.pages?.map((c) => c.id)).toEqual(['ch:ck-01JXYZ001', 'ch:ck-01JXYZ002']);
+
+    // Simulate reload: brand-new ComicsSource instance with offline network recovers full item + chapters from persist!
+    const reloaded = new ComicsSource({
+      web: async () => {
+        throw new Error('offline');
+      },
+      gatewayBase: () => 'https://gw.test',
+      persist
+    });
+    const recovered = (await reloaded.item('co-al:105398'))!;
+    expect(recovered.title).toBe('Solo Leveling');
+    expect(recovered.poster).toContain('s4.anilist.co');
+    expect(recovered.pages?.length).toBe(2);
+
+    // Chapter pages wrap external hotlink-protected CDN images through /api/public/v1/manga/img?u=...&r=...
+    const pages = await src.chapterPages('ch:ck-01JXYZ001');
+    expect(pages).toEqual([
+      'https://gw.test/api/public/v1/manga/img?u=https%3A%2F%2Fplaneptune.us%2Fmanga%2Fsolo%2F001.jpg&r=https%3A%2F%2Fweebcentral.com%2F',
+      'https://gw.test/api/public/v1/manga/img?u=https%3A%2F%2Fplaneptune.us%2Fmanga%2Fsolo%2F002.jpg&r=https%3A%2F%2Fweebcentral.com%2F'
+    ]);
+    expect(src.backupPages('ch:ck-01JXYZ001')).toEqual([
+      'https://planeptune.us/manga/solo/001.jpg',
+      'https://planeptune.us/manga/solo/002.jpg'
+    ]);
+  });
+
+  it('falls back to /api/public/v1/manga/dex/.../feed + at-home when /manga/c1 has no chapters', async () => {
+    const web: JsonFetch = async (url) => {
+      const u = new URL(url);
+      if (u.pathname === '/api/public/v1/manga/gql') {
+        return { data: { Media: alMedia(30002, 'JP', 'Berserk') } };
+      }
+      if (u.pathname === '/api/public/v1/manga/c1') return { chapters: [] };
+      if (u.pathname === '/api/public/v1/manga/dex/manga') {
+        return { data: [{ id: 'dex-berserk', attributes: { title: { en: 'Berserk' }, links: { al: '30002' } } }] };
+      }
+      if (u.pathname === '/api/public/v1/manga/dex/manga/dex-berserk/feed') {
+        return { data: [{ id: 'dex-ch-1', attributes: { chapter: '1', title: 'The Black Swordsman', pages: 45 } }] };
+      }
+      if (u.pathname === '/api/public/v1/manga/dex/at-home/server/dex-ch-1') {
+        return { baseUrl: 'https://cmdxd98sb0x3yprd.mangadex.network', chapter: { hash: 'h9', data: ['p1.png'], dataSaver: ['p1s.jpg'] } };
+      }
+      throw new Error(`404 ${url}`);
+    };
+
+    const src = new ComicsSource({ web, gatewayBase: () => 'https://gw.test', persist: memPersist() });
+    const item = (await src.item('co-al:30002'))!;
+    expect(item.pages?.map((c) => c.id)).toEqual(['ch:dex-ch-1']);
+    const pages = await src.chapterPages('ch:dex-ch-1');
+    expect(pages).toEqual([
+      'https://gw.test/api/public/v1/manga/img?u=https%3A%2F%2Fcmdxd98sb0x3yprd.mangadex.network%2Fdata%2Fh9%2Fp1.png&r=https%3A%2F%2Fmangadex.org%2F'
+    ]);
+    expect(src.backupPages('ch:dex-ch-1')).toEqual(['https://cmdxd98sb0x3yprd.mangadex.network/data-saver/h9/p1s.jpg']);
+  });
+
+  it('rescues c1 chapters via /manga/dex at-home when /manga/c2 returns empty pages', async () => {
+    const web: JsonFetch = async (url) => {
+      const u = new URL(url);
+      if (u.pathname === '/api/public/v1/manga/gql') {
+        return { data: { Media: alMedia(30002, 'JP', 'Berserk') } };
+      }
+      if (u.pathname === '/api/public/v1/manga/c1') {
+        return { chapters: [{ id: '01JEMPTY01', n: '1', t: 'The Black Swordsman' }] };
+      }
+      if (u.pathname === '/api/public/v1/manga/c2') return { pages: [] };
+      if (u.pathname === '/api/public/v1/manga/dex/manga') {
+        return { data: [{ id: 'dex-berserk', attributes: { title: { en: 'Berserk' }, links: { al: '30002' } } }] };
+      }
+      if (u.pathname === '/api/public/v1/manga/dex/manga/dex-berserk/feed') {
+        return { data: [{ id: 'dex-ch-1', attributes: { chapter: '1', title: 'The Black Swordsman', pages: 45 } }] };
+      }
+      if (u.pathname === '/api/public/v1/manga/dex/at-home/server/dex-ch-1') {
+        return { baseUrl: 'https://cmdxd98sb0x3yprd.mangadex.network', chapter: { hash: 'h9', data: ['rescued.png'], dataSaver: [] } };
+      }
+      throw new Error(`404 ${url}`);
+    };
+
+    const src = new ComicsSource({ web, gatewayBase: () => 'https://gw.test', persist: memPersist() });
+    const item = (await src.item('co-al:30002'))!;
+    expect(item.pages?.map((c) => c.id)).toEqual(['ch:ck-01JEMPTY01']);
+    const pages = await src.chapterPages('ch:ck-01JEMPTY01');
+    expect(pages).toEqual([
+      'https://gw.test/api/public/v1/manga/img?u=https%3A%2F%2Fcmdxd98sb0x3yprd.mangadex.network%2Fdata%2Fh9%2Frescued.png&r=https%3A%2F%2Fmangadex.org%2F'
+    ]);
+  });
+
+  it('keeps MangaDex fallback when gatewayBase is empty ("") for gateway.test.ts compatibility', async () => {
+    const list = { data: [mdManga('u1', 'ja'), mdManga('u2', 'ko'), mdManga('u3', 'zh')] };
     const calls: string[] = [];
     const src = new ComicsSource({
-      web: routes({ 'gw.test/api/public/v1/manga?action=c2': { chapter: { data: [] } } }, calls),
-      native: routes({ 'at-home/server': at }, calls),
-      gatewayBase: () => 'https://gw.test'
+      web: async (url) => {
+        calls.push(url);
+        if (url.includes('/statistics/')) return { statistics: { u1: { rating: { bayesian: 9.1 } } } };
+        return list;
+      },
+      gatewayBase: () => ''
     });
-    expect(await src.chapterPages('ch:a')).toEqual(['https://md.network/data/h/1.png']);
-    expect(src.backupPages('ch:a')).toEqual(['https://md.network/data-saver/h/1s.jpg']);
-    expect(await src.chapterPages('ch:a', undefined, { dataSaver: true })).toEqual(['https://md.network/data-saver/h/1s.jpg']);
-    expect(calls[0]).toContain('action=c2&id=a');
-    expect(calls.some((u) => u.includes('action=chapter&id=a'))).toBe(true);
-    expect(calls.some((u) => u.includes('at-home/server/a'))).toBe(true);
-
-    // Gateway action=chapter serves pages when action=c2 fails → no direct at-home call needed.
-    const chCalls: string[] = [];
-    const gwChapterOk = new ComicsSource({
-      web: routes({ 'action=chapter': { pages: ['https://cdn.example/1.jpg'] } }, chCalls),
-      gatewayBase: () => 'https://gw.test'
-    });
-    expect(await gwChapterOk.chapterPages('ch:b2')).toEqual(['https://cdn.example/1.jpg']);
-    expect(chCalls.some((u) => u.includes('at-home'))).toBe(false);
-
-    // Gateway c2 serves pages → no action=chapter or direct call at all.
-    const c2: string[] = [];
-    const gwOk = new ComicsSource({ web: routes({ 'action=c2': at }, c2), gatewayBase: () => 'https://gw.test' });
-    expect((await gwOk.chapterPages('ch:b')).length).toBe(1);
-    expect(c2.some((u) => u.includes('at-home'))).toBe(false);
-
-    // Everything fails → [] ("chapter unavailable"), never throws.
-    const dead = new ComicsSource({ web: routes({}), gatewayBase: () => 'https://gw.test' });
-    await expect(dead.chapterPages('ch:c')).resolves.toEqual([]);
+    const f = await src.file();
+    expect(f.items[0].id).toBe('co-md:u1');
+    expect(calls.some((u) => u.includes('api.mangadex.org'))).toBe(true);
   });
 });

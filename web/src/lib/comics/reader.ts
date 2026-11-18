@@ -130,8 +130,9 @@ export function resolvePageSrc(
   preferDataSaver = false
 ): string | null {
   if (!primaryUrl && !backupUrl) return null;
-  const first = preferDataSaver && backupUrl ? backupUrl : primaryUrl || backupUrl!;
-  const second = preferDataSaver
+  const useSaverFirst = preferDataSaver && !!backupUrl && backupUrl.includes('/data-saver/');
+  const first = useSaverFirst ? backupUrl! : primaryUrl || backupUrl!;
+  const second = useSaverFirst
     ? primaryUrl && primaryUrl !== first
       ? primaryUrl
       : undefined
