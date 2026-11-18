@@ -2,6 +2,7 @@ package com.mythbrix.cinetor.core.player
 
 import android.media.MediaCodecInfo
 import android.media.MediaCodecList
+import com.mythbrix.cinetor.core.data.DubOption
 import com.mythbrix.cinetor.core.data.Item
 import com.mythbrix.cinetor.core.data.ItemType
 import com.mythbrix.cinetor.core.data.Source
@@ -9,6 +10,7 @@ import com.mythbrix.cinetor.core.data.SourceKind
 import com.mythbrix.cinetor.core.data.Space
 import com.mythbrix.cinetor.core.data.Sub
 import com.mythbrix.cinetor.core.data.SubFormat
+import com.mythbrix.cinetor.core.data.fullLanguageName
 import com.mythbrix.cinetor.core.data.gateway.GatewayApi
 import com.mythbrix.cinetor.core.data.gateway.GatewayConfig
 import com.mythbrix.cinetor.core.data.gateway.GatewayMapper
@@ -16,9 +18,11 @@ import com.mythbrix.cinetor.core.data.gateway.GwCaption
 import com.mythbrix.cinetor.core.data.gateway.GwManifest
 import com.mythbrix.cinetor.core.data.gateway.GwSource
 import com.mythbrix.cinetor.core.data.gateway.GwStream
+import com.mythbrix.cinetor.core.data.gateway.dubOptionList
 import com.mythbrix.cinetor.core.data.tmdb.TmdbMapper
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
 import java.net.URLDecoder
 import java.util.Locale
@@ -219,7 +223,33 @@ class GatewaySourceResolver(
         val adultItem = item.space == Space.ADULT || item.id.startsWith(GatewayMapper.ADULT_PREFIX)
         if (GatewayMapper.isGatewayId(item.id)) {
             val sid = GatewayMapper.subjectIdOf(item.id) ?: return null
-            return streamFor(sid, item.slug ?: slugOf(item.id), se, ep, fresh, adultItem)
+            val resolvedSlug = item.slug ?: slugOf(item.id) ?: sid
+            val primaryAudio = GatewayMapper.explicitDubLanguageOf(item.title, null, resolvedSlug) ?: "Original"
+            val primaryStream = runCatching {
+                streamFor(
+                    sid = sid,
+                    slug = resolvedSlug,
+                    se = se,
+                    ep = ep,
+                    fresh = fresh,
+                    adultAllowed = adultItem,
+                    itemDubs = item.dubs,
+                    primaryAudioLang = primaryAudio,
+                )
+            }.getOrElse { e ->
+                if (e is CancellationException) throw e
+                if (GatewayMapper.parseTmdbSubjectId(sid) == null) throw e
+                null
+            }
+            if (primaryStream != null) return primaryStream
+
+            GatewayMapper.parseTmdbSubjectId(sid)?.let { (media, tmdbId) ->
+                val tmdbMedia = if (media == "tv") TmdbMapper.TV else "movie"
+                resolveByTmdbId(tmdbId, tmdbMedia, se, ep, item.title, item.year, adultItem)?.let { return it }
+                val match = tmdbMatches[item.id] ?: searchMatch(item)?.also { tmdbMatches[item.id] = it } ?: return null
+                return streamFor(match.first, match.second, se, ep, fresh, adultItem, item.dubs, primaryAudio)
+            }
+            return null
         }
         // TMDB-origin item.
         val tmdbKey = "${item.id}|$se|$ep|${netTag()}"
@@ -232,9 +262,21 @@ class GatewaySourceResolver(
         return streamFor(match.first, match.second, se, ep, fresh, adultItem)?.also { cache[tmdbKey] = Entry(clock(), it) }
     }
 
-    private suspend fun resolveApi(item: Item, se: Int, ep: Int, adultAllowed: Boolean): ResolvedStream? = try {
+    private suspend fun resolveApi(item: Item, se: Int, ep: Int, adultAllowed: Boolean): ResolvedStream? {
         val (media, tmdbId) = TmdbMapper.parseId(item.id) ?: return null
-        val r = api.resolve(tmdbId.toString(), media, se.takeIf { media == TmdbMapper.TV }, ep.takeIf { media == TmdbMapper.TV }, item.title, item.year)
+        return resolveByTmdbId(tmdbId, media, se, ep, item.title, item.year, adultAllowed)
+    }
+
+    private suspend fun resolveByTmdbId(
+        tmdbId: Int,
+        media: String,
+        se: Int,
+        ep: Int,
+        title: String,
+        year: Int,
+        adultAllowed: Boolean,
+    ): ResolvedStream? = try {
+        val r = api.resolve(tmdbId.toString(), media, se.takeIf { media == TmdbMapper.TV }, ep.takeIf { media == TmdbMapper.TV }, title, year)
         val gwSources = r.sources.filter { it.url.isNotBlank() }.map { s ->
             GwSource(
                 source = s.provider,
@@ -268,22 +310,22 @@ class GatewaySourceResolver(
         val hits = api.search(item.title).items.filter { it.subjectId != null }
         val best = hits.firstOrNull { h ->
             val y = h.year?.take(4)?.toIntOrNull() ?: 0
-            normalize(h.name.orEmpty()) == norm && (item.year == 0 || y == 0 || kotlin.math.abs(y - item.year) <= 1) &&
+            normalize(h.resolvedName.orEmpty()) == norm && (item.year == 0 || y == 0 || kotlin.math.abs(y - item.year) <= 1) &&
                 ((h.type == "tv") == wantTv)
-        } ?: hits.firstOrNull { h -> normalize(h.name.orEmpty()).startsWith(norm) && ((h.type == "tv") == wantTv) }
-        return best?.let { it.subjectId!! to it.slug }
+        } ?: hits.firstOrNull { h -> normalize(h.resolvedName.orEmpty()).startsWith(norm) && ((h.type == "tv") == wantTv) }
+        return best?.let { it.subjectId!! to it.resolvedSlug }
     }
 
-    private suspend fun fetchStreamWithRescue(sid: String, slug: String?, se: Int, ep: Int): GwStream {
-        var s = api.stream(sid, slug, se, ep, full = true)
+    private suspend fun fetchStreamWithRescue(sid: String, slug: String?, se: Int, ep: Int, full: Boolean = true): GwStream {
+        var s = api.stream(sid, slug, se, ep, full = full)
         if (s.sources.isEmpty() && s.dash.isEmpty() && s.hls.isEmpty() && s.directPlayUrl.isNullOrBlank() && s.trailerUrl.isNullOrBlank()) {
             // Rescue movies indexed as S1E1 or single-part TV specials indexed as 0/0 on the gateway.
             if (se == 0 && ep == 0) {
-                runCatching { api.stream(sid, slug, 1, 1, full = true) }.getOrNull()?.takeIf {
+                runCatching { api.stream(sid, slug, 1, 1, full = full) }.getOrNull()?.takeIf {
                     it.sources.isNotEmpty() || it.dash.isNotEmpty() || it.hls.isNotEmpty() || !it.directPlayUrl.isNullOrBlank()
                 }?.let { s = it }
             } else if (se == 1 && ep == 1) {
-                runCatching { api.stream(sid, slug, 0, 0, full = true) }.getOrNull()?.takeIf {
+                runCatching { api.stream(sid, slug, 0, 0, full = full) }.getOrNull()?.takeIf {
                     it.sources.isNotEmpty() || it.dash.isNotEmpty() || it.hls.isNotEmpty() || !it.directPlayUrl.isNullOrBlank()
                 }?.let { s = it }
             }
@@ -298,10 +340,12 @@ class GatewaySourceResolver(
         ep: Int,
         fresh: Boolean,
         adultAllowed: Boolean,
+        itemDubs: List<DubOption> = emptyList(),
+        primaryAudioLang: String = "Original",
     ): ResolvedStream? {
         val mobileNow = isMobile()
         val key = "$sid|$se|$ep|${if (mobileNow) "m" else "w"}"
-        if (!fresh) cache[key]?.takeIf { clock() - it.at < GatewayConfig.STREAM_TTL_MS }?.let { return it.stream }
+        if (!fresh) cache[key]?.takeIf { clock() - it.at < GatewayConfig.STREAM_TTL_MS && (itemDubs.isEmpty() || it.stream.sources.any { s -> s.audioLang != null && s.audioLang != "Original" }) }?.let { return it.stream }
         val result = coroutineScope {
             val subs = async {
                 try {
@@ -312,11 +356,58 @@ class GatewaySourceResolver(
                     emptyList()
                 }
             }
-            val s = fetchStreamWithRescue(sid, slug, se, ep)
+            val candidateDubsDeferred = async {
+                if (adultAllowed) {
+                    emptyList()
+                } else if (itemDubs.isNotEmpty()) {
+                    itemDubs.filter { it.subjectId != sid }.distinctBy { it.subjectId }.take(MAX_DUBS)
+                } else if (!slug.isNullOrBlank()) {
+                    runCatching { api.detail(slug).data?.subject?.dubs.dubOptionList(excludeSubjectId = sid) }
+                        .getOrDefault(emptyList())
+                        .take(MAX_DUBS)
+                } else {
+                    emptyList()
+                }
+            }
+            val mainStreamDeferred = async { fetchStreamWithRescue(sid, slug, se, ep, full = true) }
+
+            val candidateDubs = candidateDubsDeferred.await()
+            val dubStreams = if (candidateDubs.isEmpty()) {
+                emptyList()
+            } else {
+                candidateDubs.map { dub ->
+                    async {
+                        val langName = fullLanguageName(dub.languageName)
+                        val ds = runCatching { fetchStreamWithRescue(dub.subjectId, dub.slug, se, ep, full = false) }.getOrNull()
+                        langName to ds
+                    }
+                }.awaitAll()
+            }
+
+            val s = mainStreamDeferred.await()
             val unlockedRaw = unlockStreamSources(s)
             val fallback = s.directPlayUrl?.takeIf { it.isNotBlank() && extractYouTubeVideoId(it) == null }
-                ?.let { Source(api.absolute(it), SourceKind.MP4, "Gateway proxy") }
-            val sources = rankGwSources(
+                ?.let { Source(api.absolute(it), SourceKind.MP4, "Gateway proxy", audioLang = primaryAudioLang) }
+
+            val dubRanked = dubStreams.flatMap { (dubLang, ds) ->
+                if (ds == null) {
+                    emptyList()
+                } else {
+                    rankGwSources(
+                        raw = unlockStreamSources(ds),
+                        baseUrl = api.base,
+                        directPlayUrl = if (mobileNow) ds.directPlayUrl else null,
+                        mobile = mobileNow,
+                        cap = maxHeight(),
+                        adultAllowed = false,
+                        nowMs = clock(),
+                        defaultAudioLang = dubLang,
+                        forceAudioLabel = true,
+                    )
+                }
+            }
+
+            val mainSources = rankGwSources(
                 raw = unlockedRaw,
                 baseUrl = api.base,
                 directPlayUrl = if (mobileNow) s.directPlayUrl else null,
@@ -324,8 +415,11 @@ class GatewaySourceResolver(
                 cap = maxHeight(),
                 adultAllowed = adultAllowed,
                 nowMs = clock(),
+                defaultAudioLang = primaryAudioLang,
+                forceAudioLabel = dubRanked.isNotEmpty(),
             )
-            if (sources.isEmpty() && fallback == null) null else ResolvedStream(sources, subs.await(), fallback)
+            val mergedSources = (mainSources + dubRanked).distinctBy { it.url }
+            if (mergedSources.isEmpty() && fallback == null) null else ResolvedStream(mergedSources, subs.await(), fallback)
         }
         if (result != null) {
             val now = clock()
@@ -336,7 +430,102 @@ class GatewaySourceResolver(
         return result
     }
 
+    /**
+     * Searches online WebVTT subtitles via `/api/public/v1/subtitles/search`, falling back to
+     * top 3 `/search` matches -> `/captions` wrapped through `/api/public/v1/subtitle?url=...`.
+     * All language names & labels are normalized via [fullLanguageName].
+     */
+    suspend fun searchOnlineSubtitles(
+        query: String,
+        itemId: String? = null,
+        season: Int = 0,
+        episode: Int = 0,
+        lang: String? = null,
+    ): List<KnownSubtitle> = coroutineScope {
+        val cleanQuery = query.trim()
+        val sid = itemId?.let { GatewayMapper.subjectIdOf(it) }
+        val slug = itemId?.let { slugOf(it) } ?: sid
+        if (cleanQuery.isEmpty() && sid == null) return@coroutineScope emptyList()
+
+        val se = season.coerceAtLeast(0)
+        val ep = episode.coerceAtLeast(0)
+        val wantLang = lang?.trim()
+            ?.takeIf { it.isNotEmpty() && !it.equals("all", ignoreCase = true) && !it.equals("any", ignoreCase = true) }
+            ?.let(::fullLanguageName)
+            ?.takeIf { it != "Original" }
+
+        val primaryResults = try {
+            val resp = api.subtitleSearch(q = cleanQuery, subjectId = sid, slug = slug, se = se, ep = ep, lang = lang)
+            resp.subtitles.mapNotNull { sub ->
+                val rawUrl = (sub.vttUrl ?: sub.url)?.trim()?.takeIf { it.isNotEmpty() } ?: return@mapNotNull null
+                val absUrl = api.subtitleProxyUrl(rawUrl).takeIf { it.isNotEmpty() } ?: return@mapNotNull null
+                val fullLang = fullLanguageName(sub.language?.takeIf { it.isNotBlank() } ?: sub.label.orEmpty())
+                val cleanLabel = normalizeOnlineSubLabel(sub.label, fullLang)
+                KnownSubtitle(
+                    url = absUrl,
+                    label = cleanLabel,
+                    language = fullLang,
+                    id = sub.id?.takeIf { it.isNotBlank() } ?: absUrl,
+                )
+            }.distinctBy { it.url }
+        } catch (e: CancellationException) {
+            throw e
+        } catch (_: Exception) {
+            emptyList()
+        }
+
+        val resolved = if (primaryResults.isNotEmpty()) {
+            primaryResults
+        } else {
+            val candidates = LinkedHashMap<String, String?>()
+            if (!sid.isNullOrBlank()) candidates[sid] = slug
+            if (cleanQuery.isNotEmpty()) {
+                val searchHits = runCatching { api.search(cleanQuery).items }.getOrDefault(emptyList())
+                for (hit in searchHits) {
+                    val hSid = hit.subjectId?.takeIf { it.isNotBlank() } ?: continue
+                    if (candidates.size >= 4) break
+                    candidates.putIfAbsent(hSid, hit.resolvedSlug ?: hSid)
+                }
+            }
+            candidates.entries.take(3).map { (cSid, cSlug) ->
+                async {
+                    try {
+                        var caps = api.captions(cSid, cSlug, se, ep).captions
+                        if (caps.isEmpty() && se == 1 && ep == 1) {
+                            caps = runCatching { api.captions(cSid, cSlug, 0, 0).captions }.getOrDefault(emptyList())
+                        } else if (caps.isEmpty() && se == 0 && ep == 0) {
+                            caps = runCatching { api.captions(cSid, cSlug, 1, 1).captions }.getOrDefault(emptyList())
+                        }
+                        caps.mapNotNull { c ->
+                            if (c.url.isBlank()) return@mapNotNull null
+                            val proxied = api.subtitleProxyUrl(c.url).takeIf { it.isNotEmpty() } ?: return@mapNotNull null
+                            val fullLang = fullLanguageName(c.lanName?.takeIf { it.isNotBlank() } ?: c.lan.orEmpty())
+                            KnownSubtitle(
+                                url = proxied,
+                                label = fullLang,
+                                language = fullLang,
+                                id = proxied,
+                            )
+                        }
+                    } catch (e: CancellationException) {
+                        throw e
+                    } catch (_: Exception) {
+                        emptyList()
+                    }
+                }
+            }.awaitAll().flatten().distinctBy { it.url }
+        }
+
+        if (wantLang == null) {
+            resolved
+        } else {
+            resolved.sortedBy { if (it.language.equals(wantLang, ignoreCase = true)) 0 else 1 }
+        }
+    }
+
     companion object {
+        private const val MAX_DUBS = 4
+
         private val PLAY_HEADERS = mapOf("Referer" to "https://movieboxhd.net/")
 
         private val IMAGE_PATH = Regex("""(?i)\.(jpe?g|png|webp|gif|bmp|svg)$|/null$""")
@@ -464,11 +653,24 @@ class GatewaySourceResolver(
             if (isDualAudio(listOfNotNull(g.language, g.audio).joinToString(" "), g.url)) {
                 return "Dual Audio"
             }
-            val explicit = listOfNotNull(g.language, g.audio).joinToString(" ")
+            val explicit = listOfNotNull(g.language, g.audio).joinToString(" ").trim()
+            if (explicit.isEmpty()) return null
             for ((canonical, regex) in AUDIO_LANG_TOKENS) {
-                if (regex.containsMatchIn(explicit)) return canonical
+                if (regex.containsMatchIn(explicit)) return fullLanguageName(canonical)
             }
-            return null
+            val normalized = fullLanguageName(explicit)
+            return normalized.takeIf { it != "Original" }
+        }
+
+        private fun normalizeOnlineSubLabel(rawLabel: String?, fullLang: String): String {
+            val trimmed = rawLabel?.trim().orEmpty()
+            if (trimmed.isEmpty()) return fullLang
+            val parts = trimmed.split("·", " - ").map { it.trim() }.filter { it.isNotEmpty() }
+            if (parts.size <= 1) return fullLang
+            val extra = parts.drop(1).filter { p ->
+                p.length > 3 && !fullLanguageName(p).equals(fullLang, ignoreCase = true)
+            }
+            return if (extra.isEmpty()) fullLang else (listOf(fullLang) + extra).joinToString(" · ")
         }
 
         /** Unlocks 1080p DASH/HLS manifests and YouTube trailers from [GwStream] when absent from `sources`. */
@@ -532,29 +734,36 @@ class GatewaySourceResolver(
             return out
         }
 
-        fun toSource(g: GwSource): Source? {
+        fun toSource(
+            g: GwSource,
+            defaultAudioLang: String = "Original",
+            forceAudioLabel: Boolean = false,
+        ): Source? {
             if (g.url.isBlank() || g.vipLocked) return null
+            val cleanDefaultAudio = fullLanguageName(defaultAudioLang)
+            val explicitTag = detectAudioLabel(g)
+            val resolvedAudioLang = if (explicitTag == "Dual Audio") cleanDefaultAudio else (explicitTag ?: cleanDefaultAudio)
+            val labelAudioTag = explicitTag ?: if (forceAudioLabel) cleanDefaultAudio else null
             val ytId = extractYouTubeVideoId(g.url, g.format, g.source)
             if (ytId != null) {
                 val h = heightOf(g.resolution) ?: 720
-                val audioTag = detectAudioLabel(g)
-                val label = listOfNotNull(qualityLabel(h, g.resolution), audioTag).joinToString(" · ")
+                val label = listOfNotNull(qualityLabel(h, g.resolution), labelAudioTag).joinToString(" · ")
                 return Source(
                     url = toYouTubeEmbedUrl(ytId),
                     kind = SourceKind.MP4,
                     label = label,
                     headers = emptyMap(),
                     height = h,
+                    audioLang = resolvedAudioLang,
                 )
             }
             if (isImageLink(g.url)) return null
             val h = heightOf(g.resolution)
             val kind = kindOf(g.format, g.url)
             val size = g.size?.takeIf { it > 0 }
-            val audioTag = detectAudioLabel(g)
             val label = listOfNotNull(
                 qualityLabel(h, g.resolution),
-                audioTag,
+                labelAudioTag,
                 kind.name,
                 if (isHevc(g.codec)) "HEVC" else null,
                 formatSize(size).takeIf { it.isNotEmpty() },
@@ -573,6 +782,7 @@ class GatewaySourceResolver(
                 height = h,
                 sizeBytes = size,
                 codec = g.codec,
+                audioLang = resolvedAudioLang,
             )
         }
 
@@ -597,10 +807,13 @@ class GatewaySourceResolver(
             cap: Int? = null,
             adultAllowed: Boolean = false,
             nowMs: Long = System.currentTimeMillis(),
+            defaultAudioLang: String = "Original",
+            forceAudioLabel: Boolean = false,
         ): List<Source> {
+            val cleanDefaultAudio = fullLanguageName(defaultAudioLang)
             val candidates = ArrayList<Candidate>(raw.size * 2 + 1)
             for (g in raw) {
-                val primary = toSource(g) ?: continue
+                val primary = toSource(g, defaultAudioLang = cleanDefaultAudio, forceAudioLabel = forceAudioLabel) ?: continue
                 if (!adultAllowed && isAdultLink(primary.url)) continue
                 val yt = isYouTubeEmbedUrl(primary.url)
                 val bdix = !yt && (g.isBdix || g.source.equals("bdix", ignoreCase = true) || BDIX_URL_HINT.containsMatchIn(primary.url))
@@ -650,13 +863,19 @@ class GatewaySourceResolver(
             if (mobile && !directPlayUrl.isNullOrBlank() && candidates.none { it.isProxy }) {
                 val proxyAbs = absoluteUrl(baseUrl, directPlayUrl)
                 if (extractYouTubeVideoId(proxyAbs) == null && (!isAdultLink(proxyAbs) || adultAllowed)) {
+                    val proxyLabel = listOfNotNull(
+                        "720p HD",
+                        if (forceAudioLabel) cleanDefaultAudio else null,
+                        "Proxy",
+                    ).joinToString(" · ")
                     candidates += Candidate(
                         source = Source(
                             url = proxyAbs,
                             kind = SourceKind.MP4,
-                            label = "720p HD · Proxy",
+                            label = proxyLabel,
                             headers = emptyMap(),
                             height = 720,
+                            audioLang = cleanDefaultAudio,
                         ),
                         isBdix = false,
                         isProxy = true,
@@ -791,7 +1010,8 @@ class GatewaySourceResolver(
                 else -> SubFormat.SRT
             }
             val lang = c.lan?.takeIf { it.isNotBlank() } ?: "und"
-            return Sub(lang, c.lanName?.takeIf { it.isNotBlank() } ?: lang.uppercase(Locale.US), c.url, format)
+            val humanLabel = fullLanguageName(c.lanName?.takeIf { it.isNotBlank() } ?: lang)
+            return Sub(lang, humanLabel, c.url, format)
         }
 
         private fun normalize(s: String): String = s.lowercase(Locale.US).replace(Regex("[^\\p{L}\\p{N}]+"), " ").trim()

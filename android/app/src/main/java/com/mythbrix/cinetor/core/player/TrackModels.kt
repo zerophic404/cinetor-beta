@@ -1,6 +1,26 @@
 package com.mythbrix.cinetor.core.player
 
 import androidx.compose.runtime.Immutable
+import com.mythbrix.cinetor.core.data.Sub
+import com.mythbrix.cinetor.core.data.SubFormat
+import kotlinx.serialization.Serializable
+
+/** Online subtitle search result (`/api/public/v1/subtitles/search` or caption proxy fallback). */
+@Immutable
+@Serializable
+data class KnownSubtitle(
+    val url: String,
+    val label: String,
+    val language: String,
+    val id: String = url,
+    val mimeType: String = "text/vtt",
+    val format: SubFormat = SubFormat.VTT,
+) {
+    val vttUrl: String get() = url
+    val lang: String get() = language
+    fun toSubPlan(): SubPlan = SubPlan(url, mimeType, language, label)
+    fun toSub(): Sub = Sub(language, label, url, format)
+}
 
 /** Player lifecycle phase (mirrors Player.STATE_* without the Media3 dependency). */
 enum class PlaybackPhase { IDLE, BUFFERING, READY, ENDED }

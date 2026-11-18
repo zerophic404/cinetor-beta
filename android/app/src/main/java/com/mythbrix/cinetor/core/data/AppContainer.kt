@@ -10,6 +10,7 @@ import com.mythbrix.cinetor.core.data.gateway.GatewayApi
 import com.mythbrix.cinetor.core.data.gateway.GatewayCache
 import com.mythbrix.cinetor.core.data.gateway.GatewayCatalogSource
 import com.mythbrix.cinetor.core.data.gateway.GatewaySigner
+import com.mythbrix.cinetor.core.data.gateway.HttpGatewayTmdbBridge
 import com.mythbrix.cinetor.core.data.gateway.OkHttpGatewayHttp
 import com.mythbrix.cinetor.core.data.gateway.PaletteDominantColors
 import com.mythbrix.cinetor.core.data.gateway.SharedPrefsSlugStore
@@ -131,6 +132,11 @@ class AppContainer(context: Context) {
             slugs = SharedPrefsSlugStore(appContext),
             colors = PaletteDominantColors(appContext, httpClient, appScope),
             adultAllowed = adultUnlocked,
+            tmdbBridge = HttpGatewayTmdbBridge(
+                client = httpClient,
+                bearerToken = { BuildConfig.TMDB_TOKEN },
+                apiKey = { BuildConfig.TMDB_API_KEY },
+            ),
         )
     }
 
@@ -154,6 +160,12 @@ class AppContainer(context: Context) {
             log = { com.mythbrix.cinetor.core.legal.DebugLog.log("playback") { it } },
             onNoSource = { id -> gateway.markUnplayable(id) },
         )
+    }
+
+    init {
+        SourceResolver.onlineSubtitleDelegate = { query, itemId, season, episode, lang ->
+            streams.searchOnlineSubtitles(query, itemId, season, episode, lang)
+        }
     }
 
     private fun defaultMaxHeight(): Int? = runCatching {
