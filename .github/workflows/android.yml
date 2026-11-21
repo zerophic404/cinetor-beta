@@ -267,11 +267,9 @@ jobs:
           } > notes.md
           cat notes.md
 
-      - name: Publish signed release (public cinetor-app)
+      - name: Publish signed release
         uses: softprops/action-gh-release@v2
         with:
-          repository: Ashrix404/cinetor-app
-          token: ${{ secrets.RELEASE_TOKEN }}
           tag_name: ${{ steps.info.outputs.tag }}
           target_commitish: main
           name: ${{ steps.info.outputs.name }}
