@@ -43,7 +43,7 @@ internal const val OWNERSHIP_F3 = "3f2e28333f2c3f767a283f2c3f28293f773f343d33343
 
 /** User's antiblock gateway (docs/gateway.md). Base URL overridable in Settings → Developer. */
 object GatewayConfig {
-    const val BASE_URL = "https://antiblock-gateway.vercel.app"
+    const val BASE_URL = "https://cinetor-gateway-v2.onrender.com"
     const val API = "/api/public/v1"
     const val CATALOG_TIMEOUT_MS = 10_000L
     const val STREAM_TIMEOUT_MS = 15_000L
